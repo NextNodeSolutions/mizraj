@@ -1,9 +1,9 @@
-import base from '@nextnode-solutions/standards/oxlint'
+import standardsConfig from '@nextnode-solutions/standards/oxlint'
+import { defineConfig } from 'oxlint'
 
-export default {
-	...base,
+export default defineConfig({
+	extends: [standardsConfig],
 	rules: {
-		...base.rules,
 		'react/react-in-jsx-scope': 'off',
 	},
-}
+})
