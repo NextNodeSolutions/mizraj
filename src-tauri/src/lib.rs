@@ -1,7 +1,58 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+mod logging;
+
+use tauri::Manager;
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[tauri::command]
+fn log_from_frontend(
+    level: String,
+    message: String,
+    scope: Option<String>,
+    request_id: Option<String>,
+    details: Option<String>,
+) {
+    let scope = scope.as_deref().unwrap_or("frontend");
+    let request_id = request_id.as_deref().unwrap_or("");
+    let details = details.as_deref().unwrap_or("");
+
+    match level.as_str() {
+        "error" => tracing::error!(
+            target: "frontend",
+            scope,
+            request_id,
+            details,
+            "{}",
+            message
+        ),
+        "warn" => tracing::warn!(
+            target: "frontend",
+            scope,
+            request_id,
+            details,
+            "{}",
+            message
+        ),
+        "debug" => tracing::debug!(
+            target: "frontend",
+            scope,
+            request_id,
+            details,
+            "{}",
+            message
+        ),
+        _ => tracing::info!(
+            target: "frontend",
+            scope,
+            request_id,
+            details,
+            "{}",
+            message
+        ),
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -11,7 +62,12 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![greet])
+        .setup(|app| {
+            let guard = logging::init_logging(app)?;
+            app.manage(guard);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![greet, log_from_frontend])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
