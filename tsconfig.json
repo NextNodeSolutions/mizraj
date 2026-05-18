@@ -1,0 +1,11 @@
+{
+	"extends": "@nextnode-solutions/standards/typescript/nextjs",
+	"compilerOptions": {
+		"jsx": "react-jsx",
+		"allowImportingTsExtensions": true,
+		"useDefineForClassFields": true
+	},
+	"include": ["src"],
+	"exclude": ["node_modules", "dist", "src-tauri", "vitest.config.ts"],
+	"references": [{ "path": "./tsconfig.node.json" }]
+}
