@@ -44,8 +44,46 @@ jobs:
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
 
+            - name: Import Apple Developer certificate
+              if: matrix.os == 'macos-latest'
+              env:
+                  APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+                  APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+                  KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+              run: |
+                  echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
+                  security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+                  security default-keychain -s build.keychain
+                  security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+                  security set-keychain-settings -t 3600 -u build.keychain
+                  security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+                  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+                  rm certificate.p12
+
+            - name: Resolve macOS signing identity
+              if: matrix.os == 'macos-latest'
+              run: |
+                  CERT_ID=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | awk -F'"' '{print $2}' | head -n 1)
+                  if [ -z "$CERT_ID" ]; then
+                    echo "Developer ID Application certificate not found in build.keychain" >&2
+                    security find-identity -v -p codesigning build.keychain >&2
+                    exit 1
+                  fi
+                  echo "APPLE_SIGNING_IDENTITY=$CERT_ID" >> "$GITHUB_ENV"
+
             - name: Build Tauri app
               run: pnpm tauri build
+
+            - name: Verify macOS code signature
+              if: matrix.os == 'macos-latest'
+              run: |
+                  APP_BUNDLE=$(find src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' -print -quit)
+                  if [ -z "$APP_BUNDLE" ]; then
+                    echo "No .app bundle found under src-tauri/target/release/bundle/macos" >&2
+                    exit 1
+                  fi
+                  codesign -dv --verbose=4 "$APP_BUNDLE"
+                  codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 
             - name: Upload artifacts to release
               uses: softprops/action-gh-release@v2
