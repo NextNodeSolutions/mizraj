@@ -1,8 +1,8 @@
 {
 	"$schema": "https://schema.tauri.app/config/2",
-	"productName": "tauri-app",
+	"productName": "Agent Cockpit",
 	"version": "0.1.0",
-	"identifier": "com.walid-mos.tauri-app",
+	"identifier": "fr.nextnode.agent-cockpit",
 	"build": {
 		"beforeDevCommand": "vite",
 		"devUrl": "http://localhost:1420",
@@ -12,9 +12,11 @@
 	"app": {
 		"windows": [
 			{
-				"title": "tauri-app",
-				"width": 800,
-				"height": 600
+				"title": "Agent Cockpit",
+				"width": 1280,
+				"height": 800,
+				"minWidth": 1024,
+				"minHeight": 720
 			}
 		],
 		"security": {
