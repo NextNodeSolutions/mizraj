@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 
 import App from './App'
+import ErrorBoundary from './components/ErrorBoundary'
 import { logger } from './logger'
 
 window.addEventListener('error', event => {
@@ -66,6 +67,8 @@ const reactErrorHandlers: Parameters<typeof ReactDOM.createRoot>[1] =
 
 ReactDOM.createRoot(rootElement, reactErrorHandlers).render(
 	<React.StrictMode>
-		<App />
+		<ErrorBoundary>
+			<App />
+		</ErrorBoundary>
 	</React.StrictMode>,
 )
