@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@nextnode-solutions/logger':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@tauri-apps/api':
         specifier: ^2
         version: 2.11.0
@@ -494,6 +497,10 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@nextnode-solutions/logger@2.0.0':
+    resolution: {integrity: sha512-VY2NnPl8kcwdiUpJqQo9kv3AfF8MPjwFuPEkW14QKNJyRSDcjuYbvOY701Oe68wRy3JQt1UC9PuWGP0+rdrvVw==}
+    engines: {node: '>=24.0.0'}
 
   '@nextnode-solutions/standards@1.9.3':
     resolution: {integrity: sha512-mthJ4pRZgpfw7pXzT/6gZaJkfzTXGMYgMLlBaJb2hDuZtXRKKBfNeA/d6Di2bA2eNYRmdadc3CMuOeE3ybOlGQ==}
@@ -3450,6 +3457,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@nextnode-solutions/logger@2.0.0': {}
 
   '@nextnode-solutions/standards@1.9.3(@commitlint/cli@21.0.1(@types/node@25.9.0)(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0)(typescript@5.8.3))(@commitlint/config-conventional@21.0.1)(oxfmt@0.50.0)(oxlint@1.65.0)(semantic-release@25.0.3(typescript@5.8.3))(vitest@4.1.6)':
     dependencies:
