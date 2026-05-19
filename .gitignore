@@ -27,3 +27,6 @@ coverage
 # Python
 __pycache__/
 *.pyc
+
+# Rust
+/target/
