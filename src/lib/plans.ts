@@ -9,6 +9,7 @@ export type PlanKind = 'interview' | 'plan'
 export type PlanEntry = {
 	kind: PlanKind
 	slug: string
+	title: string
 	path: string
 	mtime: number
 }
