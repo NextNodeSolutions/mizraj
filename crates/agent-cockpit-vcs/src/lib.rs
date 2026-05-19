@@ -6,8 +6,10 @@ use thiserror::Error;
 pub use git2;
 
 pub mod branch;
+pub mod diff;
 
 pub use branch::current_branch;
+pub use diff::diff_session;
 
 pub type Result<T> = std::result::Result<T, VcsError>;
 
