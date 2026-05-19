@@ -9,7 +9,7 @@ pub mod branch;
 pub mod diff;
 
 pub use branch::current_branch;
-pub use diff::{diff_session, diff_working_tree};
+pub use diff::{diff_head_base, diff_session, diff_working_tree};
 
 pub type Result<T> = std::result::Result<T, VcsError>;
 

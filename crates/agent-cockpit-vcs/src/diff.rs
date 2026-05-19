@@ -24,6 +24,14 @@ pub fn diff_working_tree(repo: &Repository) -> Result<Diff<'_>> {
     Ok(diff)
 }
 
+pub fn diff_head_base<'repo>(repo: &'repo Repository, base: &str) -> Result<Diff<'repo>> {
+    let base_tree = repo.revparse_single(base)?.peel_to_commit()?.tree()?;
+    let head_tree = repo.head()?.peel_to_commit()?.tree()?;
+
+    let diff = repo.diff_tree_to_tree(Some(&base_tree), Some(&head_tree), None)?;
+    Ok(diff)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,5 +180,60 @@ mod tests {
 
         let diff = diff_working_tree(&repo).expect("diff_working_tree");
         assert_eq!(diff.deltas().count(), 0);
+    }
+
+    #[test]
+    fn returns_diff_between_base_branch_and_head() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+
+        let base_oid = commit_file(&repo, "a.txt", "v1\n", "main: init");
+
+        let base_commit = repo.find_commit(base_oid).expect("find_commit");
+        repo.branch("feature", &base_commit, false)
+            .expect("create feature branch");
+        repo.set_head("refs/heads/feature")
+            .expect("set HEAD to feature");
+
+        commit_file(&repo, "a.txt", "v2\n", "feature: modify a");
+        commit_file(&repo, "b.txt", "new\n", "feature: add b");
+
+        let diff = diff_head_base(&repo, "main").expect("diff_head_base");
+
+        let mut paths: Vec<String> = diff
+            .deltas()
+            .map(|d| {
+                d.new_file()
+                    .path()
+                    .expect("new_file path")
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        paths.sort();
+        assert_eq!(paths, vec!["a.txt".to_string(), "b.txt".to_string()]);
+    }
+
+    #[test]
+    fn returns_empty_diff_when_base_matches_head() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+        commit_file(&repo, "a.txt", "v1\n", "init");
+
+        let diff = diff_head_base(&repo, "main").expect("diff_head_base");
+        assert_eq!(diff.deltas().count(), 0);
+    }
+
+    #[test]
+    fn errors_when_base_ref_missing() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+        commit_file(&repo, "a.txt", "v1\n", "init");
+
+        let err = diff_head_base(&repo, "nonexistent")
+            .err()
+            .expect("should fail");
+        let crate::VcsError::Git(inner) = err;
+        assert_eq!(inner.code(), git2::ErrorCode::NotFound);
     }
 }
