@@ -77,7 +77,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             log_from_frontend,
-            commands::list_plans::list_plans
+            commands::list_plans::list_plans,
+            commands::plan_submit::plan_submit
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
