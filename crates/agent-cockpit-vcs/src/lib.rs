@@ -5,6 +5,10 @@ use thiserror::Error;
 
 pub use git2;
 
+pub mod branch;
+
+pub use branch::current_branch;
+
 pub type Result<T> = std::result::Result<T, VcsError>;
 
 #[derive(Debug, Error)]
