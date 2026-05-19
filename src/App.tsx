@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import './App.css'
+import PlansMenu from './components/PlansMenu'
 import SettingsPanel from './components/SettingsPanel'
 import { useSettings } from './lib/settings'
 
@@ -25,6 +26,12 @@ function App(): React.JSX.Element {
 					⚙
 				</button>
 			</header>
+			<div className="layout">
+				<aside className="sidebar" aria-label="Sidebar">
+					<PlansMenu repoPath={settings.lastProjectPath} />
+				</aside>
+				<section className="main-content" />
+			</div>
 			<SettingsPanel
 				open={panelOpen}
 				onClose={() => setPanelOpen(false)}
