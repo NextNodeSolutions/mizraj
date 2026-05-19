@@ -1,3 +1,4 @@
+mod db;
 mod logging;
 
 use tauri::Manager;
@@ -68,6 +69,11 @@ pub fn run() {
         .setup(|app| {
             let guard = logging::init_logging(app)?;
             app.manage(guard);
+            let app_data_dir = app.path().app_data_dir()?;
+            std::fs::create_dir_all(&app_data_dir)?;
+            let db_path = app_data_dir.join("agent-cockpit.db");
+            let pool = tauri::async_runtime::block_on(db::init_db(&db_path))?;
+            app.manage(pool);
             #[cfg(desktop)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
