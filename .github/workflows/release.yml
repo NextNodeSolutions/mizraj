@@ -85,6 +85,33 @@ jobs:
                   codesign -dv --verbose=4 "$APP_BUNDLE"
                   codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 
+            - name: Notarize and staple macOS artifacts
+              if: matrix.os == 'macos-latest'
+              env:
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+              run: |
+                  DMG_PATH=$(find src-tauri/target/release/bundle/dmg -maxdepth 1 -name '*.dmg' -print -quit)
+                  if [ -z "$DMG_PATH" ]; then
+                    echo "No .dmg found under src-tauri/target/release/bundle/dmg" >&2
+                    exit 1
+                  fi
+                  APP_BUNDLE=$(find src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' -print -quit)
+                  if [ -z "$APP_BUNDLE" ]; then
+                    echo "No .app bundle found under src-tauri/target/release/bundle/macos" >&2
+                    exit 1
+                  fi
+                  xcrun notarytool submit "$DMG_PATH" \
+                    --apple-id "$APPLE_ID" \
+                    --password "$APPLE_ID_PASSWORD" \
+                    --team-id "$APPLE_TEAM_ID" \
+                    --wait
+                  xcrun stapler staple "$DMG_PATH"
+                  xcrun stapler staple "$APP_BUNDLE"
+                  xcrun stapler validate "$DMG_PATH"
+                  xcrun stapler validate "$APP_BUNDLE"
+
             - name: Upload artifacts to release
               uses: softprops/action-gh-release@v2
               with:
