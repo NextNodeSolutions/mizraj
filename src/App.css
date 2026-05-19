@@ -48,7 +48,8 @@
 	--shadow-elevated: 0 20px 60px rgba(76, 79, 105, 0.25);
 	--shadow-input: 0 2px 2px rgba(76, 79, 105, 0.15);
 
-	font-family: 'MonoLisa Nerd Font', 'MonoLisa', ui-monospace, SFMono-Regular,
+	font-family:
+		'MonoLisa Nerd Font', 'MonoLisa', ui-monospace, SFMono-Regular,
 		'SF Mono', Menlo, Consolas, monospace;
 	font-size: 14px;
 	line-height: 22px;
@@ -238,6 +239,14 @@
 	font-size: 0.85rem;
 	color: var(--color-text-muted);
 	text-align: left;
+}
+
+.plan-panel {
+	display: block;
+	width: 100%;
+	height: 100%;
+	border: 0;
+	background: var(--color-surface, #ffffff);
 }
 
 .top-bar {
