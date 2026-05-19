@@ -1,4 +1,4 @@
-use git2::{Diff, Repository};
+use git2::{Diff, DiffOptions, Repository};
 
 use crate::Result;
 
@@ -12,6 +12,15 @@ pub fn diff_session<'repo>(repo: &'repo Repository, session_id: &str) -> Result<
     let head_tree = repo.head()?.peel_to_commit()?.tree()?;
 
     let diff = repo.diff_tree_to_tree(Some(&session_tree), Some(&head_tree), None)?;
+    Ok(diff)
+}
+
+pub fn diff_working_tree(repo: &Repository) -> Result<Diff<'_>> {
+    let mut opts = DiffOptions::new();
+    opts.include_untracked(true);
+    opts.recurse_untracked_dirs(true);
+
+    let diff = repo.diff_index_to_workdir(None, Some(&mut opts))?;
     Ok(diff)
 }
 
@@ -114,5 +123,54 @@ mod tests {
         let err = diff_session(&repo, "missing").err().expect("should fail");
         let crate::VcsError::Git(inner) = err;
         assert_eq!(inner.code(), git2::ErrorCode::NotFound);
+    }
+
+    #[test]
+    fn returns_unstaged_and_untracked_changes() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+        commit_file(&repo, "a.txt", "v1\n", "init");
+
+        let workdir = repo.workdir().expect("workdir");
+        fs::write(workdir.join("a.txt"), "v2\n").expect("write modified");
+        fs::write(workdir.join("b.txt"), "new\n").expect("write untracked");
+
+        let diff = diff_working_tree(&repo).expect("diff_working_tree");
+
+        let mut paths: Vec<String> = diff
+            .deltas()
+            .map(|d| {
+                d.new_file()
+                    .path()
+                    .expect("new_file path")
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        paths.sort();
+        assert_eq!(paths, vec!["a.txt".to_string(), "b.txt".to_string()]);
+
+        let mut hunk_count = 0usize;
+        diff.foreach(
+            &mut |_, _| true,
+            None,
+            Some(&mut |_, _| {
+                hunk_count += 1;
+                true
+            }),
+            None,
+        )
+        .expect("foreach diff");
+        assert!(hunk_count >= 1, "expected at least one hunk, got {hunk_count}");
+    }
+
+    #[test]
+    fn returns_empty_diff_when_working_tree_clean() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+        commit_file(&repo, "a.txt", "v1\n", "init");
+
+        let diff = diff_working_tree(&repo).expect("diff_working_tree");
+        assert_eq!(diff.deltas().count(), 0);
     }
 }
