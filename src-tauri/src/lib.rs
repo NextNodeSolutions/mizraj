@@ -1,4 +1,5 @@
 mod db;
+mod files;
 mod logging;
 
 use tauri::Manager;
@@ -78,7 +79,11 @@ pub fn run() {
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet, log_from_frontend])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            log_from_frontend,
+            files::read_interview_state
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
