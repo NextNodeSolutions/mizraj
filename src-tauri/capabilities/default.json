@@ -9,6 +9,7 @@
 		"updater:default",
 		"process:default",
 		"dialog:default",
+		"store:default",
 		{
 			"identifier": "shell:allow-execute",
 			"allow": [
