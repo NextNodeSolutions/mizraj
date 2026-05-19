@@ -1,30 +1,32 @@
+import { ask } from '@tauri-apps/plugin-dialog'
+import { relaunch } from '@tauri-apps/plugin-process'
+import { check } from '@tauri-apps/plugin-updater'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
+import { describeError } from './errors'
 import { logger } from './logger'
 
 window.addEventListener('error', event => {
+	const { stack } = describeError(event.error)
 	logger.error(event.message, {
 		scope: 'window',
 		details: {
 			filename: event.filename,
 			lineno: event.lineno,
 			colno: event.colno,
-			stack: event.error instanceof Error ? event.error.stack : undefined,
+			stack,
 		},
 	})
 })
 
 window.addEventListener('unhandledrejection', event => {
-	const reason = event.reason
-	const message = reason instanceof Error ? reason.message : String(reason)
+	const { message, stack } = describeError(event.reason)
 	logger.error(`Unhandled promise rejection: ${message}`, {
 		scope: 'window',
-		details: {
-			stack: reason instanceof Error ? reason.stack : undefined,
-		},
+		details: { stack },
 	})
 })
 
@@ -34,15 +36,6 @@ if (!rootElement) {
 }
 
 logger.info('Frontend bootstrapping')
-
-const describeError = (
-	error: unknown,
-): { message: string; stack: string | undefined } => {
-	if (error instanceof Error) {
-		return { message: error.message, stack: error.stack }
-	}
-	return { message: String(error), stack: undefined }
-}
 
 type ReactErrorInfo = { componentStack?: string | null }
 
@@ -72,3 +65,41 @@ ReactDOM.createRoot(rootElement, reactErrorHandlers).render(
 		</ErrorBoundary>
 	</React.StrictMode>,
 )
+
+const SKIPPED_UPDATE_STORAGE_KEY = 'agent-cockpit:updater:skipped-version'
+
+void (async () => {
+	try {
+		const update = await check()
+		if (!update) {
+			return
+		}
+		if (
+			localStorage.getItem(SKIPPED_UPDATE_STORAGE_KEY) === update.version
+		) {
+			return
+		}
+		const accepted = await ask(
+			`Agent Cockpit ${update.version} is available. Install and restart now?`,
+			{
+				title: 'Update available',
+				kind: 'info',
+				okLabel: 'Install and restart',
+				cancelLabel: 'Skip this version',
+			},
+		)
+		if (!accepted) {
+			localStorage.setItem(SKIPPED_UPDATE_STORAGE_KEY, update.version)
+			return
+		}
+		localStorage.removeItem(SKIPPED_UPDATE_STORAGE_KEY)
+		await update.downloadAndInstall()
+		await relaunch()
+	} catch (error) {
+		const { message, stack } = describeError(error)
+		logger.error(`Updater check failed: ${message}`, {
+			scope: 'updater',
+			details: { stack },
+		})
+	}
+})()

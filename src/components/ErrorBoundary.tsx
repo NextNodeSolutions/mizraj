@@ -1,7 +1,8 @@
+import type { ErrorInfo, ReactNode } from 'react'
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary'
 import type { FallbackProps } from 'react-error-boundary'
-import type { ErrorInfo, ReactNode } from 'react'
 
+import { describeError } from '../errors'
 import { logger } from '../logger'
 
 type Props = {
@@ -11,7 +12,7 @@ type Props = {
 const ErrorFallback = ({ error }: FallbackProps): React.JSX.Element => (
 	<main className="error-boundary">
 		<h1>Something went wrong</h1>
-		<pre>{error instanceof Error ? error.message : String(error)}</pre>
+		<pre>{describeError(error).message}</pre>
 		<button type="button" onClick={() => window.location.reload()}>
 			Reload
 		</button>
@@ -19,8 +20,7 @@ const ErrorFallback = ({ error }: FallbackProps): React.JSX.Element => (
 )
 
 const handleError = (error: unknown, info: ErrorInfo): void => {
-	const message = error instanceof Error ? error.message : String(error)
-	const stack = error instanceof Error ? error.stack : undefined
+	const { message, stack } = describeError(error)
 	logger.error(message, {
 		scope: 'error-boundary',
 		details: {
