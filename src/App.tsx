@@ -4,6 +4,7 @@ import './App.css'
 import PlansMenu from './components/PlansMenu'
 import SettingsPanel from './components/SettingsPanel'
 import { useSettings } from './lib/settings'
+import PlanView from './views/PlanView'
 
 function App(): React.JSX.Element {
 	const settings = useSettings()
@@ -30,7 +31,9 @@ function App(): React.JSX.Element {
 				<aside className="sidebar" aria-label="Sidebar">
 					<PlansMenu repoPath={settings.lastProjectPath} />
 				</aside>
-				<section className="main-content" />
+				<section className="main-content">
+					<PlanView />
+				</section>
 			</div>
 			<SettingsPanel
 				open={panelOpen}

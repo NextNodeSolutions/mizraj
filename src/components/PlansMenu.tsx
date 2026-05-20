@@ -1,5 +1,6 @@
 import type { PlanEntry, PlanKind, PlansState } from '../lib/plans'
 import { usePlans } from '../lib/plans'
+import { navigate, planRouteHref } from '../router'
 
 const SECTIONS: ReadonlyArray<{ title: string; kind: PlanKind }> = [
 	{ title: 'Interviews', kind: 'interview' },
@@ -7,9 +8,7 @@ const SECTIONS: ReadonlyArray<{ title: string; kind: PlanKind }> = [
 ]
 
 const defaultSelect = (entry: PlanEntry): void => {
-	const href = `/plans/${entry.kind}/${entry.slug}`
-	window.history.pushState({}, '', href)
-	window.dispatchEvent(new PopStateEvent('popstate'))
+	navigate(planRouteHref(entry))
 }
 
 type Props = {
@@ -34,23 +33,20 @@ const PlansMenuSection = ({
 			<p className="plans-menu__empty">None yet.</p>
 		) : (
 			<ul className="plans-menu__list">
-				{entries.map(entry => {
-					const href = `/plans/${entry.kind}/${entry.slug}`
-					return (
-						<li key={`${entry.kind}:${entry.slug}`}>
-							<a
-								className="plans-menu__link"
-								href={href}
-								onClick={event => {
-									event.preventDefault()
-									onSelect(entry)
-								}}
-							>
-								{entry.slug}
-							</a>
-						</li>
-					)
-				})}
+				{entries.map(entry => (
+					<li key={`${entry.kind}:${entry.slug}`}>
+						<a
+							className="plans-menu__link"
+							href={planRouteHref(entry)}
+							onClick={event => {
+								event.preventDefault()
+								onSelect(entry)
+							}}
+						>
+							{entry.slug}
+						</a>
+					</li>
+				))}
 			</ul>
 		)}
 	</section>

@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { describeError } from '../errors'
 import { logger } from '../logger'
 
-export type PlanKind = 'interview' | 'plan'
+export const PLAN_KINDS = ['interview', 'plan'] as const
+export type PlanKind = (typeof PLAN_KINDS)[number]
 
 export type PlanEntry = {
 	kind: PlanKind
