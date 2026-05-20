@@ -20,13 +20,7 @@
 			}
 		],
 		"security": {
-			"csp": null,
-			"assetProtocol": {
-				"enable": true,
-				"scope": [
-					"**/docs/**/*.html"
-				]
-			}
+			"csp": null
 		}
 	},
 	"bundle": {

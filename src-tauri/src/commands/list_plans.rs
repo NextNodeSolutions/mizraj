@@ -4,13 +4,56 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-#[derive(Debug, Serialize, Deserialize)]
+use crate::active_project::ActiveProject;
+use crate::commands::plan_protocol::plan_url;
+
+const ERR_NO_ACTIVE_PROJECT: &str = "no active project: call set_active_project first";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PlanKind {
     Interview,
     Plan,
+}
+
+impl PlanKind {
+    pub fn from_segment(segment: &str) -> Option<Self> {
+        match segment {
+            "interview" => Some(PlanKind::Interview),
+            "plan" => Some(PlanKind::Plan),
+            _ => None,
+        }
+    }
+
+    pub fn as_segment(self) -> &'static str {
+        match self {
+            PlanKind::Interview => "interview",
+            PlanKind::Plan => "plan",
+        }
+    }
+
+    pub fn html_path(self, root: &Path, slug: &str) -> PathBuf {
+        match self {
+            PlanKind::Interview => root
+                .join("docs")
+                .join("interviews")
+                .join(slug)
+                .join("plan.html"),
+            PlanKind::Plan => root
+                .join("docs")
+                .join("plans")
+                .join(format!("{slug}.html")),
+        }
+    }
+
+    pub fn submit_dir(self, root: &Path, slug: &str) -> PathBuf {
+        match self {
+            PlanKind::Interview => root.join("docs").join("interviews").join(slug),
+            PlanKind::Plan => root.join("docs").join("plans").join(slug),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -19,20 +62,27 @@ pub struct PlanEntry {
     pub kind: PlanKind,
     pub slug: String,
     pub title: String,
-    pub path: String,
+    /// Iframe URL served by the `plan://` URI scheme handler.
+    pub url: String,
     pub mtime: u64,
 }
 
 const TITLE_READ_LIMIT: u64 = 64 * 1024;
 
 #[tauri::command]
-pub fn list_plans(repo_path: String) -> Result<Vec<PlanEntry>, String> {
-    let root = PathBuf::from(&repo_path);
+pub fn list_plans(
+    active_project: tauri::State<'_, ActiveProject>,
+) -> Result<Vec<PlanEntry>, String> {
+    let root = active_project
+        .get()
+        .ok_or_else(|| ERR_NO_ACTIVE_PROJECT.to_string())?;
+    collect_entries(&root)
+}
+
+fn collect_entries(root: &Path) -> Result<Vec<PlanEntry>, String> {
     let mut entries = Vec::new();
-
-    collect_interviews(&root, &mut entries)?;
-    collect_plans(&root, &mut entries)?;
-
+    collect_interviews(root, &mut entries)?;
+    collect_plans(root, &mut entries)?;
     entries.sort_by(|a, b| b.mtime.cmp(&a.mtime).then_with(|| a.slug.cmp(&b.slug)));
     Ok(entries)
 }
@@ -62,11 +112,12 @@ fn collect_interviews(root: &Path, entries: &mut Vec<PlanEntry>) -> Result<(), S
             continue;
         };
         let title = read_title(&plan_html, &slug);
+        let url = plan_url(PlanKind::Interview, &slug);
         entries.push(PlanEntry {
             kind: PlanKind::Interview,
             slug,
             title,
-            path: plan_html.to_string_lossy().into_owned(),
+            url,
             mtime: mtime_from(&meta)?,
         });
     }
@@ -90,16 +141,21 @@ fn collect_plans(root: &Path, entries: &mut Vec<PlanEntry>) -> Result<(), String
         if path.extension().and_then(|s| s.to_str()) != Some("html") {
             continue;
         }
-        let Some(slug) = path.file_stem().and_then(|s| s.to_str()).map(str::to_string) else {
+        let Some(slug) = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(str::to_string)
+        else {
             continue;
         };
         let meta = entry.metadata().map_err(|e| e.to_string())?;
         let title = read_title(&path, &slug);
+        let url = plan_url(PlanKind::Plan, &slug);
         entries.push(PlanEntry {
             kind: PlanKind::Plan,
             slug,
             title,
-            path: path.to_string_lossy().into_owned(),
+            url,
             mtime: mtime_from(&meta)?,
         });
     }
@@ -107,7 +163,9 @@ fn collect_plans(root: &Path, entries: &mut Vec<PlanEntry>) -> Result<(), String
 }
 
 fn file_name_str(path: &Path) -> Option<String> {
-    path.file_name().and_then(|s| s.to_str()).map(str::to_string)
+    path.file_name()
+        .and_then(|s| s.to_str())
+        .map(str::to_string)
 }
 
 fn mtime_from(meta: &fs::Metadata) -> Result<u64, String> {
@@ -232,7 +290,7 @@ mod tests {
         )
         .expect("write plan html");
 
-        let entries = list_plans(root.to_string_lossy().into_owned()).expect("list_plans");
+        let entries = collect_entries(root).expect("collect_entries");
         assert_eq!(entries.len(), 2);
 
         let interview = entries
@@ -241,7 +299,10 @@ mod tests {
             .expect("interview entry");
         assert_eq!(interview.slug, "agent-cockpit");
         assert_eq!(interview.title, "Interview");
-        assert!(interview.path.ends_with("plan.html"));
+        assert_eq!(
+            interview.url,
+            "plan://localhost/interview/agent-cockpit/plan.html"
+        );
         assert!(interview.mtime > 0);
 
         let plan = entries
@@ -250,7 +311,10 @@ mod tests {
             .expect("plan entry");
         assert_eq!(plan.slug, "2026-05-15-agent-cockpit");
         assert_eq!(plan.title, "Plan");
-        assert!(plan.path.ends_with("2026-05-15-agent-cockpit.html"));
+        assert_eq!(
+            plan.url,
+            "plan://localhost/plan/2026-05-15-agent-cockpit/plan.html"
+        );
         assert!(plan.mtime > 0);
     }
 
@@ -269,7 +333,7 @@ mod tests {
     #[test]
     fn returns_empty_when_docs_missing() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let entries = list_plans(tmp.path().to_string_lossy().into_owned()).expect("list_plans");
+        let entries = collect_entries(tmp.path()).expect("collect_entries");
         assert!(entries.is_empty());
     }
 
@@ -281,7 +345,7 @@ mod tests {
         fs::write(plans_dir.join("notes.md"), "hello").expect("write notes.md");
         fs::write(plans_dir.join("real.html"), "<html></html>").expect("write real.html");
 
-        let entries = list_plans(tmp.path().to_string_lossy().into_owned()).expect("list_plans");
+        let entries = collect_entries(tmp.path()).expect("collect_entries");
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].slug, "real");
     }
@@ -292,13 +356,14 @@ mod tests {
         let interviews_dir = tmp.path().join("docs/interviews/empty-one");
         fs::create_dir_all(&interviews_dir).expect("mkdir interview");
 
-        let entries = list_plans(tmp.path().to_string_lossy().into_owned()).expect("list_plans");
+        let entries = collect_entries(tmp.path()).expect("collect_entries");
         assert!(entries.is_empty());
     }
 
     #[test]
     fn extract_title_prefers_title_tag() {
-        let html = r#"<html><head><title>Page Title</title></head><body><h1>Heading</h1></body></html>"#;
+        let html =
+            r#"<html><head><title>Page Title</title></head><body><h1>Heading</h1></body></html>"#;
         assert_eq!(extract_title(html, "fallback"), "Page Title");
     }
 
@@ -310,7 +375,8 @@ mod tests {
 
     #[test]
     fn extract_title_falls_back_to_h1_when_title_empty() {
-        let html = r#"<html><head><title>   </title></head><body><h1>Real Title</h1></body></html>"#;
+        let html =
+            r#"<html><head><title>   </title></head><body><h1>Real Title</h1></body></html>"#;
         assert_eq!(extract_title(html, "fallback"), "Real Title");
     }
 
@@ -358,10 +424,13 @@ mod tests {
         fs::create_dir_all(&plans_dir).expect("mkdir plans");
 
         let fixture = include_str!("../../../docs/plans/2026-05-16-agent-cockpit-backlog.html");
-        fs::write(plans_dir.join("2026-05-16-agent-cockpit-backlog.html"), fixture)
-            .expect("write fixture");
+        fs::write(
+            plans_dir.join("2026-05-16-agent-cockpit-backlog.html"),
+            fixture,
+        )
+        .expect("write fixture");
 
-        let entries = list_plans(tmp.path().to_string_lossy().into_owned()).expect("list_plans");
+        let entries = collect_entries(tmp.path()).expect("collect_entries");
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].title, "Agent Cockpit — Backlog V1 (106 tâches)");
     }
@@ -376,7 +445,7 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(1100));
         fs::write(plans_dir.join("newer.html"), "<html></html>").expect("write newer");
 
-        let entries = list_plans(tmp.path().to_string_lossy().into_owned()).expect("list_plans");
+        let entries = collect_entries(tmp.path()).expect("collect_entries");
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].slug, "newer");
         assert_eq!(entries[1].slug, "older");

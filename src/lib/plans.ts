@@ -10,7 +10,7 @@ export type PlanEntry = {
 	kind: PlanKind
 	slug: string
 	title: string
-	path: string
+	url: string
 	mtime: number
 }
 
@@ -20,8 +20,10 @@ export type PlansState =
 	| { status: 'ready'; entries: ReadonlyArray<PlanEntry> }
 	| { status: 'error'; message: string }
 
-const fetchPlans = async (repoPath: string): Promise<PlanEntry[]> =>
-	invoke<PlanEntry[]>('list_plans', { repoPath })
+const setActiveProject = async (repoPath: string): Promise<void> =>
+	invoke('set_active_project', { repoPath })
+
+const fetchPlans = async (): Promise<PlanEntry[]> => invoke<PlanEntry[]>('list_plans')
 
 export const usePlans = (repoPath: string | null): PlansState => {
 	const [state, setState] = useState<PlansState>({ status: 'idle' })
@@ -33,13 +35,14 @@ export const usePlans = (repoPath: string | null): PlansState => {
 		}
 		let cancelled = false
 		setState({ status: 'loading' })
-		void fetchPlans(repoPath)
-			.then(entries => {
-				if (!cancelled) {
-					setState({ status: 'ready', entries })
-				}
-			})
-			.catch((error: unknown) => {
+		void (async () => {
+			try {
+				await setActiveProject(repoPath)
+				if (cancelled) return
+				const entries = await fetchPlans()
+				if (cancelled) return
+				setState({ status: 'ready', entries })
+			} catch (error: unknown) {
 				const { message, stack } = describeError(error)
 				logger.error(`usePlans: failed to list plans: ${message}`, {
 					scope: 'plans-menu',
@@ -48,7 +51,8 @@ export const usePlans = (repoPath: string | null): PlansState => {
 				if (!cancelled) {
 					setState({ status: 'error', message })
 				}
-			})
+			}
+		})()
 		return () => {
 			cancelled = true
 		}
