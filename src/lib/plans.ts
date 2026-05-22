@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect, useState } from 'react'
 
 import { describeError } from '../errors'
@@ -21,10 +22,7 @@ export type PlansState =
 	| { status: 'ready'; entries: ReadonlyArray<PlanEntry> }
 	| { status: 'error'; message: string }
 
-const setActiveProject = async (repoPath: string): Promise<void> =>
-	invoke('set_active_project', { repoPath })
-
-const fetchPlans = async (): Promise<PlanEntry[]> => invoke<PlanEntry[]>('list_plans')
+const fetchPlans = (): Promise<PlanEntry[]> => invoke<PlanEntry[]>('list_plans')
 
 export const usePlans = (repoPath: string | null): PlansState => {
 	const [state, setState] = useState<PlansState>({ status: 'idle' })
@@ -34,28 +32,35 @@ export const usePlans = (repoPath: string | null): PlansState => {
 			setState({ status: 'idle' })
 			return
 		}
+
 		let cancelled = false
-		setState({ status: 'loading' })
-		void (async () => {
+
+		const reload = async (): Promise<void> => {
 			try {
-				await setActiveProject(repoPath)
-				if (cancelled) return
 				const entries = await fetchPlans()
-				if (cancelled) return
-				setState({ status: 'ready', entries })
+				if (!cancelled) setState({ status: 'ready', entries })
 			} catch (error: unknown) {
 				const { message, stack } = describeError(error)
-				logger.error(`usePlans: failed to list plans: ${message}`, {
+				logger.error(`usePlans: list_plans failed: ${message}`, {
 					scope: 'plans-menu',
 					details: { stack, repoPath },
 				})
-				if (!cancelled) {
-					setState({ status: 'error', message })
-				}
+				if (!cancelled) setState({ status: 'error', message })
 			}
-		})()
+		}
+
+		setState({ status: 'loading' })
+		void reload()
+
+		const unlistenPromise = getCurrentWindow().onFocusChanged(
+			({ payload: focused }) => {
+				if (focused) void reload()
+			},
+		)
+
 		return () => {
 			cancelled = true
+			void unlistenPromise.then(off => off())
 		}
 	}, [repoPath])
 

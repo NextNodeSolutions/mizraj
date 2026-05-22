@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import PlansMenu from './components/PlansMenu'
 import SettingsPanel from './components/SettingsPanel'
+import { useActiveProject } from './lib/activeProject'
 import { useSettings } from './lib/settings'
 import PlanView from './views/PlanView'
 
 function App(): React.JSX.Element {
 	const settings = useSettings()
+	const activeProjectPath = useActiveProject(settings.lastProjectPath)
 	const [panelOpen, setPanelOpen] = useState(false)
 
 	useEffect(() => {
@@ -29,7 +31,7 @@ function App(): React.JSX.Element {
 			</header>
 			<div className="layout">
 				<aside className="sidebar" aria-label="Sidebar">
-					<PlansMenu repoPath={settings.lastProjectPath} />
+					<PlansMenu repoPath={activeProjectPath} />
 				</aside>
 				<section className="main-content">
 					<PlanView />

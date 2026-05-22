@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
 
-import { PLAN_KINDS, type PlanKind } from './lib/plans'
+import type { PlanKind } from './lib/plans'
+import { PLAN_KINDS } from './lib/plans'
 
 const PLANS_PATH_ROOT = 'plans'
 const PLAN_KIND_SET: ReadonlySet<string> = new Set(PLAN_KINDS)
+const ROUTE_SEGMENTS = 3
+const KIND_INDEX = 1
+const SLUG_INDEX = 2
 
 export type PlanRoute = { kind: PlanKind; slug: string }
 
@@ -13,15 +17,15 @@ export const planRouteHref = ({ kind, slug }: PlanRoute): string =>
 const isPlanRoute = (
 	segments: ReadonlyArray<string>,
 ): segments is readonly [typeof PLANS_PATH_ROOT, PlanKind, string] =>
-	segments.length === 3 &&
+	segments.length === ROUTE_SEGMENTS &&
 	segments[0] === PLANS_PATH_ROOT &&
-	segments[1] !== undefined &&
-	PLAN_KIND_SET.has(segments[1])
+	segments[KIND_INDEX] !== undefined &&
+	PLAN_KIND_SET.has(segments[KIND_INDEX])
 
 export const matchPlanRoute = (pathname: string): PlanRoute | null => {
 	const segments = pathname.split('/').filter(Boolean)
 	return isPlanRoute(segments)
-		? { kind: segments[1], slug: segments[2] }
+		? { kind: segments[KIND_INDEX], slug: segments[SLUG_INDEX] }
 		: null
 }
 
