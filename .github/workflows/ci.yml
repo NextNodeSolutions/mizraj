@@ -25,3 +25,37 @@ jobs:
 
             - name: Check formatting
               run: pnpm format:check
+
+    verify-libghostty:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Verify vendored headers match CHECKSUMS
+              working-directory: crates/agent-cockpit-term-sys/vendor
+              run: sha256sum -c CHECKSUMS
+
+            - name: Verify CHECKSUMS lists every vendored header
+              working-directory: crates/agent-cockpit-term-sys/vendor
+              run: |
+                  set -euo pipefail
+                  listed=$(awk '{print $2}' CHECKSUMS | sort)
+                  actual=$(find include -type f | sort)
+                  diff <(printf '%s\n' "$listed") <(printf '%s\n' "$actual")
+
+            - name: Verify VERSION matches upstream
+              working-directory: crates/agent-cockpit-term-sys/vendor
+              run: |
+                  set -euo pipefail
+                  version=$(tr -d '[:space:]' < VERSION)
+                  tmp=$(mktemp -d)
+                  while IFS= read -r line; do
+                      [ -z "$line" ] && continue
+                      path=$(awk '{print $2}' <<<"$line")
+                      url="https://raw.githubusercontent.com/ghostty-org/ghostty/${version}/${path}"
+                      mkdir -p "$tmp/$(dirname "$path")"
+                      curl -sSfL --retry 3 -o "$tmp/$path" "$url"
+                  done < CHECKSUMS
+                  cp CHECKSUMS "$tmp/CHECKSUMS"
+                  (cd "$tmp" && sha256sum -c CHECKSUMS)

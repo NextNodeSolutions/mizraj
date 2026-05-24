@@ -36,11 +36,40 @@ for sub in key mouse; do
 done
 ```
 
-Then update this file's *Upstream commit* + *Vendored on* lines and rerun
-`cargo build -p agent-cockpit-term-sys`.
+Then update this file's *Upstream commit* + *Vendored on* lines, refresh
+`VERSION` + `CHECKSUMS` (see below), and rerun `cargo build -p
+agent-cockpit-term-sys`.
 
-Pinning policy (workspace `libghostty-vt` version + checksum verification in
-CI) is owned by `SAS-382` / `[P1-06]`.
+## Version pinning + drift detection
+
+The binding surface is pinned by two sibling files:
+
+- `VERSION` — single line, the upstream `ghostty-org/ghostty` commit SHA the
+  vendored headers were extracted from.
+- `CHECKSUMS` — one `<sha256>  <relative path>` line per vendored header
+  (compatible with `sha256sum -c`).
+
+The `verify-libghostty` CI job (`.github/workflows/ci.yml`) enforces three
+invariants on every PR:
+
+1. Every vendored header still matches its `CHECKSUMS` entry (local-tree
+   integrity).
+2. The set of files listed in `CHECKSUMS` is exactly the set of files under
+   `include/` (no header added without an entry, no stale entry).
+3. Downloading every listed path from
+   `raw.githubusercontent.com/ghostty-org/ghostty/<VERSION>/<path>` and
+   re-running `sha256sum -c CHECKSUMS` succeeds (the pin truly points at the
+   upstream content we shipped).
+
+Consequence: bumping the binding surface requires editing **both** `VERSION`
+and `CHECKSUMS` in the same commit, otherwise invariant 3 fails loudly.
+
+> **Why headers and not the dylib?** Upstream publishes no per-commit
+> prebuilt `libghostty-vt.{dylib,so}` — only a rolling `tip` release plus the
+> source tarball. The C ABI we bind against lives in these headers, so
+> pinning + verifying the headers is the meaningful drift check. The runtime
+> dylib is supplied by the operator via `LIBGHOSTTY_LIB_DIR` and is out of
+> scope here.
 
 ## Override at build time
 
