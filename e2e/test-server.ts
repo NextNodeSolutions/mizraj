@@ -111,7 +111,7 @@ export const startTestServer = async ({
 			} catch {
 				return sendText(res, HTTP_BAD_REQUEST, 'invalid JSON body')
 			}
-			const pretty = `${JSON.stringify(parsed, null, JSON_INDENT)}\n`
+			const pretty = JSON.stringify(parsed, null, JSON_INDENT)
 			await mkdir(targetDir, { recursive: true })
 			const target = join(targetDir, 'submission.json')
 			await writeFile(target, pretty, 'utf8')
