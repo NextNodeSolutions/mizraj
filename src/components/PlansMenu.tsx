@@ -42,8 +42,9 @@ const PlansMenuSection = ({
 								event.preventDefault()
 								onSelect(entry)
 							}}
+							title={entry.slug}
 						>
-							{entry.slug}
+							{entry.title}
 						</a>
 					</li>
 				))}
