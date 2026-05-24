@@ -42,27 +42,53 @@ fn emit_link_flags() {
     println!("cargo:rerun-if-env-changed=LIBGHOSTTY_LIB_DIR");
 
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
-    if target_os != "macos" {
-        return;
+    match target_os.as_str() {
+        "macos" => emit_link_flags_macos(),
+        "linux" => emit_link_flags_linux(),
+        _ => {}
     }
+}
 
-    let dylib_name = "libghostty.dylib";
+fn emit_link_flags_macos() {
     let lib_dir = env::var_os("LIBGHOSTTY_LIB_DIR").map(PathBuf::from);
 
     match lib_dir {
-        Some(dir) if dir.join(dylib_name).is_file() => {
+        Some(dir) if dir.join("libghostty.dylib").is_file() => {
             println!("cargo:rustc-link-search=native={}", dir.display());
             println!("cargo:rustc-link-lib=dylib=ghostty");
         }
         Some(dir) => {
             println!(
-                "cargo:warning=libghostty.dylib not found at {} - set LIBGHOSTTY_LIB_DIR to the directory containing libghostty.dylib",
+                "cargo:warning=libghostty.dylib not found at {} - set LIBGHOSTTY_LIB_DIR to the directory containing it",
                 dir.display()
             );
         }
         None => {
             println!(
                 "cargo:warning=LIBGHOSTTY_LIB_DIR is not set - downstream binaries that use agent-cockpit-term-sys will fail to link; export it to the directory containing libghostty.dylib"
+            );
+        }
+    }
+}
+
+fn emit_link_flags_linux() {
+    let lib_dir = env::var_os("LIBGHOSTTY_LIB_DIR").map(PathBuf::from);
+
+    match lib_dir {
+        Some(dir) if dir.join("libghostty.so").is_file() => {
+            println!("cargo:rustc-link-search=native={}", dir.display());
+            println!("cargo:rustc-link-lib=dylib=ghostty");
+            println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN");
+        }
+        Some(dir) => {
+            println!(
+                "cargo:warning=libghostty.so not found at {} - set LIBGHOSTTY_LIB_DIR to the directory containing it",
+                dir.display()
+            );
+        }
+        None => {
+            println!(
+                "cargo:warning=LIBGHOSTTY_LIB_DIR is not set - downstream binaries that use agent-cockpit-term-sys will fail to link; export it to the directory containing libghostty.so"
             );
         }
     }
