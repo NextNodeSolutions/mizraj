@@ -13,7 +13,9 @@ export const runUpdaterCheck = async (): Promise<void> => {
 		if (!update) {
 			return
 		}
-		if (localStorage.getItem(SKIPPED_UPDATE_STORAGE_KEY) === update.version) {
+		if (
+			localStorage.getItem(SKIPPED_UPDATE_STORAGE_KEY) === update.version
+		) {
 			return
 		}
 		const accepted = await ask(

@@ -1,603 +1,1415 @@
 <!doctype html>
 <html lang="fr" data-theme="light">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Bridge plan-submit · Pourquoi on intercepte fetch('/submit')</title>
-  <script>
-    (function () {
-      try {
-        var stored = localStorage.getItem('np-theme');
-        var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        document.documentElement.setAttribute('data-theme', theme);
-      } catch (e) {
-        document.documentElement.setAttribute('data-theme', 'light');
-      }
-    })();
-  </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --np-bg:          oklch(98.4% 0.003 247.86);
-      --np-bg-soft:     oklch(96.8% 0.007 247.84);
-      --np-text:        oklch(20.8% 0.042 265.76);
-      --np-text-muted:  oklch(55.4% 0.046 257.42);
-      --np-border:      oklch(92.9% 0.013 255.51);
-      --np-border-soft: oklch(96.8% 0.007 247.84);
-      --np-accent:      oklch(70.4% 0.14 182.503);
-      --np-accent-bg:   oklch(95.3% 0.051 180.801);
-      --np-accent-hover:oklch(60% 0.118 184.704);
-      --np-highlight:   #F97316;
-      --np-success:     #16A34A;
-      --np-warn:        #D97706;
-      --np-danger:      #DC2626;
-      --np-shadow-soft: 0 2px 6px rgba(0,0,0,.06);
-      --np-shadow-pop:  0 4px 16px rgba(0,0,0,.12);
-      --np-radius:      8px;
-      --np-mono:        "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-      --np-sans:        "DM Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-      --np-display:     "Plus Jakarta Sans", "DM Sans", sans-serif;
-    }
-    [data-theme="dark"] {
-      --np-bg:          oklch(20.8% 0.042 265.76);
-      --np-bg-soft:     oklch(27.9% 0.041 260.03);
-      --np-text:        oklch(98.4% 0.003 247.86);
-      --np-text-muted:  oklch(70.4% 0.04 256.79);
-      --np-border:      oklch(37.2% 0.044 257.29);
-      --np-border-soft: oklch(27.9% 0.041 260.03);
-      --np-accent:      oklch(77.7% 0.152 181.912);
-      --np-accent-bg:   oklch(38.6% 0.063 188.416);
-      --np-accent-hover:oklch(85.5% 0.138 181.071);
-      --np-highlight:   #FB923C;
-      --np-success:     #4ADE80;
-      --np-warn:        #FBBF24;
-      --np-danger:      #F87171;
-      --np-shadow-soft: 0 2px 6px rgba(0,0,0,.40);
-      --np-shadow-pop:  0 4px 16px rgba(0,0,0,.55);
-    }
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width,initial-scale=1" />
+		<title>
+			Bridge plan-submit · Pourquoi on intercepte fetch('/submit')
+		</title>
+		<script>
+			;(function () {
+				try {
+					var stored = localStorage.getItem('np-theme')
+					var theme =
+						stored ||
+						(window.matchMedia('(prefers-color-scheme: dark)')
+							.matches
+							? 'dark'
+							: 'light')
+					document.documentElement.setAttribute('data-theme', theme)
+				} catch (e) {
+					document.documentElement.setAttribute('data-theme', 'light')
+				}
+			})()
+		</script>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@700;800&display=swap"
+			rel="stylesheet"
+		/>
+		<style>
+			:root {
+				--np-bg: oklch(98.4% 0.003 247.86);
+				--np-bg-soft: oklch(96.8% 0.007 247.84);
+				--np-text: oklch(20.8% 0.042 265.76);
+				--np-text-muted: oklch(55.4% 0.046 257.42);
+				--np-border: oklch(92.9% 0.013 255.51);
+				--np-border-soft: oklch(96.8% 0.007 247.84);
+				--np-accent: oklch(70.4% 0.14 182.503);
+				--np-accent-bg: oklch(95.3% 0.051 180.801);
+				--np-accent-hover: oklch(60% 0.118 184.704);
+				--np-highlight: #f97316;
+				--np-success: #16a34a;
+				--np-warn: #d97706;
+				--np-danger: #dc2626;
+				--np-shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.06);
+				--np-shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.12);
+				--np-radius: 8px;
+				--np-mono:
+					'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo,
+					monospace;
+				--np-sans:
+					'DM Sans', -apple-system, BlinkMacSystemFont, system-ui,
+					sans-serif;
+				--np-display: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+			}
+			[data-theme='dark'] {
+				--np-bg: oklch(20.8% 0.042 265.76);
+				--np-bg-soft: oklch(27.9% 0.041 260.03);
+				--np-text: oklch(98.4% 0.003 247.86);
+				--np-text-muted: oklch(70.4% 0.04 256.79);
+				--np-border: oklch(37.2% 0.044 257.29);
+				--np-border-soft: oklch(27.9% 0.041 260.03);
+				--np-accent: oklch(77.7% 0.152 181.912);
+				--np-accent-bg: oklch(38.6% 0.063 188.416);
+				--np-accent-hover: oklch(85.5% 0.138 181.071);
+				--np-highlight: #fb923c;
+				--np-success: #4ade80;
+				--np-warn: #fbbf24;
+				--np-danger: #f87171;
+				--np-shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.4);
+				--np-shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.55);
+			}
 
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
-    body {
-      font-family: var(--np-sans);
-      font-size: 15.5px;
-      line-height: 1.65;
-      color: var(--np-text);
-      background: var(--np-bg);
-      -webkit-font-smoothing: antialiased;
-    }
+			* {
+				box-sizing: border-box;
+			}
+			html,
+			body {
+				margin: 0;
+				padding: 0;
+			}
+			body {
+				font-family: var(--np-sans);
+				font-size: 15.5px;
+				line-height: 1.65;
+				color: var(--np-text);
+				background: var(--np-bg);
+				-webkit-font-smoothing: antialiased;
+			}
 
-    main { max-width: 960px; margin: 0 auto; padding: 56px 28px 96px; }
+			main {
+				max-width: 960px;
+				margin: 0 auto;
+				padding: 56px 28px 96px;
+			}
 
-    .np-theme-toggle {
-      position: fixed; top: 16px; right: 16px;
-      background: var(--np-bg-soft); border: 1px solid var(--np-border);
-      color: var(--np-text); border-radius: 999px;
-      padding: 8px 14px; font: 500 12px var(--np-sans);
-      cursor: pointer; z-index: 999;
-      box-shadow: var(--np-shadow-soft);
-    }
-    .np-theme-toggle:hover { border-color: var(--np-accent); color: var(--np-accent-hover); }
+			.np-theme-toggle {
+				position: fixed;
+				top: 16px;
+				right: 16px;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				color: var(--np-text);
+				border-radius: 999px;
+				padding: 8px 14px;
+				font: 500 12px var(--np-sans);
+				cursor: pointer;
+				z-index: 999;
+				box-shadow: var(--np-shadow-soft);
+			}
+			.np-theme-toggle:hover {
+				border-color: var(--np-accent);
+				color: var(--np-accent-hover);
+			}
 
-    /* header */
-    .eyebrow {
-      font: 600 11px var(--np-mono);
-      color: var(--np-accent-hover);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      margin-bottom: 12px;
-    }
-    h1 {
-      font-family: var(--np-display); font-weight: 800;
-      font-size: 38px; line-height: 1.15; margin: 0 0 16px;
-    }
-    .subtitle { color: var(--np-text-muted); font-size: 17px; margin: 0 0 40px; max-width: 720px; }
+			/* header */
+			.eyebrow {
+				font: 600 11px var(--np-mono);
+				color: var(--np-accent-hover);
+				letter-spacing: 0.12em;
+				text-transform: uppercase;
+				margin-bottom: 12px;
+			}
+			h1 {
+				font-family: var(--np-display);
+				font-weight: 800;
+				font-size: 38px;
+				line-height: 1.15;
+				margin: 0 0 16px;
+			}
+			.subtitle {
+				color: var(--np-text-muted);
+				font-size: 17px;
+				margin: 0 0 40px;
+				max-width: 720px;
+			}
 
-    /* tldr */
-    .tldr {
-      background: var(--np-bg-soft);
-      border-left: 4px solid var(--np-accent);
-      padding: 16px 20px;
-      border-radius: 4px;
-      margin: 0 0 56px;
-      font-size: 15px;
-    }
-    .tldr strong { color: var(--np-accent-hover); font-weight: 600; }
+			/* tldr */
+			.tldr {
+				background: var(--np-bg-soft);
+				border-left: 4px solid var(--np-accent);
+				padding: 16px 20px;
+				border-radius: 4px;
+				margin: 0 0 56px;
+				font-size: 15px;
+			}
+			.tldr strong {
+				color: var(--np-accent-hover);
+				font-weight: 600;
+			}
 
-    /* sections */
-    section { margin: 0 0 64px; }
-    section h2 {
-      font-family: var(--np-display); font-weight: 700;
-      font-size: 22px; margin: 0 0 8px; letter-spacing: -0.01em;
-    }
-    section .lede { color: var(--np-text-muted); font-size: 15px; margin: 0 0 24px; max-width: 720px; }
-    section p { margin: 0 0 12px; max-width: 720px; }
-    section p code, section li code {
-      font-family: var(--np-mono); font-size: 0.88em;
-      background: var(--np-bg-soft); padding: 1px 6px; border-radius: 4px;
-      color: var(--np-accent-hover);
-    }
-    section ul { padding-left: 20px; margin: 0 0 12px; }
-    section li { margin-bottom: 4px; }
+			/* sections */
+			section {
+				margin: 0 0 64px;
+			}
+			section h2 {
+				font-family: var(--np-display);
+				font-weight: 700;
+				font-size: 22px;
+				margin: 0 0 8px;
+				letter-spacing: -0.01em;
+			}
+			section .lede {
+				color: var(--np-text-muted);
+				font-size: 15px;
+				margin: 0 0 24px;
+				max-width: 720px;
+			}
+			section p {
+				margin: 0 0 12px;
+				max-width: 720px;
+			}
+			section p code,
+			section li code {
+				font-family: var(--np-mono);
+				font-size: 0.88em;
+				background: var(--np-bg-soft);
+				padding: 1px 6px;
+				border-radius: 4px;
+				color: var(--np-accent-hover);
+			}
+			section ul {
+				padding-left: 20px;
+				margin: 0 0 12px;
+			}
+			section li {
+				margin-bottom: 4px;
+			}
 
-    /* diagram container */
-    .diagram {
-      background: var(--np-bg-soft);
-      border: 1px solid var(--np-border);
-      border-radius: 12px;
-      padding: 28px 24px 18px;
-      margin: 0 0 32px;
-    }
-    .diag-body { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
-    .diag-caption {
-      margin-top: 18px;
-      padding-top: 14px;
-      border-top: 1px dashed var(--np-border);
-      text-align: center;
-      font: 500 11px var(--np-mono);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--np-text-muted);
-    }
+			/* diagram container */
+			.diagram {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: 12px;
+				padding: 28px 24px 18px;
+				margin: 0 0 32px;
+			}
+			.diag-body {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 8px;
+				flex-wrap: wrap;
+			}
+			.diag-caption {
+				margin-top: 18px;
+				padding-top: 14px;
+				border-top: 1px dashed var(--np-border);
+				text-align: center;
+				font: 500 11px var(--np-mono);
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				color: var(--np-text-muted);
+			}
 
-    /* diag-compare */
-    .diag-compare {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      gap: 18px;
-      align-items: stretch;
-    }
-    .diag-compare .pane {
-      background: var(--np-bg);
-      border: 1px solid var(--np-border);
-      border-radius: 8px;
-      padding: 18px 16px;
-      display: flex; flex-direction: column; gap: 10px;
-    }
-    .diag-compare .pane.bad { border-top: 3px solid var(--np-danger); }
-    .diag-compare .pane.good { border-top: 3px solid var(--np-success); }
-    .diag-compare .pane-label {
-      font: 600 11px var(--np-mono); text-transform: uppercase;
-      letter-spacing: 0.08em; color: var(--np-text-muted);
-    }
-    .diag-compare .pane.bad .pane-label { color: var(--np-danger); }
-    .diag-compare .pane.good .pane-label { color: var(--np-success); }
-    .diag-compare .pane-title { font-weight: 600; font-size: 14.5px; }
-    .diag-compare .vs {
-      display: flex; align-items: center; justify-content: center;
-      font: 700 13px var(--np-mono); color: var(--np-text-muted);
-    }
-    .diag-compare .pane-detail {
-      font-size: 13px; color: var(--np-text-muted); line-height: 1.55;
-    }
-    @media (max-width: 720px) {
-      .diag-compare { grid-template-columns: 1fr; }
-      .diag-compare .vs { padding: 4px 0; }
-    }
+			/* diag-compare */
+			.diag-compare {
+				display: grid;
+				grid-template-columns: 1fr auto 1fr;
+				gap: 18px;
+				align-items: stretch;
+			}
+			.diag-compare .pane {
+				background: var(--np-bg);
+				border: 1px solid var(--np-border);
+				border-radius: 8px;
+				padding: 18px 16px;
+				display: flex;
+				flex-direction: column;
+				gap: 10px;
+			}
+			.diag-compare .pane.bad {
+				border-top: 3px solid var(--np-danger);
+			}
+			.diag-compare .pane.good {
+				border-top: 3px solid var(--np-success);
+			}
+			.diag-compare .pane-label {
+				font: 600 11px var(--np-mono);
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				color: var(--np-text-muted);
+			}
+			.diag-compare .pane.bad .pane-label {
+				color: var(--np-danger);
+			}
+			.diag-compare .pane.good .pane-label {
+				color: var(--np-success);
+			}
+			.diag-compare .pane-title {
+				font-weight: 600;
+				font-size: 14.5px;
+			}
+			.diag-compare .vs {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				font: 700 13px var(--np-mono);
+				color: var(--np-text-muted);
+			}
+			.diag-compare .pane-detail {
+				font-size: 13px;
+				color: var(--np-text-muted);
+				line-height: 1.55;
+			}
+			@media (max-width: 720px) {
+				.diag-compare {
+					grid-template-columns: 1fr;
+				}
+				.diag-compare .vs {
+					padding: 4px 0;
+				}
+			}
 
-    /* nodes & arrows (CSS arrows per ./diagrams.md) */
-    .node {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 10px 14px;
-      border: 1px solid var(--np-border);
-      border-radius: 8px;
-      background: var(--np-bg);
-      font: 500 13px var(--np-sans);
-      color: var(--np-text);
-      white-space: nowrap;
-    }
-    .node code, .node .mono { font-family: var(--np-mono); font-size: 12px; color: var(--np-text-muted); }
-    .node.primary {
-      background: var(--np-accent-bg);
-      border-color: var(--np-accent);
-      color: var(--np-accent-hover);
-    }
-    .node.danger {
-      border-color: var(--np-danger);
-      color: var(--np-danger);
-    }
-    .node-stack { display: inline-flex; flex-direction: column; gap: 6px; }
-    .node-sub { font-size: 11px; font-family: var(--np-mono); color: var(--np-text-muted); }
+			/* nodes & arrows (CSS arrows per ./diagrams.md) */
+			.node {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				padding: 10px 14px;
+				border: 1px solid var(--np-border);
+				border-radius: 8px;
+				background: var(--np-bg);
+				font: 500 13px var(--np-sans);
+				color: var(--np-text);
+				white-space: nowrap;
+			}
+			.node code,
+			.node .mono {
+				font-family: var(--np-mono);
+				font-size: 12px;
+				color: var(--np-text-muted);
+			}
+			.node.primary {
+				background: var(--np-accent-bg);
+				border-color: var(--np-accent);
+				color: var(--np-accent-hover);
+			}
+			.node.danger {
+				border-color: var(--np-danger);
+				color: var(--np-danger);
+			}
+			.node-stack {
+				display: inline-flex;
+				flex-direction: column;
+				gap: 6px;
+			}
+			.node-sub {
+				font-size: 11px;
+				font-family: var(--np-mono);
+				color: var(--np-text-muted);
+			}
 
-    .arrow-svg { display: inline-block; vertical-align: middle; }
-    .arrow-svg line, .arrow-svg path { stroke: var(--np-text-muted); fill: var(--np-text-muted); }
-    .arrow-svg.accent line, .arrow-svg.accent path { stroke: var(--np-accent); fill: var(--np-accent); }
-    .arrow-svg.danger line, .arrow-svg.danger path { stroke: var(--np-danger); fill: var(--np-danger); }
-    .arrow-svg.dashed line { stroke-dasharray: 4 3; }
+			.arrow-svg {
+				display: inline-block;
+				vertical-align: middle;
+			}
+			.arrow-svg line,
+			.arrow-svg path {
+				stroke: var(--np-text-muted);
+				fill: var(--np-text-muted);
+			}
+			.arrow-svg.accent line,
+			.arrow-svg.accent path {
+				stroke: var(--np-accent);
+				fill: var(--np-accent);
+			}
+			.arrow-svg.danger line,
+			.arrow-svg.danger path {
+				stroke: var(--np-danger);
+				fill: var(--np-danger);
+			}
+			.arrow-svg.dashed line {
+				stroke-dasharray: 4 3;
+			}
 
-    /* architecture SVG diagram */
-    .arch-svg {
-      width: 100%; max-width: 820px; height: auto; display: block; margin: 0 auto;
-    }
-    .arch-svg .box-bg { fill: var(--np-bg); stroke: var(--np-border); stroke-width: 1.2; }
-    .arch-svg .box-bg.parent { stroke: var(--np-accent); }
-    .arch-svg .box-bg.iframe { stroke: var(--np-warn); stroke-dasharray: 5 3; }
-    .arch-svg .box-bg.rust   { stroke: var(--np-success); }
-    .arch-svg .box-label { font: 600 12px var(--np-mono); fill: var(--np-text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
-    .arch-svg .box-title { font: 600 14px var(--np-sans); fill: var(--np-text); }
-    .arch-svg .box-detail { font: 400 11.5px var(--np-mono); fill: var(--np-text-muted); }
-    .arch-svg .origin-tag { font: 600 10.5px var(--np-mono); }
-    .arch-svg .arrow-line { stroke-width: 1.5; fill: none; }
-    .arch-svg .arrow-line.invoke { stroke: var(--np-accent); }
-    .arch-svg .arrow-line.post   { stroke: var(--np-text-muted); }
-    .arch-svg .arrow-line.blocked { stroke: var(--np-danger); stroke-dasharray: 5 3; }
-    .arch-svg .arrow-head.invoke { fill: var(--np-accent); }
-    .arch-svg .arrow-head.post   { fill: var(--np-text-muted); }
-    .arch-svg .arrow-head.blocked { fill: var(--np-danger); }
-    .arch-svg .arrow-label { font: 500 11px var(--np-mono); fill: var(--np-text-muted); }
-    .arch-svg .arrow-label.accent { fill: var(--np-accent-hover); }
-    .arch-svg .arrow-label.danger { fill: var(--np-danger); font-weight: 600; }
+			/* architecture SVG diagram */
+			.arch-svg {
+				width: 100%;
+				max-width: 820px;
+				height: auto;
+				display: block;
+				margin: 0 auto;
+			}
+			.arch-svg .box-bg {
+				fill: var(--np-bg);
+				stroke: var(--np-border);
+				stroke-width: 1.2;
+			}
+			.arch-svg .box-bg.parent {
+				stroke: var(--np-accent);
+			}
+			.arch-svg .box-bg.iframe {
+				stroke: var(--np-warn);
+				stroke-dasharray: 5 3;
+			}
+			.arch-svg .box-bg.rust {
+				stroke: var(--np-success);
+			}
+			.arch-svg .box-label {
+				font: 600 12px var(--np-mono);
+				fill: var(--np-text-muted);
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+			}
+			.arch-svg .box-title {
+				font: 600 14px var(--np-sans);
+				fill: var(--np-text);
+			}
+			.arch-svg .box-detail {
+				font: 400 11.5px var(--np-mono);
+				fill: var(--np-text-muted);
+			}
+			.arch-svg .origin-tag {
+				font: 600 10.5px var(--np-mono);
+			}
+			.arch-svg .arrow-line {
+				stroke-width: 1.5;
+				fill: none;
+			}
+			.arch-svg .arrow-line.invoke {
+				stroke: var(--np-accent);
+			}
+			.arch-svg .arrow-line.post {
+				stroke: var(--np-text-muted);
+			}
+			.arch-svg .arrow-line.blocked {
+				stroke: var(--np-danger);
+				stroke-dasharray: 5 3;
+			}
+			.arch-svg .arrow-head.invoke {
+				fill: var(--np-accent);
+			}
+			.arch-svg .arrow-head.post {
+				fill: var(--np-text-muted);
+			}
+			.arch-svg .arrow-head.blocked {
+				fill: var(--np-danger);
+			}
+			.arch-svg .arrow-label {
+				font: 500 11px var(--np-mono);
+				fill: var(--np-text-muted);
+			}
+			.arch-svg .arrow-label.accent {
+				fill: var(--np-accent-hover);
+			}
+			.arch-svg .arrow-label.danger {
+				fill: var(--np-danger);
+				font-weight: 600;
+			}
 
-    /* sequence diagram (custom CSS, no mermaid needed) */
-    .seq {
-      display: grid;
-      grid-template-columns: 60px 1fr;
-      gap: 0 18px;
-      padding: 24px 6px 6px;
-    }
-    .seq-step {
-      display: contents;
-    }
-    .seq-num {
-      grid-column: 1;
-      width: 36px; height: 36px;
-      border-radius: 50%;
-      background: var(--np-bg);
-      border: 1.5px solid var(--np-accent);
-      color: var(--np-accent-hover);
-      font: 700 13px var(--np-mono);
-      display: flex; align-items: center; justify-content: center;
-      justify-self: center;
-      position: relative;
-    }
-    .seq-step:not(:last-child) .seq-num::after {
-      content: '';
-      position: absolute;
-      top: 100%; left: 50%;
-      width: 1.5px; height: 28px;
-      background: var(--np-border);
-      transform: translateX(-50%);
-    }
-    .seq-body {
-      grid-column: 2;
-      padding-bottom: 28px;
-    }
-    .seq-actor {
-      display: inline-block;
-      font: 600 10.5px var(--np-mono);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      padding: 2px 8px;
-      border-radius: 4px;
-      margin-bottom: 6px;
-    }
-    .seq-actor.parent  { background: var(--np-accent-bg); color: var(--np-accent-hover); }
-    .seq-actor.iframe  { background: rgba(217,119,6,.12); color: var(--np-warn); }
-    .seq-actor.rust    { background: rgba(22,163,74,.12); color: var(--np-success); }
-    .seq-title { font-weight: 600; font-size: 14.5px; margin: 0 0 4px; }
-    .seq-detail { color: var(--np-text-muted); font-size: 13.5px; line-height: 1.55; max-width: 640px; }
-    .seq-detail code {
-      font-family: var(--np-mono); font-size: 12.5px;
-      background: var(--np-bg-soft); padding: 1px 5px; border-radius: 3px;
-      color: var(--np-accent-hover);
-    }
+			/* sequence diagram (custom CSS, no mermaid needed) */
+			.seq {
+				display: grid;
+				grid-template-columns: 60px 1fr;
+				gap: 0 18px;
+				padding: 24px 6px 6px;
+			}
+			.seq-step {
+				display: contents;
+			}
+			.seq-num {
+				grid-column: 1;
+				width: 36px;
+				height: 36px;
+				border-radius: 50%;
+				background: var(--np-bg);
+				border: 1.5px solid var(--np-accent);
+				color: var(--np-accent-hover);
+				font: 700 13px var(--np-mono);
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				justify-self: center;
+				position: relative;
+			}
+			.seq-step:not(:last-child) .seq-num::after {
+				content: '';
+				position: absolute;
+				top: 100%;
+				left: 50%;
+				width: 1.5px;
+				height: 28px;
+				background: var(--np-border);
+				transform: translateX(-50%);
+			}
+			.seq-body {
+				grid-column: 2;
+				padding-bottom: 28px;
+			}
+			.seq-actor {
+				display: inline-block;
+				font: 600 10.5px var(--np-mono);
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				padding: 2px 8px;
+				border-radius: 4px;
+				margin-bottom: 6px;
+			}
+			.seq-actor.parent {
+				background: var(--np-accent-bg);
+				color: var(--np-accent-hover);
+			}
+			.seq-actor.iframe {
+				background: rgba(217, 119, 6, 0.12);
+				color: var(--np-warn);
+			}
+			.seq-actor.rust {
+				background: rgba(22, 163, 74, 0.12);
+				color: var(--np-success);
+			}
+			.seq-title {
+				font-weight: 600;
+				font-size: 14.5px;
+				margin: 0 0 4px;
+			}
+			.seq-detail {
+				color: var(--np-text-muted);
+				font-size: 13.5px;
+				line-height: 1.55;
+				max-width: 640px;
+			}
+			.seq-detail code {
+				font-family: var(--np-mono);
+				font-size: 12.5px;
+				background: var(--np-bg-soft);
+				padding: 1px 5px;
+				border-radius: 3px;
+				color: var(--np-accent-hover);
+			}
 
-    /* SOP callout */
-    .callout {
-      display: flex; gap: 14px; align-items: flex-start;
-      padding: 16px 18px;
-      border-radius: 8px;
-      background: var(--np-bg-soft);
-      border-left: 4px solid var(--np-warn);
-      margin: 16px 0 24px;
-    }
-    .callout-tag {
-      font: 600 11px var(--np-mono);
-      color: var(--np-warn);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      flex-shrink: 0;
-    }
-    .callout-body { font-size: 14px; line-height: 1.6; }
-    .callout-body p { margin: 0 0 6px; }
-    .callout-body p:last-child { margin: 0; }
+			/* SOP callout */
+			.callout {
+				display: flex;
+				gap: 14px;
+				align-items: flex-start;
+				padding: 16px 18px;
+				border-radius: 8px;
+				background: var(--np-bg-soft);
+				border-left: 4px solid var(--np-warn);
+				margin: 16px 0 24px;
+			}
+			.callout-tag {
+				font: 600 11px var(--np-mono);
+				color: var(--np-warn);
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				flex-shrink: 0;
+			}
+			.callout-body {
+				font-size: 14px;
+				line-height: 1.6;
+			}
+			.callout-body p {
+				margin: 0 0 6px;
+			}
+			.callout-body p:last-child {
+				margin: 0;
+			}
 
-    /* code-block + diff */
-    pre {
-      background: var(--np-bg-soft);
-      border: 1px solid var(--np-border);
-      border-radius: var(--np-radius);
-      padding: 14px 16px;
-      overflow-x: auto;
-      font: 400 12.5px/1.55 var(--np-mono);
-      color: var(--np-text);
-      margin: 0 0 16px;
-    }
-    pre code { font-family: inherit; font-size: inherit; background: none; padding: 0; color: inherit; }
+			/* code-block + diff */
+			pre {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				padding: 14px 16px;
+				overflow-x: auto;
+				font: 400 12.5px/1.55 var(--np-mono);
+				color: var(--np-text);
+				margin: 0 0 16px;
+			}
+			pre code {
+				font-family: inherit;
+				font-size: inherit;
+				background: none;
+				padding: 0;
+				color: inherit;
+			}
 
-    .diff {
-      font-family: var(--np-mono);
-      font-size: 12.5px;
-      line-height: 1.55;
-      background: var(--np-bg-soft);
-      border: 1px solid var(--np-border);
-      border-radius: var(--np-radius);
-      overflow: hidden;
-      margin: 0 0 16px;
-    }
-    .diff[data-file]::before {
-      content: attr(data-file);
-      display: block;
-      padding: 8px 12px;
-      background: var(--np-bg);
-      border-bottom: 1px solid var(--np-border);
-      font-weight: 600;
-      color: var(--np-text-muted);
-      font-size: 11.5px;
-      text-transform: lowercase;
-    }
-    .diff .line          { display:block; padding:0 12px; white-space:pre; }
-    .diff .line.hunk     { color: var(--np-text-muted); background: var(--np-bg); }
-    .diff .line.add      { background: rgba(22,163,74,.10); color: var(--np-success); }
-    .diff .line.add::before { content: '+ '; opacity: .7; }
-    .diff .line.del      { background: rgba(220,38,38,.10); color: var(--np-danger); }
-    .diff .line.del::before { content: '- '; opacity: .7; }
-    .diff .line.ctx::before { content: '  '; }
+			.diff {
+				font-family: var(--np-mono);
+				font-size: 12.5px;
+				line-height: 1.55;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				overflow: hidden;
+				margin: 0 0 16px;
+			}
+			.diff[data-file]::before {
+				content: attr(data-file);
+				display: block;
+				padding: 8px 12px;
+				background: var(--np-bg);
+				border-bottom: 1px solid var(--np-border);
+				font-weight: 600;
+				color: var(--np-text-muted);
+				font-size: 11.5px;
+				text-transform: lowercase;
+			}
+			.diff .line {
+				display: block;
+				padding: 0 12px;
+				white-space: pre;
+			}
+			.diff .line.hunk {
+				color: var(--np-text-muted);
+				background: var(--np-bg);
+			}
+			.diff .line.add {
+				background: rgba(22, 163, 74, 0.1);
+				color: var(--np-success);
+			}
+			.diff .line.add::before {
+				content: '+ ';
+				opacity: 0.7;
+			}
+			.diff .line.del {
+				background: rgba(220, 38, 38, 0.1);
+				color: var(--np-danger);
+			}
+			.diff .line.del::before {
+				content: '- ';
+				opacity: 0.7;
+			}
+			.diff .line.ctx::before {
+				content: '  ';
+			}
 
-    /* divider between major sections */
-    .rule { height: 1px; background: var(--np-border); margin: 56px 0; border: 0; }
+			/* divider between major sections */
+			.rule {
+				height: 1px;
+				background: var(--np-border);
+				margin: 56px 0;
+				border: 0;
+			}
 
-    /* takeaways */
-    .takeaways {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
-      margin-top: 8px;
-    }
-    .takeaway {
-      background: var(--np-bg-soft);
-      border: 1px solid var(--np-border);
-      border-radius: 8px;
-      padding: 14px 16px;
-    }
-    .takeaway-tag {
-      font: 600 10.5px var(--np-mono);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--np-accent-hover);
-      margin-bottom: 6px;
-    }
-    .takeaway-body { font-size: 13px; color: var(--np-text); line-height: 1.55; }
-    @media (max-width: 720px) { .takeaways { grid-template-columns: 1fr; } }
-  </style>
-</head>
-<body>
-  <button class="np-theme-toggle" type="button" aria-label="Basculer thème">◐ thème</button>
+			/* takeaways */
+			.takeaways {
+				display: grid;
+				grid-template-columns: repeat(3, 1fr);
+				gap: 14px;
+				margin-top: 8px;
+			}
+			.takeaway {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: 8px;
+				padding: 14px 16px;
+			}
+			.takeaway-tag {
+				font: 600 10.5px var(--np-mono);
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				color: var(--np-accent-hover);
+				margin-bottom: 6px;
+			}
+			.takeaway-body {
+				font-size: 13px;
+				color: var(--np-text);
+				line-height: 1.55;
+			}
+			@media (max-width: 720px) {
+				.takeaways {
+					grid-template-columns: 1fr;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<button
+			class="np-theme-toggle"
+			type="button"
+			aria-label="Basculer thème"
+		>
+			◐ thème
+		</button>
 
-  <main>
-    <header>
-      <div class="eyebrow">EXPLAINER · SAS-353 · BRIDGE PLAN-SUBMIT</div>
-      <h1>Pourquoi on intercepte <code style="font-size:30px;background:var(--np-bg-soft);padding:2px 8px;border-radius:6px;color:var(--np-accent-hover);font-family:var(--np-mono)">fetch('/submit')</code></h1>
-      <p class="subtitle">La page <code>plan.html</code> contient déjà un bouton Submit qui fait <code>fetch('/submit')</code>. Tel quel, ce fetch part dans le vide. Le bridge sert à faire en sorte que ce <em>même</em> appel atterrisse dans la commande Tauri <code>plan_submit</code>, sans toucher au template.</p>
-    </header>
+		<main>
+			<header>
+				<div class="eyebrow">
+					EXPLAINER · SAS-353 · BRIDGE PLAN-SUBMIT
+				</div>
+				<h1>
+					Pourquoi on intercepte
+					<code
+						style="
+							font-size: 30px;
+							background: var(--np-bg-soft);
+							padding: 2px 8px;
+							border-radius: 6px;
+							color: var(--np-accent-hover);
+							font-family: var(--np-mono);
+						"
+						>fetch('/submit')</code
+					>
+				</h1>
+				<p class="subtitle">
+					La page <code>plan.html</code> contient déjà un bouton
+					Submit qui fait <code>fetch('/submit')</code>. Tel quel, ce
+					fetch part dans le vide. Le bridge sert à faire en sorte que
+					ce <em>même</em> appel atterrisse dans la commande Tauri
+					<code>plan_submit</code>, sans toucher au template.
+				</p>
+			</header>
 
-    <div class="tldr">
-      <strong>TL;DR.</strong> L'iframe (origine <code>asset://</code>) et la WebView parente (origine <code>tauri://</code>) sont deux origines distinctes — la Same-Origin Policy empêche le parent de modifier directement le JS de l'iframe. Le seul canal autorisé entre les deux est <code>postMessage</code>. Le bridge implémente ce canal : la page de plan poste une demande au parent ; le parent appelle <code>invoke('plan_submit', …)</code> côté Rust ; la réponse repart par <code>postMessage</code> dans l'iframe.
-    </div>
+			<div class="tldr">
+				<strong>TL;DR.</strong> L'iframe (origine <code>asset://</code>)
+				et la WebView parente (origine <code>tauri://</code>) sont deux
+				origines distinctes — la Same-Origin Policy empêche le parent de
+				modifier directement le JS de l'iframe. Le seul canal autorisé
+				entre les deux est <code>postMessage</code>. Le bridge
+				implémente ce canal : la page de plan poste une demande au
+				parent ; le parent appelle
+				<code>invoke('plan_submit', …)</code> côté Rust ; la réponse
+				repart par <code>postMessage</code> dans l'iframe.
+			</div>
 
-    <hr class="rule">
+			<hr class="rule" />
 
-    <section id="probleme">
-      <h2>1 · Le problème — pourquoi un fetch direct ne marche pas</h2>
-      <p class="lede">La page de plan est servie depuis le système de fichiers via le protocole <code>asset://</code> de Tauri. Elle ne tourne ni sur un serveur HTTP ni dans la même origine que l'app. Tout chemin réseau qu'elle tente est résolu <em>par rapport à</em> sa propre origine.</p>
+			<section id="probleme">
+				<h2>
+					1 · Le problème — pourquoi un fetch direct ne marche pas
+				</h2>
+				<p class="lede">
+					La page de plan est servie depuis le système de fichiers via
+					le protocole <code>asset://</code> de Tauri. Elle ne tourne
+					ni sur un serveur HTTP ni dans la même origine que l'app.
+					Tout chemin réseau qu'elle tente est résolu
+					<em>par rapport à</em> sa propre origine.
+				</p>
 
-      <div class="diagram">
-        <div class="diag-compare">
-          <div class="pane bad">
-            <div class="pane-label">Naïf — sans bridge</div>
-            <div class="pane-title">L'iframe envoie <code style="font-family:var(--np-mono);font-size:12.5px">fetch('/submit')</code></div>
-            <div class="pane-detail">Le navigateur résout <code style="font-family:var(--np-mono)">/submit</code> contre l'origine de l'iframe : <code style="font-family:var(--np-mono)">asset://localhost/submit</code>. Aucun handler ne répond à cette URL → <strong style="color:var(--np-danger)">404 / erreur réseau</strong>, le bouton Submit échoue silencieusement.</div>
-          </div>
-          <div class="vs">vs</div>
-          <div class="pane good">
-            <div class="pane-label">Avec bridge</div>
-            <div class="pane-title">Le même <code style="font-family:var(--np-mono);font-size:12.5px">fetch('/submit')</code>, intercepté</div>
-            <div class="pane-detail">Un petit script tourne dans l'iframe et remplace <code style="font-family:var(--np-mono)">window.fetch</code>. Quand l'URL est <code style="font-family:var(--np-mono)">/submit</code>, il envoie un <code style="font-family:var(--np-mono)">postMessage</code> au parent React, qui exécute <code style="font-family:var(--np-mono)">plan_submit</code> et renvoie une <code style="font-family:var(--np-mono)">Response</code> synthétique. <strong style="color:var(--np-success)">La page ne voit pas la différence.</strong></div>
-          </div>
-        </div>
-        <div class="diag-caption">État du même appel <code style="font-family:var(--np-mono);text-transform:lowercase">fetch('/submit')</code> selon que le bridge est installé ou non</div>
-      </div>
+				<div class="diagram">
+					<div class="diag-compare">
+						<div class="pane bad">
+							<div class="pane-label">Naïf — sans bridge</div>
+							<div class="pane-title">
+								L'iframe envoie
+								<code
+									style="
+										font-family: var(--np-mono);
+										font-size: 12.5px;
+									"
+									>fetch('/submit')</code
+								>
+							</div>
+							<div class="pane-detail">
+								Le navigateur résout
+								<code style="font-family: var(--np-mono)"
+									>/submit</code
+								>
+								contre l'origine de l'iframe :
+								<code style="font-family: var(--np-mono)"
+									>asset://localhost/submit</code
+								>. Aucun handler ne répond à cette URL →
+								<strong style="color: var(--np-danger)"
+									>404 / erreur réseau</strong
+								>, le bouton Submit échoue silencieusement.
+							</div>
+						</div>
+						<div class="vs">vs</div>
+						<div class="pane good">
+							<div class="pane-label">Avec bridge</div>
+							<div class="pane-title">
+								Le même
+								<code
+									style="
+										font-family: var(--np-mono);
+										font-size: 12.5px;
+									"
+									>fetch('/submit')</code
+								>, intercepté
+							</div>
+							<div class="pane-detail">
+								Un petit script tourne dans l'iframe et remplace
+								<code style="font-family: var(--np-mono)"
+									>window.fetch</code
+								>. Quand l'URL est
+								<code style="font-family: var(--np-mono)"
+									>/submit</code
+								>, il envoie un
+								<code style="font-family: var(--np-mono)"
+									>postMessage</code
+								>
+								au parent React, qui exécute
+								<code style="font-family: var(--np-mono)"
+									>plan_submit</code
+								>
+								et renvoie une
+								<code style="font-family: var(--np-mono)"
+									>Response</code
+								>
+								synthétique.
+								<strong style="color: var(--np-success)"
+									>La page ne voit pas la différence.</strong
+								>
+							</div>
+						</div>
+					</div>
+					<div class="diag-caption">
+						État du même appel
+						<code
+							style="
+								font-family: var(--np-mono);
+								text-transform: lowercase;
+							"
+							>fetch('/submit')</code
+						>
+						selon que le bridge est installé ou non
+					</div>
+				</div>
 
-      <div class="callout">
-        <div class="callout-tag">⚠ SOP</div>
-        <div class="callout-body">
-          <p>On ne peut <strong>pas</strong> faire plus simple en écrivant directement dans <code>iframe.contentDocument</code> depuis React. L'iframe a une <strong>origine différente</strong> de la WebView parente — la Same-Origin Policy bloque l'accès cross-frame au DOM.</p>
-          <p>Concrètement : <code>iframe.contentWindow.document.head.appendChild(script)</code> lève une <code>SecurityError</code>. Le seul canal autorisé entre deux origines distinctes est <code>postMessage</code>.</p>
-        </div>
-      </div>
-    </section>
+				<div class="callout">
+					<div class="callout-tag">⚠ SOP</div>
+					<div class="callout-body">
+						<p>
+							On ne peut <strong>pas</strong> faire plus simple en
+							écrivant directement dans
+							<code>iframe.contentDocument</code> depuis React.
+							L'iframe a une
+							<strong>origine différente</strong> de la WebView
+							parente — la Same-Origin Policy bloque l'accès
+							cross-frame au DOM.
+						</p>
+						<p>
+							Concrètement :
+							<code
+								>iframe.contentWindow.document.head.appendChild(script)</code
+							>
+							lève une <code>SecurityError</code>. Le seul canal
+							autorisé entre deux origines distinctes est
+							<code>postMessage</code>.
+						</p>
+					</div>
+				</div>
+			</section>
 
-    <hr class="rule">
+			<hr class="rule" />
 
-    <section id="acteurs">
-      <h2>2 · Les trois acteurs et leurs origines</h2>
-      <p class="lede">Le bridge fait communiquer trois entités, chacune isolée dans son contexte. Les origines sont matérialisées par les couleurs et les bordures.</p>
+			<section id="acteurs">
+				<h2>2 · Les trois acteurs et leurs origines</h2>
+				<p class="lede">
+					Le bridge fait communiquer trois entités, chacune isolée
+					dans son contexte. Les origines sont matérialisées par les
+					couleurs et les bordures.
+				</p>
 
-      <div class="diagram">
-        <svg class="arch-svg" viewBox="0 0 820 320" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <marker id="head-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path d="M0,0 L10,5 L0,10 z" class="arrow-head invoke"/>
-            </marker>
-            <marker id="head-post" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path d="M0,0 L10,5 L0,10 z" class="arrow-head post"/>
-            </marker>
-            <marker id="head-danger" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path d="M0,0 L10,5 L0,10 z" class="arrow-head blocked"/>
-            </marker>
-          </defs>
+				<div class="diagram">
+					<svg
+						class="arch-svg"
+						viewBox="0 0 820 320"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<defs>
+							<marker
+								id="head-accent"
+								viewBox="0 0 10 10"
+								refX="9"
+								refY="5"
+								markerWidth="7"
+								markerHeight="7"
+								orient="auto-start-reverse"
+							>
+								<path
+									d="M0,0 L10,5 L0,10 z"
+									class="arrow-head invoke"
+								/>
+							</marker>
+							<marker
+								id="head-post"
+								viewBox="0 0 10 10"
+								refX="9"
+								refY="5"
+								markerWidth="7"
+								markerHeight="7"
+								orient="auto-start-reverse"
+							>
+								<path
+									d="M0,0 L10,5 L0,10 z"
+									class="arrow-head post"
+								/>
+							</marker>
+							<marker
+								id="head-danger"
+								viewBox="0 0 10 10"
+								refX="9"
+								refY="5"
+								markerWidth="7"
+								markerHeight="7"
+								orient="auto-start-reverse"
+							>
+								<path
+									d="M0,0 L10,5 L0,10 z"
+									class="arrow-head blocked"
+								/>
+							</marker>
+						</defs>
 
-          <!-- WebView parent box -->
-          <rect class="box-bg parent" x="30" y="30" width="240" height="180" rx="10"/>
-          <text class="box-label" x="50" y="55">WEBVIEW PARENT (REACT)</text>
-          <text class="box-title" x="50" y="80"><PlanPanel /></text>
-          <text class="box-detail" x="50" y="100">setupPlanSubmitBridge()</text>
-          <text class="box-detail" x="50" y="118">listener: 'message'</text>
-          <text class="box-detail" x="50" y="136">→ invoke('plan_submit', …)</text>
-          <text class="origin-tag" x="50" y="190" fill="var(--np-accent-hover)">origine: tauri://localhost</text>
+						<!-- WebView parent box -->
+						<rect
+							class="box-bg parent"
+							x="30"
+							y="30"
+							width="240"
+							height="180"
+							rx="10"
+						/>
+						<text class="box-label" x="50" y="55">
+							WEBVIEW PARENT (REACT)
+						</text>
+						<text class="box-title" x="50" y="80">
+							<PlanPanel />
+						</text>
+						<text class="box-detail" x="50" y="100">
+							setupPlanSubmitBridge()
+						</text>
+						<text class="box-detail" x="50" y="118">
+							listener: 'message'
+						</text>
+						<text class="box-detail" x="50" y="136">
+							→ invoke('plan_submit', …)
+						</text>
+						<text
+							class="origin-tag"
+							x="50"
+							y="190"
+							fill="var(--np-accent-hover)"
+						>
+							origine: tauri://localhost
+						</text>
 
-          <!-- iframe box -->
-          <rect class="box-bg iframe" x="310" y="30" width="240" height="180" rx="10"/>
-          <text class="box-label" x="330" y="55" fill="var(--np-warn)">IFRAME (PLAN.HTML)</text>
-          <text class="box-title" x="330" y="80">Page de plan</text>
-          <text class="box-detail" x="330" y="100">bouton Submit</text>
-          <text class="box-detail" x="330" y="118">→ fetch('/submit', body)</text>
-          <text class="box-detail" x="330" y="136">→ intercepteur bridge</text>
-          <text class="box-detail" x="330" y="154">→ parent.postMessage(…)</text>
-          <text class="origin-tag" x="330" y="190" fill="var(--np-warn)">origine: asset://localhost</text>
+						<!-- iframe box -->
+						<rect
+							class="box-bg iframe"
+							x="310"
+							y="30"
+							width="240"
+							height="180"
+							rx="10"
+						/>
+						<text
+							class="box-label"
+							x="330"
+							y="55"
+							fill="var(--np-warn)"
+						>
+							IFRAME (PLAN.HTML)
+						</text>
+						<text class="box-title" x="330" y="80">
+							Page de plan
+						</text>
+						<text class="box-detail" x="330" y="100">
+							bouton Submit
+						</text>
+						<text class="box-detail" x="330" y="118">
+							→ fetch('/submit', body)
+						</text>
+						<text class="box-detail" x="330" y="136">
+							→ intercepteur bridge
+						</text>
+						<text class="box-detail" x="330" y="154">
+							→ parent.postMessage(…)
+						</text>
+						<text
+							class="origin-tag"
+							x="330"
+							y="190"
+							fill="var(--np-warn)"
+						>
+							origine: asset://localhost
+						</text>
 
-          <!-- Rust process box -->
-          <rect class="box-bg rust" x="590" y="30" width="200" height="180" rx="10"/>
-          <text class="box-label" x="610" y="55" fill="var(--np-success)">PROCESS RUST (TAURI)</text>
-          <text class="box-title" x="610" y="80">plan_submit()</text>
-          <text class="box-detail" x="610" y="100">écrit JSON dans</text>
-          <text class="box-detail" x="610" y="118">docs/{kind}/{slug}/</text>
-          <text class="box-detail" x="610" y="136">submission.json</text>
-          <text class="origin-tag" x="610" y="190" fill="var(--np-success)">contexte: hôte (FS)</text>
+						<!-- Rust process box -->
+						<rect
+							class="box-bg rust"
+							x="590"
+							y="30"
+							width="200"
+							height="180"
+							rx="10"
+						/>
+						<text
+							class="box-label"
+							x="610"
+							y="55"
+							fill="var(--np-success)"
+						>
+							PROCESS RUST (TAURI)
+						</text>
+						<text class="box-title" x="610" y="80">
+							plan_submit()
+						</text>
+						<text class="box-detail" x="610" y="100">
+							écrit JSON dans
+						</text>
+						<text class="box-detail" x="610" y="118">
+							docs/{kind}/{slug}/
+						</text>
+						<text class="box-detail" x="610" y="136">
+							submission.json
+						</text>
+						<text
+							class="origin-tag"
+							x="610"
+							y="190"
+							fill="var(--np-success)"
+						>
+							contexte: hôte (FS)
+						</text>
 
-          <!-- arrow: iframe → parent (postMessage request) -->
-          <line class="arrow-line post" x1="310" y1="135" x2="270" y2="135" marker-end="url(#head-post)"/>
-          <text class="arrow-label" x="240" y="125" text-anchor="middle">postMessage</text>
-          <text class="arrow-label" x="240" y="148" text-anchor="middle">'plan-submit-request'</text>
+						<!-- arrow: iframe → parent (postMessage request) -->
+						<line
+							class="arrow-line post"
+							x1="310"
+							y1="135"
+							x2="270"
+							y2="135"
+							marker-end="url(#head-post)"
+						/>
+						<text
+							class="arrow-label"
+							x="240"
+							y="125"
+							text-anchor="middle"
+						>
+							postMessage
+						</text>
+						<text
+							class="arrow-label"
+							x="240"
+							y="148"
+							text-anchor="middle"
+						>
+							'plan-submit-request'
+						</text>
 
-          <!-- arrow: parent → Rust (invoke) -->
-          <line class="arrow-line invoke" x1="270" y1="100" x2="590" y2="100" marker-end="url(#head-accent)"/>
-          <text class="arrow-label accent" x="430" y="92" text-anchor="middle">invoke('plan_submit', { repoPath, kind, slug, payload })</text>
+						<!-- arrow: parent → Rust (invoke) -->
+						<line
+							class="arrow-line invoke"
+							x1="270"
+							y1="100"
+							x2="590"
+							y2="100"
+							marker-end="url(#head-accent)"
+						/>
+						<text
+							class="arrow-label accent"
+							x="430"
+							y="92"
+							text-anchor="middle"
+						>
+							invoke('plan_submit', { repoPath, kind, slug,
+							payload })
+						</text>
 
-          <!-- arrow: Rust → parent (resolve) -->
-          <line class="arrow-line invoke" x1="590" y1="170" x2="270" y2="170" marker-end="url(#head-accent)"/>
-          <text class="arrow-label accent" x="430" y="185" text-anchor="middle">Promise&lt;String&gt; (chemin absolu)</text>
+						<!-- arrow: Rust → parent (resolve) -->
+						<line
+							class="arrow-line invoke"
+							x1="590"
+							y1="170"
+							x2="270"
+							y2="170"
+							marker-end="url(#head-accent)"
+						/>
+						<text
+							class="arrow-label accent"
+							x="430"
+							y="185"
+							text-anchor="middle"
+						>
+							Promise&lt;String&gt; (chemin absolu)
+						</text>
 
-          <!-- arrow: parent → iframe (postMessage response) -->
-          <line class="arrow-line post" x1="270" y1="160" x2="310" y2="160" marker-end="url(#head-post)"/>
+						<!-- arrow: parent → iframe (postMessage response) -->
+						<line
+							class="arrow-line post"
+							x1="270"
+							y1="160"
+							x2="310"
+							y2="160"
+							marker-end="url(#head-post)"
+						/>
 
-          <!-- blocked attempt: parent → iframe DOM access (CROSSED) -->
-          <line class="arrow-line blocked" x1="270" y1="265" x2="310" y2="265" marker-end="url(#head-danger)"/>
-          <text class="arrow-label danger" x="425" y="260" text-anchor="middle">⛔ accès direct au DOM bloqué par la SOP</text>
-          <text class="arrow-label" x="425" y="278" text-anchor="middle" fill="var(--np-text-muted)">iframe.contentDocument lève SecurityError — origines distinctes</text>
+						<!-- blocked attempt: parent → iframe DOM access (CROSSED) -->
+						<line
+							class="arrow-line blocked"
+							x1="270"
+							y1="265"
+							x2="310"
+							y2="265"
+							marker-end="url(#head-danger)"
+						/>
+						<text
+							class="arrow-label danger"
+							x="425"
+							y="260"
+							text-anchor="middle"
+						>
+							⛔ accès direct au DOM bloqué par la SOP
+						</text>
+						<text
+							class="arrow-label"
+							x="425"
+							y="278"
+							text-anchor="middle"
+							fill="var(--np-text-muted)"
+						>
+							iframe.contentDocument lève SecurityError — origines
+							distinctes
+						</text>
 
-          <!-- legend -->
-          <line x1="50" y1="295" x2="80" y2="295" stroke="var(--np-accent)" stroke-width="1.5"/>
-          <text class="arrow-label" x="88" y="299" fill="var(--np-text)">invoke (IPC Tauri)</text>
-          <line x1="220" y1="295" x2="250" y2="295" stroke="var(--np-text-muted)" stroke-width="1.5"/>
-          <text class="arrow-label" x="258" y="299" fill="var(--np-text)">postMessage (cross-origin OK)</text>
-          <line x1="430" y1="295" x2="460" y2="295" stroke="var(--np-danger)" stroke-width="1.5" stroke-dasharray="5 3"/>
-          <text class="arrow-label" x="468" y="299" fill="var(--np-text)">bloqué par la Same-Origin Policy</text>
-        </svg>
-        <div class="diag-caption">Architecture du bridge — qui parle à qui, et avec quel canal</div>
-      </div>
+						<!-- legend -->
+						<line
+							x1="50"
+							y1="295"
+							x2="80"
+							y2="295"
+							stroke="var(--np-accent)"
+							stroke-width="1.5"
+						/>
+						<text
+							class="arrow-label"
+							x="88"
+							y="299"
+							fill="var(--np-text)"
+						>
+							invoke (IPC Tauri)
+						</text>
+						<line
+							x1="220"
+							y1="295"
+							x2="250"
+							y2="295"
+							stroke="var(--np-text-muted)"
+							stroke-width="1.5"
+						/>
+						<text
+							class="arrow-label"
+							x="258"
+							y="299"
+							fill="var(--np-text)"
+						>
+							postMessage (cross-origin OK)
+						</text>
+						<line
+							x1="430"
+							y1="295"
+							x2="460"
+							y2="295"
+							stroke="var(--np-danger)"
+							stroke-width="1.5"
+							stroke-dasharray="5 3"
+						/>
+						<text
+							class="arrow-label"
+							x="468"
+							y="299"
+							fill="var(--np-text)"
+						>
+							bloqué par la Same-Origin Policy
+						</text>
+					</svg>
+					<div class="diag-caption">
+						Architecture du bridge — qui parle à qui, et avec quel
+						canal
+					</div>
+				</div>
 
-      <p>Trois choses à retenir de ce schéma :</p>
-      <ul>
-        <li><strong>L'iframe et le parent sont deux mondes séparés.</strong> Même si la WebView est un seul process Chromium, l'iframe a sa propre origine (<code>asset://localhost</code>) — distincte de la WebView principale (<code>tauri://localhost</code>).</li>
-        <li><strong>Le parent React ne peut <em>pas</em> appeler la page de l'iframe directement.</strong> Pas d'accès au <code>document</code>, pas d'<code>eval</code>, pas d'injection de <code>&lt;script&gt;</code> via JS. La flèche rouge en bas est la voie qu'on voudrait prendre mais que le navigateur refuse.</li>
-        <li><strong>Seul <code>postMessage</code> traverse l'isolation.</strong> C'est l'API conçue exactement pour ça : passer des données sérialisables entre deux contextes d'origines différentes.</li>
-      </ul>
-    </section>
+				<p>Trois choses à retenir de ce schéma :</p>
+				<ul>
+					<li>
+						<strong
+							>L'iframe et le parent sont deux mondes
+							séparés.</strong
+						>
+						Même si la WebView est un seul process Chromium,
+						l'iframe a sa propre origine
+						(<code>asset://localhost</code>) — distincte de la
+						WebView principale (<code>tauri://localhost</code>).
+					</li>
+					<li>
+						<strong
+							>Le parent React ne peut <em>pas</em> appeler la
+							page de l'iframe directement.</strong
+						>
+						Pas d'accès au <code>document</code>, pas
+						d'<code>eval</code>, pas d'injection de
+						<code>&lt;script&gt;</code> via JS. La flèche rouge en
+						bas est la voie qu'on voudrait prendre mais que le
+						navigateur refuse.
+					</li>
+					<li>
+						<strong
+							>Seul <code>postMessage</code> traverse
+							l'isolation.</strong
+						>
+						C'est l'API conçue exactement pour ça : passer des
+						données sérialisables entre deux contextes d'origines
+						différentes.
+					</li>
+				</ul>
+			</section>
 
-    <hr class="rule">
+			<hr class="rule" />
 
-    <section id="flux">
-      <h2>3 · Le flux complet, étape par étape</h2>
-      <p class="lede">Que se passe-t-il vraiment quand l'utilisateur clique sur <em>Submit</em> dans le plan ? Six étapes, trois acteurs.</p>
+			<section id="flux">
+				<h2>3 · Le flux complet, étape par étape</h2>
+				<p class="lede">
+					Que se passe-t-il vraiment quand l'utilisateur clique sur
+					<em>Submit</em> dans le plan ? Six étapes, trois acteurs.
+				</p>
 
-      <div class="diagram" style="padding:18px 14px 14px;">
-        <div class="seq">
-          <div class="seq-step">
-            <div class="seq-num">1</div>
-            <div class="seq-body">
-              <div class="seq-actor iframe">iframe · page de plan</div>
-              <div class="seq-title">L'utilisateur clique sur <em>Submit</em></div>
-              <div class="seq-detail">Le handler existant de <code>plan.html</code> appelle <code>fetch('/submit', { method: 'POST', body: JSON.stringify(payload) })</code>. C'est le code <em>de la page</em>, qu'on ne modifie pas.</div>
-            </div>
-          </div>
-          <div class="seq-step">
-            <div class="seq-num">2</div>
-            <div class="seq-body">
-              <div class="seq-actor iframe">iframe · script du bridge</div>
-              <div class="seq-title">L'intercepteur attrape l'appel</div>
-              <div class="seq-detail">Le bridge a remplacé <code>window.fetch</code>. Il voit que l'URL est <code>/submit</code>, parse le body en JSON, génère un <code>requestId</code> unique, et poste au parent : <code>parent.postMessage({ type: 'plan-submit-request', requestId, payload }, '*')</code>. Il retourne une <code>Promise</code> en attente dans une <code>Map</code>.</div>
-            </div>
-          </div>
-          <div class="seq-step">
-            <div class="seq-num">3</div>
-            <div class="seq-body">
-              <div class="seq-actor parent">webview parent · React</div>
-              <div class="seq-title">Le listener <code>setupPlanSubmitBridge</code> reçoit le message</div>
-              <div class="seq-detail">L'écouteur <code>window.addEventListener('message', …)</code> filtre : il ignore tout ce qui ne vient pas de <code>iframe.contentWindow</code> (sécurité) et tout ce qui n'a pas la forme <code>{ type: 'plan-submit-request', requestId: string }</code>.</div>
-            </div>
-          </div>
-          <div class="seq-step">
-            <div class="seq-num">4</div>
-            <div class="seq-body">
-              <div class="seq-actor rust">process rust · tauri</div>
-              <div class="seq-title">Le parent appelle <code>invoke('plan_submit', …)</code></div>
-              <div class="seq-detail">L'IPC Tauri sérialise les arguments (<code>repoPath</code>, <code>kind</code>, <code>slug</code>, <code>payload</code>) et exécute la commande Rust. Celle-ci écrit <code>docs/{kind}/{slug}/submission.json</code> avec un JSON joli (indent 2 espaces), puis retourne le chemin absolu.</div>
-            </div>
-          </div>
-          <div class="seq-step">
-            <div class="seq-num">5</div>
-            <div class="seq-body">
-              <div class="seq-actor parent">webview parent · React</div>
-              <div class="seq-title">Le parent renvoie le résultat à l'iframe</div>
-              <div class="seq-detail">Le <code>.then</code> de l'<code>invoke</code> poste la réponse : <code>iframe.contentWindow.postMessage({ type: 'plan-submit-response', requestId, ok: true, path }, '*')</code>. Symétrique au cas <code>ok: false, error</code> si l'invoke rejette.</div>
-            </div>
-          </div>
-          <div class="seq-step">
-            <div class="seq-num">6</div>
-            <div class="seq-body">
-              <div class="seq-actor iframe">iframe · script du bridge</div>
-              <div class="seq-title">L'intercepteur résout la <code>Promise</code> de la page</div>
-              <div class="seq-detail">Le bridge écoute aussi les <code>message</code> dans l'iframe. À réception, il récupère l'entrée pending via le <code>requestId</code>, et résout la <code>Promise</code> avec une <code>Response</code> synthétique : <code>new Response(JSON.stringify({ ok: true, path }), { status: 200 })</code>. La page voit un fetch réussi — son code de succès s'exécute normalement.</div>
-            </div>
-          </div>
-        </div>
-        <div class="diag-caption">Séquence d'un Submit — du clic au fichier sur disque, et retour à la page</div>
-      </div>
-    </section>
+				<div class="diagram" style="padding: 18px 14px 14px">
+					<div class="seq">
+						<div class="seq-step">
+							<div class="seq-num">1</div>
+							<div class="seq-body">
+								<div class="seq-actor iframe">
+									iframe · page de plan
+								</div>
+								<div class="seq-title">
+									L'utilisateur clique sur <em>Submit</em>
+								</div>
+								<div class="seq-detail">
+									Le handler existant de
+									<code>plan.html</code> appelle
+									<code
+										>fetch('/submit', { method: 'POST',
+										body: JSON.stringify(payload) })</code
+									>. C'est le code <em>de la page</em>, qu'on
+									ne modifie pas.
+								</div>
+							</div>
+						</div>
+						<div class="seq-step">
+							<div class="seq-num">2</div>
+							<div class="seq-body">
+								<div class="seq-actor iframe">
+									iframe · script du bridge
+								</div>
+								<div class="seq-title">
+									L'intercepteur attrape l'appel
+								</div>
+								<div class="seq-detail">
+									Le bridge a remplacé
+									<code>window.fetch</code>. Il voit que l'URL
+									est <code>/submit</code>, parse le body en
+									JSON, génère un
+									<code>requestId</code> unique, et poste au
+									parent :
+									<code
+										>parent.postMessage({ type:
+										'plan-submit-request', requestId,
+										payload }, '*')</code
+									>. Il retourne une <code>Promise</code> en
+									attente dans une <code>Map</code>.
+								</div>
+							</div>
+						</div>
+						<div class="seq-step">
+							<div class="seq-num">3</div>
+							<div class="seq-body">
+								<div class="seq-actor parent">
+									webview parent · React
+								</div>
+								<div class="seq-title">
+									Le listener
+									<code>setupPlanSubmitBridge</code> reçoit le
+									message
+								</div>
+								<div class="seq-detail">
+									L'écouteur
+									<code
+										>window.addEventListener('message',
+										…)</code
+									>
+									filtre : il ignore tout ce qui ne vient pas
+									de
+									<code>iframe.contentWindow</code> (sécurité)
+									et tout ce qui n'a pas la forme
+									<code
+										>{ type: 'plan-submit-request',
+										requestId: string }</code
+									>.
+								</div>
+							</div>
+						</div>
+						<div class="seq-step">
+							<div class="seq-num">4</div>
+							<div class="seq-body">
+								<div class="seq-actor rust">
+									process rust · tauri
+								</div>
+								<div class="seq-title">
+									Le parent appelle
+									<code>invoke('plan_submit', …)</code>
+								</div>
+								<div class="seq-detail">
+									L'IPC Tauri sérialise les arguments
+									(<code>repoPath</code>, <code>kind</code>,
+									<code>slug</code>, <code>payload</code>) et
+									exécute la commande Rust. Celle-ci écrit
+									<code
+										>docs/{kind}/{slug}/submission.json</code
+									>
+									avec un JSON joli (indent 2 espaces), puis
+									retourne le chemin absolu.
+								</div>
+							</div>
+						</div>
+						<div class="seq-step">
+							<div class="seq-num">5</div>
+							<div class="seq-body">
+								<div class="seq-actor parent">
+									webview parent · React
+								</div>
+								<div class="seq-title">
+									Le parent renvoie le résultat à l'iframe
+								</div>
+								<div class="seq-detail">
+									Le <code>.then</code> de l'<code
+										>invoke</code
+									>
+									poste la réponse :
+									<code
+										>iframe.contentWindow.postMessage({
+										type: 'plan-submit-response', requestId,
+										ok: true, path }, '*')</code
+									>. Symétrique au cas
+									<code>ok: false, error</code> si l'invoke
+									rejette.
+								</div>
+							</div>
+						</div>
+						<div class="seq-step">
+							<div class="seq-num">6</div>
+							<div class="seq-body">
+								<div class="seq-actor iframe">
+									iframe · script du bridge
+								</div>
+								<div class="seq-title">
+									L'intercepteur résout la
+									<code>Promise</code> de la page
+								</div>
+								<div class="seq-detail">
+									Le bridge écoute aussi les
+									<code>message</code> dans l'iframe. À
+									réception, il récupère l'entrée pending via
+									le <code>requestId</code>, et résout la
+									<code>Promise</code> avec une
+									<code>Response</code> synthétique :
+									<code
+										>new Response(JSON.stringify({ ok: true,
+										path }), { status: 200 })</code
+									>. La page voit un fetch réussi — son code
+									de succès s'exécute normalement.
+								</div>
+							</div>
+						</div>
+					</div>
+					<div class="diag-caption">
+						Séquence d'un Submit — du clic au fichier sur disque, et
+						retour à la page
+					</div>
+				</div>
+			</section>
 
-    <hr class="rule">
+			<hr class="rule" />
 
-    <section id="deux-chemins">
-      <h2>4 · Les deux chemins d'injection du script intercepteur</h2>
-      <p class="lede">Le bridge a deux moitiés : <strong>côté parent</strong> (toujours actif, branché par <code>useEffect</code>) et <strong>côté iframe</strong> (le script qui réécrit <code>window.fetch</code>). C'est le script côté iframe qui a deux chemins de livraison possibles.</p>
+			<section id="deux-chemins">
+				<h2>4 · Les deux chemins d'injection du script intercepteur</h2>
+				<p class="lede">
+					Le bridge a deux moitiés :
+					<strong>côté parent</strong> (toujours actif, branché par
+					<code>useEffect</code>) et <strong>côté iframe</strong> (le
+					script qui réécrit <code>window.fetch</code>). C'est le
+					script côté iframe qui a deux chemins de livraison
+					possibles.
+				</p>
 
-      <div class="diagram">
-        <div class="diag-compare">
-          <div class="pane">
-            <div class="pane-label">Chemin A · injection à chaud</div>
-            <div class="pane-title"><code>tryInjectBridgeScript(iframe)</code></div>
-            <div class="pane-detail">Sur le <code>onLoad</code> de l'iframe, le parent essaie d'écrire un <code>&lt;script&gt;</code> dans <code>iframe.contentDocument</code>. <strong>Échoue silencieusement</strong> en production (<code>asset://</code> ≠ <code>tauri://</code> = SOP), capturé par un <code>try/catch</code>. Utile uniquement si jamais les deux origines venaient à coïncider (tests, configuration alternative).</div>
-          </div>
-          <div class="pane good">
-            <div class="pane-label">Chemin B · script embarqué (cible)</div>
-            <div class="pane-title">Le template <code>plan-html</code> inclut <code>PLAN_SUBMIT_BRIDGE_SCRIPT</code></div>
-            <div class="pane-detail">La constante exportée par <code>plan-submit-bridge.ts</code> est le code à coller tel quel dans un <code>&lt;script&gt;</code> de <code>plan.html</code>. Une fois embarqué dans le template, il s'exécute dans l'origine de l'iframe (autorisé) et installe l'intercepteur dès le chargement. <strong>Chemin canonique en production.</strong></div>
-          </div>
-        </div>
-        <div class="diag-caption">Deux façons de faire arriver le script dans l'iframe — l'injection à chaud est un best-effort, l'embarquement dans le template est le contrat réel</div>
-      </div>
+				<div class="diagram">
+					<div class="diag-compare">
+						<div class="pane">
+							<div class="pane-label">
+								Chemin A · injection à chaud
+							</div>
+							<div class="pane-title">
+								<code>tryInjectBridgeScript(iframe)</code>
+							</div>
+							<div class="pane-detail">
+								Sur le <code>onLoad</code> de l'iframe, le
+								parent essaie d'écrire un
+								<code>&lt;script&gt;</code> dans
+								<code>iframe.contentDocument</code>.
+								<strong>Échoue silencieusement</strong> en
+								production (<code>asset://</code> ≠
+								<code>tauri://</code> = SOP), capturé par un
+								<code>try/catch</code>. Utile uniquement si
+								jamais les deux origines venaient à coïncider
+								(tests, configuration alternative).
+							</div>
+						</div>
+						<div class="pane good">
+							<div class="pane-label">
+								Chemin B · script embarqué (cible)
+							</div>
+							<div class="pane-title">
+								Le template <code>plan-html</code> inclut
+								<code>PLAN_SUBMIT_BRIDGE_SCRIPT</code>
+							</div>
+							<div class="pane-detail">
+								La constante exportée par
+								<code>plan-submit-bridge.ts</code> est le code à
+								coller tel quel dans un
+								<code>&lt;script&gt;</code> de
+								<code>plan.html</code>. Une fois embarqué dans
+								le template, il s'exécute dans l'origine de
+								l'iframe (autorisé) et installe l'intercepteur
+								dès le chargement.
+								<strong>Chemin canonique en production.</strong>
+							</div>
+						</div>
+					</div>
+					<div class="diag-caption">
+						Deux façons de faire arriver le script dans l'iframe —
+						l'injection à chaud est un best-effort, l'embarquement
+						dans le template est le contrat réel
+					</div>
+				</div>
 
-      <p>Pourquoi garder l'injection à chaud si elle ne marche pas en prod ? Parce que c'est gratuit (5 lignes derrière un <code>try/catch</code>) et que ça couvre les cas où le template n'a pas encore été mis à jour : si un jour on charge le HTML autrement (via <code>srcdoc</code>, depuis le même process Tauri, etc.) le bridge marche tout de suite, sans changer la page.</p>
-    </section>
+				<p>
+					Pourquoi garder l'injection à chaud si elle ne marche pas en
+					prod ? Parce que c'est gratuit (5 lignes derrière un
+					<code>try/catch</code>) et que ça couvre les cas où le
+					template n'a pas encore été mis à jour : si un jour on
+					charge le HTML autrement (via <code>srcdoc</code>, depuis le
+					même process Tauri, etc.) le bridge marche tout de suite,
+					sans changer la page.
+				</p>
+			</section>
 
-    <hr class="rule">
+			<hr class="rule" />
 
-    <section id="contrat">
-      <h2>5 · Le contrat du protocole</h2>
-      <p class="lede">Deux types de messages, formes strictes. Tout ce qui ne matche pas est ignoré.</p>
+			<section id="contrat">
+				<h2>5 · Le contrat du protocole</h2>
+				<p class="lede">
+					Deux types de messages, formes strictes. Tout ce qui ne
+					matche pas est ignoré.
+				</p>
 
-      <pre><code>// Requête : iframe → parent
+				<pre><code>// Requête : iframe → parent
 {
   type: 'plan-submit-request',
   requestId: string,    // unique, généré côté iframe
@@ -620,112 +1432,176 @@
   error: string         // message d'erreur stringifié
 }</code></pre>
 
-      <p>Le parent filtre <strong>strictement</strong> sur trois choses avant d'invoquer :</p>
-      <ul>
-        <li><code>event.source === iframe.contentWindow</code> — refuse les messages venus d'ailleurs (autres iframes, fenêtre principale).</li>
-        <li><code>data.type === 'plan-submit-request'</code> — refuse les autres conventions de messages.</li>
-        <li><code>typeof data.requestId === 'string'</code> — refuse les payloads malformés.</li>
-      </ul>
-      <p>Si l'un échoue, le message est ignoré silencieusement. Pas de surface d'attaque depuis une page tierce qui aurait été ouverte dans la même iframe.</p>
-    </section>
+				<p>
+					Le parent filtre <strong>strictement</strong> sur trois
+					choses avant d'invoquer :
+				</p>
+				<ul>
+					<li>
+						<code>event.source === iframe.contentWindow</code> —
+						refuse les messages venus d'ailleurs (autres iframes,
+						fenêtre principale).
+					</li>
+					<li>
+						<code>data.type === 'plan-submit-request'</code> —
+						refuse les autres conventions de messages.
+					</li>
+					<li>
+						<code>typeof data.requestId === 'string'</code> — refuse
+						les payloads malformés.
+					</li>
+				</ul>
+				<p>
+					Si l'un échoue, le message est ignoré silencieusement. Pas
+					de surface d'attaque depuis une page tierce qui aurait été
+					ouverte dans la même iframe.
+				</p>
+			</section>
 
-    <hr class="rule">
+			<hr class="rule" />
 
-    <section id="reste">
-      <h2>6 · Ce qu'il reste à faire pour fermer la boucle</h2>
-      <p class="lede">Le bridge côté app est complet et testé. Le maillon manquant est l'embarquement du script dans le template <code>plan-html</code> (dépôt <code>mac-config</code>, skill <code>/plan-html</code>).</p>
+			<section id="reste">
+				<h2>6 · Ce qu'il reste à faire pour fermer la boucle</h2>
+				<p class="lede">
+					Le bridge côté app est complet et testé. Le maillon manquant
+					est l'embarquement du script dans le template
+					<code>plan-html</code> (dépôt <code>mac-config</code>, skill
+					<code>/plan-html</code>).
+				</p>
 
-      <div class="diff" data-file="plan-html template — extrait à ajouter en fin de body">
-@@ Avant : la page fait fetch('/submit') directement @@
--                async function rpSubmit(payload) {
--                    const res = await fetch('/submit', {
--                        method: 'POST',
--                        headers: { 'Content-Type': 'application/json' },
--                        body: JSON.stringify(payload),
--                    })
--                    if (!res.ok) throw new Error('submit failed')
--                }
-@@ Après : on garde rpSubmit tel quel, on injecte le bridge avant @@
-+                /* PLAN_SUBMIT_BRIDGE_SCRIPT — exporté par src/lib/plan-submit-bridge.ts */
-+                ;(function(){
-+                    if (window.__planSubmitBridgeInstalled) return;
-+                    window.__planSubmitBridgeInstalled = true;
-+                    var pending = new Map();
-+                    window.addEventListener('message', function(event){
-+                        var data = event.data;
-+                        if (!data || data.type !== 'plan-submit-response') return;
-+                        var entry = pending.get(data.requestId);
-+                        if (!entry) return;
-+                        pending.delete(data.requestId);
-+                        if (data.ok) entry.resolve(new Response(JSON.stringify({ ok: true, path: data.path }), { status: 200 }));
-+                        else entry.reject(new Error(data.error || 'plan_submit failed'));
-+                    });
-+                    var originalFetch = window.fetch.bind(window);
-+                    window.fetch = function(input, init){
-+                        var url = typeof input === 'string' ? input : (input && input.url) || '';
-+                        if (url !== '/submit' && !url.endsWith('/submit')) return originalFetch(input, init);
-+                        var payload = null;
-+                        try { payload = init && init.body ? JSON.parse(init.body) : null; } catch(e) {}
-+                        return new Promise(function(resolve, reject){
-+                            var requestId = 'plan-submit-' + Math.random().toString(36).slice(2) + '-' + Date.now();
-+                            pending.set(requestId, { resolve: resolve, reject: reject });
-+                            window.parent.postMessage({ type: 'plan-submit-request', requestId: requestId, payload: payload }, '*');
-+                        });
-+                    };
-+                })();
-+                /* Le rpSubmit() existant n'a plus rien à changer — son fetch('/submit') sera désormais intercepté. */
-      </div>
+				<div
+					class="diff"
+					data-file="plan-html template — extrait à ajouter en fin de body"
+				>
+					@@ Avant : la page fait fetch('/submit') directement @@ -
+					async function rpSubmit(payload) { - const res = await
+					fetch('/submit', { - method: 'POST', - headers: {
+					'Content-Type': 'application/json' }, - body:
+					JSON.stringify(payload), - }) - if (!res.ok) throw new
+					Error('submit failed') - } @@ Après : on garde rpSubmit tel
+					quel, on injecte le bridge avant @@ + /*
+					PLAN_SUBMIT_BRIDGE_SCRIPT — exporté par
+					src/lib/plan-submit-bridge.ts */ + ;(function(){ + if
+					(window.__planSubmitBridgeInstalled) return; +
+					window.__planSubmitBridgeInstalled = true; + var pending =
+					new Map(); + window.addEventListener('message',
+					function(event){ + var data = event.data; + if (!data ||
+					data.type !== 'plan-submit-response') return; + var entry =
+					pending.get(data.requestId); + if (!entry) return; +
+					pending.delete(data.requestId); + if (data.ok)
+					entry.resolve(new Response(JSON.stringify({ ok: true, path:
+					data.path }), { status: 200 })); + else entry.reject(new
+					Error(data.error || 'plan_submit failed')); + }); + var
+					originalFetch = window.fetch.bind(window); + window.fetch =
+					function(input, init){ + var url = typeof input === 'string'
+					? input : (input && input.url) || ''; + if (url !==
+					'/submit' && !url.endsWith('/submit')) return
+					originalFetch(input, init); + var payload = null; + try {
+					payload = init && init.body ? JSON.parse(init.body) : null;
+					} catch(e) {} + return new Promise(function(resolve,
+					reject){ + var requestId = 'plan-submit-' +
+					Math.random().toString(36).slice(2) + '-' + Date.now(); +
+					pending.set(requestId, { resolve: resolve, reject: reject
+					}); + window.parent.postMessage({ type:
+					'plan-submit-request', requestId: requestId, payload:
+					payload }, '*'); + }); + }; + })(); + /* Le rpSubmit()
+					existant n'a plus rien à changer — son fetch('/submit') sera
+					désormais intercepté. */
+				</div>
 
-      <p>Le DEMO E2E correspondant est <code>SAS-350</code> (P4-12) : ouvrir <code>plan.html</code> dans l'app, cliquer Submit, vérifier que <code>submission.json</code> apparaît sur disque avec le bon contenu.</p>
-    </section>
+				<p>
+					Le DEMO E2E correspondant est <code>SAS-350</code> (P4-12) :
+					ouvrir <code>plan.html</code> dans l'app, cliquer Submit,
+					vérifier que <code>submission.json</code> apparaît sur
+					disque avec le bon contenu.
+				</p>
+			</section>
 
-    <hr class="rule">
+			<hr class="rule" />
 
-    <section id="takeaways">
-      <h2>À retenir</h2>
-      <div class="takeaways">
-        <div class="takeaway">
-          <div class="takeaway-tag">SOP</div>
-          <div class="takeaway-body">Deux origines distinctes (<code>asset://</code> vs <code>tauri://</code>) = pas d'accès DOM cross-frame. <code>postMessage</code> est la seule API conçue pour ça.</div>
-        </div>
-        <div class="takeaway">
-          <div class="takeaway-tag">Couplage zéro</div>
-          <div class="takeaway-body">La page <code>plan.html</code> continue à appeler <code>fetch('/submit')</code> comme si elle parlait à un serveur HTTP. Le bridge la trompe à son insu.</div>
-        </div>
-        <div class="takeaway">
-          <div class="takeaway-tag">Sécurité</div>
-          <div class="takeaway-body">Le parent vérifie <code>event.source</code> et la forme du message avant d'<code>invoke</code>. Aucune surface d'attaque depuis une page tierce.</div>
-        </div>
-      </div>
-    </section>
-  </main>
+			<section id="takeaways">
+				<h2>À retenir</h2>
+				<div class="takeaways">
+					<div class="takeaway">
+						<div class="takeaway-tag">SOP</div>
+						<div class="takeaway-body">
+							Deux origines distinctes (<code>asset://</code> vs
+							<code>tauri://</code>) = pas d'accès DOM
+							cross-frame. <code>postMessage</code> est la seule
+							API conçue pour ça.
+						</div>
+					</div>
+					<div class="takeaway">
+						<div class="takeaway-tag">Couplage zéro</div>
+						<div class="takeaway-body">
+							La page <code>plan.html</code> continue à appeler
+							<code>fetch('/submit')</code> comme si elle parlait
+							à un serveur HTTP. Le bridge la trompe à son insu.
+						</div>
+					</div>
+					<div class="takeaway">
+						<div class="takeaway-tag">Sécurité</div>
+						<div class="takeaway-body">
+							Le parent vérifie <code>event.source</code> et la
+							forme du message avant d'<code>invoke</code>. Aucune
+							surface d'attaque depuis une page tierce.
+						</div>
+					</div>
+				</div>
+			</section>
+		</main>
 
-  <script>
-    // theme toggle
-    (function () {
-      var btn = document.querySelector('.np-theme-toggle');
-      if (!btn) return;
-      btn.addEventListener('click', function () {
-        var cur = document.documentElement.getAttribute('data-theme') || 'light';
-        var next = cur === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', next);
-        try { localStorage.setItem('np-theme', next); } catch (e) {}
-        document.dispatchEvent(new CustomEvent('np:theme-change', { detail: { theme: next } }));
-      });
-    })();
+		<script>
+			// theme toggle
+			;(function () {
+				var btn = document.querySelector('.np-theme-toggle')
+				if (!btn) return
+				btn.addEventListener('click', function () {
+					var cur =
+						document.documentElement.getAttribute('data-theme') ||
+						'light'
+					var next = cur === 'dark' ? 'light' : 'dark'
+					document.documentElement.setAttribute('data-theme', next)
+					try {
+						localStorage.setItem('np-theme', next)
+					} catch (e) {}
+					document.dispatchEvent(
+						new CustomEvent('np:theme-change', {
+							detail: { theme: next },
+						}),
+					)
+				})
+			})()
 
-    // diff parser
-    document.querySelectorAll('.diff').forEach(function (el) {
-      var raw = el.textContent.replace(/^\s+|\s+$/g, '');
-      el.innerHTML = raw.split('\n').map(function (l) {
-        var cls = l.indexOf('@@') === 0 ? 'hunk'
-                : l.charAt(0) === '+'   ? 'add'
-                : l.charAt(0) === '-'   ? 'del'
-                : 'ctx';
-        var body = (cls === 'add' || cls === 'del') ? l.slice(1) : l;
-        return '<span class="line ' + cls + '">' + body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>';
-      }).join('');
-    });
-  </script>
-</body>
+			// diff parser
+			document.querySelectorAll('.diff').forEach(function (el) {
+				var raw = el.textContent.replace(/^\s+|\s+$/g, '')
+				el.innerHTML = raw
+					.split('\n')
+					.map(function (l) {
+						var cls =
+							l.indexOf('@@') === 0
+								? 'hunk'
+								: l.charAt(0) === '+'
+									? 'add'
+									: l.charAt(0) === '-'
+										? 'del'
+										: 'ctx'
+						var body =
+							cls === 'add' || cls === 'del' ? l.slice(1) : l
+						return (
+							'<span class="line ' +
+							cls +
+							'">' +
+							body
+								.replace(/&/g, '&amp;')
+								.replace(/</g, '&lt;')
+								.replace(/>/g, '&gt;') +
+							'</span>'
+						)
+					})
+					.join('')
+			})
+		</script>
+	</body>
 </html>

@@ -19,10 +19,13 @@ export const useActiveProject = (path: string | null): string | null => {
 			})
 			.catch((error: unknown) => {
 				const { message, stack } = describeError(error)
-				logger.error(`useActiveProject: set_active_project failed: ${message}`, {
-					scope: 'active-project',
-					details: { stack, path },
-				})
+				logger.error(
+					`useActiveProject: set_active_project failed: ${message}`,
+					{
+						scope: 'active-project',
+						details: { stack, path },
+					},
+				)
 			})
 		return () => {
 			cancelled = true

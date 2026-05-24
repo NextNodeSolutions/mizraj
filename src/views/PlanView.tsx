@@ -12,9 +12,7 @@ const PlanView = (): React.JSX.Element => {
 	const route = matchPlanRoute(pathname)
 	if (!route) {
 		return (
-			<p className="plan-view__empty">
-				Select a plan from the sidebar.
-			</p>
+			<p className="plan-view__empty">Select a plan from the sidebar.</p>
 		)
 	}
 	const key = planKey(route)

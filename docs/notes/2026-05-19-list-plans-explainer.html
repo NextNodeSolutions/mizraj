@@ -1,276 +1,471 @@
 <!doctype html>
 <html lang="fr" data-theme="light">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>list_plans — Tauri command explainer</title>
-  <script>
-    (function () {
-      try {
-        var stored = localStorage.getItem('np-theme');
-        var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        document.documentElement.setAttribute('data-theme', theme);
-      } catch (e) {
-        document.documentElement.setAttribute('data-theme', 'light');
-      }
-    })();
-  </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --np-bg:          oklch(98.4% 0.003 247.86);
-      --np-bg-soft:     oklch(96.8% 0.007 247.84);
-      --np-text:        oklch(20.8% 0.042 265.76);
-      --np-text-muted:  oklch(55.4% 0.046 257.42);
-      --np-border:      oklch(92.9% 0.013 255.51);
-      --np-border-soft: oklch(96.8% 0.007 247.84);
-      --np-accent:      oklch(70.4% 0.14 182.503);
-      --np-accent-bg:   oklch(95.3% 0.051 180.801);
-      --np-accent-hover:oklch(60% 0.118 184.704);
-      --np-highlight:   #F97316;
-      --np-success:     #16A34A;
-      --np-warn:        #D97706;
-      --np-danger:      #DC2626;
-      --np-add-bg:      #DCFCE7;
-      --np-add-text:    #166534;
-      --np-add-border:  #BBF7D0;
-      --np-del-bg:      #FEE2E2;
-      --np-del-text:    #991B1B;
-      --np-del-border:  #FECACA;
-      --np-edit-bg:     #FFF8C5;
-      --np-edit-text:   #854D0E;
-      --np-edit-border: #FDE68A;
-      --np-shadow-soft: 0 2px 6px rgba(0,0,0,.06);
-      --np-shadow-pop:  0 4px 16px rgba(0,0,0,.12);
-      --np-radius:      8px;
-      --np-mono:        "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-      --np-sans:        "DM Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-      --np-display:     "Plus Jakarta Sans", "DM Sans", sans-serif;
-    }
-    [data-theme="dark"] {
-      --np-bg:          oklch(20.8% 0.042 265.76);
-      --np-bg-soft:     oklch(27.9% 0.041 260.03);
-      --np-text:        oklch(98.4% 0.003 247.86);
-      --np-text-muted:  oklch(70.4% 0.04 256.79);
-      --np-border:      oklch(37.2% 0.044 257.29);
-      --np-border-soft: oklch(27.9% 0.041 260.03);
-      --np-accent:      oklch(77.7% 0.152 181.912);
-      --np-accent-bg:   oklch(38.6% 0.063 188.416);
-      --np-accent-hover:oklch(85.5% 0.138 181.071);
-      --np-highlight:   #FB923C;
-      --np-success:     #4ADE80;
-      --np-warn:        #FBBF24;
-      --np-danger:      #F87171;
-      --np-add-bg:      rgba(74,222,128,.18);
-      --np-add-text:    #86EFAC;
-      --np-add-border:  rgba(74,222,128,.40);
-      --np-del-bg:      rgba(248,113,113,.18);
-      --np-del-text:    #FCA5A5;
-      --np-del-border:  rgba(248,113,113,.40);
-      --np-edit-bg:     rgba(251,191,36,.18);
-      --np-edit-text:   #FCD34D;
-      --np-edit-border: rgba(251,191,36,.40);
-      --np-shadow-soft: 0 2px 6px rgba(0,0,0,.40);
-      --np-shadow-pop:  0 4px 16px rgba(0,0,0,.55);
-    }
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width,initial-scale=1" />
+		<title>list_plans — Tauri command explainer</title>
+		<script>
+			;(function () {
+				try {
+					var stored = localStorage.getItem('np-theme')
+					var theme =
+						stored ||
+						(window.matchMedia('(prefers-color-scheme: dark)')
+							.matches
+							? 'dark'
+							: 'light')
+					document.documentElement.setAttribute('data-theme', theme)
+				} catch (e) {
+					document.documentElement.setAttribute('data-theme', 'light')
+				}
+			})()
+		</script>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@700;800&display=swap"
+			rel="stylesheet"
+		/>
+		<style>
+			:root {
+				--np-bg: oklch(98.4% 0.003 247.86);
+				--np-bg-soft: oklch(96.8% 0.007 247.84);
+				--np-text: oklch(20.8% 0.042 265.76);
+				--np-text-muted: oklch(55.4% 0.046 257.42);
+				--np-border: oklch(92.9% 0.013 255.51);
+				--np-border-soft: oklch(96.8% 0.007 247.84);
+				--np-accent: oklch(70.4% 0.14 182.503);
+				--np-accent-bg: oklch(95.3% 0.051 180.801);
+				--np-accent-hover: oklch(60% 0.118 184.704);
+				--np-highlight: #f97316;
+				--np-success: #16a34a;
+				--np-warn: #d97706;
+				--np-danger: #dc2626;
+				--np-add-bg: #dcfce7;
+				--np-add-text: #166534;
+				--np-add-border: #bbf7d0;
+				--np-del-bg: #fee2e2;
+				--np-del-text: #991b1b;
+				--np-del-border: #fecaca;
+				--np-edit-bg: #fff8c5;
+				--np-edit-text: #854d0e;
+				--np-edit-border: #fde68a;
+				--np-shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.06);
+				--np-shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.12);
+				--np-radius: 8px;
+				--np-mono:
+					'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo,
+					monospace;
+				--np-sans:
+					'DM Sans', -apple-system, BlinkMacSystemFont, system-ui,
+					sans-serif;
+				--np-display: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+			}
+			[data-theme='dark'] {
+				--np-bg: oklch(20.8% 0.042 265.76);
+				--np-bg-soft: oklch(27.9% 0.041 260.03);
+				--np-text: oklch(98.4% 0.003 247.86);
+				--np-text-muted: oklch(70.4% 0.04 256.79);
+				--np-border: oklch(37.2% 0.044 257.29);
+				--np-border-soft: oklch(27.9% 0.041 260.03);
+				--np-accent: oklch(77.7% 0.152 181.912);
+				--np-accent-bg: oklch(38.6% 0.063 188.416);
+				--np-accent-hover: oklch(85.5% 0.138 181.071);
+				--np-highlight: #fb923c;
+				--np-success: #4ade80;
+				--np-warn: #fbbf24;
+				--np-danger: #f87171;
+				--np-add-bg: rgba(74, 222, 128, 0.18);
+				--np-add-text: #86efac;
+				--np-add-border: rgba(74, 222, 128, 0.4);
+				--np-del-bg: rgba(248, 113, 113, 0.18);
+				--np-del-text: #fca5a5;
+				--np-del-border: rgba(248, 113, 113, 0.4);
+				--np-edit-bg: rgba(251, 191, 36, 0.18);
+				--np-edit-text: #fcd34d;
+				--np-edit-border: rgba(251, 191, 36, 0.4);
+				--np-shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.4);
+				--np-shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.55);
+			}
 
-    *, *::before, *::after { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
-    body {
-      background: var(--np-bg);
-      color: var(--np-text);
-      font-family: var(--np-sans);
-      font-size: 15px;
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-    }
-    main { max-width: 960px; margin: 0 auto; padding: 48px 24px 96px; }
+			*,
+			*::before,
+			*::after {
+				box-sizing: border-box;
+			}
+			html,
+			body {
+				margin: 0;
+				padding: 0;
+			}
+			body {
+				background: var(--np-bg);
+				color: var(--np-text);
+				font-family: var(--np-sans);
+				font-size: 15px;
+				line-height: 1.6;
+				-webkit-font-smoothing: antialiased;
+			}
+			main {
+				max-width: 960px;
+				margin: 0 auto;
+				padding: 48px 24px 96px;
+			}
 
-    h1 { font-family: var(--np-display); font-weight: 800; font-size: 34px; line-height: 1.2; margin: 0 0 12px; letter-spacing: -0.01em; }
-    h2 { font-family: var(--np-sans); font-weight: 600; font-size: 18px; margin: 36px 0 14px; letter-spacing: -0.005em; }
-    h3 { font-family: var(--np-sans); font-weight: 600; font-size: 14px; margin: 18px 0 8px; color: var(--np-text-muted); text-transform: uppercase; letter-spacing: .06em; }
-    p { margin: 0 0 12px; }
-    code { font-family: var(--np-mono); font-size: 13px; background: var(--np-bg-soft); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--np-border-soft); }
+			h1 {
+				font-family: var(--np-display);
+				font-weight: 800;
+				font-size: 34px;
+				line-height: 1.2;
+				margin: 0 0 12px;
+				letter-spacing: -0.01em;
+			}
+			h2 {
+				font-family: var(--np-sans);
+				font-weight: 600;
+				font-size: 18px;
+				margin: 36px 0 14px;
+				letter-spacing: -0.005em;
+			}
+			h3 {
+				font-family: var(--np-sans);
+				font-weight: 600;
+				font-size: 14px;
+				margin: 18px 0 8px;
+				color: var(--np-text-muted);
+				text-transform: uppercase;
+				letter-spacing: 0.06em;
+			}
+			p {
+				margin: 0 0 12px;
+			}
+			code {
+				font-family: var(--np-mono);
+				font-size: 13px;
+				background: var(--np-bg-soft);
+				padding: 1px 6px;
+				border-radius: 4px;
+				border: 1px solid var(--np-border-soft);
+			}
 
-    .eyebrow {
-      display: inline-flex; align-items: center; gap: 8px;
-      font-family: var(--np-mono); font-size: 11px; font-weight: 600;
-      color: var(--np-accent-hover);
-      text-transform: uppercase; letter-spacing: .12em;
-      margin-bottom: 14px;
-    }
-    .eyebrow::before {
-      content: ''; display: inline-block; width: 6px; height: 6px;
-      border-radius: 50%; background: var(--np-accent);
-    }
+			.eyebrow {
+				display: inline-flex;
+				align-items: center;
+				gap: 8px;
+				font-family: var(--np-mono);
+				font-size: 11px;
+				font-weight: 600;
+				color: var(--np-accent-hover);
+				text-transform: uppercase;
+				letter-spacing: 0.12em;
+				margin-bottom: 14px;
+			}
+			.eyebrow::before {
+				content: '';
+				display: inline-block;
+				width: 6px;
+				height: 6px;
+				border-radius: 50%;
+				background: var(--np-accent);
+			}
 
-    .lede {
-      font-size: 16px; color: var(--np-text-muted); max-width: 65ch;
-      margin-bottom: 8px;
-    }
+			.lede {
+				font-size: 16px;
+				color: var(--np-text-muted);
+				max-width: 65ch;
+				margin-bottom: 8px;
+			}
 
-    .tldr {
-      margin: 24px 0 32px;
-      padding: 14px 18px;
-      background: var(--np-bg-soft);
-      border-left: 4px solid var(--np-accent);
-      border-radius: 4px;
-    }
-    .tldr p { margin: 0; }
-    .tldr p + p { margin-top: 8px; }
+			.tldr {
+				margin: 24px 0 32px;
+				padding: 14px 18px;
+				background: var(--np-bg-soft);
+				border-left: 4px solid var(--np-accent);
+				border-radius: 4px;
+			}
+			.tldr p {
+				margin: 0;
+			}
+			.tldr p + p {
+				margin-top: 8px;
+			}
 
-    pre {
-      background: var(--np-bg-soft);
-      border: 1px solid var(--np-border);
-      border-radius: var(--np-radius);
-      padding: 14px 16px;
-      overflow-x: auto;
-      font-family: var(--np-mono);
-      font-size: 12.5px;
-      line-height: 1.55;
-      margin: 0 0 20px;
-    }
-    pre code { background: transparent; border: none; padding: 0; font-size: inherit; }
+			pre {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				padding: 14px 16px;
+				overflow-x: auto;
+				font-family: var(--np-mono);
+				font-size: 12.5px;
+				line-height: 1.55;
+				margin: 0 0 20px;
+			}
+			pre code {
+				background: transparent;
+				border: none;
+				padding: 0;
+				font-size: inherit;
+			}
 
-    .signature-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-      margin: 0 0 24px;
-    }
-    @media (max-width: 780px) { .signature-grid { grid-template-columns: 1fr; } }
-    .sig-label {
-      font-family: var(--np-mono); font-size: 10px; font-weight: 600;
-      color: var(--np-text-muted); text-transform: uppercase; letter-spacing: .12em;
-      margin-bottom: 6px;
-    }
+			.signature-grid {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 18px;
+				margin: 0 0 24px;
+			}
+			@media (max-width: 780px) {
+				.signature-grid {
+					grid-template-columns: 1fr;
+				}
+			}
+			.sig-label {
+				font-family: var(--np-mono);
+				font-size: 10px;
+				font-weight: 600;
+				color: var(--np-text-muted);
+				text-transform: uppercase;
+				letter-spacing: 0.12em;
+				margin-bottom: 6px;
+			}
 
-    /* Flow diagram (SVG) */
-    .flow-wrap {
-      background: var(--np-bg-soft);
-      border: 1px solid var(--np-border);
-      border-radius: var(--np-radius);
-      padding: 20px;
-      margin: 8px 0 24px;
-    }
-    .flow-wrap svg { display: block; width: 100%; height: auto; max-width: 100%; }
-    .flow-caption {
-      font-family: var(--np-mono); font-size: 11px;
-      color: var(--np-text-muted); text-transform: uppercase; letter-spacing: .08em;
-      margin-top: 12px; padding-top: 10px;
-      border-top: 1px dashed var(--np-border);
-    }
+			/* Flow diagram (SVG) */
+			.flow-wrap {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				padding: 20px;
+				margin: 8px 0 24px;
+			}
+			.flow-wrap svg {
+				display: block;
+				width: 100%;
+				height: auto;
+				max-width: 100%;
+			}
+			.flow-caption {
+				font-family: var(--np-mono);
+				font-size: 11px;
+				color: var(--np-text-muted);
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				margin-top: 12px;
+				padding-top: 10px;
+				border-top: 1px dashed var(--np-border);
+			}
 
-    /* Edge-case grid */
-    .skip-grid {
-      display: grid;
-      grid-template-columns: 1.2fr 1fr 1.4fr;
-      gap: 0;
-      border: 1px solid var(--np-border);
-      border-radius: var(--np-radius);
-      overflow: hidden;
-      margin: 0 0 24px;
-    }
-    .skip-grid > div {
-      padding: 10px 14px;
-      border-top: 1px solid var(--np-border-soft);
-      font-size: 13.5px;
-    }
-    .skip-grid > .h {
-      background: var(--np-bg-soft);
-      font-family: var(--np-mono); font-size: 10.5px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: .1em;
-      color: var(--np-text-muted);
-      border-top: none;
-    }
-    .skip-grid code { font-size: 12.5px; }
-    @media (max-width: 780px) {
-      .skip-grid { grid-template-columns: 1fr; }
-      .skip-grid > .h:not(:first-child) { display: none; }
-    }
+			/* Edge-case grid */
+			.skip-grid {
+				display: grid;
+				grid-template-columns: 1.2fr 1fr 1.4fr;
+				gap: 0;
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				overflow: hidden;
+				margin: 0 0 24px;
+			}
+			.skip-grid > div {
+				padding: 10px 14px;
+				border-top: 1px solid var(--np-border-soft);
+				font-size: 13.5px;
+			}
+			.skip-grid > .h {
+				background: var(--np-bg-soft);
+				font-family: var(--np-mono);
+				font-size: 10.5px;
+				font-weight: 600;
+				text-transform: uppercase;
+				letter-spacing: 0.1em;
+				color: var(--np-text-muted);
+				border-top: none;
+			}
+			.skip-grid code {
+				font-size: 12.5px;
+			}
+			@media (max-width: 780px) {
+				.skip-grid {
+					grid-template-columns: 1fr;
+				}
+				.skip-grid > .h:not(:first-child) {
+					display: none;
+				}
+			}
 
-    .pill {
-      display: inline-block; padding: 1px 8px; font-size: 11px; font-weight: 600;
-      line-height: 1.6; border-radius: 999px;
-      border: 1px solid var(--np-border);
-      background: var(--np-bg-soft); color: var(--np-text-muted);
-      letter-spacing: .01em; white-space: nowrap;
-    }
-    .pill.accent  { background: var(--np-accent-bg); color: var(--np-accent-hover); border-color: var(--np-accent); }
-    .pill.warn    { background: var(--np-edit-bg); color: var(--np-edit-text); border-color: var(--np-edit-border); }
-    .pill.success { background: var(--np-add-bg);  color: var(--np-add-text);  border-color: var(--np-add-border); }
+			.pill {
+				display: inline-block;
+				padding: 1px 8px;
+				font-size: 11px;
+				font-weight: 600;
+				line-height: 1.6;
+				border-radius: 999px;
+				border: 1px solid var(--np-border);
+				background: var(--np-bg-soft);
+				color: var(--np-text-muted);
+				letter-spacing: 0.01em;
+				white-space: nowrap;
+			}
+			.pill.accent {
+				background: var(--np-accent-bg);
+				color: var(--np-accent-hover);
+				border-color: var(--np-accent);
+			}
+			.pill.warn {
+				background: var(--np-edit-bg);
+				color: var(--np-edit-text);
+				border-color: var(--np-edit-border);
+			}
+			.pill.success {
+				background: var(--np-add-bg);
+				color: var(--np-add-text);
+				border-color: var(--np-add-border);
+			}
 
-    .test-list { list-style: none; padding: 0; margin: 0 0 24px; }
-    .test-list li {
-      padding: 10px 12px;
-      border: 1px solid var(--np-border);
-      border-radius: 6px;
-      margin-bottom: 8px;
-      background: var(--np-bg);
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 12px;
-      align-items: center;
-    }
-    .test-list code { font-size: 12px; }
+			.test-list {
+				list-style: none;
+				padding: 0;
+				margin: 0 0 24px;
+			}
+			.test-list li {
+				padding: 10px 12px;
+				border: 1px solid var(--np-border);
+				border-radius: 6px;
+				margin-bottom: 8px;
+				background: var(--np-bg);
+				display: grid;
+				grid-template-columns: 1fr auto;
+				gap: 12px;
+				align-items: center;
+			}
+			.test-list code {
+				font-size: 12px;
+			}
 
-    .footer-note {
-      margin-top: 40px;
-      padding: 14px 16px;
-      border: 1px dashed var(--np-border);
-      border-radius: var(--np-radius);
-      color: var(--np-text-muted);
-      font-size: 13.5px;
-    }
-    .footer-note strong { color: var(--np-text); }
+			.footer-note {
+				margin-top: 40px;
+				padding: 14px 16px;
+				border: 1px dashed var(--np-border);
+				border-radius: var(--np-radius);
+				color: var(--np-text-muted);
+				font-size: 13.5px;
+			}
+			.footer-note strong {
+				color: var(--np-text);
+			}
 
-    .np-theme-toggle {
-      position: fixed; top: 16px; right: 16px;
-      width: 36px; height: 36px;
-      display: inline-flex; align-items: center; justify-content: center;
-      border-radius: 999px;
-      border: 1px solid var(--np-border);
-      background: var(--np-bg-soft);
-      color: var(--np-text-muted);
-      cursor: pointer;
-      font-size: 15px;
-      box-shadow: var(--np-shadow-soft);
-      z-index: 50;
-    }
-    .np-theme-toggle:hover { color: var(--np-accent-hover); border-color: var(--np-accent); }
+			.np-theme-toggle {
+				position: fixed;
+				top: 16px;
+				right: 16px;
+				width: 36px;
+				height: 36px;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				border-radius: 999px;
+				border: 1px solid var(--np-border);
+				background: var(--np-bg-soft);
+				color: var(--np-text-muted);
+				cursor: pointer;
+				font-size: 15px;
+				box-shadow: var(--np-shadow-soft);
+				z-index: 50;
+			}
+			.np-theme-toggle:hover {
+				color: var(--np-accent-hover);
+				border-color: var(--np-accent);
+			}
 
-    /* SVG node + edge styles */
-    .node-rect { fill: var(--np-bg); stroke: var(--np-border); stroke-width: 1.2; }
-    .node-rect.primary { fill: var(--np-accent-bg); stroke: var(--np-accent); }
-    .node-label { font-family: var(--np-mono); font-size: 12px; fill: var(--np-text); }
-    .node-label.primary { fill: var(--np-accent-hover); font-weight: 600; }
-    .node-sub { font-family: var(--np-mono); font-size: 10px; fill: var(--np-text-muted); }
-    .edge-line { stroke: var(--np-text-muted); stroke-width: 1.4; fill: none; }
-    .edge-label { font-family: var(--np-mono); font-size: 10.5px; fill: var(--np-text-muted); }
-    .edge-arrow { fill: var(--np-text-muted); }
-  </style>
-</head>
-<body>
-  <button class="np-theme-toggle" type="button" aria-label="Basculer le thème">◐</button>
+			/* SVG node + edge styles */
+			.node-rect {
+				fill: var(--np-bg);
+				stroke: var(--np-border);
+				stroke-width: 1.2;
+			}
+			.node-rect.primary {
+				fill: var(--np-accent-bg);
+				stroke: var(--np-accent);
+			}
+			.node-label {
+				font-family: var(--np-mono);
+				font-size: 12px;
+				fill: var(--np-text);
+			}
+			.node-label.primary {
+				fill: var(--np-accent-hover);
+				font-weight: 600;
+			}
+			.node-sub {
+				font-family: var(--np-mono);
+				font-size: 10px;
+				fill: var(--np-text-muted);
+			}
+			.edge-line {
+				stroke: var(--np-text-muted);
+				stroke-width: 1.4;
+				fill: none;
+			}
+			.edge-label {
+				font-family: var(--np-mono);
+				font-size: 10.5px;
+				fill: var(--np-text-muted);
+			}
+			.edge-arrow {
+				fill: var(--np-text-muted);
+			}
+		</style>
+	</head>
+	<body>
+		<button
+			class="np-theme-toggle"
+			type="button"
+			aria-label="Basculer le thème"
+		>
+			◐
+		</button>
 
-  <main>
-    <div class="eyebrow">Explainer · Rust · Tauri command</div>
-    <h1><code>list_plans</code> — scan des artefacts <code>docs/</code> d'un projet</h1>
-    <p class="lede">Commande Tauri synchrone qui découvre les fichiers <code>plan.html</code> et <code>*.html</code> dans <code>docs/interviews/</code> et <code>docs/plans/</code> d'un projet cible, et retourne une liste de métadonnées prête à alimenter le menu Plans de la sidebar.</p>
+		<main>
+			<div class="eyebrow">Explainer · Rust · Tauri command</div>
+			<h1>
+				<code>list_plans</code> — scan des artefacts
+				<code>docs/</code> d'un projet
+			</h1>
+			<p class="lede">
+				Commande Tauri synchrone qui découvre les fichiers
+				<code>plan.html</code> et <code>*.html</code> dans
+				<code>docs/interviews/</code> et <code>docs/plans/</code> d'un
+				projet cible, et retourne une liste de métadonnées prête à
+				alimenter le menu Plans de la sidebar.
+			</p>
 
-    <div class="tldr">
-      <p><strong>Une seule entrée :</strong> <code>repo_path: String</code> — chemin absolu vers la racine d'un projet.</p>
-      <p><strong>Une seule sortie :</strong> <code>Vec&lt;PlanEntry&gt;</code> avec <code>{ kind, slug, path, title, mtime }</code> par artefact trouvé. <code>kind</code> = <code>"interview"</code> ou <code>"plan"</code>. Erreurs filesystem propagées en <code>Err(String)</code>.</p>
-      <p><strong>Scope :</strong> P4-01 fait le scan. Le champ <code>title</code> vaut le slug pour l'instant — l'extraction réelle est SAS-347 (P4-03).</p>
-    </div>
+			<div class="tldr">
+				<p>
+					<strong>Une seule entrée :</strong>
+					<code>repo_path: String</code> — chemin absolu vers la
+					racine d'un projet.
+				</p>
+				<p>
+					<strong>Une seule sortie :</strong>
+					<code>Vec&lt;PlanEntry&gt;</code> avec
+					<code>{ kind, slug, path, title, mtime }</code> par artefact
+					trouvé. <code>kind</code> = <code>"interview"</code> ou
+					<code>"plan"</code>. Erreurs filesystem propagées en
+					<code>Err(String)</code>.
+				</p>
+				<p>
+					<strong>Scope :</strong> P4-01 fait le scan. Le champ
+					<code>title</code> vaut le slug pour l'instant —
+					l'extraction réelle est SAS-347 (P4-03).
+				</p>
+			</div>
 
-    <h2>Signature et contrat de retour</h2>
-    <div class="signature-grid">
-      <div>
-        <div class="sig-label">Côté Rust — <code>src-tauri/src/commands/list_plans.rs</code></div>
-<pre><code>#[derive(Debug, Serialize)]
+			<h2>Signature et contrat de retour</h2>
+			<div class="signature-grid">
+				<div>
+					<div class="sig-label">
+						Côté Rust —
+						<code>src-tauri/src/commands/list_plans.rs</code>
+					</div>
+					<pre><code>#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlanEntry {
     pub kind:  String,  // "interview" | "plan"
@@ -284,10 +479,12 @@ pub struct PlanEntry {
 pub fn list_plans(
     repo_path: String,
 ) -> Result&lt;Vec&lt;PlanEntry&gt;, String&gt;</code></pre>
-      </div>
-      <div>
-        <div class="sig-label">Côté frontend — payload JSON sérialisé</div>
-<pre><code>[
+				</div>
+				<div>
+					<div class="sig-label">
+						Côté frontend — payload JSON sérialisé
+					</div>
+					<pre><code>[
   {
     "kind":  "interview",
     "slug":  "agent-cockpit",
@@ -303,134 +500,353 @@ pub fn list_plans(
     "mtime": 1779192490
   }
 ]</code></pre>
-      </div>
-    </div>
+				</div>
+			</div>
 
-    <h2>Logique de scan</h2>
-    <div class="flow-wrap">
-      <svg viewBox="0 0 880 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flux du scan list_plans">
-        <defs>
-          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0,0 L10,5 L0,10 z" class="edge-arrow"/>
-          </marker>
-        </defs>
+			<h2>Logique de scan</h2>
+			<div class="flow-wrap">
+				<svg
+					viewBox="0 0 880 280"
+					xmlns="http://www.w3.org/2000/svg"
+					role="img"
+					aria-label="Flux du scan list_plans"
+				>
+					<defs>
+						<marker
+							id="arrow"
+							viewBox="0 0 10 10"
+							refX="9"
+							refY="5"
+							markerWidth="7"
+							markerHeight="7"
+							orient="auto-start-reverse"
+						>
+							<path d="M0,0 L10,5 L0,10 z" class="edge-arrow" />
+						</marker>
+					</defs>
 
-        <!-- Entry: repo_path -->
-        <rect class="node-rect primary" x="20" y="110" width="170" height="60" rx="6"/>
-        <text class="node-label primary" x="105" y="140" text-anchor="middle">repo_path</text>
-        <text class="node-sub" x="105" y="158" text-anchor="middle">String (racine projet)</text>
+					<!-- Entry: repo_path -->
+					<rect
+						class="node-rect primary"
+						x="20"
+						y="110"
+						width="170"
+						height="60"
+						rx="6"
+					/>
+					<text
+						class="node-label primary"
+						x="105"
+						y="140"
+						text-anchor="middle"
+					>
+						repo_path
+					</text>
+					<text class="node-sub" x="105" y="158" text-anchor="middle">
+						String (racine projet)
+					</text>
 
-        <!-- Branch 1: interviews -->
-        <rect class="node-rect" x="260" y="20" width="240" height="64" rx="6"/>
-        <text class="node-label" x="380" y="46" text-anchor="middle">docs/interviews/&lt;slug&gt;/</text>
-        <text class="node-sub" x="380" y="64" text-anchor="middle">read_dir → ne garde que les sous-dossiers</text>
-        <text class="node-sub" x="380" y="78" text-anchor="middle">contenant un plan.html</text>
+					<!-- Branch 1: interviews -->
+					<rect
+						class="node-rect"
+						x="260"
+						y="20"
+						width="240"
+						height="64"
+						rx="6"
+					/>
+					<text
+						class="node-label"
+						x="380"
+						y="46"
+						text-anchor="middle"
+					>
+						docs/interviews/&lt;slug&gt;/
+					</text>
+					<text class="node-sub" x="380" y="64" text-anchor="middle">
+						read_dir → ne garde que les sous-dossiers
+					</text>
+					<text class="node-sub" x="380" y="78" text-anchor="middle">
+						contenant un plan.html
+					</text>
 
-        <!-- Branch 2: plans -->
-        <rect class="node-rect" x="260" y="196" width="240" height="64" rx="6"/>
-        <text class="node-label" x="380" y="222" text-anchor="middle">docs/plans/*.html</text>
-        <text class="node-sub" x="380" y="240" text-anchor="middle">read_dir → ne garde que les fichiers</text>
-        <text class="node-sub" x="380" y="254" text-anchor="middle">avec extension .html</text>
+					<!-- Branch 2: plans -->
+					<rect
+						class="node-rect"
+						x="260"
+						y="196"
+						width="240"
+						height="64"
+						rx="6"
+					/>
+					<text
+						class="node-label"
+						x="380"
+						y="222"
+						text-anchor="middle"
+					>
+						docs/plans/*.html
+					</text>
+					<text class="node-sub" x="380" y="240" text-anchor="middle">
+						read_dir → ne garde que les fichiers
+					</text>
+					<text class="node-sub" x="380" y="254" text-anchor="middle">
+						avec extension .html
+					</text>
 
-        <!-- Output 1 -->
-        <rect class="node-rect" x="580" y="20" width="280" height="64" rx="6"/>
-        <text class="node-label" x="720" y="46" text-anchor="middle">PlanEntry { kind: "interview" }</text>
-        <text class="node-sub" x="720" y="64" text-anchor="middle">slug = nom du dossier parent</text>
-        <text class="node-sub" x="720" y="78" text-anchor="middle">path = .../plan.html · mtime = epoch</text>
+					<!-- Output 1 -->
+					<rect
+						class="node-rect"
+						x="580"
+						y="20"
+						width="280"
+						height="64"
+						rx="6"
+					/>
+					<text
+						class="node-label"
+						x="720"
+						y="46"
+						text-anchor="middle"
+					>
+						PlanEntry { kind: "interview" }
+					</text>
+					<text class="node-sub" x="720" y="64" text-anchor="middle">
+						slug = nom du dossier parent
+					</text>
+					<text class="node-sub" x="720" y="78" text-anchor="middle">
+						path = .../plan.html · mtime = epoch
+					</text>
 
-        <!-- Output 2 -->
-        <rect class="node-rect" x="580" y="196" width="280" height="64" rx="6"/>
-        <text class="node-label" x="720" y="222" text-anchor="middle">PlanEntry { kind: "plan" }</text>
-        <text class="node-sub" x="720" y="240" text-anchor="middle">slug = file_stem (sans .html)</text>
-        <text class="node-sub" x="720" y="254" text-anchor="middle">path = .../&lt;slug&gt;.html · mtime = epoch</text>
+					<!-- Output 2 -->
+					<rect
+						class="node-rect"
+						x="580"
+						y="196"
+						width="280"
+						height="64"
+						rx="6"
+					/>
+					<text
+						class="node-label"
+						x="720"
+						y="222"
+						text-anchor="middle"
+					>
+						PlanEntry { kind: "plan" }
+					</text>
+					<text class="node-sub" x="720" y="240" text-anchor="middle">
+						slug = file_stem (sans .html)
+					</text>
+					<text class="node-sub" x="720" y="254" text-anchor="middle">
+						path = .../&lt;slug&gt;.html · mtime = epoch
+					</text>
 
-        <!-- Edges -->
-        <path class="edge-line" d="M190 130 C 220 130, 220 52, 260 52" marker-end="url(#arrow)"/>
-        <path class="edge-line" d="M190 150 C 220 150, 220 228, 260 228" marker-end="url(#arrow)"/>
-        <path class="edge-line" d="M500 52 L 580 52" marker-end="url(#arrow)"/>
-        <path class="edge-line" d="M500 228 L 580 228" marker-end="url(#arrow)"/>
+					<!-- Edges -->
+					<path
+						class="edge-line"
+						d="M190 130 C 220 130, 220 52, 260 52"
+						marker-end="url(#arrow)"
+					/>
+					<path
+						class="edge-line"
+						d="M190 150 C 220 150, 220 228, 260 228"
+						marker-end="url(#arrow)"
+					/>
+					<path
+						class="edge-line"
+						d="M500 52 L 580 52"
+						marker-end="url(#arrow)"
+					/>
+					<path
+						class="edge-line"
+						d="M500 228 L 580 228"
+						marker-end="url(#arrow)"
+					/>
 
-        <!-- Edge labels -->
-        <text class="edge-label" x="225" y="78" text-anchor="middle">join("docs/interviews")</text>
-        <text class="edge-label" x="225" y="200" text-anchor="middle">join("docs/plans")</text>
-        <text class="edge-label" x="540" y="42" text-anchor="middle">push</text>
-        <text class="edge-label" x="540" y="218" text-anchor="middle">push</text>
-      </svg>
-      <div class="flow-caption">Deux branches indépendantes · sortie concaténée dans l'ordre <code>interviews → plans</code></div>
-    </div>
+					<!-- Edge labels -->
+					<text
+						class="edge-label"
+						x="225"
+						y="78"
+						text-anchor="middle"
+					>
+						join("docs/interviews")
+					</text>
+					<text
+						class="edge-label"
+						x="225"
+						y="200"
+						text-anchor="middle"
+					>
+						join("docs/plans")
+					</text>
+					<text
+						class="edge-label"
+						x="540"
+						y="42"
+						text-anchor="middle"
+					>
+						push
+					</text>
+					<text
+						class="edge-label"
+						x="540"
+						y="218"
+						text-anchor="middle"
+					>
+						push
+					</text>
+				</svg>
+				<div class="flow-caption">
+					Deux branches indépendantes · sortie concaténée dans l'ordre
+					<code>interviews → plans</code>
+				</div>
+			</div>
 
-    <h2>Ce qui est silencieusement ignoré</h2>
-    <div class="skip-grid">
-      <div class="h">Cas</div>
-      <div class="h">Décision</div>
-      <div class="h">Pourquoi</div>
+			<h2>Ce qui est silencieusement ignoré</h2>
+			<div class="skip-grid">
+				<div class="h">Cas</div>
+				<div class="h">Décision</div>
+				<div class="h">Pourquoi</div>
 
-      <div><code>docs/interviews/</code> n'existe pas</div>
-      <div><span class="pill">skip</span></div>
-      <div>Premier garde-fou <code>is_dir()</code> avant <code>read_dir</code> — un projet neuf ne crash pas.</div>
+				<div><code>docs/interviews/</code> n'existe pas</div>
+				<div><span class="pill">skip</span></div>
+				<div>
+					Premier garde-fou <code>is_dir()</code> avant
+					<code>read_dir</code> — un projet neuf ne crash pas.
+				</div>
 
-      <div><code>docs/plans/</code> n'existe pas</div>
-      <div><span class="pill">skip</span></div>
-      <div>Même garde-fou symétrique. Sans ces deux dossiers, le retour est <code>[]</code>.</div>
+				<div><code>docs/plans/</code> n'existe pas</div>
+				<div><span class="pill">skip</span></div>
+				<div>
+					Même garde-fou symétrique. Sans ces deux dossiers, le retour
+					est <code>[]</code>.
+				</div>
 
-      <div>Entrée dans <code>interviews/</code> qui n'est pas un dossier</div>
-      <div><span class="pill">skip</span></div>
-      <div>Un <code>.DS_Store</code> ou un fichier orphelin ne pollue pas la sortie.</div>
+				<div>
+					Entrée dans <code>interviews/</code> qui n'est pas un
+					dossier
+				</div>
+				<div><span class="pill">skip</span></div>
+				<div>
+					Un <code>.DS_Store</code> ou un fichier orphelin ne pollue
+					pas la sortie.
+				</div>
 
-      <div>Dossier d'interview sans <code>plan.html</code></div>
-      <div><span class="pill">skip</span></div>
-      <div>Un dossier vide ou en cours d'init ne génère pas une entrée fantôme.</div>
+				<div>Dossier d'interview sans <code>plan.html</code></div>
+				<div><span class="pill">skip</span></div>
+				<div>
+					Un dossier vide ou en cours d'init ne génère pas une entrée
+					fantôme.
+				</div>
 
-      <div>Fichier non <code>.html</code> dans <code>plans/</code></div>
-      <div><span class="pill">skip</span></div>
-      <div>Filtre explicite sur l'extension — <code>.md</code>, <code>.json</code>, etc. sont ignorés.</div>
+				<div>
+					Fichier non <code>.html</code> dans <code>plans/</code>
+				</div>
+				<div><span class="pill">skip</span></div>
+				<div>
+					Filtre explicite sur l'extension — <code>.md</code>,
+					<code>.json</code>, etc. sont ignorés.
+				</div>
 
-      <div>Erreur <code>fs::metadata</code> / <code>read_dir</code></div>
-      <div><span class="pill warn">propagée</span></div>
-      <div>Convertie en <code>Err(String)</code> ; côté Tauri, l'invoke côté JS rejette.</div>
-    </div>
+				<div>
+					Erreur <code>fs::metadata</code> / <code>read_dir</code>
+				</div>
+				<div><span class="pill warn">propagée</span></div>
+				<div>
+					Convertie en <code>Err(String)</code> ; côté Tauri, l'invoke
+					côté JS rejette.
+				</div>
+			</div>
 
-    <h2>Tests unitaires — fixture sur <code>tempdir</code></h2>
-    <ul class="test-list">
-      <li>
-        <div>Crée <code>docs/interviews/agent-cockpit/plan.html</code> et <code>docs/plans/2026-05-15-agent-cockpit.html</code>, vérifie que les 2 entrées remontent avec les bons <code>kind</code>, <code>slug</code>, <code>path</code> et un <code>mtime &gt; 0</code>.</div>
-        <span class="pill success">happy path</span>
-      </li>
-      <li>
-        <div>Lance la commande sur un <code>tempdir</code> vide → retour <code>[]</code>, pas d'erreur.</div>
-        <span class="pill">edge</span>
-      </li>
-      <li>
-        <div>Mélange <code>real.html</code> et <code>notes.md</code> dans <code>docs/plans/</code> → une seule entrée, slug <code>real</code>.</div>
-        <span class="pill">edge</span>
-      </li>
-      <li>
-        <div>Dossier <code>docs/interviews/empty-one/</code> sans <code>plan.html</code> → retour <code>[]</code>.</div>
-        <span class="pill">edge</span>
-      </li>
-    </ul>
+			<h2>Tests unitaires — fixture sur <code>tempdir</code></h2>
+			<ul class="test-list">
+				<li>
+					<div>
+						Crée
+						<code>docs/interviews/agent-cockpit/plan.html</code> et
+						<code>docs/plans/2026-05-15-agent-cockpit.html</code>,
+						vérifie que les 2 entrées remontent avec les bons
+						<code>kind</code>, <code>slug</code>,
+						<code>path</code> et un <code>mtime &gt; 0</code>.
+					</div>
+					<span class="pill success">happy path</span>
+				</li>
+				<li>
+					<div>
+						Lance la commande sur un <code>tempdir</code> vide →
+						retour <code>[]</code>, pas d'erreur.
+					</div>
+					<span class="pill">edge</span>
+				</li>
+				<li>
+					<div>
+						Mélange <code>real.html</code> et
+						<code>notes.md</code> dans <code>docs/plans/</code> →
+						une seule entrée, slug <code>real</code>.
+					</div>
+					<span class="pill">edge</span>
+				</li>
+				<li>
+					<div>
+						Dossier <code>docs/interviews/empty-one/</code> sans
+						<code>plan.html</code> → retour <code>[]</code>.
+					</div>
+					<span class="pill">edge</span>
+				</li>
+			</ul>
 
-    <h2>Ce qui ne fait pas partie de P4-01</h2>
-    <div class="footer-note">
-      <p><strong>Titre humain</strong> : le champ <code>title</code> contient le slug. L'extraction réelle (<code>&lt;title&gt;</code> ou <code>&lt;h1&gt;</code> du <code>plan.html</code>, fallback slug) est livrée par SAS-347 / P4-03 — c'est sa raison d'être.</p>
-      <p><strong>Tri</strong> : la sortie n'est pas triée. L'ordre vient de <code>read_dir</code> (donc filesystem-dépendant). Le tri par <code>mtime desc</code> sera géré côté front (P4-02 — menu Plans sidebar).</p>
-      <p><strong>Watcher</strong> : la commande est <em>pull</em> uniquement. La détection live d'un nouveau fichier sera P4-09 (<code>docs/interviews/</code>) et P4-10 (<code>docs/plans/</code>).</p>
-      <p><strong>Pas d'IPC du côté JS pour l'instant</strong> : la commande est enregistrée dans le <code>invoke_handler</code> mais aucun composant React ne l'appelle encore. C'est P4-02 qui consomme.</p>
-    </div>
-  </main>
+			<h2>Ce qui ne fait pas partie de P4-01</h2>
+			<div class="footer-note">
+				<p>
+					<strong>Titre humain</strong> : le champ
+					<code>title</code> contient le slug. L'extraction réelle
+					(<code>&lt;title&gt;</code> ou <code>&lt;h1&gt;</code> du
+					<code>plan.html</code>, fallback slug) est livrée par
+					SAS-347 / P4-03 — c'est sa raison d'être.
+				</p>
+				<p>
+					<strong>Tri</strong> : la sortie n'est pas triée. L'ordre
+					vient de <code>read_dir</code> (donc filesystem-dépendant).
+					Le tri par <code>mtime desc</code> sera géré côté front
+					(P4-02 — menu Plans sidebar).
+				</p>
+				<p>
+					<strong>Watcher</strong> : la commande est
+					<em>pull</em> uniquement. La détection live d'un nouveau
+					fichier sera P4-09 (<code>docs/interviews/</code>) et P4-10
+					(<code>docs/plans/</code>).
+				</p>
+				<p>
+					<strong>Pas d'IPC du côté JS pour l'instant</strong> : la
+					commande est enregistrée dans le
+					<code>invoke_handler</code> mais aucun composant React ne
+					l'appelle encore. C'est P4-02 qui consomme.
+				</p>
+			</div>
+		</main>
 
-  <script>
-    (function () {
-      const btn = document.querySelector('.np-theme-toggle');
-      if (!btn) return;
-      btn.addEventListener('click', () => {
-        const cur = document.documentElement.getAttribute('data-theme') || 'light';
-        const next = cur === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', next);
-        try { localStorage.setItem('np-theme', next); } catch (e) {}
-        document.dispatchEvent(new CustomEvent('np:theme-change', { detail: { theme: next } }));
-      });
-    })();
-  </script>
-</body>
+		<script>
+			;(function () {
+				const btn = document.querySelector('.np-theme-toggle')
+				if (!btn) return
+				btn.addEventListener('click', () => {
+					const cur =
+						document.documentElement.getAttribute('data-theme') ||
+						'light'
+					const next = cur === 'dark' ? 'light' : 'dark'
+					document.documentElement.setAttribute('data-theme', next)
+					try {
+						localStorage.setItem('np-theme', next)
+					} catch (e) {}
+					document.dispatchEvent(
+						new CustomEvent('np:theme-change', {
+							detail: { theme: next },
+						}),
+					)
+				})
+			})()
+		</script>
+	</body>
 </html>
