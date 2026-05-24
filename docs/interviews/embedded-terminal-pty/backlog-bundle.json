@@ -1,0 +1,164 @@
+{
+  "schema_version": "1",
+  "source": {
+    "kind": "interview",
+    "slug": "embedded-terminal-pty",
+    "change_kind": "additive-brownfield"
+  },
+  "target": {
+    "linear_project_hint": "Agent Cockpit",
+    "linear_team_hint": "SAS",
+    "repo_path_hint": ""
+  },
+  "decisions": [
+    {
+      "id": "D1",
+      "theme": "embedding",
+      "fact": "V1 affiche libghostty-vt en crate Rust côté backend ; les cells décodées sont streamées via IPC vers un renderer canvas React dans la webview Tauri unique.",
+      "mechanism": "Crate <code>agent-cockpit-term</code> (cf. D2) expose <code>Terminal::feed(bytes) -> Cells</code>. Côté frontend, composant <code>&lt;TerminalPane sessionId&gt;</code> ouvre un Tauri Channel&lt;CellFrame&gt; et rend les cells via <code>&lt;canvas&gt;</code> (renderer custom 2D ou xterm.js avec backend custom recevant les cells pré-parsed).",
+      "edge": "Utilise la webview Tauri unique — pas de child window WGPU, pas de surface GPU native. Rendu correct mais ne match pas la perf de ghostty natif. Acceptable pour cockpit dev.",
+      "rejected": "<strong>(b) WGPU native overlay</strong> — casse le modèle Tauri single-webview, clipping/z-index avec UI React infaisable proprement. <strong>(c) xterm.js JS-only</strong> — perd le bénéfice du parser VT libghostty (seule raison d'aller cmux-like).",
+      "order": "Après D2 (agent-cockpit-term crate). Parallèle à D5/D6 (IPC channels).",
+      "verification": "Lancer claude dans une pane → output ANSI complet (couleurs, cursor moves, alternate buffer) s'affiche correctement. Stress test : <code>cat /dev/urandom | hexdump | head -10000</code> rend sans drop frame perceptible (60fps p95)."
+    },
+    {
+      "id": "D2",
+      "theme": "embedding",
+      "fact": "Le binding Rust ↔ libghostty (C/Zig) passe par un crate intermédiaire <code>agent-cockpit-term</code> (sys + safe wrapper) qu'on maintient dans le workspace.",
+      "mechanism": "Nouveau membre <code>crates/agent-cockpit-term/</code> + sub-crate <code>crates/agent-cockpit-term-sys/</code> avec <code>bindgen</code> sur les headers C de libghostty et <code>build.rs</code> qui link la <code>.dylib/.so/.dll</code>. Le parent crate expose une API safe (struct <code>Terminal</code>, <code>Cells</code>, méthode <code>feed()</code>) ; tous les <code>unsafe</code> sont confinés au sys-crate.",
+      "edge": "V1 link libghostty en dynamic library, version pinnée exactement dans Cargo.toml + checksum vérifié en CI. Pas de static link initial, pas de build-from-source de Zig dans le CI day-1.",
+      "rejected": "<strong>(a) bindgen direct dans tauri-app</strong> — chaque breaking change libghostty patché dans N call-sites, pas de surface stable interne. <strong>(c) fork vendor du Zig</strong> — merge upstream à vie, on porte les bugs ghostty soi-même.",
+      "order": "Préalable à D1 (render pipeline). Spike pré-implémentation : déterminer si libghostty expose un C ABI stable ou si on doit écrire un thin C wrapper du côté Zig (cf. OQ3).",
+      "verification": "<code>cargo build -p agent-cockpit-term</code> réussit avec libghostty.dylib disponible. <code>cargo doc -p agent-cockpit-term</code> montre la surface safe (<code>Terminal</code>, <code>feed</code>, <code>cells</code>, …). Test : alimenter un <code>Terminal</code> avec une séquence ANSI connue → assert sur le cell grid attendu."
+    },
+    {
+      "id": "D3",
+      "theme": "pty",
+      "fact": "V1 utilise <code>portable-pty</code> (la lib derrière alacritty/wezterm) pour ouvrir un PTY et spawn le binaire CLI dedans.",
+      "mechanism": "Module <code>tauri-app::session::pty</code> avec une fonction <code>spawn(binary, cwd, env) -> PtySession</code> qui appelle <code>portable_pty::native_pty_system().openpty(PtySize{...})</code>, spawn via <code>pair.slave.spawn_command(cmd)</code>, et retourne <code>{ master_reader: Box&lt;dyn Read&gt;, master_writer: Box&lt;dyn Write&gt;, child: Box&lt;dyn Child&gt; }</code>.",
+      "edge": "Windows = conpty automatique (gratuit avec portable-pty). PTY size figée au spawn pour V1 (resize viendra avec multi-pane post-V1). Pas de feature 're-openpty' / detach.",
+      "rejected": "<strong>(b) tokio-pty-process</strong> — moins maintenu, dernière release ~2 ans. <strong>(c) nix raw + openpty manuel</strong> — Windows à porter soi-même, pas de bénéfice net.",
+      "order": "Indépendant. Préalable à D4 (process holder).",
+      "verification": "Test d'intégration <code>crates/agent-cockpit-session/tests/pty.rs</code> : <code>spawn(\"echo\", \".\", {\"X\":\"y\"})</code> → master_reader lit la string <code>\"y\"</code>, child exit avec status 0 en &lt; 1s."
+    },
+    {
+      "id": "D4",
+      "theme": "pty",
+      "fact": "Les process PTY vivent dans le process Tauri lui-même via une tokio task par session. Pas de daemon séparé en V1.",
+      "mechanism": "Struct <code>SessionManager</code> dans <code>tauri-app::session</code> maintient <code>HashMap&lt;SessionId, SessionHandle&gt;</code>. Chaque session = (a) tokio task qui read le PTY master et push dans le Channel output (cf. D5), (b) tokio task qui read le Channel input et write au PTY master (cf. D6), (c) <code>Box&lt;dyn Child&gt;</code> pour le process. Lifecycle : drop SessionManager (app quit) → drop chaque handle → kill child (<code>SIGTERM</code> puis <code>SIGKILL</code> après 2s timeout).",
+      "edge": "Toutes les sessions meurent quand l'app quit. Pas de réattach cross-quit. UI crash mid-session = sessions tuées (acceptable car D8 = ephemeral).",
+      "rejected": "<strong>(b) daemon séparé</strong> — +1 binaire à signer/updater, IPC daemon↔UI à designer, V12 pour V1. <strong>(c) detached orphan via setsid+fork</strong> — ré-attach fragile (PID race), pas de manager central pour list/kill propre.",
+      "order": "Après D3 (portable-pty). Bloquant pour D5, D6, D7, D8.",
+      "verification": "Lancer 3 sessions claude depuis l'UI, quit l'app (Cmd+Q) → <code>ps -ef | grep claude</code> retourne 0 résultat dans les 5s suivantes (SIGKILL effectif)."
+    },
+    {
+      "id": "D5",
+      "theme": "ipc",
+      "fact": "L'output PTY (cells décodées) remonte au frontend via la Tauri Channel API v2, un channel par session, typed.",
+      "mechanism": "À la création de session, le frontend appelle <code>invoke(\"session_open\", { sessionId, ... })</code> qui retourne <code>Channel&lt;TerminalMessage&gt;</code>. Backend route les cells décodées par libghostty-vt dans ce channel en <code>TerminalMessage::Output(CellFrame)</code>. React : <code>channel.onmessage = msg =&gt; if (msg.kind===\"Output\") terminalPane.applyFrame(msg.frame)</code>.",
+      "edge": "1 channel = 1 session. Back-pressure gérée par Tauri v2 (queue interne). Pas de multiplexing sur un channel global. <code>CellFrame</code> sérialisé en MessagePack (Tauri v2 par défaut sur les Channels).",
+      "rejected": "<strong>(a) event broadcast emit/listen</strong> — sérialisation JSON par event, pas de back-pressure, pollution du bus global. <strong>(c) websocket local</strong> — port libre à allouer + autorisation système. <strong>(d) shared memory mmap</strong> — webview JS n'y accède pas, overkill pour ~10 MB/s max.",
+      "order": "Après D4 (SessionManager). Parallèle à D6.",
+      "verification": "Bench end-to-end : output PTY → React.applyFrame → next animation frame. p50 &lt; 8 ms, p99 &lt; 30 ms sur sortie <code>yes | head -1000000</code>."
+    },
+    {
+      "id": "D6",
+      "theme": "ipc",
+      "fact": "Les keystrokes du frontend descendent au PTY master via le même Channel bidirectionnel que l'output (variant <code>TerminalMessage::Input</code>).",
+      "mechanism": "Le <code>Channel&lt;TerminalMessage&gt;</code> ouvert en D5 transporte un enum <code>TerminalMessage = Output(CellFrame) | Input(Vec&lt;u8&gt;) | Resize { rows, cols }</code>. React : <code>terminalPane.onKey = bytes =&gt; channel.send({ kind: \"Input\", bytes })</code>. Backend dispatch : Input → <code>master_writer.write_all(bytes)</code>.",
+      "edge": "Pas de batching côté JS pour V1 (un send par keystroke). Si p99 latence &gt; 50 ms en profiling, on debounce 4–8 ms côté React.",
+      "rejected": "<strong>(a) Tauri command per keystroke / batch</strong> — round-trip <code>invoke()</code> ~10–30 ms par key sous charge, casse l'UX terminal. <strong>(c) websocket</strong> — lié au choix (c) Q6, non retenu.",
+      "order": "Après D5 (channel existe).",
+      "verification": "Latence keystroke → echo dans <code>cat</code> &lt; 30 ms p99 ; smoke test : taper <code>\"hello\\n\"</code> → 6 bytes observables sur le PTY master via <code>strace -e write</code> (ou <code>dtruss</code> macOS)."
+    },
+    {
+      "id": "D7",
+      "theme": "persistence",
+      "fact": "Pendant qu'une session est vivante, son scrollback est stocké en SQLite sous forme de raw PTY bytes append-only ; au reload de l'UI, le scrollback est rejoué via libghostty-vt pour reconstituer la pane.",
+      "mechanism": "Migration <code>0005_session_scrollback.sql</code> crée la table <code>session_scrollback (session_id TEXT, chunk_idx INTEGER, bytes BLOB, recorded_at TEXT, PRIMARY KEY (session_id, chunk_idx), FOREIGN KEY (session_id) REFERENCES agent_sessions(id) ON DELETE CASCADE)</code>. Backend append un chunk tous les ~256 bytes ou 100 ms (le plus rapide). UI reload : <code>SELECT bytes FROM session_scrollback WHERE session_id=? ORDER BY chunk_idx</code> → <code>terminal.feed_all(bytes)</code> → cells pré-attach.",
+      "edge": "Persistence active uniquement pour <code>status='running'</code>. Au process exit (D8), <code>DELETE FROM agent_sessions WHERE id=?</code> → cascade supprime le scrollback. Pas de scrollback post-mortem.",
+      "rejected": "<strong>(b) cells rendered (msgpack)</strong> — storage ~10× plus gros, format custom à versionner avec libghostty. <strong>(c) hybrid raw+cells</strong> — complexité prématurée, 2 chemins à débugger.",
+      "order": "Migration 0005 préalable au code session_scrollback. Après D4 (sessions existent).",
+      "verification": "Lancer claude, taper 5 lignes ; full reload UI (quit + relaunch Tauri) ; scrollback affiché à l'identique. Stress : 10 MB de scrollback rejouent en &lt; 500 ms."
+    },
+    {
+      "id": "D8",
+      "theme": "persistence",
+      "fact": "Quand le process PTY d'une session exit, la session est immédiatement supprimée de la DB et disparaît du UI.",
+      "mechanism": "Le <code>SessionManager</code> (D4) observe <code>Child::wait()</code> dans une tokio task de surveillance ; sur exit, il appelle <code>sqlx::query(\"DELETE FROM agent_sessions WHERE id=?\")</code> (le scrollback est purgé en cascade via FK D7). Backend émet un event Tauri <code>session:closed { sessionId }</code> → sidebar React enlève l'entrée + ferme la pane.",
+      "edge": "Aucune trace post-mortem du run. UX : \"les sessions sont des process, elles meurent comme des process\". User a explicitement choisi ce comportement vs (b) read-only indef.",
+      "rejected": "<strong>(b) lecture seule indéfinie</strong> — user a explicitement préféré ephemeral pour V1. <strong>(c) TTL/GC auto</strong> — background job overkill V1.",
+      "order": "Après D4 et D7.",
+      "verification": "Lancer une session, l'exit (Ctrl+D dans claude) ; <code>SELECT count(*) FROM agent_sessions WHERE id=?</code> = 0 dans la seconde ; sidebar UI ne montre plus l'entrée."
+    },
+    {
+      "id": "D9",
+      "theme": "scope-v1",
+      "fact": "V1 ship multi-session avec sidebar de navigation, single pane active, scrollback persisté en SQLite pendant la vie de la session. Pas de daemon, pas de resume cross-app-quit.",
+      "mechanism": "UI = layout 2-col <code>[sidebar 240px | active-pane 1fr]</code>. Backend = <code>SessionManager</code> in-Tauri (D4). Persistance = table <code>session_scrollback</code> (D7). Aucun nouveau binaire à shipper — un seul exécutable Tauri.",
+      "edge": "V1 explicitement n'inclut pas : splits/panes multiples (post-V1), daemon (V1.5), resume cross-quit (V1.5), agent profiles partagés (post-V1 si demande), bundling claude (jamais).",
+      "rejected": "<strong>(a) single agent / single pane / no resume</strong> — ne mérite pas \"cockpit\". <strong>(c) full cmux parity dès V1</strong> — V12 jamais shippé.",
+      "order": "Méta-décision qui gate D4, D7, D8, D11.",
+      "verification": "Build du DMG/AppImage inclut 1 seul binaire (<code>tauri-app</code>), aucun <code>agent-cockpit-daemon</code>. Lancer 3 sessions en parallèle marche. Sidebar montre les 3. Reload UI les conserve."
+    },
+    {
+      "id": "D10",
+      "theme": "scope-v1",
+      "fact": "Resume cross-app-quit n'est pas en V1. V1.5 ajoutera un daemon séparé pour le supporter.",
+      "mechanism": "Aucun code daemon en V1. Roadmap V1.5 : extraire <code>SessionManager</code> dans un binaire <code>agent-cockpit-sessiond</code>, IPC via unix socket avec l'UI Tauri ; le daemon garde les PTYs vivants après UI close ; UI s'attache à un daemon existant au démarrage.",
+      "edge": "V1 = sessions meurent avec l'app (par D4). L'utilisateur accepte explicitement l'UX \"quit app = perds le travail en cours\".",
+      "rejected": "<strong>(b) revisiter pty-owner = daemon dès V1</strong> — invalide D4 et coût +1 binaire à signer/updater. <strong>(c) jamais</strong> — incohérent avec l'ambition cockpit moyen-terme.",
+      "order": "Après V1 entière. Chantier V1.5 indépendant.",
+      "verification": "V1 : pas de binaire daemon dans le bundle (verif via <code>tar tvf agent-cockpit-V1.dmg</code>). Quit app + relaunch → sidebar vide, aucune session restaurée."
+    },
+    {
+      "id": "D11",
+      "theme": "multiplex-ux",
+      "fact": "V1 affiche une seule pane terminal active à la fois, switchable via la sidebar. Pas de splits, pas de tabs, pas de grid.",
+      "mechanism": "Composant React <code>&lt;Workspace&gt;</code> = <code>&lt;aside className=\"sidebar\"&gt;</code> listant les sessions + <code>&lt;main className=\"active-pane\"&gt;</code> rendant la <code>&lt;TerminalPane&gt;</code> correspondant à <code>activeSessionId</code>. Switch session = <code>setActiveSessionId(newId)</code>. Les panes inactives restent mounted (canvas state préservé) mais <code>display:none</code>.",
+      "edge": "V1 explicitement pas de split tmux-like, pas de tabs en haut de pane, pas de grid. User note : « ajout d'un système complexe de gestion de pane plus tard, pour l'instant pane unique ».",
+      "rejected": "<strong>(b) splits tmux-like</strong> — resize logic + focus inter-split, state layout à persister, hors V1. <strong>(c) tabs + sidebar</strong> — double navigation, choix UX coûteux à inverser.",
+      "order": "Après D5/D6 (TerminalPane existe).",
+      "verification": "Créer 2 sessions, cliquer alternativement sur les sidebar entries → la pane active change, le scrollback de la session précédente est intact au re-switch."
+    },
+    {
+      "id": "D12",
+      "theme": "multiplex-ux",
+      "fact": "V1 expose trois mécanismes de navigation cumulés : shortcuts clavier dédiés (<code>Cmd+1..9</code>, <code>Cmd+↑↓</code>), command palette (<code>Cmd+K</code> fuzzy search), sidebar cliquable. Tabs (option d) reportées post-V1.",
+      "mechanism": "(a) Hook <code>useGlobalShortcuts({ \"Cmd+1\"..\"Cmd+9\": switchToSessionIndex, \"Cmd+ArrowDown\": nextSession, \"Cmd+ArrowUp\": prevSession })</code>. (b) Composant <code>&lt;CommandPalette&gt;</code> overlay (Cmd+K), fuzzy search sur sessions + actions globales. (c) <code>&lt;Sidebar&gt;</code> décrite en D11 avec click handler.",
+      "edge": "(d) tabs cliquables = post-V1 (cohérent avec D11 = pas de tabs). L'inconsistance Q5 (user a coché (d) malgré Q4=a) est résolue en classant (d) en post-V1.",
+      "rejected": "Choix unique parmi a/b/c — limitatif, ces 3 modes sont orthogonaux et couvrent différents patterns d'usage (power-user, découvrabilité, persistance visuelle).",
+      "order": "Après D11 (layout). Les 3 mécanismes indépendants entre eux, implémentables en parallèle.",
+      "verification": "Test : <code>Cmd+1..3</code> switche entre 3 sessions. <code>Cmd+K</code> ouvre palette + tape « test » filtre. Click sidebar entry → pane switche. Les 3 cohabitent sans conflit clavier."
+    },
+    {
+      "id": "D13",
+      "theme": "agent-model",
+      "fact": "V1 garde le schema actuel de <code>agent_sessions</code> (<code>id, repo_path, worktree_path, ref_name, status</code>). Aucune migration ajoutant <code>binary_path</code>, <code>label</code> ou <code>env_vars</code>.",
+      "mechanism": "À la création de session, le binaire à lancer est passé via paramètre Tauri command <code>session_create(binary: String, cwd: String, ref_name: String)</code> ; pas stocké en DB. Label UI dérivé runtime depuis <code>binary</code> + <code>worktree_path</code>. Env vars = héritées de l'env parent du process Tauri (pas customisable per-session V1).",
+      "edge": "V1 ne stocke pas quel binaire a tourné dans chaque session. Cohérent avec D8 (suppression immédiate à l'exit — aucune info à conserver). Post-V1 : si on veut un catalogue d'agents partagés, on ajoutera la table <code>agent_profiles</code> et une FK.",
+      "rejected": "<strong>(b) ajouter binary_path/label/env_vars inline</strong> — inutile vu D8 (suppression à l'exit). <strong>(c) table agent_profiles</strong> — overkill V1 sans presets multiples partagés.",
+      "order": "Aucune migration. Préalable au code du command <code>session_create</code>.",
+      "verification": "<code>sqlx migrate run</code> ne crée aucune nouvelle migration. Création d'une session via le command marche avec le schema actuel ; ligne insérée a les 5 colonnes existantes."
+    },
+    {
+      "id": "D14",
+      "theme": "agent-model",
+      "fact": "V1 trouve les binaires CLI agent (<code>claude</code>, <code>codex</code>, …) via le <code>$PATH</code> standard du process Tauri.",
+      "mechanism": "À <code>session_create(binary, ...)</code>, le backend appelle <code>which::which(binary)</code> (crate <code>which</code>) pour résoudre le chemin absolu avant <code>portable_pty::spawn</code>. Échec → erreur typée <code>SessionError::BinaryNotFound(binary)</code> propagée au frontend qui affiche un message <code>« claude introuvable dans $PATH — installe via brew install ... »</code>.",
+      "edge": "PATH hérité au lancement de l'app (pas de live reload). macOS : l'app GUI hérite d'un PATH minimal — il faut au démarrage exec <code>/bin/zsh -lc 'echo $PATH'</code> pour capturer le PATH login du user (cf. R4).",
+      "rejected": "<strong>(b) config par profile</strong> — utile post-V1 si on a un catalogue. <strong>(c) bundled dans l'app</strong> — licence claude non redistribuable + taille DMG.",
+      "order": "Indépendant. Préalable au <code>session_create</code> command.",
+      "verification": "Avec <code>claude</code> dans PATH : <code>session_create</code> spawn correctement. Renommer/déplacer claude → next call retourne <code>BinaryNotFound</code> ; UI affiche le message d'erreur."
+    }
+  ],
+  "open_facts": {
+    "supersedes_linear_issues": "SAS-304, SAS-313, SAS-316, SAS-309, SAS-314, SAS-306, SAS-312, SAS-308",
+    "ux_focus_d_tabs": "post-V1 — user ticked despite Q4=a inconsistency",
+    "libghostty_c_abi_check": "pre-D2 spike required (OQ3)",
+    "v15_followup": "daemon for cross-app-quit resume",
+    "macos_path_workaround": "startup must exec /bin/zsh -lc echo $PATH to inherit user shell PATH (R4)",
+    "sealed_plan_override": "docs/plans/2026-05-15-agent-cockpit.html — ghostty-binding V1-subprocess decision overridden by this plan"
+  },
+  "freeform": ""
+}

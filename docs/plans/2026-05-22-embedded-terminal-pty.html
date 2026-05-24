@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Interview · Closure — Embedded Terminal &amp; PTY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#f8fafc;--bg-2:#f2f4fa;--text:#141a30;--text-soft:#4b5366;--text-mute:#7e879b;
+  --line:#e2e6ef;--line-soft:#edf0f6;--surface:#ffffff;--surface-soft:#f2f4fa;
+  --accent:#0d9488;--accent-tint:#0d94881a;--accent-strong:#0b7f73;
+  --warn:#f97316;--warn-tint:#f973161a;--danger:#e11d48;--danger-tint:#e11d481a;
+  --ok:#16a34a;--ok-tint:#16a34a1a;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0b0f1e;--bg-2:#11172c;--text:#f8fafc;--text-soft:#b7bfd2;--text-mute:#8089a0;
+    --line:#232a40;--line-soft:#181e32;--surface:#141a30;--surface-soft:#1a2138;
+    --accent:#14b8a6;--accent-tint:#14b8a622;--accent-strong:#2dd4bf;
+    --warn:#fb923c;--warn-tint:#fb923c22;--danger:#fb7185;--danger-tint:#fb718522;
+    --ok:#4ade80;--ok-tint:#4ade801a;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text)}
+body{font-family:'DM Sans',system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6}
+code{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:.88em;background:var(--surface-soft);padding:1px 5px;border-radius:3px}
+h1{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px;line-height:1.2;margin:0 0 4px 0;letter-spacing:-.01em}
+h2{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-soft);margin:24px 0 10px 0}
+h3{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px;color:var(--text);margin:0 0 8px;letter-spacing:-.005em}
+
+/* Layout */
+.layout{display:grid;grid-template-columns:208px 1fr;max-width:1180px;margin:0 auto;gap:28px;padding:28px 24px 140px}
+@media (max-width:1024px){.layout{display:block;padding:24px 18px 140px} .sidebar{display:none}}
+
+/* Sidebar */
+.sidebar{position:sticky;top:0;height:100vh;overflow:auto;padding-right:6px;font-size:12px}
+.sidebar::-webkit-scrollbar{width:5px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--line)}
+.side-brand{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-mute);letter-spacing:.08em;padding:6px 0 14px;border-bottom:1px solid var(--line-soft);margin-bottom:12px}
+.side-section{margin:14px 0 6px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-mute)}
+.side-link{display:flex;align-items:center;gap:6px;padding:3px 6px;color:var(--text-soft);text-decoration:none;border-radius:3px;font-size:12px;line-height:1.4}
+.side-link:hover{background:var(--surface-soft);color:var(--text)}
+.side-link.active{background:var(--accent-tint);color:var(--accent-strong)}
+.side-link .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:var(--ok)}
+.side-link .dot.empty{background:transparent;border:1.5px solid var(--warn)}
+.progress-bar{margin-top:18px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-mute);padding:8px 6px;background:var(--surface-soft);border-radius:4px}
+.progress-bar .bar{height:4px;background:var(--line);border-radius:2px;margin-top:6px;overflow:hidden}
+.progress-bar .bar-fill{height:100%;background:var(--accent);transition:width .2s}
+
+/* Main */
+.main{min-width:0}
+
+/* Header */
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-mute);margin-bottom:6px;font-weight:600}
+.eyebrow .pill{display:inline-block;padding:2px 8px;background:var(--accent-tint);color:var(--accent-strong);border-radius:99px;margin-left:8px;font-size:11px}
+.intro{margin:14px 0 24px;padding:14px 18px;background:var(--surface-soft);border-left:3px solid var(--accent);border-radius:4px;color:var(--text-soft);font-size:13.5px;line-height:1.6}
+.intro strong{color:var(--text)}
+
+/* Theme block */
+.theme-block{margin:30px 0}
+.theme-block h2{margin-top:0;padding-bottom:6px;border-bottom:1px solid var(--line-soft);color:var(--accent-strong)}
+
+/* Decision section */
+.decision{padding:16px 0;border-bottom:1px solid var(--line-soft)}
+.decision:last-child{border-bottom:none}
+.dec-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:10px}
+.dec-id{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent-strong);background:var(--accent-tint);padding:2px 8px;border-radius:3px;flex-shrink:0;align-self:flex-start;margin-top:5px}
+.dec-title-wrap{flex:1}
+.dec-title{margin:0;font-size:17px}
+.dec-branch{font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-mute);margin-top:2px}
+
+/* Fact preview (collapsed) */
+.fact-preview{margin:8px 0 6px;padding:10px 14px;background:var(--accent-tint);border-left:3px solid var(--accent);border-radius:4px;font-size:14px;line-height:1.55;color:var(--text)}
+
+/* Details toggle + footer */
+.decision-footer{display:flex;align-items:flex-start;gap:10px;margin-top:8px}
+.details-toggle{padding:5px 11px;background:transparent;border:1px solid var(--line);color:var(--text-soft);border-radius:4px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.details-toggle:hover{border-color:var(--accent);color:var(--accent-strong)}
+.decision-note{flex:1;padding:6px 10px;background:var(--bg);border:1px dashed var(--line);border-radius:4px;font-family:inherit;font-size:12px;color:var(--text);min-height:30px;resize:vertical}
+.decision-note:focus{outline:none;border-color:var(--accent);border-style:solid;background:var(--surface)}
+.decision-note.has-value{border-color:var(--accent);border-style:solid;background:var(--accent-tint)}
+
+/* Fields grid */
+.fields-grid{display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:12px;align-items:start}
+.fields-grid.open{display:grid}
+@media (max-width:720px){.fields-grid{grid-template-columns:1fr}}
+.field-prose{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:4px;padding:10px 14px;font-size:13.5px;line-height:1.55;color:var(--text);min-height:auto;outline:none;transition:box-shadow .12s}
+.field-prose:hover{box-shadow:inset 0 0 0 1px var(--accent-tint)}
+.field-prose:focus{border-left-color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent)}
+.field-prose code{font-size:.86em}
+.field-prose ul{margin:4px 0;padding-left:18px}
+.field-prose li{margin:2px 0}
+.field-badge{display:inline-block;background:var(--accent);color:#fff;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:3px;margin-right:6px;vertical-align:1px}
+
+/* Risk grid */
+.risk-grid{display:grid;grid-template-columns:1.4fr 70px 1.4fr;gap:6px 14px;margin:14px 0;font-size:13px}
+.risk-grid > div{padding:8px 12px;background:var(--surface);border:1px solid var(--line);border-radius:4px}
+.risk-grid .head{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-mute);background:var(--bg-2);border-color:transparent}
+.sev-badge{display:inline-block;padding:2px 8px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;font-weight:600;letter-spacing:.06em}
+.sev-high{background:var(--danger-tint);color:var(--danger)}
+.sev-med{background:var(--warn-tint);color:var(--warn)}
+.sev-low{background:var(--ok-tint);color:var(--ok)}
+
+/* Open questions */
+.open-q{margin:8px 0;padding:10px 14px;background:var(--surface);border-left:3px solid var(--accent);border-radius:4px}
+.open-q h4{margin:0 0 4px;font-size:14px}
+.open-q p{margin:0;color:var(--text-soft);font-size:13px}
+
+/* Next steps */
+.next-steps{margin:14px 0}
+.step{display:flex;gap:10px;padding:8px 12px;background:var(--surface);border:1px solid var(--line);border-radius:4px;margin:5px 0;font-size:13.5px}
+.step input{margin-top:4px;accent-color:var(--accent)}
+.step .body{flex:1}
+.step .body small{display:block;color:var(--text-mute);font-size:11.5px;margin-top:2px}
+.copy-bundle-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--accent);color:#fff;border:none;border-radius:5px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;margin-top:12px}
+.copy-bundle-btn:hover{background:var(--accent-strong)}
+.copy-bundle-btn.copied{background:var(--ok)}
+
+/* Approval gate */
+.rp-gate{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--line);padding:14px 24px;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:0 -2px 8px rgba(20,26,48,.06);z-index:50}
+.gate-status{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-mute)}
+.gate-status .done{color:var(--accent-strong)}
+.rp-buttons{display:flex;gap:10px}
+.rp-btn{padding:9px 18px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--text);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;transition:all .12s}
+.rp-btn-ghost:hover{border-color:var(--danger);color:var(--danger)}
+.rp-btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.rp-btn-primary:hover{background:var(--accent-strong);border-color:var(--accent-strong)}
+.rp-btn-accent{background:var(--warn);color:#fff;border-color:var(--warn)}
+.rp-btn-accent:hover{filter:brightness(1.08)}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+    <header>
+      <div class="eyebrow">Interview · Closure <span class="pill">14 decisions</span></div>
+      <h1>Embedded terminal &amp; PTY — implementation plan</h1>
+    </header>
+    <div class="intro">
+      <strong>V1 du sous-système terminal Agent Cockpit.</strong> Remplace le bloc P2-16..P2-23 (couche d'abstraction <code>AgentRuntime</code> sur <code>tauri-plugin-shell</code>, rejeté). Architecture cmux-like : libghostty embarqué via wrapper crate, PTY direct dans le process Tauri, multi-session avec sidebar + scrollback persisté pendant la vie de la session, suppression à l'exit. <strong>Pas de daemon, pas de resume cross-app-quit en V1</strong> — différé V1.5.
+      <br><br>Chaque décision porte les 6 champs (<code>F</code>act / <code>M</code>echanism / <code>E</code>dge / <code>R</code>ejected / <code>O</code>rder / <code>V</code>erification). Clique <code>▸ Détails</code> pour ouvrir, édite en place si besoin, ajoute des nuances dans la zone note de chaque card.
+    </div>
+    <div id="content"></div>
+
+    <h2 id="risks">Risques</h2>
+    <div class="risk-grid" id="risk-grid"></div>
+
+    <h2 id="open">Questions ouvertes (post-closure)</h2>
+    <div id="open-questions"></div>
+
+    <h2 id="next">Prochaines étapes</h2>
+    <div class="next-steps" id="next-steps"></div>
+    <button class="copy-bundle-btn" id="copy-bundle">📋 Copy backlog bundle (JSON)</button>
+  </main>
+</div>
+
+<footer class="rp-gate">
+  <div class="gate-status">
+    <span class="done" id="filled-count">0</span>/<span id="total-cells">84</span> cellules · <span id="notes-count">0</span> notes · <span id="edits-count">0</span> éditions
+  </div>
+  <div class="rp-buttons">
+    <button id="rp-reject" class="rp-btn rp-btn-ghost">Reject</button>
+    <button id="rp-approve" class="rp-btn rp-btn-primary">Approve</button>
+    <button id="rp-approve-fast" class="rp-btn rp-btn-accent">Approve &amp; build</button>
+  </div>
+</footer>
+
+<script>
+const THEMES = {
+  'embedding':    'Embedding — libghostty dans Tauri',
+  'pty':          'PTY — spawn &amp; lifecycle',
+  'ipc':          'IPC — front ↔ back',
+  'persistence':  'Persistence — scrollback &amp; lifecycle',
+  'scope-v1':     'Scope V1',
+  'multiplex-ux': 'Multiplex UX',
+  'agent-model':  'Agent model',
+};
+
+const DECISIONS = [
+  // --- embedding ---
+  {
+    id: 'D1', branch: 'emb-render', theme: 'embedding',
+    title: 'Render pipeline : libghostty-vt → cells via IPC → canvas React',
+    fact: "V1 affiche libghostty-vt en crate Rust côté backend ; les cells décodées sont streamées via IPC vers un renderer canvas React dans la webview Tauri unique.",
+    mechanism: "Crate <code>agent-cockpit-term</code> (cf. D2) expose <code>Terminal::feed(bytes) -> Cells</code>. Côté frontend, composant <code>&lt;TerminalPane sessionId&gt;</code> ouvre un Tauri Channel&lt;CellFrame&gt; et rend les cells via <code>&lt;canvas&gt;</code> (renderer custom 2D ou xterm.js avec backend custom recevant les cells pré-parsed).",
+    edge: "Utilise la webview Tauri unique — pas de child window WGPU, pas de surface GPU native. Rendu correct mais ne match pas la perf de ghostty natif. Acceptable pour cockpit dev.",
+    rejected: "<strong>(b) WGPU native overlay</strong> — casse le modèle Tauri single-webview, clipping/z-index avec UI React infaisable proprement. <strong>(c) xterm.js JS-only</strong> — perd le bénéfice du parser VT libghostty (seule raison d'aller cmux-like).",
+    order: "Après D2 (agent-cockpit-term crate). Parallèle à D5/D6 (IPC channels).",
+    verification: "Lancer claude dans une pane → output ANSI complet (couleurs, cursor moves, alternate buffer) s'affiche correctement. Stress test : <code>cat /dev/urandom | hexdump | head -10000</code> rend sans drop frame perceptible (60fps p95).",
+  },
+  {
+    id: 'D2', branch: 'emb-binding', theme: 'embedding',
+    title: 'Binding libghostty via wrapper crate intermédiaire',
+    fact: "Le binding Rust ↔ libghostty (C/Zig) passe par un crate intermédiaire <code>agent-cockpit-term</code> (sys + safe wrapper) qu'on maintient dans le workspace.",
+    mechanism: "Nouveau membre <code>crates/agent-cockpit-term/</code> + sub-crate <code>crates/agent-cockpit-term-sys/</code> avec <code>bindgen</code> sur les headers C de libghostty et <code>build.rs</code> qui link la <code>.dylib/.so/.dll</code>. Le parent crate expose une API safe (struct <code>Terminal</code>, <code>Cells</code>, méthode <code>feed()</code>) ; tous les <code>unsafe</code> sont confinés au sys-crate.",
+    edge: "V1 link libghostty en dynamic library, version pinnée exactement dans Cargo.toml + checksum vérifié en CI. Pas de static link initial, pas de build-from-source de Zig dans le CI day-1.",
+    rejected: "<strong>(a) bindgen direct dans tauri-app</strong> — chaque breaking change libghostty patché dans N call-sites, pas de surface stable interne. <strong>(c) fork vendor du Zig</strong> — merge upstream à vie, on porte les bugs ghostty soi-même.",
+    order: "Préalable à D1 (render pipeline). Spike pré-implémentation : déterminer si libghostty expose un C ABI stable ou si on doit écrire un thin C wrapper du côté Zig (cf. OQ3).",
+    verification: "<code>cargo build -p agent-cockpit-term</code> réussit avec libghostty.dylib disponible. <code>cargo doc -p agent-cockpit-term</code> montre la surface safe (<code>Terminal</code>, <code>feed</code>, <code>cells</code>, …). Test : alimenter un <code>Terminal</code> avec une séquence ANSI connue → assert sur le cell grid attendu.",
+  },
+
+  // --- pty ---
+  {
+    id: 'D3', branch: 'pty-crate', theme: 'pty',
+    title: 'PTY via la crate portable-pty',
+    fact: "V1 utilise <code>portable-pty</code> (la lib derrière alacritty/wezterm) pour ouvrir un PTY et spawn le binaire CLI dedans.",
+    mechanism: "Module <code>tauri-app::session::pty</code> avec une fonction <code>spawn(binary, cwd, env) -> PtySession</code> qui appelle <code>portable_pty::native_pty_system().openpty(PtySize{...})</code>, spawn via <code>pair.slave.spawn_command(cmd)</code>, et retourne <code>{ master_reader: Box&lt;dyn Read&gt;, master_writer: Box&lt;dyn Write&gt;, child: Box&lt;dyn Child&gt; }</code>.",
+    edge: "Windows = conpty automatique (gratuit avec portable-pty). PTY size figée au spawn pour V1 (resize viendra avec multi-pane post-V1). Pas de feature 're-openpty' / detach.",
+    rejected: "<strong>(b) tokio-pty-process</strong> — moins maintenu, dernière release ~2 ans. <strong>(c) nix raw + openpty manuel</strong> — Windows à porter soi-même, pas de bénéfice net.",
+    order: "Indépendant. Préalable à D4 (process holder).",
+    verification: "Test d'intégration <code>crates/agent-cockpit-session/tests/pty.rs</code> : <code>spawn(\"echo\", \".\", {\"X\":\"y\"})</code> → master_reader lit la string <code>\"y\"</code>, child exit avec status 0 en &lt; 1s.",
+  },
+  {
+    id: 'D4', branch: 'pty-owner', theme: 'pty',
+    title: 'PTY owné par le process Tauri (in-app, pas de daemon)',
+    fact: "Les process PTY vivent dans le process Tauri lui-même via une tokio task par session. Pas de daemon séparé en V1.",
+    mechanism: "Struct <code>SessionManager</code> dans <code>tauri-app::session</code> maintient <code>HashMap&lt;SessionId, SessionHandle&gt;</code>. Chaque session = (a) tokio task qui read le PTY master et push dans le Channel output (cf. D5), (b) tokio task qui read le Channel input et write au PTY master (cf. D6), (c) <code>Box&lt;dyn Child&gt;</code> pour le process. Lifecycle : drop SessionManager (app quit) → drop chaque handle → kill child (<code>SIGTERM</code> puis <code>SIGKILL</code> après 2s timeout).",
+    edge: "Toutes les sessions meurent quand l'app quit. Pas de réattach cross-quit. UI crash mid-session = sessions tuées (acceptable car D8 = ephemeral).",
+    rejected: "<strong>(b) daemon séparé</strong> — +1 binaire à signer/updater, IPC daemon↔UI à designer, V12 pour V1. <strong>(c) detached orphan via setsid+fork</strong> — ré-attach fragile (PID race), pas de manager central pour list/kill propre.",
+    order: "Après D3 (portable-pty). Bloquant pour D5, D6, D7, D8.",
+    verification: "Lancer 3 sessions claude depuis l'UI, quit l'app (Cmd+Q) → <code>ps -ef | grep claude</code> retourne 0 résultat dans les 5s suivantes (SIGKILL effectif).",
+  },
+
+  // --- ipc ---
+  {
+    id: 'D5', branch: 'ipc-output', theme: 'ipc',
+    title: 'Output PTY → frontend via Tauri Channel API v2 (per-session)',
+    fact: "L'output PTY (cells décodées) remonte au frontend via la Tauri Channel API v2, un channel par session, typed.",
+    mechanism: "À la création de session, le frontend appelle <code>invoke(\"session_open\", { sessionId, ... })</code> qui retourne <code>Channel&lt;TerminalMessage&gt;</code>. Backend route les cells décodées par libghostty-vt dans ce channel en <code>TerminalMessage::Output(CellFrame)</code>. React : <code>channel.onmessage = msg =&gt; if (msg.kind===\"Output\") terminalPane.applyFrame(msg.frame)</code>.",
+    edge: "1 channel = 1 session. Back-pressure gérée par Tauri v2 (queue interne). Pas de multiplexing sur un channel global. <code>CellFrame</code> sérialisé en MessagePack (Tauri v2 par défaut sur les Channels).",
+    rejected: "<strong>(a) event broadcast emit/listen</strong> — sérialisation JSON par event, pas de back-pressure, pollution du bus global. <strong>(c) websocket local</strong> — port libre à allouer + autorisation système. <strong>(d) shared memory mmap</strong> — webview JS n'y accède pas, overkill pour ~10 MB/s max.",
+    order: "Après D4 (SessionManager). Parallèle à D6.",
+    verification: "Bench end-to-end : output PTY → React.applyFrame → next animation frame. p50 &lt; 8 ms, p99 &lt; 30 ms sur sortie <code>yes | head -1000000</code>.",
+  },
+  {
+    id: 'D6', branch: 'ipc-input', theme: 'ipc',
+    title: 'Input clavier via le même Channel (bidirectionnel)',
+    fact: "Les keystrokes du frontend descendent au PTY master via le même Channel bidirectionnel que l'output (variant <code>TerminalMessage::Input</code>).",
+    mechanism: "Le <code>Channel&lt;TerminalMessage&gt;</code> ouvert en D5 transporte un enum <code>TerminalMessage = Output(CellFrame) | Input(Vec&lt;u8&gt;) | Resize { rows, cols }</code>. React : <code>terminalPane.onKey = bytes =&gt; channel.send({ kind: \"Input\", bytes })</code>. Backend dispatch : Input → <code>master_writer.write_all(bytes)</code>.",
+    edge: "Pas de batching côté JS pour V1 (un send par keystroke). Si p99 latence &gt; 50 ms en profiling, on debounce 4–8 ms côté React.",
+    rejected: "<strong>(a) Tauri command per keystroke / batch</strong> — round-trip <code>invoke()</code> ~10–30 ms par key sous charge, casse l'UX terminal. <strong>(c) websocket</strong> — lié au choix (c) Q6, non retenu.",
+    order: "Après D5 (channel existe).",
+    verification: "Latence keystroke → echo dans <code>cat</code> &lt; 30 ms p99 ; smoke test : taper <code>\"hello\\n\"</code> → 6 bytes observables sur le PTY master via <code>strace -e write</code> (ou <code>dtruss</code> macOS).",
+  },
+
+  // --- persistence ---
+  {
+    id: 'D7', branch: 'persist-scrollback', theme: 'persistence',
+    title: 'Scrollback persisté en SQLite sous forme de raw PTY bytes',
+    fact: "Pendant qu'une session est vivante, son scrollback est stocké en SQLite sous forme de raw PTY bytes append-only ; au reload de l'UI, le scrollback est rejoué via libghostty-vt pour reconstituer la pane.",
+    mechanism: "Migration <code>0005_session_scrollback.sql</code> crée la table <code>session_scrollback (session_id TEXT, chunk_idx INTEGER, bytes BLOB, recorded_at TEXT, PRIMARY KEY (session_id, chunk_idx), FOREIGN KEY (session_id) REFERENCES agent_sessions(id) ON DELETE CASCADE)</code>. Backend append un chunk tous les ~256 bytes ou 100 ms (le plus rapide). UI reload : <code>SELECT bytes FROM session_scrollback WHERE session_id=? ORDER BY chunk_idx</code> → <code>terminal.feed_all(bytes)</code> → cells pré-attach.",
+    edge: "Persistence active uniquement pour <code>status='running'</code>. Au process exit (D8), <code>DELETE FROM agent_sessions WHERE id=?</code> → cascade supprime le scrollback. Pas de scrollback post-mortem.",
+    rejected: "<strong>(b) cells rendered (msgpack)</strong> — storage ~10× plus gros, format custom à versionner avec libghostty. <strong>(c) hybrid raw+cells</strong> — complexité prématurée, 2 chemins à débugger.",
+    order: "Migration 0005 préalable au code session_scrollback. Après D4 (sessions existent).",
+    verification: "Lancer claude, taper 5 lignes ; full reload UI (quit + relaunch Tauri) ; scrollback affiché à l'identique. Stress : 10 MB de scrollback rejouent en &lt; 500 ms.",
+  },
+  {
+    id: 'D8', branch: 'persist-lifecycle', theme: 'persistence',
+    title: 'Sessions ephemeral — suppression immédiate à l\'exit du process',
+    fact: "Quand le process PTY d'une session exit, la session est immédiatement supprimée de la DB et disparaît du UI.",
+    mechanism: "Le <code>SessionManager</code> (D4) observe <code>Child::wait()</code> dans une tokio task de surveillance ; sur exit, il appelle <code>sqlx::query(\"DELETE FROM agent_sessions WHERE id=?\")</code> (le scrollback est purgé en cascade via FK D7). Backend émet un event Tauri <code>session:closed { sessionId }</code> → sidebar React enlève l'entrée + ferme la pane.",
+    edge: "Aucune trace post-mortem du run. UX : \"les sessions sont des process, elles meurent comme des process\". User a explicitement choisi ce comportement vs (b) read-only indef.",
+    rejected: "<strong>(b) lecture seule indéfinie</strong> — user a explicitement préféré ephemeral pour V1. <strong>(c) TTL/GC auto</strong> — background job overkill V1.",
+    order: "Après D4 et D7.",
+    verification: "Lancer une session, l'exit (Ctrl+D dans claude) ; <code>SELECT count(*) FROM agent_sessions WHERE id=?</code> = 0 dans la seconde ; sidebar UI ne montre plus l'entrée.",
+  },
+
+  // --- scope-v1 ---
+  {
+    id: 'D9', branch: 'scope-mvp', theme: 'scope-v1',
+    title: 'V1 = multi-session + sidebar + scrollback DB · pas de daemon',
+    fact: "V1 ship multi-session avec sidebar de navigation, single pane active, scrollback persisté en SQLite pendant la vie de la session. Pas de daemon, pas de resume cross-app-quit.",
+    mechanism: "UI = layout 2-col <code>[sidebar 240px | active-pane 1fr]</code>. Backend = <code>SessionManager</code> in-Tauri (D4). Persistance = table <code>session_scrollback</code> (D7). Aucun nouveau binaire à shipper — un seul exécutable Tauri.",
+    edge: "V1 explicitement n'inclut pas : splits/panes multiples (post-V1), daemon (V1.5), resume cross-quit (V1.5), agent profiles partagés (post-V1 si demande), bundling claude (jamais).",
+    rejected: "<strong>(a) single agent / single pane / no resume</strong> — ne mérite pas \"cockpit\". <strong>(c) full cmux parity dès V1</strong> — V12 jamais shippé.",
+    order: "Méta-décision qui gate D4, D7, D8, D11.",
+    verification: "Build du DMG/AppImage inclut 1 seul binaire (<code>tauri-app</code>), aucun <code>agent-cockpit-daemon</code>. Lancer 3 sessions en parallèle marche. Sidebar montre les 3. Reload UI les conserve.",
+  },
+  {
+    id: 'D10', branch: 'scope-resume', theme: 'scope-v1',
+    title: 'Resume cross-app-quit différé à V1.5',
+    fact: "Resume cross-app-quit n'est pas en V1. V1.5 ajoutera un daemon séparé pour le supporter.",
+    mechanism: "Aucun code daemon en V1. Roadmap V1.5 : extraire <code>SessionManager</code> dans un binaire <code>agent-cockpit-sessiond</code>, IPC via unix socket avec l'UI Tauri ; le daemon garde les PTYs vivants après UI close ; UI s'attache à un daemon existant au démarrage.",
+    edge: "V1 = sessions meurent avec l'app (par D4). L'utilisateur accepte explicitement l'UX \"quit app = perds le travail en cours\".",
+    rejected: "<strong>(b) revisiter pty-owner = daemon dès V1</strong> — invalide D4 et coût +1 binaire à signer/updater. <strong>(c) jamais</strong> — incohérent avec l'ambition cockpit moyen-terme.",
+    order: "Après V1 entière. Chantier V1.5 indépendant.",
+    verification: "V1 : pas de binaire daemon dans le bundle (verif via <code>tar tvf agent-cockpit-V1.dmg</code>). Quit app + relaunch → sidebar vide, aucune session restaurée.",
+  },
+
+  // --- multiplex-ux ---
+  {
+    id: 'D11', branch: 'ux-layout', theme: 'multiplex-ux',
+    title: 'Single pane active V1 — pas de splits, pas de tabs',
+    fact: "V1 affiche une seule pane terminal active à la fois, switchable via la sidebar. Pas de splits, pas de tabs, pas de grid.",
+    mechanism: "Composant React <code>&lt;Workspace&gt;</code> = <code>&lt;aside className=\"sidebar\"&gt;</code> listant les sessions + <code>&lt;main className=\"active-pane\"&gt;</code> rendant la <code>&lt;TerminalPane&gt;</code> correspondant à <code>activeSessionId</code>. Switch session = <code>setActiveSessionId(newId)</code>. Les panes inactives restent mounted (canvas state préservé) mais <code>display:none</code>.",
+    edge: "V1 explicitement pas de split tmux-like, pas de tabs en haut de pane, pas de grid. User note : « ajout d'un système complexe de gestion de pane plus tard, pour l'instant pane unique ».",
+    rejected: "<strong>(b) splits tmux-like</strong> — resize logic + focus inter-split, state layout à persister, hors V1. <strong>(c) tabs + sidebar</strong> — double navigation, choix UX coûteux à inverser.",
+    order: "Après D5/D6 (TerminalPane existe).",
+    verification: "Créer 2 sessions, cliquer alternativement sur les sidebar entries → la pane active change, le scrollback de la session précédente est intact au re-switch.",
+  },
+  {
+    id: 'D12', branch: 'ux-focus', theme: 'multiplex-ux',
+    title: 'Navigation = clavier dédié + command palette + sidebar (3 cumulés)',
+    fact: "V1 expose trois mécanismes de navigation cumulés : shortcuts clavier dédiés (<code>Cmd+1..9</code>, <code>Cmd+↑↓</code>), command palette (<code>Cmd+K</code> fuzzy search), sidebar cliquable. Tabs (option d) reportées post-V1.",
+    mechanism: "(a) Hook <code>useGlobalShortcuts({ \"Cmd+1\"..\"Cmd+9\": switchToSessionIndex, \"Cmd+ArrowDown\": nextSession, \"Cmd+ArrowUp\": prevSession })</code>. (b) Composant <code>&lt;CommandPalette&gt;</code> overlay (Cmd+K), fuzzy search sur sessions + actions globales. (c) <code>&lt;Sidebar&gt;</code> décrite en D11 avec click handler.",
+    edge: "(d) tabs cliquables = post-V1 (cohérent avec D11 = pas de tabs). L'inconsistance Q5 (user a coché (d) malgré Q4=a) est résolue en classant (d) en post-V1.",
+    rejected: "Choix unique parmi a/b/c — limitatif, ces 3 modes sont orthogonaux et couvrent différents patterns d'usage (power-user, découvrabilité, persistance visuelle).",
+    order: "Après D11 (layout). Les 3 mécanismes indépendants entre eux, implémentables en parallèle.",
+    verification: "Test : <code>Cmd+1..3</code> switche entre 3 sessions. <code>Cmd+K</code> ouvre palette + tape « test » filtre. Click sidebar entry → pane switche. Les 3 cohabitent sans conflit clavier.",
+  },
+
+  // --- agent-model ---
+  {
+    id: 'D13', branch: 'agent-def', theme: 'agent-model',
+    title: 'Schema agent_sessions inchangé — pas de migration 0005 pour binary/label',
+    fact: "V1 garde le schema actuel de <code>agent_sessions</code> (<code>id, repo_path, worktree_path, ref_name, status</code>). Aucune migration ajoutant <code>binary_path</code>, <code>label</code> ou <code>env_vars</code>.",
+    mechanism: "À la création de session, le binaire à lancer est passé via paramètre Tauri command <code>session_create(binary: String, cwd: String, ref_name: String)</code> ; pas stocké en DB. Label UI dérivé runtime depuis <code>binary</code> + <code>worktree_path</code>. Env vars = héritées de l'env parent du process Tauri (pas customisable per-session V1).",
+    edge: "V1 ne stocke pas quel binaire a tourné dans chaque session. Cohérent avec D8 (suppression immédiate à l'exit — aucune info à conserver). Post-V1 : si on veut un catalogue d'agents partagés, on ajoutera la table <code>agent_profiles</code> et une FK.",
+    rejected: "<strong>(b) ajouter binary_path/label/env_vars inline</strong> — inutile vu D8 (suppression à l'exit). <strong>(c) table agent_profiles</strong> — overkill V1 sans presets multiples partagés.",
+    order: "Aucune migration. Préalable au code du command <code>session_create</code>.",
+    verification: "<code>sqlx migrate run</code> ne crée aucune nouvelle migration. Création d'une session via le command marche avec le schema actuel ; ligne insérée a les 5 colonnes existantes.",
+  },
+  {
+    id: 'D14', branch: 'agent-binary', theme: 'agent-model',
+    title: 'Discovery du binaire CLI agent via $PATH',
+    fact: "V1 trouve les binaires CLI agent (<code>claude</code>, <code>codex</code>, …) via le <code>$PATH</code> standard du process Tauri.",
+    mechanism: "À <code>session_create(binary, ...)</code>, le backend appelle <code>which::which(binary)</code> (crate <code>which</code>) pour résoudre le chemin absolu avant <code>portable_pty::spawn</code>. Échec → erreur typée <code>SessionError::BinaryNotFound(binary)</code> propagée au frontend qui affiche un message <code>« claude introuvable dans $PATH — installe via brew install ... »</code>.",
+    edge: "PATH hérité au lancement de l'app (pas de live reload). macOS : l'app GUI hérite d'un PATH minimal — il faut au démarrage exec <code>/bin/zsh -lc 'echo $PATH'</code> pour capturer le PATH login du user (cf. R4).",
+    rejected: "<strong>(b) config par profile</strong> — utile post-V1 si on a un catalogue. <strong>(c) bundled dans l'app</strong> — licence claude non redistribuable + taille DMG.",
+    order: "Indépendant. Préalable au <code>session_create</code> command.",
+    verification: "Avec <code>claude</code> dans PATH : <code>session_create</code> spawn correctement. Renommer/déplacer claude → next call retourne <code>BinaryNotFound</code> ; UI affiche le message d'erreur.",
+  },
+];
+
+const RISKS = [
+  { risk: "Maintenance burden libghostty (upstream churn, Zig API instable)", sev: 'high', miti: "Wrapper crate <code>agent-cockpit-term</code> (D2) confine l'unsafe. Pin version exacte. Watch upstream via dependabot/RSS. Spike OQ3 pour valider la stabilité du C ABI avant le code." },
+  { risk: "Latence IPC sous load (output PTY ~10 MB/s pendant build heavy)", sev: 'med', miti: "Benchmark dès D5 (yes | head -10M, cat /dev/urandom | hexdump). Tauri Channel API v2 a back-pressure, mais throughput à mesurer. Plan B : batcher les CellFrame en backend si p99 > 30ms." },
+  { risk: "UX surprise — sessions ephemeral, scrollback perdu à l'exit", sev: 'med', miti: "Onboarding explicite \"V1 sessions ephemeral\". Roadmap V1.5 communiquée. Tooltip dans la sidebar : ⓘ \"session disparaîtra à l'exit du process\"." },
+  { risk: "macOS GUI PATH minimal (Spotlight launch ne hérite pas du shell login PATH)", sev: 'med', miti: "Au startup du backend, exec <code>/bin/zsh -lc 'echo $PATH'</code> et override <code>std::env::set_var(\"PATH\", ...)</code>. Test sur fresh macOS (no homebrew dans default GUI PATH)." },
+  { risk: "Perf canvas2D pour rendre une grille 80x24+ à 60fps", sev: 'med', miti: "Prototype canvas2D D1 dès le début ; si insuffisant, fallback xterm.js avec custom backend (toujours alimenté par libghostty-vt côté Rust, juste le renderer est différent)." },
+  { risk: "Pas de récup si UI crash mid-session — claude tué", sev: 'low', miti: "Acceptable V1 par décision D9/D10. Mitigation V1.5 via daemon. En V1 : message clair à l'install \"crash UI = sessions tuées\"." },
+];
+
+const OPEN_QUESTIONS = [
+  { title: "OQ1 — Quand V1.5 daemon ?", body: "Différer jusqu'à ce que V1 ship et que <code>resume</code> devienne le #1 ask des early users. Pas de timeline avant la 1ère release publique." },
+  { title: "OQ2 — Tabs (Q5 option d) post-V1 ?", body: "User a coché (d) en R2 malgré l'inconsistance avec D11 (single pane). Classé post-V1. À revisiter quand le \"système complexe de gestion de pane\" mentionné par le user sera scopé." },
+  { title: "OQ3 — libghostty expose-t-il un C ABI stable utilisable depuis bindgen ?", body: "Spike pré-D2 : cloner ghostty repo, identifier les headers C exposés (s'il y en a) ; sinon, écrire un thin C wrapper côté Zig pour exposer la surface dont on a besoin (Terminal, feed, cells). Décide si D2 prend 1 semaine ou 3." },
+  { title: "OQ4 — Choix renderer cells côté frontend : canvas2D custom vs xterm.js avec custom backend ?", body: "À trancher pendant l'implémentation D1 via prototype. Pas bloquant pour D2/D3/D4/D5/D6/D7." },
+];
+
+const NEXT_STEPS = [
+  { title: "Annuler / réécrire les 8 tickets Linear P2-16 à P2-23", details: "SAS-304, 313, 316, 309, 314, 306, 312, 308 — soit cancel + nouveaux tickets, soit rewrite le contenu en place. Voir backlog-bundle.json." },
+  { title: "Émettre <code>backlog-bundle.json</code> et lancer /backlog", details: "Bundle généré à côté de plan.html. <code>/backlog</code> consommera la liste D1..D14 + open_facts pour produire les tickets ordonnés par dépendance." },
+  { title: "Spike OQ3 — libghostty C ABI availability", details: "1-day investigation avant de scoper D2. Si pas de C ABI stable, prévoir +5j sur D2 pour le thin C wrapper Zig." },
+  { title: "Débloquer le /go plan en cours", details: "Le plan d'exécution <code>/tmp/claude/go-agent-cockpit-p2-...</code> a P2-16..P2-23 marquées <code>⚠ architecture rejected</code>. Une fois les nouveaux tickets créés, ré-générer un nouveau /go plan." },
+];
+
+// ---- Render ----
+const state = {
+  decisions: {},
+  notes: {},
+  expanded: new Set(),
+  scrollSpyActive: null,
+};
+DECISIONS.forEach(d => {
+  state.decisions[d.id] = { fact: d.fact, mechanism: d.mechanism, edge: d.edge, rejected: d.rejected, order: d.order, verification: d.verification };
+});
+
+function renderSidebar() {
+  const root = document.getElementById('sidebar');
+  let html = '<div class="side-brand">Embedded Terminal · PTY</div>';
+  Object.entries(THEMES).forEach(([key, label]) => {
+    const themDecisions = DECISIONS.filter(d => d.theme === key);
+    if (!themDecisions.length) return;
+    html += `<div class="side-section">${label}</div>`;
+    themDecisions.forEach(d => {
+      html += `<a class="side-link" href="#dec-${d.id}" data-link="dec-${d.id}"><span class="dot"></span>${d.id} · ${escapeHtml(d.branch)}</a>`;
+    });
+  });
+  html += `<div class="side-section">Annexes</div>`;
+  html += `<a class="side-link" href="#risks" data-link="risks"><span class="dot"></span>Risques</a>`;
+  html += `<a class="side-link" href="#open" data-link="open"><span class="dot"></span>Questions ouvertes</a>`;
+  html += `<a class="side-link" href="#next" data-link="next"><span class="dot"></span>Next steps</a>`;
+  html += `<div class="progress-bar">Cellules complètes <span id="prog-text">84/84</span><div class="bar"><div class="bar-fill" id="prog-fill" style="width:100%"></div></div></div>`;
+  root.innerHTML = html;
+}
+
+function renderContent() {
+  const root = document.getElementById('content');
+  let html = '';
+  Object.entries(THEMES).forEach(([key, label]) => {
+    const decs = DECISIONS.filter(d => d.theme === key);
+    if (!decs.length) return;
+    html += `<section class="theme-block" id="theme-${key}"><h2>${label}</h2>`;
+    decs.forEach(d => { html += renderDecision(d); });
+    html += `</section>`;
+  });
+  root.innerHTML = html;
+  wireDecisions();
+}
+
+function renderDecision(d) {
+  const expanded = state.expanded.has(d.id);
+  return `
+    <article class="decision" id="dec-${d.id}" data-dec="${d.id}">
+      <div class="dec-head">
+        <span class="dec-id">${d.id}</span>
+        <div class="dec-title-wrap">
+          <h3 class="dec-title">${d.title}</h3>
+          <div class="dec-branch">branch · ${d.branch}</div>
+        </div>
+      </div>
+      <div class="fact-preview" data-preview style="${expanded ? 'display:none' : ''}">${state.decisions[d.id].fact}</div>
+      <div class="fields-grid ${expanded ? 'open' : ''}" data-fields>
+        <div class="field-prose" contenteditable="true" data-field="fact"><span class="field-badge">F</span>${state.decisions[d.id].fact}</div>
+        <div class="field-prose" contenteditable="true" data-field="mechanism"><span class="field-badge">M</span>${state.decisions[d.id].mechanism}</div>
+        <div class="field-prose" contenteditable="true" data-field="edge"><span class="field-badge">E</span>${state.decisions[d.id].edge}</div>
+        <div class="field-prose" contenteditable="true" data-field="rejected"><span class="field-badge">R</span>${state.decisions[d.id].rejected}</div>
+        <div class="field-prose" contenteditable="true" data-field="order"><span class="field-badge">O</span>${state.decisions[d.id].order}</div>
+        <div class="field-prose" contenteditable="true" data-field="verification"><span class="field-badge">V</span>${state.decisions[d.id].verification}</div>
+      </div>
+      <div class="decision-footer">
+        <button class="details-toggle" data-toggle>${expanded ? '▾ Réduire' : '▸ Détails · 6 champs'}</button>
+        <textarea class="decision-note" data-note placeholder="💬 Afterthought, question, doute pour Claude…"></textarea>
+      </div>
+    </article>
+  `;
+}
+
+function wireDecisions() {
+  document.querySelectorAll('.decision').forEach(card => {
+    const decId = card.dataset.dec;
+    card.querySelector('[data-toggle]').addEventListener('click', () => {
+      if (state.expanded.has(decId)) state.expanded.delete(decId);
+      else state.expanded.add(decId);
+      renderContent();
+    });
+    card.querySelectorAll('[data-field]').forEach(el => {
+      el.addEventListener('input', () => {
+        let html = el.innerHTML;
+        const badge = el.querySelector('.field-badge');
+        if (badge) html = html.replace(badge.outerHTML, '');
+        state.decisions[decId][el.dataset.field] = html.trim();
+        if (el.dataset.field === 'fact') {
+          const prev = card.querySelector('[data-preview]');
+          if (prev) prev.innerHTML = state.decisions[decId].fact;
+        }
+        updateProgress();
+      });
+    });
+    const noteEl = card.querySelector('[data-note]');
+    noteEl.value = state.notes[decId] || '';
+    if (noteEl.value.trim()) noteEl.classList.add('has-value');
+    noteEl.addEventListener('input', () => {
+      state.notes[decId] = noteEl.value;
+      if (noteEl.value.trim()) noteEl.classList.add('has-value');
+      else noteEl.classList.remove('has-value');
+      updateProgress();
+    });
+  });
+}
+
+function renderRisks() {
+  const root = document.getElementById('risk-grid');
+  let html = '<div class="head">Risque</div><div class="head">Sévérité</div><div class="head">Mitigation</div>';
+  RISKS.forEach(r => {
+    html += `<div>${r.risk}</div><div><span class="sev-badge sev-${r.sev}">${r.sev}</span></div><div>${r.miti}</div>`;
+  });
+  root.innerHTML = html;
+}
+
+function renderOpenQuestions() {
+  const root = document.getElementById('open-questions');
+  root.innerHTML = OPEN_QUESTIONS.map(q => `<div class="open-q"><h4>${q.title}</h4><p>${q.body}</p></div>`).join('');
+}
+
+function renderNextSteps() {
+  const root = document.getElementById('next-steps');
+  root.innerHTML = NEXT_STEPS.map((s, i) => `<label class="step"><input type="checkbox" /><div class="body">${s.title}<small>${s.details}</small></div></label>`).join('');
+}
+
+function updateProgress() {
+  const totalCells = DECISIONS.length * 6;
+  let filled = 0;
+  DECISIONS.forEach(d => {
+    ['fact','mechanism','edge','rejected','order','verification'].forEach(f => {
+      if (state.decisions[d.id][f] && state.decisions[d.id][f].trim().length > 10) filled++;
+    });
+  });
+  document.getElementById('filled-count').textContent = filled;
+  document.getElementById('total-cells').textContent = totalCells;
+  const notesCount = Object.values(state.notes).filter(n => n.trim()).length;
+  document.getElementById('notes-count').textContent = notesCount;
+  document.getElementById('prog-text').textContent = `${filled}/${totalCells}`;
+  document.getElementById('prog-fill').style.width = `${100*filled/totalCells}%`;
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+// ScrollSpy
+function setupScrollSpy() {
+  const links = new Map();
+  document.querySelectorAll('[data-link]').forEach(l => links.set(l.dataset.link, l));
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const id = e.target.id;
+        links.forEach(l => l.classList.remove('active'));
+        if (links.has(id)) links.get(id).classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -65% 0px' });
+  document.querySelectorAll('.decision, #risks, #open, #next').forEach(el => observer.observe(el));
+}
+
+// Build backlog bundle
+function buildBundle() {
+  return {
+    schema_version: "1",
+    source: {
+      kind: "interview",
+      slug: "embedded-terminal-pty",
+      change_kind: "additive-brownfield",
+    },
+    target: {
+      linear_project_hint: "Agent Cockpit",
+      linear_team_hint: "SAS",
+      repo_path_hint: "",
+    },
+    decisions: DECISIONS.map(d => ({
+      id: d.id,
+      theme: d.theme,
+      fact: state.decisions[d.id].fact,
+      mechanism: state.decisions[d.id].mechanism,
+      edge: state.decisions[d.id].edge,
+      rejected: state.decisions[d.id].rejected,
+      order: state.decisions[d.id].order,
+      verification: state.decisions[d.id].verification,
+    })),
+    open_facts: {
+      supersedes_linear_issues: "SAS-304, SAS-313, SAS-316, SAS-309, SAS-314, SAS-306, SAS-312, SAS-308",
+      ux_focus_d_tabs: "post-V1 — user ticked despite Q4=a inconsistency",
+      libghostty_c_abi_check: "pre-D2 spike required (OQ3)",
+      v15_followup: "daemon for cross-app-quit resume",
+    },
+    freeform: "",
+  };
+}
+
+document.getElementById('copy-bundle').addEventListener('click', async (e) => {
+  const bundle = buildBundle();
+  await navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
+  const btn = e.currentTarget;
+  btn.textContent = '✓ Copié';
+  btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = '📋 Copy backlog bundle (JSON)'; btn.classList.remove('copied'); }, 1500);
+});
+
+async function rpSubmit(mode) {
+  const comments = [];
+  Object.entries(state.notes).forEach(([decId, body]) => {
+    if (body && body.trim()) comments.push({ target: decId, body: body.trim() });
+  });
+  const payload = {
+    decisions: state.decisions,
+    comments,
+    bundle: buildBundle(),
+    approval_mode: mode,
+  };
+  const res = await fetch('./submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('submit failed');
+  document.body.innerHTML = `<main style="padding:4rem;font-family:DM Sans,sans-serif"><h1>✓ ${mode === 'rejected' ? 'Rejected' : 'Submitted'}</h1><p>Return to Claude — you can close this tab.</p></main>`;
+}
+document.getElementById('rp-approve').onclick      = () => rpSubmit('approved');
+document.getElementById('rp-approve-fast').onclick = () => rpSubmit('approved_fast');
+document.getElementById('rp-reject').onclick       = () => rpSubmit('rejected');
+
+renderSidebar();
+renderContent();
+renderRisks();
+renderOpenQuestions();
+renderNextSteps();
+updateProgress();
+setupScrollSpy();
+</script>
+</body>
+</html>

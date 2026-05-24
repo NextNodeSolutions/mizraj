@@ -1,0 +1,21 @@
+{
+  "slug": "embedded-terminal-pty",
+  "topic": "Remplacement du bloc P2-16..P2-23 (AgentRuntime trait) par une intégration terminal cmux-like : libghostty embarqué + PTY direct + session manager",
+  "change_kind": "additive-brownfield",
+  "phase": "sealed",
+  "rounds_completed": 3,
+  "decisions_count": 14,
+  "themes": ["embedding", "pty", "ipc", "persistence", "scope-v1", "multiplex-ux", "agent-model"],
+  "supersedes": ["SAS-304", "SAS-313", "SAS-316", "SAS-309", "SAS-314", "SAS-306", "SAS-312", "SAS-308"],
+  "out_of_scope_branches": ["compat-agentlog"],
+  "open_questions": [
+    "OQ1 — Quand V1.5 daemon ? (différer jusqu'à V1 shippée)",
+    "OQ2 — Tabs (Q5 d) post-V1 ?",
+    "OQ3 — libghostty C ABI stable ? (spike pré-D2)",
+    "OQ4 — canvas2D custom vs xterm.js renderer ? (prototype pendant D1)"
+  ],
+  "promoted_to": "docs/plans/2026-05-22-embedded-terminal-pty.html",
+  "promotion_date": "2026-05-22",
+  "bundle_path": "docs/interviews/embedded-terminal-pty/backlog-bundle.json",
+  "next_actions": "Lancer /backlog avec le bundle pour générer les nouveaux tickets Linear (et canceller/écraser SAS-304..308). Une fois les nouveaux tickets en place, ré-générer un /go plan pour débloquer la phase 2."
+}
