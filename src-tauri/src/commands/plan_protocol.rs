@@ -14,6 +14,8 @@ pub const SCHEME: &str = "plan";
 const ACTION_SUBMIT: &str = "submit";
 const ACTION_PLAN_HTML: &str = "plan.html";
 
+const SLUG_MAX_LEN: usize = 256;
+
 pub fn handle_request<R: Runtime>(
     ctx: UriSchemeContext<'_, R>,
     request: Request<Vec<u8>>,
@@ -33,6 +35,10 @@ pub fn handle_request<R: Runtime>(
         return text_response(StatusCode::NOT_FOUND, "unknown plan kind");
     };
 
+    if !is_safe_slug(slug) {
+        return text_response(StatusCode::BAD_REQUEST, "invalid slug");
+    }
+
     let Some(root) = ctx.app_handle().state::<ActiveProject>().get() else {
         return text_response(StatusCode::NOT_FOUND, "no active project");
     };
@@ -42,6 +48,14 @@ pub fn handle_request<R: Runtime>(
         (&Method::GET, ACTION_PLAN_HTML) => handle_serve(&root, kind, slug),
         _ => text_response(StatusCode::NOT_FOUND, "method or action not handled"),
     }
+}
+
+fn is_safe_slug(slug: &str) -> bool {
+    !slug.is_empty()
+        && slug.len() <= SLUG_MAX_LEN
+        && slug
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 fn handle_serve(root: &Path, kind: PlanKind, slug: &str) -> Response<Cow<'static, [u8]>> {
@@ -177,6 +191,27 @@ mod tests {
     #[test]
     fn plan_kind_from_segment_rejects_unknown() {
         assert!(PlanKind::from_segment("rfc").is_none());
+    }
+
+    #[test]
+    fn is_safe_slug_accepts_valid_slugs() {
+        assert!(is_safe_slug("agent-cockpit"));
+        assert!(is_safe_slug("2026-05-15-agent-cockpit"));
+        assert!(is_safe_slug("under_score_ok"));
+        assert!(is_safe_slug("ABC123"));
+    }
+
+    #[test]
+    fn is_safe_slug_rejects_traversal_and_separators() {
+        assert!(!is_safe_slug(""));
+        assert!(!is_safe_slug(".."));
+        assert!(!is_safe_slug("../etc"));
+        assert!(!is_safe_slug("a/b"));
+        assert!(!is_safe_slug("a\\b"));
+        assert!(!is_safe_slug(".hidden"));
+        assert!(!is_safe_slug("with space"));
+        assert!(!is_safe_slug("with%2Fencoded"));
+        assert!(!is_safe_slug(&"x".repeat(SLUG_MAX_LEN + 1)));
     }
 
     #[test]
