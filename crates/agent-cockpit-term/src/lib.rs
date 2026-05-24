@@ -1,5 +1,9 @@
 use thiserror::Error;
 
+mod terminal;
+
+pub use terminal::Terminal;
+
 pub type Result<T> = std::result::Result<T, TermError>;
 
 #[derive(Debug, Error)]
