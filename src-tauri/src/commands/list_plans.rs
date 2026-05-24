@@ -67,7 +67,7 @@ pub struct PlanEntry {
     pub mtime: u64,
 }
 
-const TITLE_READ_LIMIT: u64 = 64 * 1024;
+const TITLE_READ_LIMIT: u64 = 16 * 1024;
 
 #[tauri::command]
 pub fn list_plans(
