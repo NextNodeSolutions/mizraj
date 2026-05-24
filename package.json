@@ -16,6 +16,7 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -34,6 +35,7 @@
     "@commitlint/cli": "^21.0.1",
     "@commitlint/config-conventional": "^21.0.1",
     "@nextnode-solutions/standards": "^1.9.3",
+    "@playwright/test": "^1.60.0",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",

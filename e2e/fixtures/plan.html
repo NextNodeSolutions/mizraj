@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Fixture plan</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				margin: 0;
+				padding: 2rem;
+			}
+			#status {
+				margin-top: 1rem;
+			}
+		</style>
+	</head>
+	<body>
+		<h1 id="title">Fixture plan</h1>
+		<p>Minimal plan page used by e2e/plan-submit.spec.ts.</p>
+		<button id="submit" type="button">Submit</button>
+		<div id="status" data-state="idle"></div>
+		<script>
+			document
+				.getElementById('submit')
+				.addEventListener('click', async () => {
+					const status = document.getElementById('status')
+					status.dataset.state = 'submitting'
+					const payload = { answers: { q1: 'yes', q2: 'maybe' } }
+					const res = await fetch('./submit', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(payload),
+					})
+					if (!res.ok) {
+						status.dataset.state = 'error'
+						status.textContent = 'submit failed'
+						return
+					}
+					const ack = await res.json()
+					status.dataset.state = 'ok'
+					status.dataset.path = ack.path
+					status.textContent = 'sealed'
+				})
+		</script>
+	</body>
+</html>
