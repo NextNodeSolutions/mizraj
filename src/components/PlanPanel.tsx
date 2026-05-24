@@ -5,36 +5,25 @@ type Props = {
 	title?: string
 }
 
-type Status = 'loading' | 'ready' | 'error'
-
 const PlanPanel = ({ src, title }: Props): React.JSX.Element => {
-	const [status, setStatus] = useState<Status>('loading')
+	const [loaded, setLoaded] = useState(false)
 	return (
 		<div className="plan-panel__container">
 			<iframe
 				className="plan-panel"
 				src={src}
 				title={title ?? 'Plan'}
-				onLoad={() => setStatus('ready')}
-				onError={() => setStatus('error')}
+				onLoad={() => setLoaded(true)}
 				// oxlint-disable-next-line react/iframe-missing-sandbox -- self-contained docs HTML served from plan:// needs its own JS and same-origin access; trusted local content
 				sandbox="allow-scripts allow-same-origin"
 			/>
-			{status === 'loading' && (
+			{!loaded && (
 				<p
 					className="plan-panel__placeholder"
 					role="status"
 					aria-live="polite"
 				>
 					Loading plan…
-				</p>
-			)}
-			{status === 'error' && (
-				<p
-					className="plan-panel__placeholder plan-panel__placeholder--error"
-					role="alert"
-				>
-					Failed to load plan.
 				</p>
 			)}
 		</div>
