@@ -13,6 +13,9 @@ dist-ssr
 coverage
 *.local
 
+# TypeScript incremental build
+tsconfig.tsbuildinfo
+
 # Playwright
 /test-results/
 /playwright-report/
