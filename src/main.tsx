@@ -69,6 +69,9 @@ ReactDOM.createRoot(rootElement, reactErrorHandlers).render(
 const SKIPPED_UPDATE_STORAGE_KEY = 'agent-cockpit:updater:skipped-version'
 
 void (async () => {
+	if (import.meta.env.DEV) {
+		return
+	}
 	try {
 		const update = await check()
 		if (!update) {
