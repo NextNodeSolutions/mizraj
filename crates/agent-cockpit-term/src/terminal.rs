@@ -3,11 +3,13 @@ use std::mem;
 use std::ptr::{self, NonNull};
 
 use agent_cockpit_term_sys::{
-    ghostty_cell_get, ghostty_grid_ref_cell, ghostty_terminal_free, ghostty_terminal_grid_ref,
-    ghostty_terminal_new, ghostty_terminal_vt_write, GhosttyCell,
+    ghostty_cell_get, ghostty_grid_ref_cell, ghostty_grid_ref_style, ghostty_terminal_free,
+    ghostty_terminal_grid_ref, ghostty_terminal_new, ghostty_terminal_vt_write, GhosttyCell,
     GhosttyCellData_GHOSTTY_CELL_DATA_CODEPOINT, GhosttyGridRef, GhosttyPoint,
     GhosttyPointCoordinate, GhosttyPointTag_GHOSTTY_POINT_TAG_ACTIVE, GhosttyPointValue,
-    GhosttyResult_GHOSTTY_SUCCESS, GhosttyTerminal, GhosttyTerminalImpl, GhosttyTerminalOptions,
+    GhosttyResult_GHOSTTY_SUCCESS, GhosttyStyle, GhosttyStyleColor,
+    GhosttyStyleColorTag_GHOSTTY_STYLE_COLOR_PALETTE, GhosttyStyleColorTag_GHOSTTY_STYLE_COLOR_RGB,
+    GhosttyTerminal, GhosttyTerminalImpl, GhosttyTerminalOptions,
 };
 
 use crate::{Attrs, Cell, Cells, Color, Result, TermError};
@@ -75,21 +77,16 @@ impl Terminal {
     /// callers that frame-stream should reuse buffers (post-V1 optimization,
     /// likely backed by the render-state API).
     ///
-    /// Cells fall back to a space character (`' '`) with default styling
-    /// when libghostty reports no codepoint or a non-success status for a
-    /// given position; this matches an empty/blank terminal cell.
+    /// Cells fall back to a blank cell (space char, default colors, no attrs)
+    /// when libghostty reports a non-success status for a given position; this
+    /// matches an empty terminal cell.
     pub fn cells(&self) -> Cells {
         let total = (self.rows as usize) * (self.cols as usize);
         let mut data = Vec::with_capacity(total);
 
         for row in 0..self.rows {
             for col in 0..self.cols {
-                data.push(Cell {
-                    ch: self.cell_codepoint(row, col),
-                    fg: Color::Default,
-                    bg: Color::Default,
-                    attrs: Attrs::empty(),
-                });
+                data.push(self.cell_at(row, col));
             }
         }
 
@@ -100,7 +97,7 @@ impl Terminal {
         }
     }
 
-    fn cell_codepoint(&self, row: u16, col: u16) -> char {
+    fn cell_at(&self, row: u16, col: u16) -> Cell {
         let point = GhosttyPoint {
             tag: GhosttyPointTag_GHOSTTY_POINT_TAG_ACTIVE,
             value: GhosttyPointValue {
@@ -126,32 +123,93 @@ impl Terminal {
             ghostty_terminal_grid_ref(self.handle.as_ptr(), point, &mut grid_ref)
         };
         if r != GhosttyResult_GHOSTTY_SUCCESS {
-            return ' ';
+            return blank_cell();
         }
 
-        let mut cell: GhosttyCell = 0;
-        // SAFETY: `&grid_ref` points to a valid `GhosttyGridRef` initialized
-        // above; the snapshot is still fresh (no mutating terminal call has
-        // happened since); `&mut cell` is a valid pointer to a u64.
-        let r = unsafe { ghostty_grid_ref_cell(&grid_ref, &mut cell) };
-        if r != GhosttyResult_GHOSTTY_SUCCESS {
-            return ' ';
-        }
+        let ch = grid_ref_codepoint(&grid_ref);
+        let (fg, bg, attrs) = grid_ref_style(&grid_ref);
+        Cell { ch, fg, bg, attrs }
+    }
+}
 
-        let mut codepoint: u32 = 0;
-        // SAFETY: `cell` is passed by value; the codepoint data kind requires
-        // a `uint32_t*` output, which matches `&mut codepoint`.
-        let r = unsafe {
-            ghostty_cell_get(
-                cell,
-                GhosttyCellData_GHOSTTY_CELL_DATA_CODEPOINT,
-                (&mut codepoint as *mut u32).cast::<c_void>(),
-            )
-        };
-        if r != GhosttyResult_GHOSTTY_SUCCESS || codepoint == 0 {
-            return ' ';
+fn blank_cell() -> Cell {
+    Cell {
+        ch: ' ',
+        fg: Color::Default,
+        bg: Color::Default,
+        attrs: Attrs::empty(),
+    }
+}
+
+fn grid_ref_codepoint(grid_ref: &GhosttyGridRef) -> char {
+    let mut cell: GhosttyCell = 0;
+    // SAFETY: `grid_ref` is a valid initialized GhosttyGridRef built by
+    // libghostty above; `&mut cell` is a valid pointer to a u64.
+    let r = unsafe { ghostty_grid_ref_cell(grid_ref, &mut cell) };
+    if r != GhosttyResult_GHOSTTY_SUCCESS {
+        return ' ';
+    }
+
+    let mut codepoint: u32 = 0;
+    // SAFETY: `cell` is passed by value; the CODEPOINT data kind requires a
+    // `uint32_t*` output, which matches `&mut codepoint`.
+    let r = unsafe {
+        ghostty_cell_get(
+            cell,
+            GhosttyCellData_GHOSTTY_CELL_DATA_CODEPOINT,
+            (&mut codepoint as *mut u32).cast::<c_void>(),
+        )
+    };
+    if r != GhosttyResult_GHOSTTY_SUCCESS || codepoint == 0 {
+        return ' ';
+    }
+    char::from_u32(codepoint).unwrap_or(' ')
+}
+
+fn grid_ref_style(grid_ref: &GhosttyGridRef) -> (Color, Color, Attrs) {
+    // `GhosttyStyle` is a sized struct (style.h): zero-init then set the
+    // size field per the same compat contract as GhosttyGridRef.
+    // SAFETY: `GhosttyStyle` is POD: size_t + 3 tagged unions over POD
+    // unions + bools + an int. All-zero is a valid initial state.
+    let mut style: GhosttyStyle = unsafe { mem::zeroed() };
+    style.size = mem::size_of::<GhosttyStyle>();
+
+    // SAFETY: `grid_ref` was filled by ghostty_terminal_grid_ref above;
+    // `&mut style` is a valid writable pointer to a sized-init GhosttyStyle.
+    let r = unsafe { ghostty_grid_ref_style(grid_ref, &mut style) };
+    if r != GhosttyResult_GHOSTTY_SUCCESS {
+        return (Color::Default, Color::Default, Attrs::empty());
+    }
+
+    let mut attrs = Attrs::empty();
+    attrs.set(Attrs::BOLD, style.bold);
+    attrs.set(Attrs::ITALIC, style.italic);
+    attrs.set(Attrs::UNDERLINE, style.underline != 0);
+    attrs.set(Attrs::REVERSE, style.inverse);
+    attrs.set(Attrs::DIM, style.faint);
+    attrs.set(Attrs::STRIKE, style.strikethrough);
+
+    (
+        style_color_to_color(style.fg_color),
+        style_color_to_color(style.bg_color),
+        attrs,
+    )
+}
+
+fn style_color_to_color(c: GhosttyStyleColor) -> Color {
+    #[allow(non_upper_case_globals)] // bindgen-generated constant names
+    match c.tag {
+        GhosttyStyleColorTag_GHOSTTY_STYLE_COLOR_PALETTE => {
+            // SAFETY: tag PALETTE means the `palette` arm of the union is the
+            // active variant per libghostty's tagged-union contract.
+            Color::Indexed(unsafe { c.value.palette })
         }
-        char::from_u32(codepoint).unwrap_or(' ')
+        GhosttyStyleColorTag_GHOSTTY_STYLE_COLOR_RGB => {
+            // SAFETY: tag RGB means the `rgb` arm is active.
+            let rgb = unsafe { c.value.rgb };
+            Color::Rgb(rgb.r, rgb.g, rgb.b)
+        }
+        _ => Color::Default,
     }
 }
 
