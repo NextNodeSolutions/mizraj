@@ -1,12 +1,10 @@
-import { ask } from '@tauri-apps/plugin-dialog'
-import { relaunch } from '@tauri-apps/plugin-process'
-import { check } from '@tauri-apps/plugin-updater'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { describeError } from './errors'
+import { runUpdaterCheck } from './lib/updater'
 import { logger } from './logger'
 
 window.addEventListener('error', event => {
@@ -66,43 +64,6 @@ ReactDOM.createRoot(rootElement, reactErrorHandlers).render(
 	</React.StrictMode>,
 )
 
-const SKIPPED_UPDATE_STORAGE_KEY = 'agent-cockpit:updater:skipped-version'
-
-void (async () => {
-	if (import.meta.env.DEV) {
-		return
-	}
-	try {
-		const update = await check()
-		if (!update) {
-			return
-		}
-		if (
-			localStorage.getItem(SKIPPED_UPDATE_STORAGE_KEY) === update.version
-		) {
-			return
-		}
-		const accepted = await ask(
-			`Agent Cockpit ${update.version} is available. Install and restart now?`,
-			{
-				title: 'Update available',
-				kind: 'info',
-				okLabel: 'Install and restart',
-				cancelLabel: 'Skip this version',
-			},
-		)
-		if (!accepted) {
-			localStorage.setItem(SKIPPED_UPDATE_STORAGE_KEY, update.version)
-			return
-		}
-		localStorage.removeItem(SKIPPED_UPDATE_STORAGE_KEY)
-		await update.downloadAndInstall()
-		await relaunch()
-	} catch (error) {
-		const { message, stack } = describeError(error)
-		logger.error(`Updater check failed: ${message}`, {
-			scope: 'updater',
-			details: { stack },
-		})
-	}
-})()
+if (import.meta.env.PROD) {
+	void runUpdaterCheck()
+}

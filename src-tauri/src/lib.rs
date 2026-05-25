@@ -1,8 +1,12 @@
+mod active_project;
+mod commands;
 mod db;
 mod files;
 mod logging;
 
 use tauri::Manager;
+
+use crate::active_project::ActiveProject;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -67,6 +71,11 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .manage(ActiveProject::default())
+        .register_uri_scheme_protocol(
+            commands::plan_protocol::SCHEME,
+            commands::plan_protocol::handle_request,
+        )
         .setup(|app| {
             let guard = logging::init_logging(app)?;
             app.manage(guard);
@@ -82,7 +91,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             log_from_frontend,
-            files::read_interview_state
+            files::read_interview_state,
+            commands::list_plans::list_plans,
+            commands::set_active_project::set_active_project,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
