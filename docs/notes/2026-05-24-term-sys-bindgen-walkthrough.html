@@ -1,663 +1,1115 @@
 <!doctype html>
 <html lang="fr" data-theme="light">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>term-sys · bindgen scaffolding — walkthrough</title>
-<script>
-(function () {
-  try {
-    var stored = localStorage.getItem('np-theme');
-    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme', theme);
-  } catch (e) {
-    document.documentElement.setAttribute('data-theme', 'light');
-  }
-})();
-</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@700;800&display=swap">
-<link id="hljs-light" rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/atom-one-light.min.css">
-<link id="hljs-dark"  rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/atom-one-dark.min.css" disabled>
-<style>
-:root {
-  --np-bg:          oklch(98.4% 0.003 247.86);
-  --np-bg-soft:     oklch(96.8% 0.007 247.84);
-  --np-text:        oklch(20.8% 0.042 265.76);
-  --np-text-muted:  oklch(55.4% 0.046 257.42);
-  --np-border:      oklch(92.9% 0.013 255.51);
-  --np-border-soft: oklch(96.8% 0.007 247.84);
-  --np-accent:      oklch(70.4% 0.14 182.503);
-  --np-accent-bg:   oklch(95.3% 0.051 180.801);
-  --np-accent-hover:oklch(60% 0.118 184.704);
-  --np-highlight:   #F97316;
-  --np-success:     #16A34A;
-  --np-warn:        #D97706;
-  --np-danger:      #DC2626;
-  --np-add-bg:      #DCFCE7;
-  --np-add-text:    #166534;
-  --np-add-border:  #BBF7D0;
-  --np-del-bg:      #FEE2E2;
-  --np-del-text:    #991B1B;
-  --np-del-border:  #FECACA;
-  --np-edit-bg:     #FFF8C5;
-  --np-edit-text:   #854D0E;
-  --np-edit-border: #FDE68A;
-  --np-shadow-soft: 0 2px 6px rgba(0,0,0,.06);
-  --np-shadow-pop:  0 4px 16px rgba(0,0,0,.12);
-  --np-radius:      8px;
-  --np-mono:        "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --np-sans:        "DM Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --np-display:     "Plus Jakarta Sans", "DM Sans", sans-serif;
-}
-[data-theme="dark"] {
-  --np-bg:          oklch(20.8% 0.042 265.76);
-  --np-bg-soft:     oklch(27.9% 0.041 260.03);
-  --np-text:        oklch(98.4% 0.003 247.86);
-  --np-text-muted:  oklch(70.4% 0.04 256.79);
-  --np-border:      oklch(37.2% 0.044 257.29);
-  --np-border-soft: oklch(27.9% 0.041 260.03);
-  --np-accent:      oklch(77.7% 0.152 181.912);
-  --np-accent-bg:   oklch(38.6% 0.063 188.416);
-  --np-accent-hover:oklch(85.5% 0.138 181.071);
-  --np-highlight:   #FB923C;
-  --np-success:     #4ADE80;
-  --np-warn:        #FBBF24;
-  --np-danger:      #F87171;
-  --np-add-bg:      rgba(74,222,128,.18);
-  --np-add-text:    #86EFAC;
-  --np-add-border:  rgba(74,222,128,.40);
-  --np-del-bg:      rgba(248,113,113,.18);
-  --np-del-text:    #FCA5A5;
-  --np-del-border:  rgba(248,113,113,.40);
-  --np-edit-bg:     rgba(251,191,36,.18);
-  --np-edit-text:   #FCD34D;
-  --np-edit-border: rgba(251,191,36,.40);
-  --np-shadow-soft: 0 2px 6px rgba(0,0,0,.40);
-  --np-shadow-pop:  0 4px 16px rgba(0,0,0,.55);
-}
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width,initial-scale=1" />
+		<title>term-sys · bindgen scaffolding — walkthrough</title>
+		<script>
+			;(function () {
+				try {
+					var stored = localStorage.getItem('np-theme')
+					var theme =
+						stored ||
+						(window.matchMedia('(prefers-color-scheme: dark)')
+							.matches
+							? 'dark'
+							: 'light')
+					document.documentElement.setAttribute('data-theme', theme)
+				} catch (e) {
+					document.documentElement.setAttribute('data-theme', 'light')
+				}
+			})()
+		</script>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@700;800&display=swap"
+		/>
+		<link
+			id="hljs-light"
+			rel="stylesheet"
+			href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/atom-one-light.min.css"
+		/>
+		<link
+			id="hljs-dark"
+			rel="stylesheet"
+			href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/atom-one-dark.min.css"
+			disabled
+		/>
+		<style>
+			:root {
+				--np-bg: oklch(98.4% 0.003 247.86);
+				--np-bg-soft: oklch(96.8% 0.007 247.84);
+				--np-text: oklch(20.8% 0.042 265.76);
+				--np-text-muted: oklch(55.4% 0.046 257.42);
+				--np-border: oklch(92.9% 0.013 255.51);
+				--np-border-soft: oklch(96.8% 0.007 247.84);
+				--np-accent: oklch(70.4% 0.14 182.503);
+				--np-accent-bg: oklch(95.3% 0.051 180.801);
+				--np-accent-hover: oklch(60% 0.118 184.704);
+				--np-highlight: #f97316;
+				--np-success: #16a34a;
+				--np-warn: #d97706;
+				--np-danger: #dc2626;
+				--np-add-bg: #dcfce7;
+				--np-add-text: #166534;
+				--np-add-border: #bbf7d0;
+				--np-del-bg: #fee2e2;
+				--np-del-text: #991b1b;
+				--np-del-border: #fecaca;
+				--np-edit-bg: #fff8c5;
+				--np-edit-text: #854d0e;
+				--np-edit-border: #fde68a;
+				--np-shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.06);
+				--np-shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.12);
+				--np-radius: 8px;
+				--np-mono:
+					'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo,
+					monospace;
+				--np-sans:
+					'DM Sans', -apple-system, BlinkMacSystemFont, system-ui,
+					sans-serif;
+				--np-display: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+			}
+			[data-theme='dark'] {
+				--np-bg: oklch(20.8% 0.042 265.76);
+				--np-bg-soft: oklch(27.9% 0.041 260.03);
+				--np-text: oklch(98.4% 0.003 247.86);
+				--np-text-muted: oklch(70.4% 0.04 256.79);
+				--np-border: oklch(37.2% 0.044 257.29);
+				--np-border-soft: oklch(27.9% 0.041 260.03);
+				--np-accent: oklch(77.7% 0.152 181.912);
+				--np-accent-bg: oklch(38.6% 0.063 188.416);
+				--np-accent-hover: oklch(85.5% 0.138 181.071);
+				--np-highlight: #fb923c;
+				--np-success: #4ade80;
+				--np-warn: #fbbf24;
+				--np-danger: #f87171;
+				--np-add-bg: rgba(74, 222, 128, 0.18);
+				--np-add-text: #86efac;
+				--np-add-border: rgba(74, 222, 128, 0.4);
+				--np-del-bg: rgba(248, 113, 113, 0.18);
+				--np-del-text: #fca5a5;
+				--np-del-border: rgba(248, 113, 113, 0.4);
+				--np-edit-bg: rgba(251, 191, 36, 0.18);
+				--np-edit-text: #fcd34d;
+				--np-edit-border: rgba(251, 191, 36, 0.4);
+				--np-shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.4);
+				--np-shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.55);
+			}
 
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
-body {
-  background: var(--np-bg);
-  color: var(--np-text);
-  font-family: var(--np-sans);
-  font-size: 15px;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-}
-.wrap { max-width: 1120px; margin: 0 auto; padding: 40px 24px 96px; }
-h1, h2, h3 { font-family: var(--np-display); font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; }
-h1 { font-size: 36px; margin: 8px 0 8px; }
-h2 { font-size: 22px; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--np-border); }
-h3 { font-size: 15px; margin: 20px 0 8px; font-weight: 700; font-family: var(--np-sans); text-transform: uppercase; letter-spacing: 0.05em; color: var(--np-text-muted); }
-p { margin: 0 0 12px; }
-a { color: var(--np-accent-hover); text-decoration: none; border-bottom: 1px solid var(--np-accent-bg); }
-a:hover { border-bottom-color: var(--np-accent); }
+			* {
+				box-sizing: border-box;
+			}
+			html,
+			body {
+				margin: 0;
+				padding: 0;
+			}
+			body {
+				background: var(--np-bg);
+				color: var(--np-text);
+				font-family: var(--np-sans);
+				font-size: 15px;
+				line-height: 1.6;
+				-webkit-font-smoothing: antialiased;
+			}
+			.wrap {
+				max-width: 1120px;
+				margin: 0 auto;
+				padding: 40px 24px 96px;
+			}
+			h1,
+			h2,
+			h3 {
+				font-family: var(--np-display);
+				font-weight: 800;
+				letter-spacing: -0.01em;
+				line-height: 1.2;
+			}
+			h1 {
+				font-size: 36px;
+				margin: 8px 0 8px;
+			}
+			h2 {
+				font-size: 22px;
+				margin: 48px 0 16px;
+				padding-bottom: 8px;
+				border-bottom: 1px solid var(--np-border);
+			}
+			h3 {
+				font-size: 15px;
+				margin: 20px 0 8px;
+				font-weight: 700;
+				font-family: var(--np-sans);
+				text-transform: uppercase;
+				letter-spacing: 0.05em;
+				color: var(--np-text-muted);
+			}
+			p {
+				margin: 0 0 12px;
+			}
+			a {
+				color: var(--np-accent-hover);
+				text-decoration: none;
+				border-bottom: 1px solid var(--np-accent-bg);
+			}
+			a:hover {
+				border-bottom-color: var(--np-accent);
+			}
 
-/* --- Code block recipe (from rich-blocks.md) --- */
-pre {
-  margin: 0;
-  padding: 14px 16px;
-  background: var(--np-bg-soft);
-  border: 1px solid var(--np-border);
-  border-radius: var(--np-radius);
-  overflow-x: auto;
-  font-family: var(--np-mono);
-  font-size: 12.5px;
-  line-height: 1.65;
-  color: var(--np-text);
-  tab-size: 2;
-}
-pre code,
-pre code.hljs {
-  background: transparent;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-}
-:not(pre) > code {
-  font-family: var(--np-mono);
-  font-size: .9em;
-  padding: 1px 6px;
-  background: var(--np-bg-soft);
-  border: 1px solid var(--np-border);
-  border-radius: 4px;
-  color: var(--np-text);
-}
-.code-block {
-  margin: 0 0 16px;
-  border: 1px solid var(--np-border);
-  border-radius: var(--np-radius);
-  overflow: hidden;
-  background: var(--np-bg-soft);
-}
-.code-block__head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: var(--np-bg);
-  border-bottom: 1px solid var(--np-border);
-  font-family: var(--np-mono);
-  font-size: 12px;
-  color: var(--np-text-muted);
-}
-.code-block__file { flex: 1; font-weight: 600; color: var(--np-text); }
-.code-block__lang {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--np-accent-hover);
-  padding: 1px 6px;
-  background: var(--np-accent-bg);
-  border-radius: 3px;
-}
-.code-block__copy {
-  font: inherit;
-  font-size: 11px;
-  padding: 2px 8px;
-  background: transparent;
-  border: 1px solid var(--np-border);
-  border-radius: 4px;
-  color: var(--np-text-muted);
-  cursor: pointer;
-}
-.code-block__copy:hover { color: var(--np-accent-hover); border-color: var(--np-accent); }
-.code-block__copy.is-copied { color: var(--np-add-text); border-color: var(--np-add-border); }
-.code-block pre {
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  background: var(--np-bg-soft);
-}
+			/* --- Code block recipe (from rich-blocks.md) --- */
+			pre {
+				margin: 0;
+				padding: 14px 16px;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				overflow-x: auto;
+				font-family: var(--np-mono);
+				font-size: 12.5px;
+				line-height: 1.65;
+				color: var(--np-text);
+				tab-size: 2;
+			}
+			pre code,
+			pre code.hljs {
+				background: transparent;
+				padding: 0;
+				font: inherit;
+				color: inherit;
+			}
+			:not(pre) > code {
+				font-family: var(--np-mono);
+				font-size: 0.9em;
+				padding: 1px 6px;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: 4px;
+				color: var(--np-text);
+			}
+			.code-block {
+				margin: 0 0 16px;
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				overflow: hidden;
+				background: var(--np-bg-soft);
+			}
+			.code-block__head {
+				display: flex;
+				align-items: center;
+				gap: 12px;
+				padding: 8px 12px;
+				background: var(--np-bg);
+				border-bottom: 1px solid var(--np-border);
+				font-family: var(--np-mono);
+				font-size: 12px;
+				color: var(--np-text-muted);
+			}
+			.code-block__file {
+				flex: 1;
+				font-weight: 600;
+				color: var(--np-text);
+			}
+			.code-block__lang {
+				font-size: 10px;
+				font-weight: 700;
+				letter-spacing: 0.06em;
+				text-transform: uppercase;
+				color: var(--np-accent-hover);
+				padding: 1px 6px;
+				background: var(--np-accent-bg);
+				border-radius: 3px;
+			}
+			.code-block__copy {
+				font: inherit;
+				font-size: 11px;
+				padding: 2px 8px;
+				background: transparent;
+				border: 1px solid var(--np-border);
+				border-radius: 4px;
+				color: var(--np-text-muted);
+				cursor: pointer;
+			}
+			.code-block__copy:hover {
+				color: var(--np-accent-hover);
+				border-color: var(--np-accent);
+			}
+			.code-block__copy.is-copied {
+				color: var(--np-add-text);
+				border-color: var(--np-add-border);
+			}
+			.code-block pre {
+				margin: 0;
+				border: 0;
+				border-radius: 0;
+				background: var(--np-bg-soft);
+			}
 
-/* --- Eyebrow + lede + TLDR --- */
-.eyebrow {
-  font-family: var(--np-mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--np-text-muted);
-  margin-bottom: 4px;
-}
-.lede { font-size: 17px; color: var(--np-text-muted); max-width: 65ch; }
-.tldr {
-  background: var(--np-bg-soft);
-  border-left: 4px solid var(--np-accent);
-  border-radius: var(--np-radius);
-  padding: 16px 20px;
-  margin: 24px 0 32px;
-  font-size: 15.5px;
-}
-.tldr strong { color: var(--np-accent-hover); }
+			/* --- Eyebrow + lede + TLDR --- */
+			.eyebrow {
+				font-family: var(--np-mono);
+				font-size: 11px;
+				letter-spacing: 0.12em;
+				text-transform: uppercase;
+				color: var(--np-text-muted);
+				margin-bottom: 4px;
+			}
+			.lede {
+				font-size: 17px;
+				color: var(--np-text-muted);
+				max-width: 65ch;
+			}
+			.tldr {
+				background: var(--np-bg-soft);
+				border-left: 4px solid var(--np-accent);
+				border-radius: var(--np-radius);
+				padding: 16px 20px;
+				margin: 24px 0 32px;
+				font-size: 15.5px;
+			}
+			.tldr strong {
+				color: var(--np-accent-hover);
+			}
 
-/* --- Summary strip --- */
-.strip {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-  margin: 24px 0 32px;
-}
-.strip-cell {
-  background: var(--np-bg-soft);
-  border: 1px solid var(--np-border);
-  border-radius: var(--np-radius);
-  padding: 12px 14px;
-}
-.strip-cell .k {
-  font-family: var(--np-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--np-text-muted);
-  margin-bottom: 4px;
-}
-.strip-cell .v {
-  font-family: var(--np-mono);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--np-text);
-}
-@media (max-width: 780px) {
-  .strip { grid-template-columns: repeat(2, 1fr); }
-  h1 { font-size: 28px; }
-}
+			/* --- Summary strip --- */
+			.strip {
+				display: grid;
+				grid-template-columns: repeat(5, 1fr);
+				gap: 12px;
+				margin: 24px 0 32px;
+			}
+			.strip-cell {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				padding: 12px 14px;
+			}
+			.strip-cell .k {
+				font-family: var(--np-mono);
+				font-size: 10.5px;
+				letter-spacing: 0.1em;
+				text-transform: uppercase;
+				color: var(--np-text-muted);
+				margin-bottom: 4px;
+			}
+			.strip-cell .v {
+				font-family: var(--np-mono);
+				font-size: 13px;
+				font-weight: 500;
+				color: var(--np-text);
+			}
+			@media (max-width: 780px) {
+				.strip {
+					grid-template-columns: repeat(2, 1fr);
+				}
+				h1 {
+					font-size: 28px;
+				}
+			}
 
-/* --- Prose columns --- */
-.prose-cols {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-}
-.prose-cols p { max-width: 60ch; }
-@media (max-width: 900px) {
-  .prose-cols { grid-template-columns: 1fr; }
-}
+			/* --- Prose columns --- */
+			.prose-cols {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 24px;
+			}
+			.prose-cols p {
+				max-width: 60ch;
+			}
+			@media (max-width: 900px) {
+				.prose-cols {
+					grid-template-columns: 1fr;
+				}
+			}
 
-/* --- File-tree --- */
-.file-tree { font-family: var(--np-mono); font-size: 13px; line-height: 1.8; padding: 14px 18px; background: var(--np-bg-soft); border: 1px solid var(--np-border); border-radius: var(--np-radius); margin: 12px 0 24px; }
-.file-tree ul { list-style: none; margin: 0; padding-left: 18px; }
-.file-tree > ul { padding-left: 0; }
-.file-tree li { position: relative; }
-.file-tree li::before {
-  position: absolute; left: -14px; color: var(--np-text-muted);
-}
-.file-tree li.dir::before  { content: '▸'; }
-.file-tree li.file::before { content: '·'; }
-.file-tree .action {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 6px;
-  font-size: 10px;
-  font-weight: 700;
-  border-radius: 3px;
-  letter-spacing: .04em;
-}
-.file-tree .action.create { background: var(--np-add-bg);  color: var(--np-add-text);  border:1px solid var(--np-add-border); }
-.file-tree .action.edit   { background: var(--np-edit-bg); color: var(--np-edit-text); border:1px solid var(--np-edit-border); }
-.file-tree .action.delete { background: var(--np-del-bg);  color: var(--np-del-text);  border:1px solid var(--np-del-border); }
-.file-tree .meta { color: var(--np-text-muted); font-size: 11px; margin-left: 6px; }
+			/* --- File-tree --- */
+			.file-tree {
+				font-family: var(--np-mono);
+				font-size: 13px;
+				line-height: 1.8;
+				padding: 14px 18px;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				margin: 12px 0 24px;
+			}
+			.file-tree ul {
+				list-style: none;
+				margin: 0;
+				padding-left: 18px;
+			}
+			.file-tree > ul {
+				padding-left: 0;
+			}
+			.file-tree li {
+				position: relative;
+			}
+			.file-tree li::before {
+				position: absolute;
+				left: -14px;
+				color: var(--np-text-muted);
+			}
+			.file-tree li.dir::before {
+				content: '▸';
+			}
+			.file-tree li.file::before {
+				content: '·';
+			}
+			.file-tree .action {
+				display: inline-block;
+				margin-left: 8px;
+				padding: 1px 6px;
+				font-size: 10px;
+				font-weight: 700;
+				border-radius: 3px;
+				letter-spacing: 0.04em;
+			}
+			.file-tree .action.create {
+				background: var(--np-add-bg);
+				color: var(--np-add-text);
+				border: 1px solid var(--np-add-border);
+			}
+			.file-tree .action.edit {
+				background: var(--np-edit-bg);
+				color: var(--np-edit-text);
+				border: 1px solid var(--np-edit-border);
+			}
+			.file-tree .action.delete {
+				background: var(--np-del-bg);
+				color: var(--np-del-text);
+				border: 1px solid var(--np-del-border);
+			}
+			.file-tree .meta {
+				color: var(--np-text-muted);
+				font-size: 11px;
+				margin-left: 6px;
+			}
 
-/* --- Pills --- */
-.pill {
-  display: inline-block;
-  padding: 1px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.6;
-  border-radius: 999px;
-  border: 1px solid var(--np-border);
-  background: var(--np-bg-soft);
-  color: var(--np-text-muted);
-  letter-spacing: .01em;
-  white-space: nowrap;
-}
-.pill.success { background: var(--np-add-bg);    color: var(--np-add-text);  border-color: var(--np-add-border); }
-.pill.warn    { background: var(--np-edit-bg);   color: var(--np-edit-text); border-color: var(--np-edit-border); }
-.pill.danger  { background: var(--np-del-bg);    color: var(--np-del-text);  border-color: var(--np-del-border); }
-.pill.accent  { background: var(--np-accent-bg); color: var(--np-accent-hover); border-color: var(--np-accent); }
+			/* --- Pills --- */
+			.pill {
+				display: inline-block;
+				padding: 1px 8px;
+				font-size: 11px;
+				font-weight: 600;
+				line-height: 1.6;
+				border-radius: 999px;
+				border: 1px solid var(--np-border);
+				background: var(--np-bg-soft);
+				color: var(--np-text-muted);
+				letter-spacing: 0.01em;
+				white-space: nowrap;
+			}
+			.pill.success {
+				background: var(--np-add-bg);
+				color: var(--np-add-text);
+				border-color: var(--np-add-border);
+			}
+			.pill.warn {
+				background: var(--np-edit-bg);
+				color: var(--np-edit-text);
+				border-color: var(--np-edit-border);
+			}
+			.pill.danger {
+				background: var(--np-del-bg);
+				color: var(--np-del-text);
+				border-color: var(--np-del-border);
+			}
+			.pill.accent {
+				background: var(--np-accent-bg);
+				color: var(--np-accent-hover);
+				border-color: var(--np-accent);
+			}
 
-/* --- Diff --- */
-.diff {
-  font-family: var(--np-mono);
-  font-size: 12.5px;
-  line-height: 1.55;
-  background: var(--np-bg-soft);
-  border: 1px solid var(--np-border);
-  border-radius: var(--np-radius);
-  overflow: hidden;
-  margin: 16px 0;
-}
-.diff[data-file]::before {
-  content: attr(data-file);
-  display: block;
-  padding: 8px 12px;
-  background: var(--np-bg);
-  border-bottom: 1px solid var(--np-border);
-  font-weight: 600;
-  font-size: 12px;
-}
-.diff .line          { display:block; padding:0 12px; white-space:pre; }
-.diff .line.hunk     { color: var(--np-text-muted); background: var(--np-bg); padding: 4px 12px; }
-.diff .line.add      { background: var(--np-add-bg); color: var(--np-add-text); }
-.diff .line.add::before { content: '+ '; opacity: .7; }
-.diff .line.del      { background: var(--np-del-bg); color: var(--np-del-text); }
-.diff .line.del::before { content: '- '; opacity: .7; }
-.diff .line.ctx::before { content: '  '; }
+			/* --- Diff --- */
+			.diff {
+				font-family: var(--np-mono);
+				font-size: 12.5px;
+				line-height: 1.55;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				overflow: hidden;
+				margin: 16px 0;
+			}
+			.diff[data-file]::before {
+				content: attr(data-file);
+				display: block;
+				padding: 8px 12px;
+				background: var(--np-bg);
+				border-bottom: 1px solid var(--np-border);
+				font-weight: 600;
+				font-size: 12px;
+			}
+			.diff .line {
+				display: block;
+				padding: 0 12px;
+				white-space: pre;
+			}
+			.diff .line.hunk {
+				color: var(--np-text-muted);
+				background: var(--np-bg);
+				padding: 4px 12px;
+			}
+			.diff .line.add {
+				background: var(--np-add-bg);
+				color: var(--np-add-text);
+			}
+			.diff .line.add::before {
+				content: '+ ';
+				opacity: 0.7;
+			}
+			.diff .line.del {
+				background: var(--np-del-bg);
+				color: var(--np-del-text);
+			}
+			.diff .line.del::before {
+				content: '- ';
+				opacity: 0.7;
+			}
+			.diff .line.ctx::before {
+				content: '  ';
+			}
 
-.notes {
-  list-style: none;
-  padding: 0;
-  margin: 12px 0 0;
-}
-.notes li {
-  display: grid;
-  grid-template-columns: 86px 1fr;
-  gap: 14px;
-  padding: 10px 0;
-  border-top: 1px solid var(--np-border-soft);
-  font-size: 14px;
-}
-.notes li:first-child { border-top: 0; }
-.notes li .anchor {
-  font-family: var(--np-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--np-accent-hover);
-  background: var(--np-accent-bg);
-  border-radius: 4px;
-  padding: 3px 6px;
-  height: 22px;
-  align-self: start;
-  text-align: center;
-  font-weight: 600;
-}
+			.notes {
+				list-style: none;
+				padding: 0;
+				margin: 12px 0 0;
+			}
+			.notes li {
+				display: grid;
+				grid-template-columns: 86px 1fr;
+				gap: 14px;
+				padding: 10px 0;
+				border-top: 1px solid var(--np-border-soft);
+				font-size: 14px;
+			}
+			.notes li:first-child {
+				border-top: 0;
+			}
+			.notes li .anchor {
+				font-family: var(--np-mono);
+				font-size: 11px;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--np-accent-hover);
+				background: var(--np-accent-bg);
+				border-radius: 4px;
+				padding: 3px 6px;
+				height: 22px;
+				align-self: start;
+				text-align: center;
+				font-weight: 600;
+			}
 
-/* --- File-by-file collapsibles --- */
-details.fbf {
-  background: var(--np-bg-soft);
-  border: 1px solid var(--np-border);
-  border-radius: var(--np-radius);
-  margin: 10px 0;
-  overflow: hidden;
-}
-details.fbf > summary {
-  padding: 12px 16px;
-  cursor: pointer;
-  font-family: var(--np-mono);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--np-text);
-  list-style: none;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-details.fbf > summary::-webkit-details-marker { display: none; }
-details.fbf > summary::before {
-  content: '▸';
-  color: var(--np-accent-hover);
-  font-size: 11px;
-  transition: transform .15s;
-}
-details.fbf[open] > summary::before { transform: rotate(90deg); }
-details.fbf > summary .summary-tag {
-  font-family: var(--np-mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--np-text-muted);
-  background: var(--np-bg);
-  border: 1px solid var(--np-border);
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-weight: 500;
-  margin-left: auto;
-}
-details.fbf > summary .summary-tag.new { color: var(--np-add-text); background: var(--np-add-bg); border-color: var(--np-add-border); }
-details.fbf > summary .summary-tag.edit { color: var(--np-edit-text); background: var(--np-edit-bg); border-color: var(--np-edit-border); }
-.fbf-body {
-  padding: 6px 20px 20px;
-  border-top: 1px solid var(--np-border-soft);
-  background: var(--np-bg);
-}
-.fbf-body p { font-size: 14.5px; }
+			/* --- File-by-file collapsibles --- */
+			details.fbf {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				margin: 10px 0;
+				overflow: hidden;
+			}
+			details.fbf > summary {
+				padding: 12px 16px;
+				cursor: pointer;
+				font-family: var(--np-mono);
+				font-size: 13px;
+				font-weight: 600;
+				color: var(--np-text);
+				list-style: none;
+				display: flex;
+				align-items: center;
+				gap: 10px;
+			}
+			details.fbf > summary::-webkit-details-marker {
+				display: none;
+			}
+			details.fbf > summary::before {
+				content: '▸';
+				color: var(--np-accent-hover);
+				font-size: 11px;
+				transition: transform 0.15s;
+			}
+			details.fbf[open] > summary::before {
+				transform: rotate(90deg);
+			}
+			details.fbf > summary .summary-tag {
+				font-family: var(--np-mono);
+				font-size: 10px;
+				letter-spacing: 0.1em;
+				text-transform: uppercase;
+				color: var(--np-text-muted);
+				background: var(--np-bg);
+				border: 1px solid var(--np-border);
+				border-radius: 4px;
+				padding: 2px 6px;
+				font-weight: 500;
+				margin-left: auto;
+			}
+			details.fbf > summary .summary-tag.new {
+				color: var(--np-add-text);
+				background: var(--np-add-bg);
+				border-color: var(--np-add-border);
+			}
+			details.fbf > summary .summary-tag.edit {
+				color: var(--np-edit-text);
+				background: var(--np-edit-bg);
+				border-color: var(--np-edit-border);
+			}
+			.fbf-body {
+				padding: 6px 20px 20px;
+				border-top: 1px solid var(--np-border-soft);
+				background: var(--np-bg);
+			}
+			.fbf-body p {
+				font-size: 14.5px;
+			}
 
-/* --- Findings grid --- */
-.findings {
-  display: grid;
-  grid-template-columns: 160px 110px 1fr;
-  gap: 0;
-  border: 1px solid var(--np-border);
-  border-radius: var(--np-radius);
-  overflow: hidden;
-  margin: 16px 0;
-}
-.findings .row { display: contents; }
-.findings .cell {
-  padding: 12px 14px;
-  border-top: 1px solid var(--np-border-soft);
-  background: var(--np-bg);
-  font-size: 14px;
-}
-.findings .row.head .cell {
-  background: var(--np-bg-soft);
-  border-top: 0;
-  font-family: var(--np-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--np-text-muted);
-  font-weight: 600;
-}
-.findings .cell.k { font-weight: 600; font-size: 13.5px; }
-@media (max-width: 700px) {
-  .findings { grid-template-columns: 1fr; }
-  .findings .row.head { display: none; }
-  .findings .cell { border-top: 1px solid var(--np-border); }
-}
+			/* --- Findings grid --- */
+			.findings {
+				display: grid;
+				grid-template-columns: 160px 110px 1fr;
+				gap: 0;
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				overflow: hidden;
+				margin: 16px 0;
+			}
+			.findings .row {
+				display: contents;
+			}
+			.findings .cell {
+				padding: 12px 14px;
+				border-top: 1px solid var(--np-border-soft);
+				background: var(--np-bg);
+				font-size: 14px;
+			}
+			.findings .row.head .cell {
+				background: var(--np-bg-soft);
+				border-top: 0;
+				font-family: var(--np-mono);
+				font-size: 10.5px;
+				letter-spacing: 0.1em;
+				text-transform: uppercase;
+				color: var(--np-text-muted);
+				font-weight: 600;
+			}
+			.findings .cell.k {
+				font-weight: 600;
+				font-size: 13.5px;
+			}
+			@media (max-width: 700px) {
+				.findings {
+					grid-template-columns: 1fr;
+				}
+				.findings .row.head {
+					display: none;
+				}
+				.findings .cell {
+					border-top: 1px solid var(--np-border);
+				}
+			}
 
-/* --- Steps / next-steps --- */
-ul.steps { list-style: none; padding: 0; margin: 0; }
-ul.steps li {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 10px 14px;
-  border: 1px solid var(--np-border);
-  border-radius: var(--np-radius);
-  margin-bottom: 8px;
-  background: var(--np-bg-soft);
-  font-size: 14px;
-}
-ul.steps li input { margin-top: 4px; accent-color: var(--np-accent); }
-ul.steps li .meta { color: var(--np-text-muted); font-family: var(--np-mono); font-size: 11px; margin-left: auto; white-space: nowrap; }
+			/* --- Steps / next-steps --- */
+			ul.steps {
+				list-style: none;
+				padding: 0;
+				margin: 0;
+			}
+			ul.steps li {
+				display: flex;
+				align-items: flex-start;
+				gap: 12px;
+				padding: 10px 14px;
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				margin-bottom: 8px;
+				background: var(--np-bg-soft);
+				font-size: 14px;
+			}
+			ul.steps li input {
+				margin-top: 4px;
+				accent-color: var(--np-accent);
+			}
+			ul.steps li .meta {
+				color: var(--np-text-muted);
+				font-family: var(--np-mono);
+				font-size: 11px;
+				margin-left: auto;
+				white-space: nowrap;
+			}
 
-/* --- Theme toggle --- */
-.np-theme-toggle {
-  position: fixed;
-  top: 18px;
-  right: 18px;
-  background: var(--np-bg-soft);
-  border: 1px solid var(--np-border);
-  color: var(--np-text);
-  font-family: var(--np-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 6px 12px;
-  border-radius: 999px;
-  cursor: pointer;
-  z-index: 10;
-}
-.np-theme-toggle:hover { border-color: var(--np-accent); color: var(--np-accent-hover); }
+			/* --- Theme toggle --- */
+			.np-theme-toggle {
+				position: fixed;
+				top: 18px;
+				right: 18px;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				color: var(--np-text);
+				font-family: var(--np-mono);
+				font-size: 11px;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				padding: 6px 12px;
+				border-radius: 999px;
+				cursor: pointer;
+				z-index: 10;
+			}
+			.np-theme-toggle:hover {
+				border-color: var(--np-accent);
+				color: var(--np-accent-hover);
+			}
 
-/* --- Export button --- */
-.export-btn {
-  background: transparent;
-  border: 1px solid var(--np-accent);
-  color: var(--np-accent-hover);
-  font-family: var(--np-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 8px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-top: 16px;
-  font-weight: 600;
-}
-.export-btn:hover { background: var(--np-accent-bg); }
+			/* --- Export button --- */
+			.export-btn {
+				background: transparent;
+				border: 1px solid var(--np-accent);
+				color: var(--np-accent-hover);
+				font-family: var(--np-mono);
+				font-size: 11px;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				padding: 8px 14px;
+				border-radius: 6px;
+				cursor: pointer;
+				margin-top: 16px;
+				font-weight: 600;
+			}
+			.export-btn:hover {
+				background: var(--np-accent-bg);
+			}
 
-/* --- Callout --- */
-.callout {
-  margin: 16px 0;
-  padding: 12px 16px;
-  background: var(--np-bg-soft);
-  border-left: 4px solid var(--np-warn);
-  border-radius: var(--np-radius);
-  font-size: 14px;
-}
-.callout strong { color: var(--np-edit-text); }
-</style>
-</head>
-<body>
-<button class="np-theme-toggle" id="themeToggle" type="button" aria-label="Toggle theme">Theme</button>
-<main class="wrap">
+			/* --- Callout --- */
+			.callout {
+				margin: 16px 0;
+				padding: 12px 16px;
+				background: var(--np-bg-soft);
+				border-left: 4px solid var(--np-warn);
+				border-radius: var(--np-radius);
+				font-size: 14px;
+			}
+			.callout strong {
+				color: var(--np-edit-text);
+			}
+		</style>
+	</head>
+	<body>
+		<button
+			class="np-theme-toggle"
+			id="themeToggle"
+			type="button"
+			aria-label="Toggle theme"
+		>
+			Theme
+		</button>
+		<main class="wrap">
+			<div class="eyebrow">
+				Walkthrough · agent-cockpit · feat/foundations
+			</div>
+			<h1>term-sys : scaffolding bindgen pour libghostty-vt</h1>
+			<p class="lede">
+				Décortique chaque ligne de la tâche P1-03 — le pont Rust ↔ C qui
+				permettra (plus tard) d'appeler le moteur de terminal Ghostty
+				depuis Rust. Lecture optimisée pour quelqu'un qui lit du Rust
+				mais ne le pratique pas.
+			</p>
 
-  <div class="eyebrow">Walkthrough · agent-cockpit · feat/foundations</div>
-  <h1>term-sys : scaffolding bindgen pour libghostty-vt</h1>
-  <p class="lede">Décortique chaque ligne de la tâche P1-03 — le pont Rust ↔ C qui permettra (plus tard) d'appeler le moteur de terminal Ghostty depuis Rust. Lecture optimisée pour quelqu'un qui lit du Rust mais ne le pratique pas.</p>
+			<div class="tldr">
+				<strong>TL;DR.</strong> 5 fichiers touchés, 0 ligne de logique
+				métier, 0 <code>unsafe</code> introduit. On a ajouté
+				<code>bindgen</code> en <em>build-dependency</em> (n'apparaît
+				pas dans le binaire final), un <code>build.rs</code> qui traduit
+				les headers C en déclarations Rust à chaque compilation, et un
+				dossier <code>vendor/</code> qui figé les headers upstream sur
+				un SHA précis. Verdict audit :
+				<strong>propre, sûr, idiomatique</strong>, une
+				micro-amélioration cosmétique possible.
+			</div>
 
-  <div class="tldr">
-    <strong>TL;DR.</strong> 5 fichiers touchés, 0 ligne de logique métier, 0 <code>unsafe</code> introduit. On a ajouté <code>bindgen</code> en <em>build-dependency</em> (n'apparaît pas dans le binaire final), un <code>build.rs</code> qui traduit les headers C en déclarations Rust à chaque compilation, et un dossier <code>vendor/</code> qui figé les headers upstream sur un SHA précis. Verdict audit : <strong>propre, sûr, idiomatique</strong>, une micro-amélioration cosmétique possible.
-  </div>
+			<div class="strip">
+				<div class="strip-cell">
+					<div class="k">Fichiers</div>
+					<div class="v">5 (2 mod, 3 new)</div>
+				</div>
+				<div class="strip-cell">
+					<div class="k">Dep ajoutée</div>
+					<div class="v">bindgen 0.72</div>
+				</div>
+				<div class="strip-cell">
+					<div class="k">Scope dep</div>
+					<div class="v">build-only</div>
+				</div>
+				<div class="strip-cell">
+					<div class="k">unsafe ajoutés</div>
+					<div class="v">0</div>
+				</div>
+				<div class="strip-cell">
+					<div class="k">Réseau au build</div>
+					<div class="v">aucun</div>
+				</div>
+			</div>
 
-  <div class="strip">
-    <div class="strip-cell"><div class="k">Fichiers</div><div class="v">5 (2 mod, 3 new)</div></div>
-    <div class="strip-cell"><div class="k">Dep ajoutée</div><div class="v">bindgen 0.72</div></div>
-    <div class="strip-cell"><div class="k">Scope dep</div><div class="v">build-only</div></div>
-    <div class="strip-cell"><div class="k">unsafe ajoutés</div><div class="v">0</div></div>
-    <div class="strip-cell"><div class="k">Réseau au build</div><div class="v">aucun</div></div>
-  </div>
+			<h2 id="impact">Surface impactée</h2>
+			<div class="file-tree">
+				<ul>
+					<li class="file">
+						Cargo.lock <span class="action edit">EDIT</span>
+						<span class="meta">build-deps transitives bindgen</span>
+					</li>
+					<li class="dir">
+						crates/agent-cockpit-term-sys/
+						<ul>
+							<li class="file">
+								Cargo.toml <span class="action edit">EDIT</span>
+								<span class="meta"
+									>+ [build-dependencies] bindgen</span
+								>
+							</li>
+							<li class="file">
+								build.rs
+								<span class="action create">CREATE</span>
+								<span class="meta"
+									>49 lignes — pipeline bindgen</span
+								>
+							</li>
+							<li class="file">
+								src/lib.rs <span class="action edit">EDIT</span>
+								<span class="meta"
+									>placeholder → include! bindings</span
+								>
+							</li>
+							<li class="dir">
+								vendor/
+								<ul>
+									<li class="file">
+										README.md
+										<span class="action create"
+											>CREATE</span
+										>
+										<span class="meta"
+											>doc regen + commit pin
+											upstream</span
+										>
+									</li>
+									<li class="dir">
+										include/ghostty/
+										<ul>
+											<li class="file">
+												vt.h + 20 headers
+												<span class="action create"
+													>CREATE</span
+												>
+												<span class="meta"
+													>copie SHA d5d8cef</span
+												>
+											</li>
+										</ul>
+									</li>
+								</ul>
+							</li>
+						</ul>
+					</li>
+				</ul>
+			</div>
 
-  <h2 id="impact">Surface impactée</h2>
-  <div class="file-tree">
-    <ul>
-      <li class="file">Cargo.lock <span class="action edit">EDIT</span> <span class="meta">build-deps transitives bindgen</span></li>
-      <li class="dir">crates/agent-cockpit-term-sys/
-        <ul>
-          <li class="file">Cargo.toml <span class="action edit">EDIT</span> <span class="meta">+ [build-dependencies] bindgen</span></li>
-          <li class="file">build.rs <span class="action create">CREATE</span> <span class="meta">49 lignes — pipeline bindgen</span></li>
-          <li class="file">src/lib.rs <span class="action edit">EDIT</span> <span class="meta">placeholder → include! bindings</span></li>
-          <li class="dir">vendor/
-            <ul>
-              <li class="file">README.md <span class="action create">CREATE</span> <span class="meta">doc regen + commit pin upstream</span></li>
-              <li class="dir">include/ghostty/
-                <ul>
-                  <li class="file">vt.h + 20 headers <span class="action create">CREATE</span> <span class="meta">copie SHA d5d8cef</span></li>
-                </ul>
-              </li>
-            </ul>
-          </li>
-        </ul>
-      </li>
-    </ul>
-  </div>
+			<h2 id="pourquoi">
+				Pourquoi un crate <code>-sys</code> et pourquoi bindgen
+			</h2>
+			<div class="prose-cols">
+				<div>
+					<p>
+						En Rust, la convention pour interfacer une lib C est de
+						scinder en <strong>deux crates</strong> :
+					</p>
+					<p>
+						<strong>1) Le crate <code>-sys</code></strong>
+						(celui-ci) contient uniquement les
+						<em>déclarations brutes</em> — pour chaque fonction C il
+						y a une signature Rust équivalente, et c'est tout. Pas
+						de logique, pas d'abstraction. C'est ici, et
+						<em>seulement</em> ici, que les blocs
+						<code>unsafe</code> et <code>extern "C"</code> peuvent
+						vivre.
+					</p>
+					<p>
+						<strong>2) Le crate haut-niveau</strong>
+						(<code>agent-cockpit-term</code>, viendra ensuite)
+						wrappe les appels du <code>-sys</code> dans une API Rust
+						sûre. Aucun <code>unsafe</code> n'est autorisé dans
+						cette couche — l'unsafety est confinée par contrat.
+					</p>
+				</div>
+				<div>
+					<p>
+						<strong>Bindgen</strong>, c'est l'outil officiel
+						rust-lang qui lit un header C (<code>.h</code>) et
+						crache un fichier Rust avec toutes les
+						<code>extern "C" fn</code> et les
+						<code>struct</code> miroirs. Sans bindgen on devrait
+						écrire à la main des centaines de signatures et les
+						maintenir à jour à chaque release upstream. Avec
+						bindgen, on régénère automatiquement à chaque
+						<code>cargo build</code> à partir des headers vendorés.
+					</p>
+					<p>
+						L'avantage clé :
+						<strong>impossible de désynchroniser</strong> la lib C
+						et les bindings Rust. Si upstream change une signature,
+						ça pète à la compil — pas à l'exécution dans un segfault
+						opaque.
+					</p>
+				</div>
+			</div>
 
-  <h2 id="pourquoi">Pourquoi un crate <code>-sys</code> et pourquoi bindgen</h2>
-  <div class="prose-cols">
-    <div>
-      <p>En Rust, la convention pour interfacer une lib C est de scinder en <strong>deux crates</strong> :</p>
-      <p><strong>1) Le crate <code>-sys</code></strong> (celui-ci) contient uniquement les <em>déclarations brutes</em> — pour chaque fonction C il y a une signature Rust équivalente, et c'est tout. Pas de logique, pas d'abstraction. C'est ici, et <em>seulement</em> ici, que les blocs <code>unsafe</code> et <code>extern "C"</code> peuvent vivre.</p>
-      <p><strong>2) Le crate haut-niveau</strong> (<code>agent-cockpit-term</code>, viendra ensuite) wrappe les appels du <code>-sys</code> dans une API Rust sûre. Aucun <code>unsafe</code> n'est autorisé dans cette couche — l'unsafety est confinée par contrat.</p>
-    </div>
-    <div>
-      <p><strong>Bindgen</strong>, c'est l'outil officiel rust-lang qui lit un header C (<code>.h</code>) et crache un fichier Rust avec toutes les <code>extern "C" fn</code> et les <code>struct</code> miroirs. Sans bindgen on devrait écrire à la main des centaines de signatures et les maintenir à jour à chaque release upstream. Avec bindgen, on régénère automatiquement à chaque <code>cargo build</code> à partir des headers vendorés.</p>
-      <p>L'avantage clé : <strong>impossible de désynchroniser</strong> la lib C et les bindings Rust. Si upstream change une signature, ça pète à la compil — pas à l'exécution dans un segfault opaque.</p>
-    </div>
-  </div>
+			<h2 id="srclib">Le diff de <code>src/lib.rs</code> — annoté</h2>
+			<p>
+				Le crate était un placeholder vide. On le remplace par : un
+				doc-comment qui établit la règle
+				<em>« unsafe confiné ici »</em>, des
+				<code>allow</code> obligatoires pour les bindings auto, et
+				l'inclusion du fichier généré au build.
+			</p>
 
-  <h2 id="srclib">Le diff de <code>src/lib.rs</code> — annoté</h2>
-  <p>Le crate était un placeholder vide. On le remplace par : un doc-comment qui établit la règle <em>« unsafe confiné ici »</em>, des <code>allow</code> obligatoires pour les bindings auto, et l'inclusion du fichier généré au build.</p>
+			<div
+				class="diff"
+				data-file="crates/agent-cockpit-term-sys/src/lib.rs"
+			>
+				@@ -1,11 +1,15 @@ -//! Raw FFI bindings to libghostty. +//! Raw
+				FFI bindings to libghostty-vt. //! //! This `-sys` crate
+				confines every `unsafe` block and every `extern "C"` //!
+				declaration touching libghostty. Higher-level crates (notably
+				//! `agent-cockpit-term`) wrap this surface into a safe API and
+				must not //! contain any `unsafe` of their own. See `README.md`
+				for the rule. +//! +//! The contents below are generated at
+				build time by `bindgen` from the +//! vendored C headers under
+				`vendor/include/ghostty/`. Override the header +//! root via the
+				`LIBGHOSTTY_INCLUDE_DIR` env var (see `build.rs`). +
+				+#![allow(non_upper_case_globals, non_camel_case_types,
+				non_snake_case)] +#![allow(dead_code, deref_nullptr,
+				clippy::all)] -extern "C" { - // Placeholder. Real bindings are
+				generated by `build.rs` via bindgen in a - // later step (P1-03)
+				and `include!`d here. -} +include!(concat!(env!("OUT_DIR"),
+				"/bindings.rs"));
+			</div>
 
-  <div class="diff" data-file="crates/agent-cockpit-term-sys/src/lib.rs">
-@@ -1,11 +1,15 @@
--//! Raw FFI bindings to libghostty.
-+//! Raw FFI bindings to libghostty-vt.
- //!
- //! This `-sys` crate confines every `unsafe` block and every `extern "C"`
- //! declaration touching libghostty. Higher-level crates (notably
- //! `agent-cockpit-term`) wrap this surface into a safe API and must not
- //! contain any `unsafe` of their own. See `README.md` for the rule.
-+//!
-+//! The contents below are generated at build time by `bindgen` from the
-+//! vendored C headers under `vendor/include/ghostty/`. Override the header
-+//! root via the `LIBGHOSTTY_INCLUDE_DIR` env var (see `build.rs`).
-+
-+#![allow(non_upper_case_globals, non_camel_case_types, non_snake_case)]
-+#![allow(dead_code, deref_nullptr, clippy::all)]
+			<ul class="notes">
+				<li>
+					<span class="anchor">DOC</span
+					><span
+						>Le doc-comment <code>//!</code> n'est pas du
+						commentaire jetable — c'est le contrat lu par les
+						humains et par <code>cargo doc</code>. Il dit
+						explicitement :
+						<em
+							>« tout <code>unsafe</code> qui touche libghostty
+							vit ici, nulle part ailleurs »</em
+						>. Règle non négociable du repo.</span
+					>
+				</li>
+				<li>
+					<span class="anchor">ALLOW</span
+					><span
+						>Les noms C (<code>ghostty_terminal_t</code>,
+						<code>GHOSTTY_MAX_FOO</code>) violent les conventions
+						Rust (snake_case strict pour les fonctions, CamelCase
+						pour les types). Les <code>#![allow(...)]</code> shut up
+						le compilateur localement — pattern standard pour tout
+						fichier généré par bindgen, recommandé par la doc
+						officielle.</span
+					>
+				</li>
+				<li>
+					<span class="anchor">INCLUDE</span
+					><span
+						><code>include!</code> copie-colle littéralement le
+						contenu d'un fichier dans la crate à la compilation.
+						<code>env!("OUT_DIR")</code> récupère le dossier scratch
+						que Cargo donne à chaque build
+						(<code>target/debug/build/&lt;hash&gt;/out/</code>).
+						Résultat : <code>bindings.rs</code> est régénéré à
+						chaque build et jamais commité.</span
+					>
+				</li>
+				<li>
+					<span class="anchor">UNSAFE</span
+					><span
+						>Aucun bloc <code>unsafe</code> n'est introduit ici. Les
+						<code>extern "C"</code> ne sont que des
+						<em>déclarations</em> — le
+						<code>unsafe</code> apparaîtra plus tard quand on
+						<em>appellera</em> ces fonctions. Pour cette tâche, la
+						surface d'attaque est nulle.</span
+					>
+				</li>
+			</ul>
 
--extern "C" {
--    // Placeholder. Real bindings are generated by `build.rs` via bindgen in a
--    // later step (P1-03) and `include!`d here.
--}
-+include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-  </div>
+			<h2 id="fbf">Fichier par fichier</h2>
 
-  <ul class="notes">
-    <li><span class="anchor">DOC</span><span>Le doc-comment <code>//!</code> n'est pas du commentaire jetable — c'est le contrat lu par les humains et par <code>cargo doc</code>. Il dit explicitement : <em>« tout <code>unsafe</code> qui touche libghostty vit ici, nulle part ailleurs »</em>. Règle non négociable du repo.</span></li>
-    <li><span class="anchor">ALLOW</span><span>Les noms C (<code>ghostty_terminal_t</code>, <code>GHOSTTY_MAX_FOO</code>) violent les conventions Rust (snake_case strict pour les fonctions, CamelCase pour les types). Les <code>#![allow(...)]</code> shut up le compilateur localement — pattern standard pour tout fichier généré par bindgen, recommandé par la doc officielle.</span></li>
-    <li><span class="anchor">INCLUDE</span><span><code>include!</code> copie-colle littéralement le contenu d'un fichier dans la crate à la compilation. <code>env!("OUT_DIR")</code> récupère le dossier scratch que Cargo donne à chaque build (<code>target/debug/build/&lt;hash&gt;/out/</code>). Résultat : <code>bindings.rs</code> est régénéré à chaque build et jamais commité.</span></li>
-    <li><span class="anchor">UNSAFE</span><span>Aucun bloc <code>unsafe</code> n'est introduit ici. Les <code>extern "C"</code> ne sont que des <em>déclarations</em> — le <code>unsafe</code> apparaîtra plus tard quand on <em>appellera</em> ces fonctions. Pour cette tâche, la surface d'attaque est nulle.</span></li>
-  </ul>
-
-  <h2 id="fbf">Fichier par fichier</h2>
-
-  <details class="fbf" open>
-    <summary><code>Cargo.toml</code> · ajout de bindgen<span class="summary-tag edit">MOD</span></summary>
-    <div class="fbf-body">
-      <figure class="code-block">
-        <figcaption class="code-block__head">
-          <span class="code-block__file">crates/agent-cockpit-term-sys/Cargo.toml</span>
-          <span class="code-block__lang">TOML</span>
-          <button class="code-block__copy" type="button" aria-label="Copy">Copy</button>
-        </figcaption>
-<pre><code class="language-toml">[build-dependencies]
+			<details class="fbf" open>
+				<summary>
+					<code>Cargo.toml</code> · ajout de bindgen<span
+						class="summary-tag edit"
+						>MOD</span
+					>
+				</summary>
+				<div class="fbf-body">
+					<figure class="code-block">
+						<figcaption class="code-block__head">
+							<span class="code-block__file"
+								>crates/agent-cockpit-term-sys/Cargo.toml</span
+							>
+							<span class="code-block__lang">TOML</span>
+							<button
+								class="code-block__copy"
+								type="button"
+								aria-label="Copy"
+							>
+								Copy
+							</button>
+						</figcaption>
+						<pre><code class="language-toml">[build-dependencies]
 bindgen = "0.72"
 </code></pre>
-      </figure>
-      <p>La section <code>[build-dependencies]</code> est volontairement différente de <code>[dependencies]</code> : ces crates ne sont compilées et utilisées <em>que</em> pendant <code>build.rs</code>. Elles n'apparaissent <strong>jamais</strong> dans le binaire final.</p>
-      <p><strong>Conséquence sécu</strong> : <code>bindgen</code> et son arbre transitif (clang-sys, cexpr, nom, etc. — visibles dans <code>Cargo.lock</code>) tournent à la compil, génèrent du code, puis disparaissent. Zéro impact runtime, zéro surface d'attaque côté prod.</p>
-    </div>
-  </details>
+					</figure>
+					<p>
+						La section <code>[build-dependencies]</code> est
+						volontairement différente de
+						<code>[dependencies]</code> : ces crates ne sont
+						compilées et utilisées <em>que</em> pendant
+						<code>build.rs</code>. Elles n'apparaissent
+						<strong>jamais</strong> dans le binaire final.
+					</p>
+					<p>
+						<strong>Conséquence sécu</strong> :
+						<code>bindgen</code> et son arbre transitif (clang-sys,
+						cexpr, nom, etc. — visibles dans
+						<code>Cargo.lock</code>) tournent à la compil, génèrent
+						du code, puis disparaissent. Zéro impact runtime, zéro
+						surface d'attaque côté prod.
+					</p>
+				</div>
+			</details>
 
-  <details class="fbf">
-    <summary><code>build.rs</code> · 49 lignes — le cœur de la tâche<span class="summary-tag new">NEW</span></summary>
-    <div class="fbf-body">
-      <p>Un <code>build.rs</code> est un script Rust que Cargo exécute <strong>automatiquement avant</strong> de compiler la crate. Il s'organise en 5 étages :</p>
+			<details class="fbf">
+				<summary>
+					<code>build.rs</code> · 49 lignes — le cœur de la tâche<span
+						class="summary-tag new"
+						>NEW</span
+					>
+				</summary>
+				<div class="fbf-body">
+					<p>
+						Un <code>build.rs</code> est un script Rust que Cargo
+						exécute <strong>automatiquement avant</strong> de
+						compiler la crate. Il s'organise en 5 étages :
+					</p>
 
-      <h3>① Trouver les headers (override-friendly)</h3>
-      <figure class="code-block">
-        <figcaption class="code-block__head">
-          <span class="code-block__file">build.rs — étage 1</span>
-          <span class="code-block__lang">Rust</span>
-          <button class="code-block__copy" type="button" aria-label="Copy">Copy</button>
-        </figcaption>
-<pre><code class="language-rust">let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+					<h3>① Trouver les headers (override-friendly)</h3>
+					<figure class="code-block">
+						<figcaption class="code-block__head">
+							<span class="code-block__file"
+								>build.rs — étage 1</span
+							>
+							<span class="code-block__lang">Rust</span>
+							<button
+								class="code-block__copy"
+								type="button"
+								aria-label="Copy"
+							>
+								Copy
+							</button>
+						</figcaption>
+						<pre><code class="language-rust">let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
 let default_include = manifest_dir.join("vendor").join("include");
 let include_dir = env::var_os("LIBGHOSTTY_INCLUDE_DIR")
     .map(PathBuf::from)
     .unwrap_or(default_include);
 </code></pre>
-      </figure>
-      <p>Par défaut → <code>vendor/include/</code>. Override via env var <code>LIBGHOSTTY_INCLUDE_DIR</code> pour pointer vers une install système ou un checkout local. Pattern propre : <em>sensible default + escape hatch documenté</em>.</p>
+					</figure>
+					<p>
+						Par défaut → <code>vendor/include/</code>. Override via
+						env var <code>LIBGHOSTTY_INCLUDE_DIR</code> pour pointer
+						vers une install système ou un checkout local. Pattern
+						propre :
+						<em>sensible default + escape hatch documenté</em>.
+					</p>
 
-      <h3>② Invalider le cache de build correctement</h3>
-      <figure class="code-block">
-        <figcaption class="code-block__head">
-          <span class="code-block__file">build.rs — étage 2</span>
-          <span class="code-block__lang">Rust</span>
-          <button class="code-block__copy" type="button" aria-label="Copy">Copy</button>
-        </figcaption>
-<pre><code class="language-rust">println!("cargo:rerun-if-env-changed=LIBGHOSTTY_INCLUDE_DIR");
+					<h3>② Invalider le cache de build correctement</h3>
+					<figure class="code-block">
+						<figcaption class="code-block__head">
+							<span class="code-block__file"
+								>build.rs — étage 2</span
+							>
+							<span class="code-block__lang">Rust</span>
+							<button
+								class="code-block__copy"
+								type="button"
+								aria-label="Copy"
+							>
+								Copy
+							</button>
+						</figcaption>
+						<pre><code class="language-rust">println!("cargo:rerun-if-env-changed=LIBGHOSTTY_INCLUDE_DIR");
 println!("cargo:rerun-if-changed=build.rs");
 rerun_if_changed_recursive(&amp;include_dir);
 </code></pre>
-      </figure>
-      <p>Ces <code>println!</code> ne sont <strong>pas du logging</strong> — c'est un protocole stdout que Cargo écoute. Ils disent : « rebuild si l'env var change, si build.rs change, ou si un header change ». Sans ça, modifier un <code>.h</code> ne déclencherait pas de régénération — bug subtil classique des FFI.</p>
+					</figure>
+					<p>
+						Ces <code>println!</code> ne sont
+						<strong>pas du logging</strong> — c'est un protocole
+						stdout que Cargo écoute. Ils disent : « rebuild si l'env
+						var change, si build.rs change, ou si un header change
+						». Sans ça, modifier un <code>.h</code> ne déclencherait
+						pas de régénération — bug subtil classique des FFI.
+					</p>
 
-      <h3>③ Validation défensive</h3>
-      <figure class="code-block">
-        <figcaption class="code-block__head">
-          <span class="code-block__file">build.rs — étage 3</span>
-          <span class="code-block__lang">Rust</span>
-          <button class="code-block__copy" type="button" aria-label="Copy">Copy</button>
-        </figcaption>
-<pre><code class="language-rust">assert!(
+					<h3>③ Validation défensive</h3>
+					<figure class="code-block">
+						<figcaption class="code-block__head">
+							<span class="code-block__file"
+								>build.rs — étage 3</span
+							>
+							<span class="code-block__lang">Rust</span>
+							<button
+								class="code-block__copy"
+								type="button"
+								aria-label="Copy"
+							>
+								Copy
+							</button>
+						</figcaption>
+						<pre><code class="language-rust">assert!(
     entry_header.is_file(),
     "libghostty entry header not found at {} (set LIBGHOSTTY_INCLUDE_DIR to override)",
     entry_header.display()
 );
 </code></pre>
-      </figure>
-      <p>Fail loud dès le premier header manquant, avec un message explicite qui dit comment override — au lieu d'un message bindgen cryptique 200 lignes plus loin.</p>
+					</figure>
+					<p>
+						Fail loud dès le premier header manquant, avec un
+						message explicite qui dit comment override — au lieu
+						d'un message bindgen cryptique 200 lignes plus loin.
+					</p>
 
-      <h3>④ Génération des bindings</h3>
-      <figure class="code-block">
-        <figcaption class="code-block__head">
-          <span class="code-block__file">build.rs — étage 4</span>
-          <span class="code-block__lang">Rust</span>
-          <button class="code-block__copy" type="button" aria-label="Copy">Copy</button>
-        </figcaption>
-<pre><code class="language-rust">bindgen::Builder::default()
+					<h3>④ Génération des bindings</h3>
+					<figure class="code-block">
+						<figcaption class="code-block__head">
+							<span class="code-block__file"
+								>build.rs — étage 4</span
+							>
+							<span class="code-block__lang">Rust</span>
+							<button
+								class="code-block__copy"
+								type="button"
+								aria-label="Copy"
+							>
+								Copy
+							</button>
+						</figcaption>
+						<pre><code class="language-rust">bindgen::Builder::default()
     .header(entry_header.to_string_lossy())
     .clang_arg(format!("-I{}", include_dir.display()))
     .allowlist_function("ghostty_.*")
@@ -667,37 +1119,87 @@ rerun_if_changed_recursive(&amp;include_dir);
     .generate()
     .expect("bindgen failed to generate libghostty-vt bindings");
 </code></pre>
-      </figure>
-      <p>Les <code>.allowlist_*</code> sont l'optimisation clé : <strong>ne génère que les symboles préfixés <code>ghostty_</code> / <code>GHOSTTY_</code></strong>. Sans ça, bindgen ressortirait tout ce que le préprocesseur a tiré (libc, types système, macros stdint…) → des milliers de symboles polluants à reviewer.</p>
-      <p><code>layout_tests(false)</code> désactive les tests générés qui vérifient <code>sizeof</code> et l'alignement de chaque struct. Utile pour cross-compil et compile-time. Les headers C de libghostty-vt sont annoncés ABI-stables (cf. <a href="../decisions/2026-05-22-libghostty-c-abi.md">décision archi</a>) — on n'a pas besoin de ces tests à ce stade.</p>
+					</figure>
+					<p>
+						Les <code>.allowlist_*</code> sont l'optimisation clé :
+						<strong
+							>ne génère que les symboles préfixés
+							<code>ghostty_</code> /
+							<code>GHOSTTY_</code></strong
+						>. Sans ça, bindgen ressortirait tout ce que le
+						préprocesseur a tiré (libc, types système, macros
+						stdint…) → des milliers de symboles polluants à
+						reviewer.
+					</p>
+					<p>
+						<code>layout_tests(false)</code> désactive les tests
+						générés qui vérifient <code>sizeof</code> et
+						l'alignement de chaque struct. Utile pour cross-compil
+						et compile-time. Les headers C de libghostty-vt sont
+						annoncés ABI-stables (cf.
+						<a href="../decisions/2026-05-22-libghostty-c-abi.md"
+							>décision archi</a
+						>) — on n'a pas besoin de ces tests à ce stade.
+					</p>
 
-      <h3>⑤ Écriture dans <code>OUT_DIR</code></h3>
-      <figure class="code-block">
-        <figcaption class="code-block__head">
-          <span class="code-block__file">build.rs — étage 5</span>
-          <span class="code-block__lang">Rust</span>
-          <button class="code-block__copy" type="button" aria-label="Copy">Copy</button>
-        </figcaption>
-<pre><code class="language-rust">let out_path = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("bindings.rs");
+					<h3>⑤ Écriture dans <code>OUT_DIR</code></h3>
+					<figure class="code-block">
+						<figcaption class="code-block__head">
+							<span class="code-block__file"
+								>build.rs — étage 5</span
+							>
+							<span class="code-block__lang">Rust</span>
+							<button
+								class="code-block__copy"
+								type="button"
+								aria-label="Copy"
+							>
+								Copy
+							</button>
+						</figcaption>
+						<pre><code class="language-rust">let out_path = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("bindings.rs");
 bindings.write_to_file(&amp;out_path)
     .expect("failed to write bindings.rs");
 </code></pre>
-      </figure>
-      <p><code>OUT_DIR</code> est un chemin que Cargo fournit à chaque crate. Le fichier généré <strong>n'est jamais commité</strong> — il vit dans <code>target/</code> qui est ignoré par git. Garde le repo propre et garantit que bindings et headers sont toujours cohérents (puisque régénérés ensemble).</p>
-    </div>
-  </details>
+					</figure>
+					<p>
+						<code>OUT_DIR</code> est un chemin que Cargo fournit à
+						chaque crate. Le fichier généré
+						<strong>n'est jamais commité</strong> — il vit dans
+						<code>target/</code> qui est ignoré par git. Garde le
+						repo propre et garantit que bindings et headers sont
+						toujours cohérents (puisque régénérés ensemble).
+					</p>
+				</div>
+			</details>
 
-  <details class="fbf">
-    <summary><code>src/lib.rs</code> · placeholder → bindings inclus<span class="summary-tag edit">MOD</span></summary>
-    <div class="fbf-body">
-      <p>Voici la forme finale après diff, en un seul morceau lisible :</p>
-      <figure class="code-block">
-        <figcaption class="code-block__head">
-          <span class="code-block__file">crates/agent-cockpit-term-sys/src/lib.rs</span>
-          <span class="code-block__lang">Rust</span>
-          <button class="code-block__copy" type="button" aria-label="Copy">Copy</button>
-        </figcaption>
-<pre><code class="language-rust">//! Raw FFI bindings to libghostty-vt.
+			<details class="fbf">
+				<summary>
+					<code>src/lib.rs</code> · placeholder → bindings inclus<span
+						class="summary-tag edit"
+						>MOD</span
+					>
+				</summary>
+				<div class="fbf-body">
+					<p>
+						Voici la forme finale après diff, en un seul morceau
+						lisible :
+					</p>
+					<figure class="code-block">
+						<figcaption class="code-block__head">
+							<span class="code-block__file"
+								>crates/agent-cockpit-term-sys/src/lib.rs</span
+							>
+							<span class="code-block__lang">Rust</span>
+							<button
+								class="code-block__copy"
+								type="button"
+								aria-label="Copy"
+							>
+								Copy
+							</button>
+						</figcaption>
+						<pre><code class="language-rust">//! Raw FFI bindings to libghostty-vt.
 //!
 //! This `-sys` crate confines every `unsafe` block and every `extern "C"`
 //! declaration touching libghostty. Higher-level crates (notably
@@ -712,158 +1214,353 @@ bindings.write_to_file(&amp;out_path)
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 </code></pre>
-      </figure>
-      <p>Quatre ingrédients seulement — doc-comment de contrat, <code>allow</code>s pour les conventions C, <code>include!</code> du fichier généré. Pas de logique métier, pas de fonction wrappée, pas encore d'<code>unsafe</code> appelé.</p>
-    </div>
-  </details>
+					</figure>
+					<p>
+						Quatre ingrédients seulement — doc-comment de contrat,
+						<code>allow</code>s pour les conventions C,
+						<code>include!</code> du fichier généré. Pas de logique
+						métier, pas de fonction wrappée, pas encore d'<code
+							>unsafe</code
+						>
+						appelé.
+					</p>
+				</div>
+			</details>
 
-  <details class="fbf">
-    <summary><code>vendor/include/ghostty/</code> · 21 headers C vendorés<span class="summary-tag new">NEW</span></summary>
-    <div class="fbf-body">
-      <p>Copie littérale du dossier <code>include/ghostty/</code> de <a href="https://github.com/ghostty-org/ghostty">ghostty-org/ghostty</a>, <strong>pinée sur le SHA <code>d5d8cef4d3834cc8999eb9344066b0960b033f2d</code></strong>. Surface vendorée : <code>vt.h</code> (point d'entrée) + tout <code>vt/</code>.</p>
-      <p><strong>Ce qu'on n'a PAS vendoré</strong> : <code>ghostty.h</code>, le header de l'API d'embedding complète (qui demande de linker contre tout le runtime Ghostty). On ne veut que la surface standalone <code>libghostty-vt</code> — décision archi prise lors du spike précédent.</p>
-      <p><strong>Vendoring vs git submodule</strong> : on choisit vendoring parce que c'est simple, hermétique, et que la CI n'a pas besoin de checkouts externes. Le revers c'est qu'il faut régénerer manuellement à chaque bump — mais le <code>README.md</code> fournit la commande <code>curl</code> exacte, et la fréquence sera trimestrielle au mieux.</p>
-    </div>
-  </details>
+			<details class="fbf">
+				<summary>
+					<code>vendor/include/ghostty/</code> · 21 headers C
+					vendorés<span class="summary-tag new">NEW</span>
+				</summary>
+				<div class="fbf-body">
+					<p>
+						Copie littérale du dossier
+						<code>include/ghostty/</code> de
+						<a href="https://github.com/ghostty-org/ghostty"
+							>ghostty-org/ghostty</a
+						>,
+						<strong
+							>pinée sur le SHA
+							<code
+								>d5d8cef4d3834cc8999eb9344066b0960b033f2d</code
+							></strong
+						>. Surface vendorée : <code>vt.h</code> (point d'entrée)
+						+ tout <code>vt/</code>.
+					</p>
+					<p>
+						<strong>Ce qu'on n'a PAS vendoré</strong> :
+						<code>ghostty.h</code>, le header de l'API d'embedding
+						complète (qui demande de linker contre tout le runtime
+						Ghostty). On ne veut que la surface standalone
+						<code>libghostty-vt</code> — décision archi prise lors
+						du spike précédent.
+					</p>
+					<p>
+						<strong>Vendoring vs git submodule</strong> : on choisit
+						vendoring parce que c'est simple, hermétique, et que la
+						CI n'a pas besoin de checkouts externes. Le revers c'est
+						qu'il faut régénerer manuellement à chaque bump — mais
+						le <code>README.md</code> fournit la commande
+						<code>curl</code> exacte, et la fréquence sera
+						trimestrielle au mieux.
+					</p>
+				</div>
+			</details>
 
-  <details class="fbf">
-    <summary><code>vendor/README.md</code> · doc de regen + commit pin<span class="summary-tag new">NEW</span></summary>
-    <div class="fbf-body">
-      <p>Trois choses essentielles documentées :</p>
-      <p><strong>1)</strong> D'où viennent les headers (URL + SHA upstream + date de vendoring).<br>
-        <strong>2)</strong> Une commande <code>curl</code> reproductible pour pull une nouvelle snapshot.<br>
-        <strong>3)</strong> Ce qui est <em>délibérément</em> exclu (<code>ghostty.h</code>) et pourquoi.</p>
-      <p>Ce README est la mémoire de la vendoring decision — sans lui, dans 6 mois, on ne saurait plus d'où viennent ces fichiers ni comment les bump proprement.</p>
-    </div>
-  </details>
+			<details class="fbf">
+				<summary>
+					<code>vendor/README.md</code> · doc de regen + commit
+					pin<span class="summary-tag new">NEW</span>
+				</summary>
+				<div class="fbf-body">
+					<p>Trois choses essentielles documentées :</p>
+					<p>
+						<strong>1)</strong> D'où viennent les headers (URL + SHA
+						upstream + date de vendoring).<br />
+						<strong>2)</strong> Une commande
+						<code>curl</code> reproductible pour pull une nouvelle
+						snapshot.<br />
+						<strong>3)</strong> Ce qui est
+						<em>délibérément</em> exclu (<code>ghostty.h</code>) et
+						pourquoi.
+					</p>
+					<p>
+						Ce README est la mémoire de la vendoring decision — sans
+						lui, dans 6 mois, on ne saurait plus d'où viennent ces
+						fichiers ni comment les bump proprement.
+					</p>
+				</div>
+			</details>
 
-  <details class="fbf">
-    <summary><code>Cargo.lock</code> · update transitif<span class="summary-tag edit">MOD</span></summary>
-    <div class="fbf-body">
-      <p>Ajout des crates tirées par <code>bindgen</code> : <code>bindgen 0.72.1</code>, <code>cexpr</code>, <code>clang-sys</code>, <code>itertools</code>, <code>libloading 0.8.9</code>, <code>minimal-lexical</code>, <code>nom</code>. Toutes <strong>build-only</strong>, jamais linkées dans le binaire final.</p>
-      <p>Lock-file commit = build reproductible. C'est la norme Cargo, rien de spécial ici.</p>
-    </div>
-  </details>
+			<details class="fbf">
+				<summary>
+					<code>Cargo.lock</code> · update transitif<span
+						class="summary-tag edit"
+						>MOD</span
+					>
+				</summary>
+				<div class="fbf-body">
+					<p>
+						Ajout des crates tirées par <code>bindgen</code> :
+						<code>bindgen 0.72.1</code>, <code>cexpr</code>,
+						<code>clang-sys</code>, <code>itertools</code>,
+						<code>libloading 0.8.9</code>,
+						<code>minimal-lexical</code>, <code>nom</code>. Toutes
+						<strong>build-only</strong>, jamais linkées dans le
+						binaire final.
+					</p>
+					<p>
+						Lock-file commit = build reproductible. C'est la norme
+						Cargo, rien de spécial ici.
+					</p>
+				</div>
+			</details>
 
-  <h2 id="audit">Audit — propreté · sécu · optim</h2>
-  <p>Comparaison avec les best-practices officielles bindgen (récupérées via context7 sur <code>/rust-lang/rust-bindgen</code>) :</p>
+			<h2 id="audit">Audit — propreté · sécu · optim</h2>
+			<p>
+				Comparaison avec les best-practices officielles bindgen
+				(récupérées via context7 sur
+				<code>/rust-lang/rust-bindgen</code>) :
+			</p>
 
-  <div class="findings">
-    <div class="row head">
-      <div class="cell">Critère</div><div class="cell">Verdict</div><div class="cell">Détail</div>
-    </div>
-    <div class="row">
-      <div class="cell k">OUT_DIR + include!</div>
-      <div class="cell"><span class="pill success">Canonique</span></div>
-      <div class="cell">Pattern exact recommandé par le tutoriel bindgen officiel.</div>
-    </div>
-    <div class="row">
-      <div class="cell k">allowlist strict</div>
-      <div class="cell"><span class="pill success">Optim</span></div>
-      <div class="cell">La doc bindgen recommande explicitement de scope les bindings — fait avec 3 allowlists (function / type / var) sur les préfixes <code>ghostty_</code> / <code>GHOSTTY_</code>.</div>
-    </div>
-    <div class="row">
-      <div class="cell k">rerun-if-changed</div>
-      <div class="cell"><span class="pill success">Exhaustif</span></div>
-      <div class="cell">Couvre env var + build.rs + chaque header récursivement. Aucun risque de cache stale.</div>
-    </div>
-    <div class="row">
-      <div class="cell k">Validation header d'entrée</div>
-      <div class="cell"><span class="pill success">Fail-loud</span></div>
-      <div class="cell"><code>assert!</code> avec message d'erreur explicite et hint sur l'env var d'override.</div>
-    </div>
-    <div class="row">
-      <div class="cell k">Surface FFI confinée</div>
-      <div class="cell"><span class="pill accent">Architecture</span></div>
-      <div class="cell">Règle <em>« <code>unsafe</code> ne vit que dans <code>-sys</code> »</em> documentée dans le doc-comment du lib.rs.</div>
-    </div>
-    <div class="row">
-      <div class="cell k">Reproductibilité build</div>
-      <div class="cell"><span class="pill success">Hermétique</span></div>
-      <div class="cell">Aucun fetch réseau, aucun exec dynamique, header pinné sur SHA upstream, Cargo.lock à jour.</div>
-    </div>
-    <div class="row">
-      <div class="cell k">Surface d'attaque runtime</div>
-      <div class="cell"><span class="pill success">Nulle</span></div>
-      <div class="cell">Aucun <code>unsafe</code> appelé, aucune lib native linkée (pas encore de <code>rustc-link-lib</code>). Le code de cette tâche ne peut littéralement pas exécuter de code natif.</div>
-    </div>
-    <div class="row">
-      <div class="cell k">CargoCallbacks vs rerun manuel</div>
-      <div class="cell"><span class="pill warn">Cosmétique</span></div>
-      <div class="cell">La doc recommande <code>.parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))</code> qui émet <em>automatiquement</em> les <code>rerun-if-changed</code> pour chaque header transitivement inclus. L'implém custom marche, mais <em>over-triggers</em> sur des headers non utilisés. À switcher au prochain passage — pas bloquant.</div>
-    </div>
-  </div>
+			<div class="findings">
+				<div class="row head">
+					<div class="cell">Critère</div>
+					<div class="cell">Verdict</div>
+					<div class="cell">Détail</div>
+				</div>
+				<div class="row">
+					<div class="cell k">OUT_DIR + include!</div>
+					<div class="cell">
+						<span class="pill success">Canonique</span>
+					</div>
+					<div class="cell">
+						Pattern exact recommandé par le tutoriel bindgen
+						officiel.
+					</div>
+				</div>
+				<div class="row">
+					<div class="cell k">allowlist strict</div>
+					<div class="cell">
+						<span class="pill success">Optim</span>
+					</div>
+					<div class="cell">
+						La doc bindgen recommande explicitement de scope les
+						bindings — fait avec 3 allowlists (function / type /
+						var) sur les préfixes <code>ghostty_</code> /
+						<code>GHOSTTY_</code>.
+					</div>
+				</div>
+				<div class="row">
+					<div class="cell k">rerun-if-changed</div>
+					<div class="cell">
+						<span class="pill success">Exhaustif</span>
+					</div>
+					<div class="cell">
+						Couvre env var + build.rs + chaque header récursivement.
+						Aucun risque de cache stale.
+					</div>
+				</div>
+				<div class="row">
+					<div class="cell k">Validation header d'entrée</div>
+					<div class="cell">
+						<span class="pill success">Fail-loud</span>
+					</div>
+					<div class="cell">
+						<code>assert!</code> avec message d'erreur explicite et
+						hint sur l'env var d'override.
+					</div>
+				</div>
+				<div class="row">
+					<div class="cell k">Surface FFI confinée</div>
+					<div class="cell">
+						<span class="pill accent">Architecture</span>
+					</div>
+					<div class="cell">
+						Règle
+						<em
+							>« <code>unsafe</code> ne vit que dans
+							<code>-sys</code> »</em
+						>
+						documentée dans le doc-comment du lib.rs.
+					</div>
+				</div>
+				<div class="row">
+					<div class="cell k">Reproductibilité build</div>
+					<div class="cell">
+						<span class="pill success">Hermétique</span>
+					</div>
+					<div class="cell">
+						Aucun fetch réseau, aucun exec dynamique, header pinné
+						sur SHA upstream, Cargo.lock à jour.
+					</div>
+				</div>
+				<div class="row">
+					<div class="cell k">Surface d'attaque runtime</div>
+					<div class="cell">
+						<span class="pill success">Nulle</span>
+					</div>
+					<div class="cell">
+						Aucun <code>unsafe</code> appelé, aucune lib native
+						linkée (pas encore de <code>rustc-link-lib</code>). Le
+						code de cette tâche ne peut littéralement pas exécuter
+						de code natif.
+					</div>
+				</div>
+				<div class="row">
+					<div class="cell k">CargoCallbacks vs rerun manuel</div>
+					<div class="cell">
+						<span class="pill warn">Cosmétique</span>
+					</div>
+					<div class="cell">
+						La doc recommande
+						<code
+							>.parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))</code
+						>
+						qui émet <em>automatiquement</em> les
+						<code>rerun-if-changed</code> pour chaque header
+						transitivement inclus. L'implém custom marche, mais
+						<em>over-triggers</em> sur des headers non utilisés. À
+						switcher au prochain passage — pas bloquant.
+					</div>
+				</div>
+			</div>
 
-  <div class="callout">
-    <strong>Note sécu importante.</strong> Cette tâche n'introduit <em>aucune</em> exécution de code natif. <code>libghostty</code> n'est pas encore linkée. Tout ce qui est généré, c'est du Rust qui <em>décrit</em> l'ABI C — équivalent à des type definitions. Le moment critique sera P1-04 (link de la lib) et P1-05 (premiers appels safe-wrap).
-  </div>
+			<div class="callout">
+				<strong>Note sécu importante.</strong> Cette tâche n'introduit
+				<em>aucune</em> exécution de code natif.
+				<code>libghostty</code> n'est pas encore linkée. Tout ce qui est
+				généré, c'est du Rust qui <em>décrit</em> l'ABI C — équivalent à
+				des type definitions. Le moment critique sera P1-04 (link de la
+				lib) et P1-05 (premiers appels safe-wrap).
+			</div>
 
-  <h2 id="next">Et après</h2>
-  <ul class="steps">
-    <li><input type="checkbox"><span><strong>P1-04</strong> — résoudre libghostty-vt (vendored build, system install, ou prebuilt) et émettre les directives <code>rustc-link-lib</code> + <code>rustc-link-search</code> depuis <code>build.rs</code>.</span><span class="meta">linking</span></li>
-    <li><input type="checkbox"><span><strong>P1-05</strong> — crate <code>agent-cockpit-term</code>: wrapper safe au-dessus du <code>-sys</code>, premier appel à <code>ghostty_*</code> dans un test d'intégration.</span><span class="meta">safe API</span></li>
-    <li><input type="checkbox"><span><strong>P1-06</strong> — pinning policy : version workspace + checksum CI sur les headers vendorés (SAS-382).</span><span class="meta">supply chain</span></li>
-    <li><input type="checkbox"><span>Switch <code>rerun_if_changed_recursive</code> → <code>CargoCallbacks::new()</code> au prochain passage sur <code>build.rs</code>.</span><span class="meta">cleanup</span></li>
-  </ul>
+			<h2 id="next">Et après</h2>
+			<ul class="steps">
+				<li>
+					<input type="checkbox" /><span
+						><strong>P1-04</strong> — résoudre libghostty-vt
+						(vendored build, system install, ou prebuilt) et émettre
+						les directives <code>rustc-link-lib</code> +
+						<code>rustc-link-search</code> depuis
+						<code>build.rs</code>.</span
+					><span class="meta">linking</span>
+				</li>
+				<li>
+					<input type="checkbox" /><span
+						><strong>P1-05</strong> — crate
+						<code>agent-cockpit-term</code>: wrapper safe au-dessus
+						du <code>-sys</code>, premier appel à
+						<code>ghostty_*</code> dans un test d'intégration.</span
+					><span class="meta">safe API</span>
+				</li>
+				<li>
+					<input type="checkbox" /><span
+						><strong>P1-06</strong> — pinning policy : version
+						workspace + checksum CI sur les headers vendorés
+						(SAS-382).</span
+					><span class="meta">supply chain</span>
+				</li>
+				<li>
+					<input type="checkbox" /><span
+						>Switch <code>rerun_if_changed_recursive</code> →
+						<code>CargoCallbacks::new()</code> au prochain passage
+						sur <code>build.rs</code>.</span
+					><span class="meta">cleanup</span>
+				</li>
+			</ul>
 
-  <button class="export-btn" type="button" id="copySummary">Copy summary (Markdown)</button>
-</main>
+			<button class="export-btn" type="button" id="copySummary">
+				Copy summary (Markdown)
+			</button>
+		</main>
 
-<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
-<script>
-// Diff parser
-document.querySelectorAll('.diff').forEach((el) => {
-  const raw = el.textContent.trimEnd();
-  el.innerHTML = raw.split('\n').map((l) => {
-    const cls = l.startsWith('@@') ? 'hunk'
-              : l.startsWith('+')  ? 'add'
-              : l.startsWith('-')  ? 'del'
-              : 'ctx';
-    const body = (cls === 'add' || cls === 'del') ? l.slice(1) : l;
-    return `<span class="line ${cls}">${body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`;
-  }).join('');
-});
+		<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
+		<script>
+			// Diff parser
+			document.querySelectorAll('.diff').forEach(el => {
+				const raw = el.textContent.trimEnd()
+				el.innerHTML = raw
+					.split('\n')
+					.map(l => {
+						const cls = l.startsWith('@@')
+							? 'hunk'
+							: l.startsWith('+')
+								? 'add'
+								: l.startsWith('-')
+									? 'del'
+									: 'ctx'
+						const body =
+							cls === 'add' || cls === 'del' ? l.slice(1) : l
+						return `<span class="line ${cls}">${body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`
+					})
+					.join('')
+			})
 
-// Highlight.js + theme sync + copy buttons
-(function () {
-  if (!document.querySelector('pre > code[class*="language-"]')) return;
-  function applyHljsTheme(t) {
-    document.getElementById('hljs-light').disabled = (t === 'dark');
-    document.getElementById('hljs-dark').disabled  = (t !== 'dark');
-  }
-  if (window.hljs) hljs.highlightAll();
-  applyHljsTheme(document.documentElement.dataset.theme || 'light');
-  document.addEventListener('np:theme-change', (e) => applyHljsTheme(e.detail.theme));
+			// Highlight.js + theme sync + copy buttons
+			;(function () {
+				if (!document.querySelector('pre > code[class*="language-"]'))
+					return
+				function applyHljsTheme(t) {
+					document.getElementById('hljs-light').disabled =
+						t === 'dark'
+					document.getElementById('hljs-dark').disabled = t !== 'dark'
+				}
+				if (window.hljs) hljs.highlightAll()
+				applyHljsTheme(
+					document.documentElement.dataset.theme || 'light',
+				)
+				document.addEventListener('np:theme-change', e =>
+					applyHljsTheme(e.detail.theme),
+				)
 
-  document.querySelectorAll('.code-block__copy').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const code = btn.closest('.code-block')?.querySelector('pre code')?.innerText ?? '';
-      try {
-        await navigator.clipboard.writeText(code);
-        const prev = btn.textContent;
-        btn.textContent = 'Copied';
-        btn.classList.add('is-copied');
-        setTimeout(() => { btn.textContent = prev; btn.classList.remove('is-copied'); }, 1200);
-      } catch {}
-    });
-  });
-})();
+				document.querySelectorAll('.code-block__copy').forEach(btn => {
+					btn.addEventListener('click', async () => {
+						const code =
+							btn
+								.closest('.code-block')
+								?.querySelector('pre code')?.innerText ?? ''
+						try {
+							await navigator.clipboard.writeText(code)
+							const prev = btn.textContent
+							btn.textContent = 'Copied'
+							btn.classList.add('is-copied')
+							setTimeout(() => {
+								btn.textContent = prev
+								btn.classList.remove('is-copied')
+							}, 1200)
+						} catch {}
+					})
+				})
+			})()
 
-// Theme toggle
-const toggle = document.getElementById('themeToggle');
-function applyTheme(t) {
-  document.documentElement.setAttribute('data-theme', t);
-  try { localStorage.setItem('np-theme', t); } catch (e) {}
-  document.dispatchEvent(new CustomEvent('np:theme-change', { detail: { theme: t } }));
-}
-toggle.addEventListener('click', () => {
-  const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-  applyTheme(cur);
-});
+			// Theme toggle
+			const toggle = document.getElementById('themeToggle')
+			function applyTheme(t) {
+				document.documentElement.setAttribute('data-theme', t)
+				try {
+					localStorage.setItem('np-theme', t)
+				} catch (e) {}
+				document.dispatchEvent(
+					new CustomEvent('np:theme-change', {
+						detail: { theme: t },
+					}),
+				)
+			}
+			toggle.addEventListener('click', () => {
+				const cur =
+					document.documentElement.getAttribute('data-theme') ===
+					'dark'
+						? 'light'
+						: 'dark'
+				applyTheme(cur)
+			})
 
-// Export summary
-document.getElementById('copySummary').addEventListener('click', async (e) => {
-  const md = `# term-sys · bindgen scaffolding walkthrough
+			// Export summary
+			document
+				.getElementById('copySummary')
+				.addEventListener('click', async e => {
+					const md = `# term-sys · bindgen scaffolding walkthrough
 
 **Files**: 5 (2 mod, 3 new) · **Dep added**: bindgen 0.72 (build-only) · **unsafe introduced**: 0
 
@@ -880,17 +1577,19 @@ Clean, safe, idiomatic. Matches the canonical bindgen tutorial pattern (OUT_DIR 
 - P1-04: link libghostty-vt (rustc-link-lib).
 - P1-05: build the safe wrapper crate \`agent-cockpit-term\`.
 - P1-06: workspace version pin + CI checksum on vendored headers (SAS-382).
-`;
-  try {
-    await navigator.clipboard.writeText(md);
-    const btn = e.currentTarget;
-    const original = btn.textContent;
-    btn.textContent = 'Copied ✓';
-    setTimeout(() => { btn.textContent = original; }, 1600);
-  } catch (err) {
-    alert('Clipboard write failed: ' + err.message);
-  }
-});
-</script>
-</body>
+`
+					try {
+						await navigator.clipboard.writeText(md)
+						const btn = e.currentTarget
+						const original = btn.textContent
+						btn.textContent = 'Copied ✓'
+						setTimeout(() => {
+							btn.textContent = original
+						}, 1600)
+					} catch (err) {
+						alert('Clipboard write failed: ' + err.message)
+					}
+				})
+		</script>
+	</body>
 </html>

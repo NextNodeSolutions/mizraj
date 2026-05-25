@@ -39,5 +39,8 @@ html-escape = "0.2"
 tempfile = "3"
 
 [dev-dependencies]
-sqlx-cli = { version = "0.8", default-features = false, features = ["sqlite", "rustls"] }
+sqlx-cli = { version = "0.8", default-features = false, features = [
+	"sqlite",
+	"rustls",
+] }
 

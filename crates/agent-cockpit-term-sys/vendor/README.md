@@ -36,7 +36,7 @@ for sub in key mouse; do
 done
 ```
 
-Then update this file's *Upstream commit* + *Vendored on* lines, refresh
+Then update this file's _Upstream commit_ + _Vendored on_ lines, refresh
 `VERSION` + `CHECKSUMS` (see below), and rerun `cargo build -p
 agent-cockpit-term-sys`.
 

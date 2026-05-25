@@ -24,15 +24,15 @@ Source: <https://github.com/ghostty-org/ghostty> @ `main`, inspected 2026-05-22.
 
 Ghostty exposes **two distinct C surfaces**, intentionally separated upstream:
 
-1. **`include/ghostty.h`** — full *app* embedding API.
-   - Surface: `ghostty_app_*`, `ghostty_surface_*` (GPU-rendered surface), `ghostty_config_*`, `ghostty_inspector_*`, mouse / IME / clipboard / splits.
-   - Header comment: *"The only consumer of this API is the macOS app, but the API is built to be more general purpose."*
-   - **Rejected for us**: includes a native GPU surface — D1 explicitly ruled out the WGPU/native-overlay path because it breaks the Tauri single-webview model.
+1. **`include/ghostty.h`** — full _app_ embedding API.
+    - Surface: `ghostty_app_*`, `ghostty_surface_*` (GPU-rendered surface), `ghostty_config_*`, `ghostty_inspector_*`, mouse / IME / clipboard / splits.
+    - Header comment: _"The only consumer of this API is the macOS app, but the API is built to be more general purpose."_
+    - **Rejected for us**: includes a native GPU surface — D1 explicitly ruled out the WGPU/native-overlay path because it breaks the Tauri single-webview model.
 
 2. **`include/ghostty/vt.h`** + `include/ghostty/vt/*.h` — dedicated `libghostty-vt` C API.
-   - Build target: `libghostty-vt.{dylib,so,dll}`, gated by `emit_lib_vt = true` in `src/build/Config.zig` (and a top-level CMake `zig_build_lib_vt` target).
-   - Zig entry point: `src/lib_vt.zig`. C ABI re-exports in `src/terminal/c/main.zig`. `@export` calls live in `src/lib_vt.zig`. Headers per module under `include/ghostty/vt/`.
-   - **Designed for our exact use case**: parse VT escapes, maintain terminal state (cursor, screen, scrollback, modes, styles), expose cells for a custom renderer.
+    - Build target: `libghostty-vt.{dylib,so,dll}`, gated by `emit_lib_vt = true` in `src/build/Config.zig` (and a top-level CMake `zig_build_lib_vt` target).
+    - Zig entry point: `src/lib_vt.zig`. C ABI re-exports in `src/terminal/c/main.zig`. `@export` calls live in `src/lib_vt.zig`. Headers per module under `include/ghostty/vt/`.
+    - **Designed for our exact use case**: parse VT escapes, maintain terminal state (cursor, screen, scrollback, modes, styles), expose cells for a custom renderer.
 
 `libghostty-vt` is the surface we want. The full `ghostty.h` is irrelevant for our embedding path.
 
@@ -40,13 +40,13 @@ Ghostty exposes **two distinct C surfaces**, intentionally separated upstream:
 
 The crate-level shape `init / feed / cells / free` from D2 maps cleanly onto libghostty-vt:
 
-| D2 verb | libghostty-vt C symbol | Header |
-|---|---|---|
-| `init` | `ghostty_terminal_new(const GhosttyAllocator*, GhosttyTerminal*, GhosttyTerminalOptions)` | `vt/terminal.h` |
-| `feed` | `ghostty_terminal_vt_write(GhosttyTerminal, const uint8_t* data, size_t len)` | `vt/terminal.h` |
-| `cells` (grid traversal) | `ghostty_terminal_grid_ref(...)`, `ghostty_terminal_point_from_grid_ref(...)`, plus `vt/grid_ref.h` cell accessors | `vt/terminal.h`, `vt/grid_ref.h` |
-| `cells` (incremental render) | `ghostty_render_state_*` family — `render_state_new/free/update/get`, `row_iterator_*`, `row_cells_*` | `vt/render.h` |
-| `free` | `ghostty_terminal_free(GhosttyTerminal)` | `vt/terminal.h` |
+| D2 verb                      | libghostty-vt C symbol                                                                                             | Header                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| `init`                       | `ghostty_terminal_new(const GhosttyAllocator*, GhosttyTerminal*, GhosttyTerminalOptions)`                          | `vt/terminal.h`                  |
+| `feed`                       | `ghostty_terminal_vt_write(GhosttyTerminal, const uint8_t* data, size_t len)`                                      | `vt/terminal.h`                  |
+| `cells` (grid traversal)     | `ghostty_terminal_grid_ref(...)`, `ghostty_terminal_point_from_grid_ref(...)`, plus `vt/grid_ref.h` cell accessors | `vt/terminal.h`, `vt/grid_ref.h` |
+| `cells` (incremental render) | `ghostty_render_state_*` family — `render_state_new/free/update/get`, `row_iterator_*`, `row_cells_*`              | `vt/render.h`                    |
+| `free`                       | `ghostty_terminal_free(GhosttyTerminal)`                                                                           | `vt/terminal.h`                  |
 
 Auxiliary symbols we'll need:
 
@@ -82,9 +82,9 @@ Bind directly against `include/ghostty/vt.h` (and its included subheaders under 
 ### Why this is the right call, not wrapper-required
 
 1. **The C surface we'd write already exists upstream, maintained by ghostty-org.** Writing a parallel Zig stub would duplicate `src/terminal/c/main.zig` while being strictly worse — we'd have to track every `Terminal` internal change ourselves, which is exactly what ghostty's own C layer already does (and gets reviewed by ghostty maintainers).
-2. **Wrapper-required does not solve the stability concern.** Upstream "may change without warning" affects both the C ABI *and* the underlying Zig `Terminal` type. A custom wrapper would still break on Zig-side changes — we'd just move the breakage from `bindgen` regeneration to manually patching Zig.
+2. **Wrapper-required does not solve the stability concern.** Upstream "may change without warning" affects both the C ABI _and_ the underlying Zig `Terminal` type. A custom wrapper would still break on Zig-side changes — we'd just move the breakage from `bindgen` regeneration to manually patching Zig.
 3. **D2's edge case is the right mitigation.** D2 already commits to: dynamic linking, version pinned exactly in Cargo workspace, checksum verified in CI. That captures the "API may move" risk cleanly: a `libghostty-vt` upgrade is a deliberate, reviewable diff (regenerated bindings + any safe-wrapper adjustments), not an ambient liability.
-4. **The header surface explicitly anticipates ABI evolution.** Sized structs with `size_t` first field, opaque `GhosttyTerminal` handle, function-pointer option setters via `ghostty_terminal_set(...)` — these are exactly the patterns one uses to *grow* an ABI without breaking old callers. ghostty-org is investing in compat, even without a public SLA yet.
+4. **The header surface explicitly anticipates ABI evolution.** Sized structs with `size_t` first field, opaque `GhosttyTerminal` handle, function-pointer option setters via `ghostty_terminal_set(...)` — these are exactly the patterns one uses to _grow_ an ABI without breaking old callers. ghostty-org is investing in compat, even without a public SLA yet.
 5. **The full `ghostty.h` is a red herring.** D2's risk framing assumed there might only be the app-embedding API. There isn't — `libghostty-vt` is a separate, deliberately-scoped library that exists precisely so non-Ghostty consumers can embed the VT engine without the GPU surface. We are exactly the target audience.
 
 ### Out of scope for this ADR (handled elsewhere)

@@ -1,11 +1,9 @@
 {
-  "slug": "sample-interview",
-  "topic": "Sample topic for unit tests",
-  "change_kind": "greenfield",
-  "phase": "sealed",
-  "rounds_completed": 1,
-  "decisions_count": 3,
-  "themes": [
-    "foundation"
-  ]
+	"slug": "sample-interview",
+	"topic": "Sample topic for unit tests",
+	"change_kind": "greenfield",
+	"phase": "sealed",
+	"rounds_completed": 1,
+	"decisions_count": 3,
+	"themes": ["foundation"]
 }
