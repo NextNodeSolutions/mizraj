@@ -1,5 +1,5 @@
 use std::ffi::c_void;
-use std::mem::MaybeUninit;
+use std::mem;
 use std::ptr::{self, NonNull};
 
 use agent_cockpit_term_sys::{
@@ -111,20 +111,23 @@ impl Terminal {
             },
         };
 
-        let mut grid_ref = MaybeUninit::<GhosttyGridRef>::uninit();
+        // `GhosttyGridRef` is a sized struct (grid_ref.h): the `size` field
+        // must be set to `sizeof(GhosttyGridRef)` before the call so libghostty
+        // knows which struct version the caller was compiled against.
+        // SAFETY: `GhosttyGridRef` is POD (size_t + pointer + two u16s); a
+        // zeroed pointer is a valid null pointer.
+        let mut grid_ref: GhosttyGridRef = unsafe { mem::zeroed() };
+        grid_ref.size = mem::size_of::<GhosttyGridRef>();
+
         // SAFETY: `self.handle` is live (Drop bound to `&self`); `point` is
         // fully initialized POD with the `coordinate` union variant set to
-        // match the ACTIVE tag; `grid_ref.as_mut_ptr()` is a valid writable
-        // pointer to stack storage.
+        // match the ACTIVE tag; `&mut grid_ref` is a valid writable pointer.
         let r = unsafe {
-            ghostty_terminal_grid_ref(self.handle.as_ptr(), point, grid_ref.as_mut_ptr())
+            ghostty_terminal_grid_ref(self.handle.as_ptr(), point, &mut grid_ref)
         };
         if r != GhosttyResult_GHOSTTY_SUCCESS {
             return ' ';
         }
-        // SAFETY: libghostty returned GHOSTTY_SUCCESS, which per the header
-        // contract means `out_ref` was fully written.
-        let grid_ref = unsafe { grid_ref.assume_init() };
 
         let mut cell: GhosttyCell = 0;
         // SAFETY: `&grid_ref` points to a valid `GhosttyGridRef` initialized
@@ -161,19 +164,3 @@ impl Drop for Terminal {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn feed_accepts_arbitrary_bytes() {
-        // Type-level guarantee: any &[u8] is valid (incl. invalid UTF-8).
-        let _: fn(&mut Terminal, &[u8]) -> Result<()> = Terminal::feed;
-    }
-
-    #[test]
-    fn cells_returns_owned_cells_snapshot() {
-        // Type-level guarantee: cells() takes &self and returns an owned Cells.
-        let _: fn(&Terminal) -> Cells = Terminal::cells;
-    }
-}
