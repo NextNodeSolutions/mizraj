@@ -14,7 +14,7 @@ pub const SCHEME: &str = "plan";
 const ACTION_SUBMIT: &str = "submit";
 const ACTION_PLAN_HTML: &str = "plan.html";
 
-const SLUG_MAX_LEN: usize = 256;
+pub const SLUG_MAX_LEN: usize = 128;
 
 pub fn handle_request<R: Runtime>(
     ctx: UriSchemeContext<'_, R>,
@@ -50,7 +50,7 @@ pub fn handle_request<R: Runtime>(
     }
 }
 
-fn is_safe_slug(slug: &str) -> bool {
+pub fn is_safe_slug(slug: &str) -> bool {
     !slug.is_empty()
         && slug.len() <= SLUG_MAX_LEN
         && slug
