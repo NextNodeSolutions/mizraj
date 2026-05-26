@@ -252,7 +252,11 @@ impl RenderState {
             let mut col_count: u16 = 0;
             // SAFETY: row_cells handle is live, was just populated for this row.
             while unsafe { ghostty_render_state_row_cells_next(self.row_cells.as_ptr()) } {
-                let cell = read_current_cell(self.row_cells.as_ptr())?;
+                // Degrade per-cell FFI errors to a blank instead of aborting the
+                // whole frame: a transient libghostty hiccup on one cell (e.g.
+                // mid-resize) should drop one glyph, not the entire terminal.
+                let cell =
+                    read_current_cell(self.row_cells.as_ptr()).unwrap_or_else(|_| blank_cell());
                 data.push(cell);
                 col_count += 1;
                 if col_count >= cols {
