@@ -38,12 +38,29 @@ jobs:
 
             - uses: Swatinem/rust-cache@v2
 
+            # Tauri's Linux build pulls in GTK/glib/webkit via tauri-runtime,
+            # so the src-tauri crate cannot compile on ubuntu without these.
+            # Mirrors the prerequisites listed in the Tauri v2 docs.
+            - name: Install Tauri Linux build dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y \
+                      libwebkit2gtk-4.1-dev \
+                      libayatana-appindicator3-dev \
+                      librsvg2-dev \
+                      libssl-dev \
+                      libxdo-dev \
+                      build-essential \
+                      file
+
             - name: cargo fmt --check
               run: cargo fmt --all -- --check
 
-            # Exclude the two crates that need libghostty linked at build time;
-            # they're covered by `verify-libghostty` for the header supply chain
-            # and by local dev runs (LIBGHOSTTY_LIB_DIR set).
+            # Exclude the two crates that need libghostty linked at build time
+            # from --all-targets (test/example binaries link, and CI has no
+            # libghostty). The lib-only step below still lints them; the
+            # `verify-libghostty` job covers the header supply chain, and local
+            # dev runs (LIBGHOSTTY_LIB_DIR set) cover the ANSI integration test.
             - name: cargo clippy
               run: |
                   cargo clippy \
@@ -51,6 +68,17 @@ jobs:
                       --exclude agent-cockpit-term \
                       --exclude agent-cockpit-term-sys \
                       --all-targets \
+                      -- -D warnings
+
+            # rlibs don't trigger the final linker, so we can clippy the term
+            # wrappers' lib targets even without libghostty present. Catches
+            # regressions in the safe wrapper that the workspace step misses.
+            - name: cargo clippy (term wrappers, lib only)
+              run: |
+                  cargo clippy \
+                      -p agent-cockpit-term-sys \
+                      -p agent-cockpit-term \
+                      --lib \
                       -- -D warnings
 
             - name: cargo test

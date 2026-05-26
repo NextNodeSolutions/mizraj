@@ -83,7 +83,7 @@ pub fn run() {
             let db_path = app_data_dir.join("agent-cockpit.db");
             let pool = tauri::async_runtime::block_on(db::init_db(&db_path))?;
             app.manage(pool);
-            #[cfg(desktop)]
+            #[cfg(all(desktop, not(debug_assertions)))]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
             Ok(())
