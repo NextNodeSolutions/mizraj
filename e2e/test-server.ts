@@ -22,6 +22,12 @@ const HTTP_SERVER_ERROR = 500
 const isKind = (value: string): value is Kind =>
 	value === 'interview' || value === 'plan'
 
+const SLUG_MAX_LEN = 128
+const SLUG_REGEX = /^[A-Za-z0-9_-]+$/
+
+const isSafeSlug = (value: string): boolean =>
+	value.length >= 1 && value.length <= SLUG_MAX_LEN && SLUG_REGEX.test(value)
+
 type Routed = {
 	kind: Kind
 	slug: string
@@ -33,6 +39,7 @@ const route = (path: string): Routed | null => {
 	if (segments.length !== PATH_SEGMENT_COUNT) return null
 	const [kindSegment, slug, action] = segments
 	if (!isKind(kindSegment)) return null
+	if (!isSafeSlug(slug)) return null
 	if (action !== 'plan.html' && action !== 'submit') return null
 	return { kind: kindSegment, slug, action }
 }
