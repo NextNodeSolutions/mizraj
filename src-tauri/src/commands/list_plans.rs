@@ -115,7 +115,7 @@ fn collect_interviews(root: &Path, entries: &mut Vec<PlanEntry>) -> Result<(), S
             slug,
             title,
             url,
-            mtime: mtime_from(&meta)?,
+            mtime: mtime_from(&meta),
         });
     }
     Ok(())
@@ -153,7 +153,7 @@ fn collect_plans(root: &Path, entries: &mut Vec<PlanEntry>) -> Result<(), String
             slug,
             title,
             url,
-            mtime: mtime_from(&meta)?,
+            mtime: mtime_from(&meta),
         });
     }
     Ok(())
@@ -165,12 +165,12 @@ fn file_name_str(path: &Path) -> Option<String> {
         .map(str::to_string)
 }
 
-fn mtime_from(meta: &fs::Metadata) -> Result<u64, String> {
-    let modified = meta.modified().map_err(|e| e.to_string())?;
-    let duration = modified
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| e.to_string())?;
-    Ok(duration.as_secs())
+fn mtime_from(meta: &fs::Metadata) -> u64 {
+    meta.modified()
+        .ok()
+        .and_then(|m| m.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 fn read_title(path: &Path, fallback: &str) -> String {
