@@ -10,6 +10,8 @@ use crate::active_project::ActiveProject;
 use crate::commands::plan_protocol::{is_safe_slug, plan_url};
 
 const ERR_NO_ACTIVE_PROJECT: &str = "no active project: call set_active_project first";
+const ERR_REPO_MISMATCH: &str =
+    "active project does not match repoPath: call set_active_project first";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -68,12 +70,19 @@ const TITLE_READ_LIMIT: u64 = 16 * 1024;
 
 #[tauri::command]
 pub fn list_plans(
+    repo_path: String,
     active_project: tauri::State<'_, ActiveProject>,
 ) -> Result<Vec<PlanEntry>, String> {
-    let root = active_project
+    let active = active_project
         .get()
         .ok_or_else(|| ERR_NO_ACTIVE_PROJECT.to_string())?;
-    collect_entries(&root)
+    let canonical = PathBuf::from(repo_path.trim())
+        .canonicalize()
+        .map_err(|e| format!("canonicalize repoPath: {e}"))?;
+    if canonical != active {
+        return Err(ERR_REPO_MISMATCH.to_string());
+    }
+    collect_entries(&active)
 }
 
 fn collect_entries(root: &Path) -> Result<Vec<PlanEntry>, String> {

@@ -22,7 +22,8 @@ export type PlansState =
 	| { status: 'ready'; entries: ReadonlyArray<PlanEntry> }
 	| { status: 'error'; message: string }
 
-const fetchPlans = (): Promise<PlanEntry[]> => invoke<PlanEntry[]>('list_plans')
+const fetchPlans = (repoPath: string): Promise<PlanEntry[]> =>
+	invoke<PlanEntry[]>('list_plans', { repoPath })
 
 export const usePlans = (repoPath: string | null): PlansState => {
 	const [state, setState] = useState<PlansState>({ status: 'idle' })
@@ -37,7 +38,7 @@ export const usePlans = (repoPath: string | null): PlansState => {
 
 		const reload = async (): Promise<void> => {
 			try {
-				const entries = await fetchPlans()
+				const entries = await fetchPlans(repoPath)
 				if (!cancelled) setState({ status: 'ready', entries })
 			} catch (error: unknown) {
 				const { message, stack } = describeError(error)
