@@ -58,6 +58,18 @@ pub fn is_safe_slug(slug: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
+// Restrict what a plan HTML page can reach. Without this header, an
+// LLM-authored or attacker-controlled plan.html could fetch() to any external
+// origin and exfiltrate state inside the active project. 'self' confines
+// connect-src to plan://, where every endpoint is gated by is_safe_slug.
+// 'unsafe-inline' is required because plan templates ship inline <script>.
+const PLAN_HTML_CSP: &str = "default-src 'self' data:; \
+    script-src 'self' 'unsafe-inline'; \
+    style-src 'self' 'unsafe-inline'; \
+    img-src 'self' data:; \
+    connect-src 'self'; \
+    frame-ancestors 'self';";
+
 fn handle_serve(root: &Path, kind: PlanKind, slug: &str) -> Response<Cow<'static, [u8]>> {
     let file = kind.html_path(root, slug);
     let Ok(bytes) = fs::read(&file) else {
@@ -66,6 +78,7 @@ fn handle_serve(root: &Path, kind: PlanKind, slug: &str) -> Response<Cow<'static
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .header(header::CONTENT_SECURITY_POLICY, PLAN_HTML_CSP)
         .body(Cow::Owned(bytes))
         .expect("response builder failed for plan html")
 }
@@ -272,6 +285,25 @@ mod tests {
         let resp = handle_serve(root, PlanKind::Interview, "agent-cockpit");
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().as_ref(), html.as_bytes());
+    }
+
+    #[test]
+    fn handle_serve_sets_csp_restricting_connect_src_to_self() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        let dir = root.join("docs/interviews/agent-cockpit");
+        fs::create_dir_all(&dir).expect("mkdir");
+        fs::write(dir.join("plan.html"), "<html></html>").expect("write");
+
+        let resp = handle_serve(root, PlanKind::Interview, "agent-cockpit");
+        let csp = resp
+            .headers()
+            .get(header::CONTENT_SECURITY_POLICY)
+            .expect("CSP header present")
+            .to_str()
+            .expect("CSP is ASCII");
+        assert!(csp.contains("connect-src 'self'"));
+        assert!(csp.contains("frame-ancestors 'self'"));
     }
 
     #[test]
