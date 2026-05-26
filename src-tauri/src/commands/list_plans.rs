@@ -222,11 +222,36 @@ fn find_tag_text<'a>(html: &'a str, lower: &str, tag: &str) -> Option<&'a str> {
             cursor = after_name;
             continue;
         }
-        let close_rel = lower[after_name..].find('>')?;
+        let close_rel = find_opening_tag_close(&lower[after_name..])?;
         let content_start = after_name + close_rel + 1;
         let end_rel = lower[content_start..].find(&close_needle)?;
         let content_end = content_start + end_rel;
         return Some(&html[content_start..content_end]);
+    }
+    None
+}
+
+/// Scans `tail` (the substring just past the tag name) for the `>` that closes
+/// the opening tag, skipping over quoted attribute values so `<title attr="a>b">`
+/// is not truncated mid-attribute.
+fn find_opening_tag_close(tail: &str) -> Option<usize> {
+    let bytes = tail.as_bytes();
+    let mut i = 0;
+    let mut quote: Option<u8> = None;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if let Some(q) = quote {
+            if b == q {
+                quote = None;
+            }
+        } else {
+            match b {
+                b'"' | b'\'' => quote = Some(b),
+                b'>' => return Some(i),
+                _ => {}
+            }
+        }
+        i += 1;
     }
     None
 }
@@ -405,6 +430,18 @@ mod tests {
     fn extract_title_strips_nested_tags() {
         let html = r#"<title>Cockpit <span class="badge">beta</span></title>"#;
         assert_eq!(extract_title(html, "slug"), "Cockpit beta");
+    }
+
+    #[test]
+    fn extract_title_handles_gt_inside_attribute_value() {
+        let html = r#"<title data-x="a>b">Real Title</title>"#;
+        assert_eq!(extract_title(html, "slug"), "Real Title");
+    }
+
+    #[test]
+    fn extract_title_handles_gt_inside_single_quoted_attribute() {
+        let html = r#"<title data-x='a>b'>Real Title</title>"#;
+        assert_eq!(extract_title(html, "slug"), "Real Title");
     }
 
     #[test]
