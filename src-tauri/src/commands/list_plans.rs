@@ -338,7 +338,7 @@ mod tests {
         assert_eq!(interview.title, "Interview");
         assert_eq!(
             interview.url,
-            "plan://localhost/interview/agent-cockpit/plan.html"
+            plan_url(PlanKind::Interview, "agent-cockpit")
         );
         assert!(interview.mtime > 0);
 
@@ -350,7 +350,7 @@ mod tests {
         assert_eq!(plan.title, "Plan");
         assert_eq!(
             plan.url,
-            "plan://localhost/plan/2026-05-15-agent-cockpit/plan.html"
+            plan_url(PlanKind::Plan, "2026-05-15-agent-cockpit")
         );
         assert!(plan.mtime > 0);
     }

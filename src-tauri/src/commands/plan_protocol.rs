@@ -110,8 +110,17 @@ fn text_response(status: StatusCode, message: &'static str) -> Response<Cow<'sta
 }
 
 pub fn plan_url(kind: PlanKind, slug: &str) -> String {
+    // Tauri 2 exposes custom URI schemes differently per platform:
+    //   * macOS / iOS / Linux: `<scheme>://localhost/...`
+    //   * Windows / Android:    `http://<scheme>.localhost/...`
+    // Sources: https://v2.tauri.app/reference/config (useHttpsScheme) and
+    // https://v2.tauri.app/blog/tauri-1-5 (Mixed content on Windows).
+    #[cfg(any(target_os = "windows", target_os = "android"))]
+    let base = format!("http://{SCHEME}.localhost");
+    #[cfg(not(any(target_os = "windows", target_os = "android")))]
+    let base = format!("{SCHEME}://localhost");
     format!(
-        "{SCHEME}://localhost/{}/{slug}/{ACTION_PLAN_HTML}",
+        "{base}/{}/{slug}/{ACTION_PLAN_HTML}",
         kind.as_segment()
     )
 }
@@ -121,11 +130,21 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    #[cfg(not(any(target_os = "windows", target_os = "android")))]
     #[test]
-    fn plan_url_uses_macos_form() {
+    fn plan_url_uses_scheme_form_on_macos_ios_and_linux() {
         assert_eq!(
             plan_url(PlanKind::Interview, "agent-cockpit"),
             "plan://localhost/interview/agent-cockpit/plan.html"
+        );
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "android"))]
+    #[test]
+    fn plan_url_uses_http_localhost_form_on_windows_and_android() {
+        assert_eq!(
+            plan_url(PlanKind::Interview, "agent-cockpit"),
+            "http://plan.localhost/interview/agent-cockpit/plan.html"
         );
     }
 
