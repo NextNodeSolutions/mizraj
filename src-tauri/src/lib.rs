@@ -81,7 +81,15 @@ pub fn run() {
             app.manage(guard);
             let app_data_dir = app.path().app_data_dir()?;
             let db_path = app_data_dir.join("agent-cockpit.db");
-            let pool = tauri::async_runtime::block_on(db::init_db(&db_path))?;
+            let pool =
+                tauri::async_runtime::block_on(db::init_db(&db_path)).map_err(|err| {
+                    tracing::error!(
+                        path = %db_path.display(),
+                        error = %err,
+                        "init_db failed during Tauri setup",
+                    );
+                    err
+                })?;
             app.manage(pool);
             #[cfg(all(desktop, not(debug_assertions)))]
             app.handle()
