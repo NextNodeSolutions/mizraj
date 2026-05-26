@@ -1,6 +1,9 @@
 use std::fs;
 
-use tauri::{App, Manager};
+use tauri::{
+    plugin::{Builder as PluginBuilder, TauriPlugin},
+    AppHandle, Manager, Runtime, Wry,
+};
 use tracing_appender::{
     non_blocking::WorkerGuard,
     rolling::{RollingFileAppender, Rotation},
@@ -12,7 +15,7 @@ const LOG_FILENAME_SUFFIX: &str = "log";
 const MAX_LOG_FILES: usize = 14;
 const DEFAULT_LOG_FILTER: &str = "info";
 
-pub fn init_logging(app: &App) -> Result<WorkerGuard, Box<dyn std::error::Error>> {
+fn init_logging<R: Runtime>(app: &AppHandle<R>) -> Result<WorkerGuard, Box<dyn std::error::Error>> {
     let log_dir = app.path().app_log_dir()?;
     fs::create_dir_all(&log_dir)?;
 
@@ -44,4 +47,18 @@ pub fn init_logging(app: &App) -> Result<WorkerGuard, Box<dyn std::error::Error>
     tracing::info!(path = ?log_dir, "logging initialized");
 
     Ok(guard)
+}
+
+/// Returns a plugin whose setup hook installs the tracing subscriber. Registering
+/// this plugin before any other plugin guarantees that subsequent plugin setup
+/// hooks (sql, store, updater, etc.) emit through an attached subscriber instead
+/// of being dropped by the default no-op dispatcher.
+pub fn plugin() -> TauriPlugin<Wry> {
+    PluginBuilder::new("agent-cockpit-logging")
+        .setup(|app, _api| {
+            let guard = init_logging(app)?;
+            app.manage(guard);
+            Ok(())
+        })
+        .build()
 }
