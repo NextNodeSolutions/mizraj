@@ -7,7 +7,7 @@ use std::time::UNIX_EPOCH;
 use serde::Serialize;
 
 use crate::active_project::ActiveProject;
-use crate::commands::plan_protocol::plan_url;
+use crate::commands::plan_protocol::{is_safe_slug, plan_url};
 
 const ERR_NO_ACTIVE_PROJECT: &str = "no active project: call set_active_project first";
 
@@ -108,6 +108,9 @@ fn collect_interviews(root: &Path, entries: &mut Vec<PlanEntry>) -> Result<(), S
         let Some(slug) = file_name_str(&interview_dir) else {
             continue;
         };
+        if !is_safe_slug(&slug) {
+            continue;
+        }
         let title = read_title(&plan_html, &slug);
         let url = plan_url(PlanKind::Interview, &slug);
         entries.push(PlanEntry {
@@ -145,6 +148,9 @@ fn collect_plans(root: &Path, entries: &mut Vec<PlanEntry>) -> Result<(), String
         else {
             continue;
         };
+        if !is_safe_slug(&slug) {
+            continue;
+        }
         let meta = entry.metadata().map_err(|e| e.to_string())?;
         let title = read_title(&path, &slug);
         let url = plan_url(PlanKind::Plan, &slug);
@@ -430,6 +436,37 @@ mod tests {
         let entries = collect_entries(tmp.path()).expect("collect_entries");
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].title, "Agent Cockpit — Backlog V1 (106 tâches)");
+    }
+
+    #[test]
+    fn skips_entries_whose_slug_would_be_rejected_by_protocol() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+
+        let plans_dir = root.join("docs/plans");
+        fs::create_dir_all(&plans_dir).expect("mkdir plans");
+        fs::write(plans_dir.join("ok-slug.html"), "<html></html>").expect("write ok");
+        fs::write(plans_dir.join("with space.html"), "<html></html>").expect("write space");
+        fs::write(plans_dir.join("dot.in.stem.html"), "<html></html>").expect("write dot");
+
+        let interviews_dir = root.join("docs/interviews");
+        fs::create_dir_all(interviews_dir.join("ok-interview")).expect("mkdir ok dir");
+        fs::write(
+            interviews_dir.join("ok-interview/plan.html"),
+            "<html></html>",
+        )
+        .expect("write ok plan");
+        fs::create_dir_all(interviews_dir.join("bad name")).expect("mkdir bad dir");
+        fs::write(interviews_dir.join("bad name/plan.html"), "<html></html>")
+            .expect("write bad plan");
+
+        let entries = collect_entries(root).expect("collect_entries");
+        let slugs: Vec<&str> = entries.iter().map(|e| e.slug.as_str()).collect();
+        assert!(slugs.contains(&"ok-slug"));
+        assert!(slugs.contains(&"ok-interview"));
+        assert!(!slugs.contains(&"with space"));
+        assert!(!slugs.contains(&"dot.in.stem"));
+        assert!(!slugs.contains(&"bad name"));
     }
 
     #[test]
