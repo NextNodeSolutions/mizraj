@@ -56,6 +56,11 @@ fn emit_link_flags_macos() {
         Some(dir) if dir.join("libghostty.dylib").is_file() => {
             println!("cargo:rustc-link-search=native={}", dir.display());
             println!("cargo:rustc-link-lib=dylib=ghostty");
+            // Match the Linux side: embed an rpath relative to the binary
+            // so the dylib can sit next to the executable in dev runs and
+            // packaged builds without `DYLD_LIBRARY_PATH` gymnastics.
+            println!("cargo:rustc-link-arg=-Wl,-rpath,@loader_path");
+            println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path");
         }
         Some(dir) => {
             println!(
@@ -95,7 +100,9 @@ fn emit_link_flags_linux() {
 }
 
 fn rerun_if_changed_recursive(dir: &Path) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {

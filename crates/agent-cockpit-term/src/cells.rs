@@ -64,8 +64,12 @@ mod tests {
             rows: 2,
             cols: 3,
             data: vec![
-                cell('a'), cell('b'), cell('c'),
-                cell('d'), cell('e'), cell('f'),
+                cell('a'),
+                cell('b'),
+                cell('c'),
+                cell('d'),
+                cell('e'),
+                cell('f'),
             ],
         };
 

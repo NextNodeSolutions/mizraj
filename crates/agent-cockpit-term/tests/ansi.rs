@@ -6,20 +6,31 @@
 
 use std::path::PathBuf;
 
-use agent_cockpit_term::{Color, Terminal};
+use agent_cockpit_term::{Color, Dirty, RenderState, Terminal};
 
 const FIXTURE_RED_FOO: &str = "tests/fixtures/ansi/red-foo.bin";
 const ANSI_PALETTE_RED: u8 = 1; // ESC[31m → palette index 1
 
 #[test]
 fn red_foo_fixture_decodes_to_red_glyphs() {
-    let fixture_bytes = std::fs::read(fixture_path(FIXTURE_RED_FOO))
-        .expect("read red-foo.bin fixture");
+    let fixture_bytes =
+        std::fs::read(fixture_path(FIXTURE_RED_FOO)).expect("read red-foo.bin fixture");
 
     let mut term = Terminal::new(4, 16).expect("Terminal::new(4, 16) should succeed");
     term.feed(&fixture_bytes).expect("feed should succeed");
 
-    let cells = term.cells();
+    let mut state = RenderState::new().expect("RenderState::new should succeed");
+    let dirty = state.update(&mut term).expect("update should succeed");
+    assert!(
+        !matches!(dirty, Dirty::Clean),
+        "first update after feed should report dirty (Partial or Full), got {dirty:?}",
+    );
+
+    let (rows, cols) = state.dimensions().expect("dimensions");
+    assert_eq!(rows, 4);
+    assert_eq!(cols, 16);
+
+    let cells = state.snapshot().expect("snapshot should succeed");
     assert_eq!(cells.rows, 4);
     assert_eq!(cells.cols, 16);
 
@@ -55,6 +66,13 @@ fn red_foo_fixture_decodes_to_red_glyphs() {
         "fg should reset to default after ESC[0m"
     );
     assert!(after_reset.attrs.is_empty());
+
+    state.mark_clean().expect("mark_clean should succeed");
+    let dirty_after = state.dirty().expect("dirty");
+    assert!(
+        matches!(dirty_after, Dirty::Clean),
+        "after mark_clean the global dirty state should be Clean, got {dirty_after:?}",
+    );
 }
 
 fn fixture_path(rel: &str) -> PathBuf {

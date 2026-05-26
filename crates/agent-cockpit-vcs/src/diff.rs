@@ -51,9 +51,7 @@ mod tests {
         fs::write(workdir.join(name), contents).expect("write file");
 
         let mut index = repo.index().expect("index");
-        index
-            .add_path(Path::new(name))
-            .expect("add_path");
+        index.add_path(Path::new(name)).expect("add_path");
         index.write().expect("write index");
         let tree_id = index.write_tree().expect("write_tree");
         let tree = repo.find_tree(tree_id).expect("find_tree");
@@ -169,7 +167,10 @@ mod tests {
             None,
         )
         .expect("foreach diff");
-        assert!(hunk_count >= 1, "expected at least one hunk, got {hunk_count}");
+        assert!(
+            hunk_count >= 1,
+            "expected at least one hunk, got {hunk_count}"
+        );
     }
 
     #[test]

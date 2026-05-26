@@ -26,6 +26,40 @@ jobs:
             - name: Check formatting
               run: pnpm format:check
 
+    rust:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: clippy, rustfmt
+
+            - uses: Swatinem/rust-cache@v2
+
+            - name: cargo fmt --check
+              run: cargo fmt --all -- --check
+
+            # Exclude the two crates that need libghostty linked at build time;
+            # they're covered by `verify-libghostty` for the header supply chain
+            # and by local dev runs (LIBGHOSTTY_LIB_DIR set).
+            - name: cargo clippy
+              run: |
+                  cargo clippy \
+                      --workspace \
+                      --exclude agent-cockpit-term \
+                      --exclude agent-cockpit-term-sys \
+                      --all-targets \
+                      -- -D warnings
+
+            - name: cargo test
+              run: |
+                  cargo test \
+                      --workspace \
+                      --exclude agent-cockpit-term \
+                      --exclude agent-cockpit-term-sys
+
     verify-libghostty:
         runs-on: ubuntu-latest
 

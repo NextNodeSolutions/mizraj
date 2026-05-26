@@ -5,7 +5,7 @@ CREATE TABLE agent_sessions (
     ref_name TEXT NOT NULL,
     started_at TEXT NOT NULL,
     ended_at TEXT,
-    status TEXT NOT NULL
+    status TEXT NOT NULL CHECK (status IN ('starting', 'running', 'idle', 'ended', 'failed'))
 );
 
 CREATE INDEX idx_agent_sessions_repo_path ON agent_sessions(repo_path);

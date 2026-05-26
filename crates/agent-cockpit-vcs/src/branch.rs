@@ -2,17 +2,22 @@ use git2::Repository;
 
 use crate::Result;
 
-const DETACHED: &str = "DETACHED";
 const HEADS_PREFIX: &str = "refs/heads/";
 
-pub fn current_branch(repo: &Repository) -> Result<String> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Head {
+    Branch(String),
+    Detached,
+}
+
+pub fn current_branch(repo: &Repository) -> Result<Head> {
     let head = repo.find_reference("HEAD")?;
     match head.symbolic_target() {
         Some(target) => {
             let name = target.strip_prefix(HEADS_PREFIX).unwrap_or(target);
-            Ok(name.to_string())
+            Ok(Head::Branch(name.to_string()))
         }
-        None => Ok(DETACHED.to_string()),
+        None => Ok(Head::Detached),
     }
 }
 
@@ -49,8 +54,8 @@ mod tests {
         let dir = tempfile::tempdir().expect("create tempdir");
         let repo = init_repo(dir.path());
 
-        let name = current_branch(&repo).expect("current_branch should succeed on unborn HEAD");
-        assert_eq!(name, "main");
+        let head = current_branch(&repo).expect("current_branch should succeed on unborn HEAD");
+        assert_eq!(head, Head::Branch("main".to_string()));
     }
 
     #[test]
@@ -58,18 +63,18 @@ mod tests {
         let dir = tempfile::tempdir().expect("create tempdir");
         let repo = init_repo_with_commit(dir.path());
 
-        let name = current_branch(&repo).expect("current_branch should succeed");
-        assert_eq!(name, "main");
+        let head = current_branch(&repo).expect("current_branch should succeed");
+        assert_eq!(head, Head::Branch("main".to_string()));
     }
 
     #[test]
-    fn returns_detached_marker_when_head_is_detached() {
+    fn returns_detached_when_head_is_detached() {
         let dir = tempfile::tempdir().expect("create tempdir");
         let repo = init_repo_with_commit(dir.path());
         let oid = repo.head().unwrap().target().unwrap();
         repo.set_head_detached(oid).expect("set_head_detached");
 
-        let name = current_branch(&repo).expect("current_branch should succeed");
-        assert_eq!(name, "DETACHED");
+        let head = current_branch(&repo).expect("current_branch should succeed");
+        assert_eq!(head, Head::Detached);
     }
 }

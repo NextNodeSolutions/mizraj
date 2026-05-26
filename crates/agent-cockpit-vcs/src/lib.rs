@@ -9,9 +9,9 @@ pub mod branch;
 pub mod diff;
 pub mod worktree;
 
-pub use branch::current_branch;
+pub use branch::{current_branch, Head};
 pub use diff::{diff_head_base, diff_session, diff_working_tree};
-pub use worktree::{WorktreeInfo, worktree_list};
+pub use worktree::{worktree_list, WorktreeInfo};
 
 pub type Result<T> = std::result::Result<T, VcsError>;
 

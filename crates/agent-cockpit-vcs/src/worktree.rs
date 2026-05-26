@@ -2,17 +2,21 @@ use std::path::PathBuf;
 
 use git2::{Repository, WorktreeLockStatus};
 
+use crate::branch::{current_branch, Head};
 use crate::Result;
-use crate::branch::current_branch;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorktreeInfo {
     pub name: String,
     pub path: PathBuf,
-    pub branch: String,
+    pub head: Head,
     pub locked: bool,
 }
 
+// TODO(V2): worktree UX is not wired into the cockpit yet. The fail-fast
+// behaviour on a broken worktree (missing path, corrupted .git) is acceptable
+// for V1 because nothing calls this. When the UI starts listing worktrees,
+// switch to skip + tracing::warn so one zombie entry doesn't break the panel.
 pub fn worktree_list(repo: &Repository) -> Result<Vec<WorktreeInfo>> {
     let names = repo.worktrees()?;
     let mut out = Vec::with_capacity(names.len());
@@ -22,11 +26,11 @@ pub fn worktree_list(repo: &Repository) -> Result<Vec<WorktreeInfo>> {
         let path = wt.path().to_path_buf();
         let locked = !matches!(wt.is_locked()?, WorktreeLockStatus::Unlocked);
         let wt_repo = Repository::open(&path)?;
-        let branch = current_branch(&wt_repo)?;
+        let head = current_branch(&wt_repo)?;
         out.push(WorktreeInfo {
             name: name.to_string(),
             path,
-            branch,
+            head,
             locked,
         });
     }
@@ -96,7 +100,7 @@ mod tests {
 
         let entry = &worktrees[0];
         assert_eq!(entry.name, "feature");
-        assert_eq!(entry.branch, "feature");
+        assert_eq!(entry.head, Head::Branch("feature".to_string()));
         assert!(!entry.locked);
         assert_eq!(
             entry.path.canonicalize().expect("canonicalize entry path"),
