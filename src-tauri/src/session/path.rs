@@ -7,34 +7,44 @@ pub fn resolve(binary: &str) -> Result<PathBuf, SessionError> {
 }
 
 #[cfg(target_os = "macos")]
-pub fn capture_login_shell_path() -> Option<String> {
-    let output = match std::process::Command::new("/bin/zsh")
+pub fn probe_login_shell() -> Result<String, std::io::Error> {
+    use std::io::{Error, ErrorKind};
+
+    let output = std::process::Command::new("/bin/zsh")
         .args(["-lc", "echo $PATH"])
-        .output()
-    {
-        Ok(output) => output,
-        Err(err) => {
-            tracing::warn!(error = %err, "failed to spawn /bin/zsh for PATH probe");
-            return None;
-        }
-    };
+        .output()?;
 
     if !output.status.success() {
-        tracing::warn!(
-            status = %output.status,
-            stderr = %String::from_utf8_lossy(&output.stderr),
-            "/bin/zsh PATH probe exited non-zero",
-        );
-        return None;
+        return Err(Error::new(
+            ErrorKind::Other,
+            format!(
+                "/bin/zsh PATH probe exited with {}: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            ),
+        ));
     }
 
     let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if path.is_empty() {
-        tracing::warn!("/bin/zsh PATH probe returned empty output");
-        return None;
+        return Err(Error::new(
+            ErrorKind::Other,
+            "/bin/zsh PATH probe returned empty output",
+        ));
     }
 
-    Some(path)
+    Ok(path)
+}
+
+#[cfg(target_os = "macos")]
+pub fn capture_login_shell_path() -> Option<String> {
+    match probe_login_shell() {
+        Ok(path) => Some(path),
+        Err(err) => {
+            tracing::warn!(error = %err, "login-shell PATH probe failed");
+            None
+        }
+    }
 }
 
 #[cfg(test)]
