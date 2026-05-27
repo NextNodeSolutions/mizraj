@@ -1,6 +1,7 @@
 mod active_project;
 mod commands;
 mod db;
+pub mod diff_format;
 mod files;
 mod logging;
 pub mod session;
