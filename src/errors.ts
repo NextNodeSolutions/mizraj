@@ -20,8 +20,6 @@ export const isSessionError = (value: unknown): value is SessionError => {
 	}
 	const { kind } = value
 	return (
-		kind === 'binary_not_found' ||
-		kind === 'spawn' ||
-		kind === 'path_probe'
+		kind === 'binary_not_found' || kind === 'spawn' || kind === 'path_probe'
 	)
 }

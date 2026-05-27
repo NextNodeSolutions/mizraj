@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::Path;
 
-use portable_pty::{Child, CommandBuilder, PtySize, native_pty_system};
+use portable_pty::{native_pty_system, Child, CommandBuilder, PtySize};
 
 use crate::session::error::SessionError;
 
