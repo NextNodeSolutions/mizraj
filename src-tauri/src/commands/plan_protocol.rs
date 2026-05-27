@@ -136,7 +136,7 @@ fn submit_referer_matches(headers: &HeaderMap, kind: PlanKind, slug: &str) -> bo
         return false;
     };
     let segments: Vec<&str> = path
-        .split(|c: char| c == '/' || c == '?' || c == '#')
+        .split(['/', '?', '#'])
         .filter(|s| !s.is_empty())
         .collect();
     matches!(
