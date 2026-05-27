@@ -6,6 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { describeError } from './errors'
 import { runUpdaterCheck } from './lib/updater'
 import { logger } from './logger'
+import { startAgentEventsBridge } from './state/sessions'
 
 window.addEventListener('error', event => {
 	const { stack } = describeError(event.error)
@@ -34,6 +35,8 @@ if (!rootElement) {
 }
 
 logger.info('Frontend bootstrapping')
+
+startAgentEventsBridge()
 
 type ReactErrorInfo = { componentStack?: string | null }
 
