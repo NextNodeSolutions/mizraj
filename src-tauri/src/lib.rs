@@ -3,6 +3,7 @@ mod commands;
 mod db;
 mod files;
 mod logging;
+pub mod session;
 
 use tauri::Manager;
 
@@ -77,6 +78,10 @@ pub fn run() {
             commands::plan_protocol::handle_request,
         )
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            if let Some(path) = session::path::capture_login_shell_path() {
+                std::env::set_var("PATH", path);
+            }
             let app_data_dir = app.path().app_data_dir()?;
             let db_path = app_data_dir.join("agent-cockpit.db");
             let pool = tauri::async_runtime::block_on(db::init_db(&db_path)).map_err(|err| {
