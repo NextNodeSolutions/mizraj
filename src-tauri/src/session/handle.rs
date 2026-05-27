@@ -24,7 +24,7 @@ pub struct SessionHandle {
     child: Arc<Mutex<Box<dyn Child + Send + Sync>>>,
     reader_task: JoinHandle<()>,
     writer_task: JoinHandle<()>,
-    wait_task: JoinHandle<ExitStatus>,
+    wait_task: Option<JoinHandle<ExitStatus>>,
     sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>>,
 }
 
@@ -42,7 +42,7 @@ impl SessionHandle {
             child,
             reader_task,
             writer_task,
-            wait_task,
+            wait_task: Some(wait_task),
             sinks,
         }
     }
@@ -62,13 +62,24 @@ impl SessionHandle {
     pub async fn attach_sink(&self, sink: Arc<dyn OutputSink>) {
         self.sinks.write().await.push(sink);
     }
+
+    /// Take ownership of the wait observer's `JoinHandle` so a caller can
+    /// `.await` the child's `ExitStatus`. Returns `None` once it has been
+    /// taken (the close path in a later task will consume it; the test
+    /// suite also uses it to observe `/usr/bin/true` exit). After `take`,
+    /// `Drop` no longer aborts the observer — it is up to the new owner.
+    pub fn take_wait_task(&mut self) -> Option<JoinHandle<ExitStatus>> {
+        self.wait_task.take()
+    }
 }
 
 impl Drop for SessionHandle {
     fn drop(&mut self) {
         self.reader_task.abort();
         self.writer_task.abort();
-        self.wait_task.abort();
+        if let Some(wait_task) = self.wait_task.as_ref() {
+            wait_task.abort();
+        }
     }
 }
 

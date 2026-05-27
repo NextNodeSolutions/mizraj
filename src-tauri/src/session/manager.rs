@@ -3,7 +3,6 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use portable_pty::ExitStatus;
 use sqlx::sqlite::SqlitePool;
 use tauri::async_runtime::{channel, spawn, spawn_blocking, Mutex, Receiver, RwLock};
 
@@ -135,10 +134,11 @@ impl SessionManager {
     /// in the registry.
     ///
     /// The reader task drains the PTY master and fans bytes out to every
-    /// attached sink (P3-07, see [`pty_read_loop`]). The writer and wait
-    /// tasks are still placeholders that pend forever while holding their
-    /// PTY plumbing alive; the real loops land in P3-08 (writer) and P3-09
-    /// (wait) by replacing the placeholder bodies in this function.
+    /// attached sink (P3-07). The writer task drains the input mpsc into
+    /// the PTY master writer (P3-08). The wait task (P3-09) locks the
+    /// child mutex, calls `child.wait()` under `spawn_blocking`, and lets
+    /// the `JoinHandle<ExitStatus>` resolve to the observed exit code so
+    /// the close path can consume it.
     pub async fn create_session(
         &self,
         binary: PathBuf,
@@ -170,8 +170,13 @@ impl SessionManager {
         let writer_task = spawn(pty_write_loop(master_writer, writer_rx));
         let child_for_wait = Arc::clone(&child);
         let wait_task = spawn(async move {
-            let _hold = child_for_wait;
-            std::future::pending::<ExitStatus>().await
+            let guard = child_for_wait.lock_owned().await;
+            spawn_blocking(move || {
+                let mut guard = guard;
+                guard.wait().expect("child.wait()")
+            })
+            .await
+            .expect("wait_task spawn_blocking join")
         });
 
         let id = SessionId::new();
@@ -192,7 +197,7 @@ mod tests {
     use std::io::Cursor;
     use std::sync::Mutex as StdMutex;
 
-    use portable_pty::{Child, ChildKiller};
+    use portable_pty::{Child, ChildKiller, ExitStatus};
     use sqlx::sqlite::SqlitePoolOptions;
     use tauri::async_runtime::block_on;
 
@@ -297,6 +302,43 @@ mod tests {
 
             assert_ne!(id1, id2);
             assert_eq!(manager.list_sessions().await.len(), 2);
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn create_session_wait_task_resolves_to_exit_status_zero_for_true() {
+        use std::time::{Duration, Instant};
+
+        let pool = fresh_pool();
+        block_on(async {
+            let manager = SessionManager::new(pool);
+            let env: HashMap<String, String> = HashMap::new();
+
+            let id = manager
+                .create_session(PathBuf::from("/usr/bin/true"), PathBuf::from("/tmp"), env)
+                .await
+                .expect("create_session /usr/bin/true");
+
+            let wait_task = {
+                let mut state = manager.state.write().await;
+                let handle = state
+                    .get_mut(&id)
+                    .expect("session registered after create_session");
+                handle
+                    .take_wait_task()
+                    .expect("wait_task should be present right after create_session")
+            };
+
+            let started = Instant::now();
+            let status = wait_task.await.expect("wait observer task should not panic");
+            let elapsed = started.elapsed();
+
+            assert!(
+                elapsed < Duration::from_secs(1),
+                "wait observer should resolve within 1s, took {elapsed:?}"
+            );
+            assert_eq!(status.exit_code(), 0);
         });
     }
 
