@@ -8,6 +8,7 @@ pub mod session;
 use tauri::Manager;
 
 use crate::active_project::ActiveProject;
+use crate::session::SessionManager;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -92,7 +93,9 @@ pub fn run() {
                 );
                 err
             })?;
+            let session_manager = SessionManager::new(pool.clone());
             app.manage(pool);
+            app.manage(session_manager);
             #[cfg(all(desktop, not(debug_assertions)))]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
