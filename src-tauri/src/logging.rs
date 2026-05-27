@@ -24,15 +24,17 @@ pub fn init_logging(app: &App) -> Result<WorkerGuard, Box<dyn std::error::Error>
         .build(&log_dir)?;
     let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
 
-    let env_filter = EnvFilter::try_from_env("RUST_LOG")
-        .unwrap_or_else(|_| EnvFilter::new(DEFAULT_LOG_FILTER));
+    let env_filter =
+        EnvFilter::try_from_env("RUST_LOG").unwrap_or_else(|_| EnvFilter::new(DEFAULT_LOG_FILTER));
 
     let file_layer = tracing_subscriber::fmt::layer()
         .json()
         .with_writer(file_writer)
         .with_ansi(false);
 
-    let registry = tracing_subscriber::registry().with(env_filter).with(file_layer);
+    let registry = tracing_subscriber::registry()
+        .with(env_filter)
+        .with(file_layer);
 
     #[cfg(debug_assertions)]
     let registry = registry.with(tracing_subscriber::fmt::layer());

@@ -1,0 +1,9 @@
+[package]
+name = "agent-cockpit-term"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+agent-cockpit-term-sys = { path = "../agent-cockpit-term-sys" }
+bitflags = "2"
+thiserror = "2"

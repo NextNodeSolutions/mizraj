@@ -1,0 +1,240 @@
+use git2::{Diff, DiffOptions, Repository};
+
+use crate::Result;
+
+const SESSION_REF_PREFIX: &str = "refs/agent-cockpit/sessions/";
+
+pub fn diff_session<'repo>(repo: &'repo Repository, session_id: &str) -> Result<Diff<'repo>> {
+    let session_ref_name = format!("{SESSION_REF_PREFIX}{session_id}");
+    let session_ref = repo.find_reference(&session_ref_name)?;
+    let session_tree = session_ref.peel_to_commit()?.tree()?;
+
+    let head_tree = repo.head()?.peel_to_commit()?.tree()?;
+
+    let diff = repo.diff_tree_to_tree(Some(&session_tree), Some(&head_tree), None)?;
+    Ok(diff)
+}
+
+pub fn diff_working_tree(repo: &Repository) -> Result<Diff<'_>> {
+    let mut opts = DiffOptions::new();
+    opts.include_untracked(true);
+    opts.recurse_untracked_dirs(true);
+
+    let diff = repo.diff_index_to_workdir(None, Some(&mut opts))?;
+    Ok(diff)
+}
+
+pub fn diff_head_base<'repo>(repo: &'repo Repository, base: &str) -> Result<Diff<'repo>> {
+    let base_tree = repo.revparse_single(base)?.peel_to_commit()?.tree()?;
+    let head_tree = repo.head()?.peel_to_commit()?.tree()?;
+
+    let diff = repo.diff_tree_to_tree(Some(&base_tree), Some(&head_tree), None)?;
+    Ok(diff)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use git2::{Oid, RepositoryInitOptions, Signature};
+    use std::fs;
+    use std::path::Path;
+
+    fn init_repo(path: &Path) -> Repository {
+        let mut opts = RepositoryInitOptions::new();
+        opts.external_template(false);
+        opts.initial_head("main");
+        Repository::init_opts(path, &opts).expect("init fixture repo")
+    }
+
+    fn commit_file(repo: &Repository, name: &str, contents: &str, message: &str) -> Oid {
+        let workdir = repo.workdir().expect("workdir");
+        fs::write(workdir.join(name), contents).expect("write file");
+
+        let mut index = repo.index().expect("index");
+        index.add_path(Path::new(name)).expect("add_path");
+        index.write().expect("write index");
+        let tree_id = index.write_tree().expect("write_tree");
+        let tree = repo.find_tree(tree_id).expect("find_tree");
+
+        let sig = Signature::now("Test", "test@example.com").expect("signature");
+        let parents: Vec<git2::Commit> = repo
+            .head()
+            .ok()
+            .and_then(|h| h.peel_to_commit().ok())
+            .into_iter()
+            .collect();
+        let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
+
+        repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parent_refs)
+            .expect("commit")
+    }
+
+    #[test]
+    fn returns_diff_between_session_ref_and_head() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+
+        let session_oid = commit_file(&repo, "a.txt", "v1\n", "session base");
+        repo.reference(
+            "refs/agent-cockpit/sessions/test-session",
+            session_oid,
+            false,
+            "create session ref",
+        )
+        .expect("create session ref");
+
+        commit_file(&repo, "a.txt", "v2\n", "advance head");
+
+        let diff = diff_session(&repo, "test-session").expect("diff_session");
+        assert_eq!(diff.deltas().count(), 1);
+
+        let mut hunk_count = 0usize;
+        diff.foreach(
+            &mut |_, _| true,
+            None,
+            Some(&mut |_, _| {
+                hunk_count += 1;
+                true
+            }),
+            None,
+        )
+        .expect("foreach diff");
+        assert_eq!(hunk_count, 1);
+    }
+
+    #[test]
+    fn returns_empty_diff_when_session_ref_matches_head() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+
+        let oid = commit_file(&repo, "a.txt", "v1\n", "only commit");
+        repo.reference(
+            "refs/agent-cockpit/sessions/same",
+            oid,
+            false,
+            "create session ref",
+        )
+        .expect("create session ref");
+
+        let diff = diff_session(&repo, "same").expect("diff_session");
+        assert_eq!(diff.deltas().count(), 0);
+    }
+
+    #[test]
+    fn errors_when_session_ref_missing() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+        commit_file(&repo, "a.txt", "v1\n", "init");
+
+        let err = diff_session(&repo, "missing").err().expect("should fail");
+        let crate::VcsError::Git(inner) = err;
+        assert_eq!(inner.code(), git2::ErrorCode::NotFound);
+    }
+
+    #[test]
+    fn returns_unstaged_and_untracked_changes() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+        commit_file(&repo, "a.txt", "v1\n", "init");
+
+        let workdir = repo.workdir().expect("workdir");
+        fs::write(workdir.join("a.txt"), "v2\n").expect("write modified");
+        fs::write(workdir.join("b.txt"), "new\n").expect("write untracked");
+
+        let diff = diff_working_tree(&repo).expect("diff_working_tree");
+
+        let mut paths: Vec<String> = diff
+            .deltas()
+            .map(|d| {
+                d.new_file()
+                    .path()
+                    .expect("new_file path")
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        paths.sort();
+        assert_eq!(paths, vec!["a.txt".to_string(), "b.txt".to_string()]);
+
+        let mut hunk_count = 0usize;
+        diff.foreach(
+            &mut |_, _| true,
+            None,
+            Some(&mut |_, _| {
+                hunk_count += 1;
+                true
+            }),
+            None,
+        )
+        .expect("foreach diff");
+        assert!(
+            hunk_count >= 1,
+            "expected at least one hunk, got {hunk_count}"
+        );
+    }
+
+    #[test]
+    fn returns_empty_diff_when_working_tree_clean() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+        commit_file(&repo, "a.txt", "v1\n", "init");
+
+        let diff = diff_working_tree(&repo).expect("diff_working_tree");
+        assert_eq!(diff.deltas().count(), 0);
+    }
+
+    #[test]
+    fn returns_diff_between_base_branch_and_head() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+
+        let base_oid = commit_file(&repo, "a.txt", "v1\n", "main: init");
+
+        let base_commit = repo.find_commit(base_oid).expect("find_commit");
+        repo.branch("feature", &base_commit, false)
+            .expect("create feature branch");
+        repo.set_head("refs/heads/feature")
+            .expect("set HEAD to feature");
+
+        commit_file(&repo, "a.txt", "v2\n", "feature: modify a");
+        commit_file(&repo, "b.txt", "new\n", "feature: add b");
+
+        let diff = diff_head_base(&repo, "main").expect("diff_head_base");
+
+        let mut paths: Vec<String> = diff
+            .deltas()
+            .map(|d| {
+                d.new_file()
+                    .path()
+                    .expect("new_file path")
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        paths.sort();
+        assert_eq!(paths, vec!["a.txt".to_string(), "b.txt".to_string()]);
+    }
+
+    #[test]
+    fn returns_empty_diff_when_base_matches_head() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+        commit_file(&repo, "a.txt", "v1\n", "init");
+
+        let diff = diff_head_base(&repo, "main").expect("diff_head_base");
+        assert_eq!(diff.deltas().count(), 0);
+    }
+
+    #[test]
+    fn errors_when_base_ref_missing() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+        commit_file(&repo, "a.txt", "v1\n", "init");
+
+        let err = diff_head_base(&repo, "nonexistent")
+            .err()
+            .expect("should fail");
+        let crate::VcsError::Git(inner) = err;
+        assert_eq!(inner.code(), git2::ErrorCode::NotFound);
+    }
+}

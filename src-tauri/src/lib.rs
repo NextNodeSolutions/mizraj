@@ -1,5 +1,7 @@
 mod active_project;
 mod commands;
+mod db;
+mod files;
 mod logging;
 
 use tauri::Manager;
@@ -77,7 +79,11 @@ pub fn run() {
         .setup(|app| {
             let guard = logging::init_logging(app)?;
             app.manage(guard);
-            #[cfg(desktop)]
+            let app_data_dir = app.path().app_data_dir()?;
+            let db_path = app_data_dir.join("agent-cockpit.db");
+            let pool = tauri::async_runtime::block_on(db::init_db(&db_path))?;
+            app.manage(pool);
+            #[cfg(all(desktop, not(debug_assertions)))]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
             Ok(())
@@ -85,6 +91,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             log_from_frontend,
+            files::read_interview_state,
             commands::list_plans::list_plans,
             commands::set_active_project::set_active_project,
         ])

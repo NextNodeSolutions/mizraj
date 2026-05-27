@@ -41,10 +41,7 @@ impl PlanKind {
                 .join("interviews")
                 .join(slug)
                 .join("plan.html"),
-            PlanKind::Plan => root
-                .join("docs")
-                .join("plans")
-                .join(format!("{slug}.html")),
+            PlanKind::Plan => root.join("docs").join("plans").join(format!("{slug}.html")),
         }
     }
 
