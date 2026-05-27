@@ -26,6 +26,7 @@ pub struct SessionHandle {
     writer_task: JoinHandle<()>,
     wait_task: Option<JoinHandle<ExitStatus>>,
     sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>>,
+    pid: Option<u32>,
 }
 
 impl SessionHandle {
@@ -36,6 +37,7 @@ impl SessionHandle {
         writer_task: JoinHandle<()>,
         wait_task: JoinHandle<ExitStatus>,
         sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>>,
+        pid: Option<u32>,
     ) -> Self {
         Self {
             writer,
@@ -44,11 +46,20 @@ impl SessionHandle {
             writer_task,
             wait_task: Some(wait_task),
             sinks,
+            pid,
         }
     }
 
     pub fn writer(&self) -> &Sender<Vec<u8>> {
         &self.writer
+    }
+
+    /// PID captured from `Child::process_id()` at spawn time. Cached on the
+    /// handle so the shutdown path can send signals without locking the
+    /// child mutex — that mutex is permanently held by the wait observer's
+    /// blocking `child.wait()` call.
+    pub fn pid(&self) -> Option<u32> {
+        self.pid
     }
 
     pub fn child(&self) -> &Arc<Mutex<Box<dyn Child + Send + Sync>>> {
@@ -149,6 +160,7 @@ mod tests {
                 writer_task,
                 wait_task,
                 Arc::clone(&sinks),
+                None,
             );
 
             let a: Arc<dyn OutputSink> = Arc::new(VecSink::new());
@@ -203,6 +215,7 @@ mod tests {
                     writer_task,
                     wait_task,
                     sinks,
+                    None,
                 );
                 drop(handle);
             }

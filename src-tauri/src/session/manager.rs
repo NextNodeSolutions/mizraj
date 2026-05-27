@@ -2,15 +2,21 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
+use nix::sys::signal::{kill, Signal};
+use nix::unistd::Pid;
 use sqlx::sqlite::SqlitePool;
 use tauri::async_runtime::{channel, spawn, spawn_blocking, Mutex, Receiver, RwLock};
+use tokio::time::timeout;
 
 use crate::session::error::SessionError;
 use crate::session::handle::SessionHandle;
 use crate::session::id::SessionId;
 use crate::session::pty::{self, PtySession};
 use crate::session::sink::OutputSink;
+
+const SHUTDOWN_GRACE: Duration = Duration::from_secs(2);
 
 const INPUT_CHANNEL_CAPACITY: usize = 64;
 const PTY_READ_BUFFER_SIZE: usize = 4096;
@@ -162,6 +168,7 @@ impl SessionManager {
             child,
         } = pty_session;
 
+        let pid = child.process_id();
         let child = Arc::new(Mutex::new(child));
         let (writer_tx, writer_rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
         let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> = Arc::new(RwLock::new(Vec::new()));
@@ -180,8 +187,15 @@ impl SessionManager {
         });
 
         let id = SessionId::new();
-        let handle =
-            SessionHandle::new(writer_tx, child, reader_task, writer_task, wait_task, sinks);
+        let handle = SessionHandle::new(
+            writer_tx,
+            child,
+            reader_task,
+            writer_task,
+            wait_task,
+            sinks,
+            pid,
+        );
 
         {
             let mut state = self.state.write().await;
@@ -189,6 +203,65 @@ impl SessionManager {
         }
 
         Ok(id)
+    }
+
+    /// Graceful per-session shutdown (D4 mechanism (c)).
+    ///
+    /// Atomically removes the handle from the registry, sends `SIGTERM` to
+    /// the child, waits up to [`SHUTDOWN_GRACE`] for the wait observer to
+    /// resolve, then escalates to `SIGKILL` if the child is still alive.
+    ///
+    /// On exit, the supporting reader/writer tasks are aborted by the
+    /// `SessionHandle::Drop` impl as the local `handle` binding goes out of
+    /// scope. The wait observer's `JoinHandle`, if not consumed by
+    /// `timeout`, is dropped without abort — tokio leaves the task running
+    /// in the background so the kernel can reap the child cleanly.
+    ///
+    /// Returns `NotFound` if `id` was never registered or has already been
+    /// closed. Returns `Ok(())` once the kill sequence has been issued; it
+    /// does NOT guarantee the kernel has reaped the process by the time
+    /// this future resolves.
+    pub async fn session_close(&self, id: &SessionId) -> Result<(), SessionError> {
+        let mut handle = {
+            let mut state = self.state.write().await;
+            state
+                .remove(id)
+                .ok_or_else(|| SessionError::NotFound(id.to_string()))?
+        };
+
+        let pid = handle
+            .pid()
+            .and_then(|raw| i32::try_from(raw).ok())
+            .map(Pid::from_raw);
+        let wait_task = handle.take_wait_task();
+
+        // If the wait observer has already resolved, the child has been
+        // reaped and its PID may have been recycled by the kernel — never
+        // signal a recycled PID, just unregister and return.
+        if wait_task
+            .as_ref()
+            .map(|t| t.inner().is_finished())
+            .unwrap_or(true)
+        {
+            return Ok(());
+        }
+
+        if let Some(pid) = pid {
+            let _ = kill(pid, Signal::SIGTERM);
+        }
+
+        let escalate = match wait_task {
+            Some(task) => timeout(SHUTDOWN_GRACE, task).await.is_err(),
+            None => false,
+        };
+
+        if escalate {
+            if let Some(pid) = pid {
+                let _ = kill(pid, Signal::SIGKILL);
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -503,6 +576,7 @@ mod tests {
                 writer_task,
                 wait_task,
                 sinks,
+                None,
             );
             let id = SessionId::new();
             manager.state.write().await.insert(id.clone(), handle);
@@ -533,6 +607,78 @@ mod tests {
             pty_read_loop(reader, Arc::clone(&sinks)).await;
 
             assert_eq!(sink.snapshot(), b"hello world");
+        });
+    }
+
+    #[test]
+    fn session_close_returns_not_found_for_unknown_id() {
+        let pool = fresh_pool();
+        block_on(async {
+            let manager = SessionManager::new(pool);
+            let id = SessionId::new();
+            let err = manager
+                .session_close(&id)
+                .await
+                .expect_err("unknown id should fail");
+            match err {
+                SessionError::NotFound(s) => assert_eq!(s, id.to_string()),
+                other => panic!("expected NotFound, got {other:?}"),
+            }
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn session_close_kills_long_running_child_and_clears_registry() {
+        use std::time::{Duration, Instant};
+
+        use nix::errno::Errno;
+
+        // We can't pass argv yet (the public surface only takes binary +
+        // cwd + env), so this test stands in for `sleep 60` with `/bin/sh`:
+        // a long-running process attached to the PTY that idles waiting on
+        // stdin and terminates cleanly on SIGTERM.
+        let pool = fresh_pool();
+        block_on(async {
+            let manager = SessionManager::new(pool);
+            let env: HashMap<String, String> = HashMap::new();
+
+            let id = manager
+                .create_session(PathBuf::from("/bin/sh"), PathBuf::from("/tmp"), env)
+                .await
+                .expect("create_session /bin/sh");
+
+            let pid_raw = {
+                let state = manager.state.read().await;
+                let handle = state.get(&id).expect("session registered");
+                handle.pid().expect("/bin/sh should expose a pid")
+            };
+            let pid = Pid::from_raw(i32::try_from(pid_raw).expect("pid fits in i32"));
+
+            manager.session_close(&id).await.expect("session_close ok");
+
+            assert!(
+                manager.state.read().await.get(&id).is_none(),
+                "registry should no longer contain the closed id"
+            );
+
+            let started = Instant::now();
+            let mut gone = false;
+            while started.elapsed() < Duration::from_secs(5) {
+                match kill(pid, None) {
+                    Err(Errno::ESRCH) => {
+                        gone = true;
+                        break;
+                    }
+                    _ => {
+                        tokio::time::sleep(Duration::from_millis(50)).await;
+                    }
+                }
+            }
+            assert!(
+                gone,
+                "child pid {pid_raw} should be dead within 5s after session_close"
+            );
         });
     }
 }
