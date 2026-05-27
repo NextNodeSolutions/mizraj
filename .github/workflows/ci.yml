@@ -143,3 +143,27 @@ jobs:
 
             - name: Run E2E tests
               run: pnpm test:e2e
+
+    # D13 — Phase 3 keeps the schema unchanged. Migration 0005 lands in Phase 5
+    # (D7); update or remove this job there. See SAS-406.
+    phase-3-migration-audit:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Assert exactly 4 SQL migrations (0001-0004)
+              run: |
+                  set -euo pipefail
+                  count=$(ls src-tauri/migrations/*.sql | wc -l | tr -d ' ')
+                  if [ "$count" -ne 4 ]; then
+                      echo "Expected 4 .sql migrations in src-tauri/migrations/, got $count" >&2
+                      ls src-tauri/migrations/ >&2
+                      exit 1
+                  fi
+                  for expected in 0001 0002 0003 0004; do
+                      if ! ls src-tauri/migrations/${expected}_*.sql >/dev/null 2>&1; then
+                          echo "Missing expected migration prefix: ${expected}_*.sql" >&2
+                          exit 1
+                      fi
+                  done
