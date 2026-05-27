@@ -2,8 +2,9 @@ use std::borrow::Cow;
 use std::fs;
 use std::path::Path;
 
+use serde::Serialize;
 use serde_json::{json, Value};
-use tauri::http::{header, Method, Request, Response, StatusCode};
+use tauri::http::{header, HeaderMap, Method, Request, Response, StatusCode};
 use tauri::{Manager, Runtime, UriSchemeContext};
 
 use crate::active_project::ActiveProject;
@@ -44,7 +45,12 @@ pub fn handle_request<R: Runtime>(
     };
 
     match (request.method(), *action) {
-        (&Method::POST, ACTION_SUBMIT) => handle_submit(&root, kind, slug, request.body()),
+        (&Method::POST, ACTION_SUBMIT) => {
+            if !submit_referer_matches(request.headers(), kind, slug) {
+                return text_response(StatusCode::FORBIDDEN, "submit referer does not match slug");
+            }
+            handle_submit(&root, kind, slug, request.body())
+        }
         (&Method::GET, ACTION_PLAN_HTML) => handle_serve(&root, kind, slug),
         _ => text_response(StatusCode::NOT_FOUND, "method or action not handled"),
     }
@@ -58,17 +64,14 @@ pub fn is_safe_slug(slug: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
-// Restrict what a plan HTML page can reach. Without this header, an
-// LLM-authored or attacker-controlled plan.html could fetch() to any external
-// origin and exfiltrate state inside the active project. 'self' confines
-// connect-src to plan://, where every endpoint is gated by is_safe_slug.
-// 'unsafe-inline' is required because plan templates ship inline <script>.
+// Plan templates ship inline <script>, so 'unsafe-inline' is required.
+// connect-src 'self' confines plan HTML to plan:// endpoints; cross-slug
+// /submit is additionally gated by a Referer check.
 const PLAN_HTML_CSP: &str = "default-src 'self' data:; \
     script-src 'self' 'unsafe-inline'; \
     style-src 'self' 'unsafe-inline'; \
     img-src 'self' data:; \
-    connect-src 'self'; \
-    frame-ancestors 'self';";
+    connect-src 'self';";
 
 fn handle_serve(root: &Path, kind: PlanKind, slug: &str) -> Response<Cow<'static, [u8]>> {
     let file = kind.html_path(root, slug);
@@ -122,6 +125,33 @@ fn text_response(status: StatusCode, message: &'static str) -> Response<Cow<'sta
         .expect("response builder failed for text response")
 }
 
+fn submit_referer_matches(headers: &HeaderMap, kind: PlanKind, slug: &str) -> bool {
+    let Some(value) = headers.get(header::REFERER) else {
+        return false;
+    };
+    let Ok(referer) = value.to_str() else {
+        return false;
+    };
+    let Some(path) = referer_path(referer) else {
+        return false;
+    };
+    let segments: Vec<&str> = path
+        .split(|c: char| c == '/' || c == '?' || c == '#')
+        .filter(|s| !s.is_empty())
+        .collect();
+    matches!(
+        segments.as_slice(),
+        [k, s, ACTION_PLAN_HTML, ..]
+            if PlanKind::from_segment(k) == Some(kind) && *s == slug
+    )
+}
+
+fn referer_path(referer: &str) -> Option<&str> {
+    let (_scheme, rest) = referer.split_once("://")?;
+    let (_authority, path) = rest.split_once('/')?;
+    Some(path)
+}
+
 pub fn plan_url(kind: PlanKind, slug: &str) -> String {
     // Tauri 2 exposes custom URI schemes differently per platform:
     //   * macOS / iOS / Linux: `<scheme>://localhost/...`
@@ -132,16 +162,42 @@ pub fn plan_url(kind: PlanKind, slug: &str) -> String {
     let base = format!("http://{SCHEME}.localhost");
     #[cfg(not(any(target_os = "windows", target_os = "android")))]
     let base = format!("{SCHEME}://localhost");
-    format!(
-        "{base}/{}/{slug}/{ACTION_PLAN_HTML}",
-        kind.as_segment()
-    )
+    format!("{base}/{}/{slug}/{ACTION_PLAN_HTML}", kind.as_segment())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedPlan {
+    pub url: String,
+}
+
+#[tauri::command]
+pub fn resolve_plan(
+    kind: String,
+    slug: String,
+    active_project: tauri::State<'_, ActiveProject>,
+) -> Result<ResolvedPlan, String> {
+    let kind = PlanKind::from_segment(&kind).ok_or_else(|| "unknown plan kind".to_string())?;
+    if !is_safe_slug(&slug) {
+        return Err("invalid slug".to_string());
+    }
+    let root = active_project
+        .get()
+        .ok_or_else(|| "no active project".to_string())?;
+    let path = kind.html_path(&root, &slug);
+    if !path.is_file() {
+        return Err(format!("plan file not found: {}", path.display()));
+    }
+    Ok(ResolvedPlan {
+        url: plan_url(kind, &slug),
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::path::PathBuf;
+    use tauri::http::HeaderValue;
 
     #[cfg(not(any(target_os = "windows", target_os = "android")))]
     #[test]
@@ -159,6 +215,54 @@ mod tests {
             plan_url(PlanKind::Interview, "agent-cockpit"),
             "http://plan.localhost/interview/agent-cockpit/plan.html"
         );
+    }
+
+    fn headers_with_referer(referer: &str) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        h.insert(header::REFERER, HeaderValue::from_str(referer).unwrap());
+        h
+    }
+
+    #[test]
+    fn submit_referer_matches_accepts_matching_slug() {
+        let h = headers_with_referer("plan://localhost/interview/foo/plan.html");
+        assert!(submit_referer_matches(&h, PlanKind::Interview, "foo"));
+    }
+
+    #[test]
+    fn submit_referer_matches_accepts_http_form() {
+        let h = headers_with_referer("http://plan.localhost/plan/bar/plan.html");
+        assert!(submit_referer_matches(&h, PlanKind::Plan, "bar"));
+    }
+
+    #[test]
+    fn submit_referer_matches_accepts_referer_with_query() {
+        let h = headers_with_referer("plan://localhost/interview/foo/plan.html?ts=1");
+        assert!(submit_referer_matches(&h, PlanKind::Interview, "foo"));
+    }
+
+    #[test]
+    fn submit_referer_matches_rejects_cross_slug() {
+        let h = headers_with_referer("plan://localhost/interview/A/plan.html");
+        assert!(!submit_referer_matches(&h, PlanKind::Interview, "B"));
+    }
+
+    #[test]
+    fn submit_referer_matches_rejects_cross_kind() {
+        let h = headers_with_referer("plan://localhost/plan/foo/plan.html");
+        assert!(!submit_referer_matches(&h, PlanKind::Interview, "foo"));
+    }
+
+    #[test]
+    fn submit_referer_matches_rejects_missing_referer() {
+        let h = HeaderMap::new();
+        assert!(!submit_referer_matches(&h, PlanKind::Interview, "foo"));
+    }
+
+    #[test]
+    fn submit_referer_matches_rejects_malformed_referer() {
+        let h = headers_with_referer("not-a-url");
+        assert!(!submit_referer_matches(&h, PlanKind::Interview, "foo"));
     }
 
     #[test]
@@ -303,7 +407,10 @@ mod tests {
             .to_str()
             .expect("CSP is ASCII");
         assert!(csp.contains("connect-src 'self'"));
-        assert!(csp.contains("frame-ancestors 'self'"));
+        assert!(
+            !csp.contains("frame-ancestors"),
+            "frame-ancestors must not be set, got CSP: {csp}",
+        );
     }
 
     #[test]

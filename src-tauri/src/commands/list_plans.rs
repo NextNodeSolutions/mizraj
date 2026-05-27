@@ -101,8 +101,20 @@ fn collect_interviews(root: &Path, entries: &mut Vec<PlanEntry>) -> Result<(), S
 
     let read = fs::read_dir(&interviews_dir).map_err(|e| e.to_string())?;
     for entry in read {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let file_type = entry.file_type().map_err(|e| e.to_string())?;
+        let entry = match entry {
+            Ok(e) => e,
+            Err(err) => {
+                tracing::warn!(dir = %interviews_dir.display(), error = %err, "list_plans: skipping unreadable interview entry");
+                continue;
+            }
+        };
+        let file_type = match entry.file_type() {
+            Ok(t) => t,
+            Err(err) => {
+                tracing::warn!(path = %entry.path().display(), error = %err, "list_plans: skipping entry with unreadable file_type");
+                continue;
+            }
+        };
         if !file_type.is_dir() {
             continue;
         }
@@ -127,7 +139,7 @@ fn collect_interviews(root: &Path, entries: &mut Vec<PlanEntry>) -> Result<(), S
             slug,
             title,
             url,
-            mtime: mtime_from(&meta),
+            mtime: mtime_from(&plan_html, &meta),
         });
     }
     Ok(())
@@ -141,8 +153,20 @@ fn collect_plans(root: &Path, entries: &mut Vec<PlanEntry>) -> Result<(), String
 
     let read = fs::read_dir(&plans_dir).map_err(|e| e.to_string())?;
     for entry in read {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let file_type = entry.file_type().map_err(|e| e.to_string())?;
+        let entry = match entry {
+            Ok(e) => e,
+            Err(err) => {
+                tracing::warn!(dir = %plans_dir.display(), error = %err, "list_plans: skipping unreadable plan entry");
+                continue;
+            }
+        };
+        let file_type = match entry.file_type() {
+            Ok(t) => t,
+            Err(err) => {
+                tracing::warn!(path = %entry.path().display(), error = %err, "list_plans: skipping entry with unreadable file_type");
+                continue;
+            }
+        };
         if !file_type.is_file() {
             continue;
         }
@@ -160,7 +184,13 @@ fn collect_plans(root: &Path, entries: &mut Vec<PlanEntry>) -> Result<(), String
         if !is_safe_slug(&slug) {
             continue;
         }
-        let meta = entry.metadata().map_err(|e| e.to_string())?;
+        let meta = match entry.metadata() {
+            Ok(m) => m,
+            Err(err) => {
+                tracing::warn!(path = %path.display(), error = %err, "list_plans: skipping entry with unreadable metadata");
+                continue;
+            }
+        };
         let title = read_title(&path, &slug);
         let url = plan_url(PlanKind::Plan, &slug);
         entries.push(PlanEntry {
@@ -168,7 +198,7 @@ fn collect_plans(root: &Path, entries: &mut Vec<PlanEntry>) -> Result<(), String
             slug,
             title,
             url,
-            mtime: mtime_from(&meta),
+            mtime: mtime_from(&path, &meta),
         });
     }
     Ok(())
@@ -180,12 +210,20 @@ fn file_name_str(path: &Path) -> Option<String> {
         .map(str::to_string)
 }
 
-fn mtime_from(meta: &fs::Metadata) -> u64 {
-    meta.modified()
-        .ok()
-        .and_then(|m| m.duration_since(UNIX_EPOCH).ok())
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+fn mtime_from(path: &Path, meta: &fs::Metadata) -> u64 {
+    match meta.modified() {
+        Ok(m) => match m.duration_since(UNIX_EPOCH) {
+            Ok(d) => d.as_secs(),
+            Err(err) => {
+                tracing::warn!(path = %path.display(), error = %err, "list_plans: mtime before UNIX_EPOCH, using 0");
+                0
+            }
+        },
+        Err(err) => {
+            tracing::warn!(path = %path.display(), error = %err, "list_plans: modified() unsupported, using 0");
+            0
+        }
+    }
 }
 
 fn read_title(path: &Path, fallback: &str) -> String {
@@ -219,25 +257,61 @@ fn find_tag_text<'a>(html: &'a str, lower: &str, tag: &str) -> Option<&'a str> {
     let close_needle = format!("</{tag}>");
     let mut cursor = 0usize;
     while cursor < lower.len() {
-        let rel = lower[cursor..].find(&open_needle)?;
-        let open_start = cursor + rel;
-        let after_name = open_start + open_needle.len();
-        let next = lower.as_bytes().get(after_name).copied();
-        let is_tag = matches!(
-            next,
-            Some(b'>') | Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r') | Some(b'/')
-        );
-        if !is_tag {
-            cursor = after_name;
-            continue;
+        let tail = &lower[cursor..];
+        let next_tag = tail.find(&open_needle).map(|o| cursor + o);
+        let next_script = tail.find("<script").map(|o| cursor + o);
+        let next_style = tail.find("<style").map(|o| cursor + o);
+        let next_comment = tail.find("<!--").map(|o| cursor + o);
+
+        let earliest = [
+            (next_tag, Region::Tag),
+            (next_script, Region::Script),
+            (next_style, Region::Style),
+            (next_comment, Region::Comment),
+        ]
+        .into_iter()
+        .filter_map(|(pos, region)| pos.map(|p| (p, region)))
+        .min_by_key(|(p, _)| *p);
+
+        let (pos, region) = earliest?;
+        match region {
+            Region::Tag => {
+                let after_name = pos + open_needle.len();
+                let next = lower.as_bytes().get(after_name).copied();
+                let is_tag = matches!(
+                    next,
+                    Some(b'>') | Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r') | Some(b'/')
+                );
+                if !is_tag {
+                    cursor = after_name;
+                    continue;
+                }
+                let close_rel = find_opening_tag_close(&lower[after_name..])?;
+                let content_start = after_name + close_rel + 1;
+                let end_rel = lower[content_start..].find(&close_needle)?;
+                let content_end = content_start + end_rel;
+                return Some(&html[content_start..content_end]);
+            }
+            Region::Script => cursor = skip_region_end(lower, pos + "<script".len(), "</script>"),
+            Region::Style => cursor = skip_region_end(lower, pos + "<style".len(), "</style>"),
+            Region::Comment => cursor = skip_region_end(lower, pos + "<!--".len(), "-->"),
         }
-        let close_rel = find_opening_tag_close(&lower[after_name..])?;
-        let content_start = after_name + close_rel + 1;
-        let end_rel = lower[content_start..].find(&close_needle)?;
-        let content_end = content_start + end_rel;
-        return Some(&html[content_start..content_end]);
     }
     None
+}
+
+enum Region {
+    Tag,
+    Script,
+    Style,
+    Comment,
+}
+
+fn skip_region_end(lower: &str, after_open: usize, end_marker: &str) -> usize {
+    match lower[after_open..].find(end_marker) {
+        Some(off) => after_open + off + end_marker.len(),
+        None => lower.len(),
+    }
 }
 
 /// Scans `tail` (the substring just past the tag name) for the `>` that closes
@@ -272,15 +346,26 @@ fn clean_text(raw: &str) -> String {
 }
 
 fn strip_tags(raw: &str) -> String {
+    let chars: Vec<char> = raw.chars().collect();
     let mut out = String::with_capacity(raw.len());
     let mut in_tag = false;
-    for c in raw.chars() {
-        match c {
-            '<' => in_tag = true,
-            '>' if in_tag => in_tag = false,
-            _ if !in_tag => out.push(c),
-            _ => {}
+    for i in 0..chars.len() {
+        let c = chars[i];
+        if in_tag {
+            if c == '>' {
+                in_tag = false;
+            }
+            continue;
         }
+        if c == '<'
+            && chars
+                .get(i + 1)
+                .is_some_and(|n| n.is_ascii_alphabetic() || *n == '/' || *n == '!')
+        {
+            in_tag = true;
+            continue;
+        }
+        out.push(c);
     }
     out
 }
@@ -451,6 +536,39 @@ mod tests {
     fn extract_title_handles_gt_inside_single_quoted_attribute() {
         let html = r#"<title data-x='a>b'>Real Title</title>"#;
         assert_eq!(extract_title(html, "slug"), "Real Title");
+    }
+
+    #[test]
+    fn extract_title_ignores_title_inside_script_block() {
+        let html = r#"<html><head><script>const tpl = '<title>spoofed</title>';</script><title>Real</title></head></html>"#;
+        assert_eq!(extract_title(html, "slug"), "Real");
+    }
+
+    #[test]
+    fn extract_title_ignores_title_inside_style_block() {
+        let html =
+            r#"<html><head><style>/* <title>x</title> */</style><title>Real</title></head></html>"#;
+        assert_eq!(extract_title(html, "slug"), "Real");
+    }
+
+    #[test]
+    fn extract_title_ignores_title_inside_html_comment() {
+        let html = r#"<html><head><!-- <title>old</title> --><title>Real</title></head></html>"#;
+        assert_eq!(extract_title(html, "slug"), "Real");
+    }
+
+    #[test]
+    fn extract_title_preserves_literal_less_than_in_text() {
+        let html = r#"<title>Plan (&lt;10 users)</title>"#;
+        assert_eq!(extract_title(html, "slug"), "Plan (<10 users)");
+    }
+
+    #[test]
+    fn extract_title_keeps_raw_lt_in_unescaped_title_text() {
+        // Some authors forget to escape `<` in titles. Make sure the literal
+        // `<` and trailing text are preserved instead of being eaten as a tag.
+        let html = r#"<title>Cockpit (<10 users)</title>"#;
+        assert_eq!(extract_title(html, "slug"), "Cockpit (<10 users)");
     }
 
     #[test]

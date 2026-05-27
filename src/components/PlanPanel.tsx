@@ -45,8 +45,8 @@ const PlanPanel = ({ src, title }: Props): React.JSX.Element => {
 					role="alert"
 					aria-live="assertive"
 				>
-					Plan did not load. Check that the file exists and the project
-					path is set.
+					Plan did not load. Check that the file exists and the
+					project path is set.
 				</p>
 			)}
 		</div>

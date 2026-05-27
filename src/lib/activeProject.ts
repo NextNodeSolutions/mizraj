@@ -9,13 +9,25 @@ export const useActiveProject = (path: string | null): string | null => {
 	const latestRequestId = useRef(0)
 
 	useEffect(() => {
-		if (path === null) {
-			latestRequestId.current += 1
-			setSynced(null)
-			return
-		}
 		latestRequestId.current += 1
 		const requestId = latestRequestId.current
+
+		if (path === null) {
+			setSynced(null)
+			invoke('clear_active_project').catch((error: unknown) => {
+				if (requestId !== latestRequestId.current) return
+				const { message, stack } = describeError(error)
+				logger.error(
+					`useActiveProject: clear_active_project failed: ${message}`,
+					{
+						scope: 'active-project',
+						details: { stack },
+					},
+				)
+			})
+			return
+		}
+
 		invoke('set_active_project', { repoPath: path })
 			.then(() => {
 				if (requestId !== latestRequestId.current) return

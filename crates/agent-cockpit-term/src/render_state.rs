@@ -352,26 +352,43 @@ fn read_codepoint(cells: GhosttyRenderStateRowCells) -> Result<char> {
         return Ok(' ');
     }
     let len = len as usize;
-    if len > MAX_GRAPHEMES_PER_CELL {
-        return Ok(' ');
-    }
 
-    let mut buf = [0u32; MAX_GRAPHEMES_PER_CELL];
-    // SAFETY: `buf` holds at least `len` u32s (len <= MAX_GRAPHEMES_PER_CELL);
-    // GRAPHEMES_BUF writes exactly `len` codepoints into the pointer.
-    let r = unsafe {
-        ghostty_render_state_row_cells_get(
-            cells,
-            GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF,
-            buf.as_mut_ptr().cast::<c_void>(),
-        )
+    let base = if len <= MAX_GRAPHEMES_PER_CELL {
+        let mut buf = [0u32; MAX_GRAPHEMES_PER_CELL];
+        // SAFETY: `buf` holds at least `len` u32s (len <= MAX_GRAPHEMES_PER_CELL);
+        // GRAPHEMES_BUF writes exactly `len` codepoints into the pointer.
+        let r = unsafe {
+            ghostty_render_state_row_cells_get(
+                cells,
+                GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF,
+                buf.as_mut_ptr().cast::<c_void>(),
+            )
+        };
+        if r != GhosttyResult_GHOSTTY_SUCCESS {
+            return Err(TermError::Feed(format!(
+                "row_cells_get(GRAPHEMES_BUF) returned {r}"
+            )));
+        }
+        buf[0]
+    } else {
+        let mut buf: Vec<u32> = vec![0; len];
+        // SAFETY: `buf` holds exactly `len` u32s; GRAPHEMES_BUF writes exactly
+        // `len` codepoints into the pointer.
+        let r = unsafe {
+            ghostty_render_state_row_cells_get(
+                cells,
+                GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF,
+                buf.as_mut_ptr().cast::<c_void>(),
+            )
+        };
+        if r != GhosttyResult_GHOSTTY_SUCCESS {
+            return Err(TermError::Feed(format!(
+                "row_cells_get(GRAPHEMES_BUF) returned {r}"
+            )));
+        }
+        buf[0]
     };
-    if r != GhosttyResult_GHOSTTY_SUCCESS {
-        return Err(TermError::Feed(format!(
-            "row_cells_get(GRAPHEMES_BUF) returned {r}"
-        )));
-    }
-    Ok(char::from_u32(buf[0]).unwrap_or(' '))
+    Ok(char::from_u32(base).unwrap_or(' '))
 }
 
 fn read_style(cells: GhosttyRenderStateRowCells) -> Result<(Color, Color, Attrs)> {

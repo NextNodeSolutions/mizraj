@@ -12,6 +12,11 @@ pub fn set_active_project(
     Ok(())
 }
 
+#[tauri::command]
+pub fn clear_active_project(active_project: tauri::State<'_, ActiveProject>) {
+    active_project.clear();
+}
+
 fn validate_repo_path(repo_path: &str) -> Result<PathBuf, String> {
     let trimmed = repo_path.trim();
     if trimmed.is_empty() {
