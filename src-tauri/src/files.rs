@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::active_project::ActiveProject;
+use crate::commands::plan_protocol::is_safe_slug;
 
 pub type InterviewState = serde_json::Value;
 
@@ -8,15 +9,8 @@ const ERR_NO_ACTIVE_PROJECT: &str = "no active project: call set_active_project 
 const ERR_INVALID_SLUG: &str =
     "invalid slug: only ASCII alphanumeric, '-' and '_' are allowed (1..=128 chars)";
 
-fn is_valid_slug(slug: &str) -> bool {
-    (1..=128).contains(&slug.len())
-        && slug
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-}
-
 fn read_state_from(base: &Path, slug: &str) -> Result<InterviewState, String> {
-    if !is_valid_slug(slug) {
+    if !is_safe_slug(slug) {
         return Err(ERR_INVALID_SLUG.to_string());
     }
     let path = base.join(slug).join("state.json");

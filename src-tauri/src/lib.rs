@@ -64,10 +64,10 @@ fn log_from_frontend(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(logging::plugin())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -77,11 +77,16 @@ pub fn run() {
             commands::plan_protocol::handle_request,
         )
         .setup(|app| {
-            let guard = logging::init_logging(app)?;
-            app.manage(guard);
             let app_data_dir = app.path().app_data_dir()?;
             let db_path = app_data_dir.join("agent-cockpit.db");
-            let pool = tauri::async_runtime::block_on(db::init_db(&db_path))?;
+            let pool = tauri::async_runtime::block_on(db::init_db(&db_path)).map_err(|err| {
+                tracing::error!(
+                    path = %db_path.display(),
+                    error = %err,
+                    "init_db failed during Tauri setup",
+                );
+                err
+            })?;
             app.manage(pool);
             #[cfg(all(desktop, not(debug_assertions)))]
             app.handle()
@@ -94,7 +99,12 @@ pub fn run() {
             files::read_interview_state,
             commands::list_plans::list_plans,
             commands::set_active_project::set_active_project,
+            commands::set_active_project::clear_active_project,
+            commands::plan_protocol::resolve_plan,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|err| {
+            tracing::error!(error = %err, "tauri application exited with error");
+            std::process::exit(1);
+        });
 }
