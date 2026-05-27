@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use portable_pty::ExitStatus;
 use sqlx::sqlite::SqlitePool;
-use tauri::async_runtime::{channel, spawn, spawn_blocking, Mutex, RwLock};
+use tauri::async_runtime::{channel, spawn, spawn_blocking, Mutex, Receiver, RwLock};
 
 use crate::session::error::SessionError;
 use crate::session::handle::SessionHandle;
@@ -55,6 +55,29 @@ async fn pty_read_loop(
     }
 }
 
+/// Drain `rx` and forward each `Vec<u8>` chunk to `writer` (D4 mechanism (b)).
+///
+/// The blocking `write_all` + `flush` pair runs under `spawn_blocking` so the
+/// async runtime stays free even if the PTY's kernel buffer is briefly full.
+/// Any write error or a closed channel terminates the loop, which drops
+/// `writer` and lets the kernel close the PTY master.
+async fn pty_write_loop(mut writer: Box<dyn Write + Send>, mut rx: Receiver<Vec<u8>>) {
+    while let Some(chunk) = rx.recv().await {
+        let join = spawn_blocking(move || {
+            let result = writer.write_all(&chunk).and_then(|()| writer.flush());
+            (writer, result)
+        })
+        .await;
+        let Ok((returned_writer, write_result)) = join else {
+            return;
+        };
+        if write_result.is_err() {
+            return;
+        }
+        writer = returned_writer;
+    }
+}
+
 /// Central registry of live agent sessions (D4).
 ///
 /// Holds the keyed `SessionHandle` map behind an `Arc<RwLock<..>>` and a clone
@@ -84,6 +107,27 @@ impl SessionManager {
 
     pub async fn list_sessions(&self) -> Vec<SessionId> {
         self.state.read().await.keys().cloned().collect()
+    }
+
+    /// Queue `bytes` for the session's PTY master writer.
+    ///
+    /// The send goes through the bounded `INPUT_CHANNEL_CAPACITY` mpsc, so a
+    /// stuck child applies backpressure to callers instead of letting the
+    /// queue grow unbounded. Returns `NotFound` when `id` is not registered
+    /// and `InputClosed` when the writer task has exited (typically because
+    /// the PTY was closed or the child died).
+    pub async fn send_input(&self, id: &SessionId, bytes: Vec<u8>) -> Result<(), SessionError> {
+        let writer = {
+            let state = self.state.read().await;
+            let handle = state
+                .get(id)
+                .ok_or_else(|| SessionError::NotFound(id.to_string()))?;
+            handle.writer().clone()
+        };
+        writer
+            .send(bytes)
+            .await
+            .map_err(|_| SessionError::InputClosed)
     }
 
     /// Allocate a fresh `SessionId`, spawn the PTY under
@@ -123,10 +167,7 @@ impl SessionManager {
         let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> = Arc::new(RwLock::new(Vec::new()));
 
         let reader_task = spawn(pty_read_loop(master_reader, Arc::clone(&sinks)));
-        let writer_task = spawn(async move {
-            let _hold = (master_writer, writer_rx);
-            std::future::pending::<()>().await
-        });
+        let writer_task = spawn(pty_write_loop(master_writer, writer_rx));
         let child_for_wait = Arc::clone(&child);
         let wait_task = spawn(async move {
             let _hold = child_for_wait;
@@ -149,12 +190,58 @@ impl SessionManager {
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
+    use std::sync::Mutex as StdMutex;
 
+    use portable_pty::{Child, ChildKiller};
     use sqlx::sqlite::SqlitePoolOptions;
     use tauri::async_runtime::block_on;
 
     use super::*;
     use crate::session::sink::test_support::VecSink;
+
+    #[derive(Debug)]
+    struct FakeChild;
+
+    impl ChildKiller for FakeChild {
+        fn kill(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn clone_killer(&self) -> Box<dyn ChildKiller + Send + Sync> {
+            Box::new(FakeChild)
+        }
+    }
+
+    impl Child for FakeChild {
+        fn try_wait(&mut self) -> std::io::Result<Option<ExitStatus>> {
+            Ok(None)
+        }
+
+        fn wait(&mut self) -> std::io::Result<ExitStatus> {
+            Ok(ExitStatus::with_exit_code(0))
+        }
+
+        fn process_id(&self) -> Option<u32> {
+            None
+        }
+    }
+
+    struct VecWriter(Arc<StdMutex<Vec<u8>>>);
+
+    impl Write for VecWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().expect("VecWriter mutex").extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn fresh_child() -> Arc<Mutex<Box<dyn Child + Send + Sync>>> {
+        Arc::new(Mutex::new(Box::new(FakeChild) as Box<dyn Child + Send + Sync>))
+    }
 
     fn fresh_pool() -> SqlitePool {
         block_on(async {
@@ -295,6 +382,94 @@ mod tests {
 
             assert_eq!(a.snapshot(), b"abc");
             assert_eq!(b.snapshot(), b"abc");
+        });
+    }
+
+    #[test]
+    fn pty_write_loop_forwards_100_bytes_to_fake_writer() {
+        block_on(async {
+            let observed = Arc::new(StdMutex::new(Vec::<u8>::new()));
+            let writer: Box<dyn Write + Send> = Box::new(VecWriter(Arc::clone(&observed)));
+            let (tx, rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
+
+            let task = spawn(pty_write_loop(writer, rx));
+
+            let payload = vec![b'x'; 100];
+            tx.send(payload).await.expect("send 100 bytes");
+            drop(tx);
+            task.await.expect("writer task should exit on channel close");
+
+            let captured = observed.lock().expect("VecWriter mutex").clone();
+            assert_eq!(captured.len(), 100);
+            assert!(captured.iter().all(|b| *b == b'x'));
+        });
+    }
+
+    #[test]
+    fn pty_write_loop_concatenates_multiple_chunks_in_order() {
+        block_on(async {
+            let observed = Arc::new(StdMutex::new(Vec::<u8>::new()));
+            let writer: Box<dyn Write + Send> = Box::new(VecWriter(Arc::clone(&observed)));
+            let (tx, rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
+
+            let task = spawn(pty_write_loop(writer, rx));
+
+            tx.send(b"hello ".to_vec()).await.expect("send 1");
+            tx.send(b"world".to_vec()).await.expect("send 2");
+            drop(tx);
+            task.await.expect("writer task join");
+
+            assert_eq!(observed.lock().expect("VecWriter mutex").as_slice(), b"hello world");
+        });
+    }
+
+    #[test]
+    fn send_input_returns_not_found_for_unknown_session() {
+        let pool = fresh_pool();
+        block_on(async {
+            let manager = SessionManager::new(pool);
+            let id = SessionId::new();
+            let err = manager
+                .send_input(&id, b"data".to_vec())
+                .await
+                .expect_err("unknown id should fail");
+            match err {
+                SessionError::NotFound(s) => assert_eq!(s, id.to_string()),
+                other => panic!("expected NotFound, got {other:?}"),
+            }
+        });
+    }
+
+    #[test]
+    fn send_input_returns_input_closed_when_receiver_dropped() {
+        let pool = fresh_pool();
+        block_on(async {
+            let manager = SessionManager::new(pool);
+
+            let (tx, rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
+            drop(rx); // simulate writer task having exited
+
+            let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> = Arc::new(RwLock::new(Vec::new()));
+            let reader_task = spawn(async { std::future::pending::<()>().await });
+            let writer_task = spawn(async { std::future::pending::<()>().await });
+            let wait_task = spawn(async { std::future::pending::<ExitStatus>().await });
+
+            let handle = SessionHandle::new(
+                tx,
+                fresh_child(),
+                reader_task,
+                writer_task,
+                wait_task,
+                sinks,
+            );
+            let id = SessionId::new();
+            manager.state.write().await.insert(id.clone(), handle);
+
+            let err = manager
+                .send_input(&id, b"x".to_vec())
+                .await
+                .expect_err("closed channel should fail");
+            assert!(matches!(err, SessionError::InputClosed));
         });
     }
 
