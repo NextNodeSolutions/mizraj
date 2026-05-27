@@ -107,6 +107,7 @@ pub fn run() {
             greet,
             log_from_frontend,
             files::read_interview_state,
+            commands::get_diff::get_diff,
             commands::list_plans::list_plans,
             commands::set_active_project::set_active_project,
             commands::set_active_project::clear_active_project,
