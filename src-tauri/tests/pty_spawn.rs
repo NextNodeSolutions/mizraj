@@ -1,4 +1,4 @@
-#![cfg(target_family = "unix")]
+#![cfg(target_os = "macos")]
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
