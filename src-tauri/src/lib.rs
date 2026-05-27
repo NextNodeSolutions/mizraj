@@ -112,6 +112,7 @@ pub fn run() {
             commands::set_active_project::set_active_project,
             commands::set_active_project::clear_active_project,
             commands::plan_protocol::resolve_plan,
+            session::commands::session_create,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|err| {

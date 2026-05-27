@@ -1,3 +1,4 @@
+pub mod commands;
 pub mod error;
 pub mod handle;
 pub mod id;
