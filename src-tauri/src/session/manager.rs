@@ -288,6 +288,43 @@ impl SessionManager {
     }
 }
 
+/// Process-wide shutdown broadcast (D4 edge): when the `SessionManager` is
+/// dropped — typically on app quit — every still-registered child receives
+/// `SIGTERM` immediately so the OS can start tearing them down in parallel.
+///
+/// PIDs are snapshotted under a brief synchronous `try_read` BEFORE any
+/// `kill()` syscall, so no signal is issued while the registry lock is held.
+/// `try_read` is used (not `blocking_read`) because Drop may run inside a
+/// tokio worker, where blocking-on-the-runtime would deadlock.
+///
+/// This is best-effort: it does NOT await reaping, does NOT escalate to
+/// `SIGKILL` (that path lives in `session_close` and is extended for the
+/// shutdown case in SAS-404), and does NOT panic if the registry is empty.
+impl Drop for SessionManager {
+    fn drop(&mut self) {
+        let pids: Vec<Pid> = match self.state.try_read() {
+            Ok(guard) => guard
+                .values()
+                .filter_map(|handle| handle.pid())
+                .filter_map(|raw| i32::try_from(raw).ok())
+                .map(Pid::from_raw)
+                .collect(),
+            Err(_) => {
+                tracing::warn!(
+                    "SessionManager dropped: registry lock contended, skipping SIGTERM broadcast"
+                );
+                return;
+            }
+        };
+
+        let count = pids.len();
+        for pid in &pids {
+            let _ = kill(*pid, Signal::SIGTERM);
+        }
+        tracing::info!(count, "SessionManager dropped");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
@@ -704,6 +741,78 @@ mod tests {
                 other => panic!("expected NotFound, got {other:?}"),
             }
         });
+    }
+
+    #[test]
+    fn drop_with_empty_registry_does_not_panic() {
+        let pool = fresh_pool();
+        let manager = SessionManager::new(pool);
+        drop(manager);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn drop_broadcasts_sigterm_to_all_registered_sessions() {
+        use std::os::unix::process::ExitStatusExt;
+        use std::process::Command;
+
+        // Two real OS children (no PTY) that block until signaled. We do NOT
+        // hand them to the manager — we hand the manager fake `SessionHandle`s
+        // that merely *expose* the real PIDs via `handle.pid()`, which is all
+        // `Drop` reads. After dropping the manager, we `wait()` on the
+        // std::process::Child ourselves and inspect the termination signal.
+        let child1 = Command::new("/bin/sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn sleep 1");
+        let child2 = Command::new("/bin/sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn sleep 2");
+        let pid1_raw = child1.id();
+        let pid2_raw = child2.id();
+        let mut child1 = child1;
+        let mut child2 = child2;
+
+        let pool = fresh_pool();
+        block_on(async {
+            let manager = SessionManager::new(pool);
+
+            for pid in [pid1_raw, pid2_raw] {
+                let (writer_tx, _writer_rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
+                let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> =
+                    Arc::new(RwLock::new(Vec::new()));
+                let reader_task = spawn(async { std::future::pending::<()>().await });
+                let writer_task = spawn(async { std::future::pending::<()>().await });
+                let wait_task = spawn(async { std::future::pending::<ExitStatus>().await });
+
+                let handle = SessionHandle::new(
+                    writer_tx,
+                    fresh_child(),
+                    reader_task,
+                    writer_task,
+                    wait_task,
+                    sinks,
+                    Some(pid),
+                );
+                manager.state.write().await.insert(SessionId::new(), handle);
+            }
+
+            drop(manager);
+        });
+
+        let status1 = child1.wait().expect("child1 wait");
+        let status2 = child2.wait().expect("child2 wait");
+        assert_eq!(
+            status1.signal(),
+            Some(Signal::SIGTERM as i32),
+            "child 1 should be killed by SIGTERM, got {status1:?}"
+        );
+        assert_eq!(
+            status2.signal(),
+            Some(Signal::SIGTERM as i32),
+            "child 2 should be killed by SIGTERM, got {status2:?}"
+        );
     }
 
     #[cfg(target_os = "macos")]
