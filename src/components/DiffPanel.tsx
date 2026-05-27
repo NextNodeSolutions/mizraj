@@ -1,7 +1,8 @@
-import { PatchDiff } from '@pierre/diffs/react'
-
 import type { DiffView } from '../lib/useDiff'
 import { useDiff } from '../lib/useDiff'
+import { useLayoutToggle } from '../lib/useLayoutToggle'
+import DiffPanelBody from './DiffPanelBody'
+import DiffPanelToolbar from './DiffPanelToolbar'
 
 type Props = {
 	sessionId: string
@@ -10,38 +11,12 @@ type Props = {
 
 const DiffPanel = ({ sessionId, view }: Props): React.JSX.Element => {
 	const state = useDiff(sessionId, view)
+	const { layout, toggleLayout, diffStyle } = useLayoutToggle()
 
-	if (state.status === 'loading') {
-		return (
-			<p
-				className="diff-panel__placeholder"
-				role="status"
-				aria-live="polite"
-			>
-				Loading diff…
-			</p>
-		)
-	}
-	if (state.status === 'error') {
-		return (
-			<p
-				className="diff-panel__placeholder diff-panel__placeholder--error"
-				role="alert"
-			>
-				Diff unavailable: {state.message}
-			</p>
-		)
-	}
-	if (state.patch.trim() === '') {
-		return (
-			<p className="diff-panel__placeholder" role="status">
-				No changes.
-			</p>
-		)
-	}
 	return (
-		<div className="diff-panel__container">
-			<PatchDiff patch={state.patch} />
+		<div className="diff-panel">
+			<DiffPanelToolbar layout={layout} onToggle={toggleLayout} />
+			<DiffPanelBody state={state} diffStyle={diffStyle} />
 		</div>
 	)
 }
