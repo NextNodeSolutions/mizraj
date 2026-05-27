@@ -64,8 +64,10 @@ mod tests {
     fn fan_out_through_arc_dyn_sinks() {
         let a = Arc::new(VecSink::new());
         let b = Arc::new(VecSink::new());
-        let sinks: Vec<Arc<dyn OutputSink>> =
-            vec![Arc::clone(&a) as Arc<dyn OutputSink>, Arc::clone(&b) as Arc<dyn OutputSink>];
+        let sinks: Vec<Arc<dyn OutputSink>> = vec![
+            Arc::clone(&a) as Arc<dyn OutputSink>,
+            Arc::clone(&b) as Arc<dyn OutputSink>,
+        ];
 
         for sink in &sinks {
             sink.write(b"chunk");

@@ -32,8 +32,8 @@ async fn pty_read_loop(
     mut reader: Box<dyn Read + Send>,
     sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>>,
 ) {
+    let mut buf = vec![0u8; PTY_READ_BUFFER_SIZE];
     loop {
-        let buf = vec![0u8; PTY_READ_BUFFER_SIZE];
         let join = spawn_blocking(move || {
             let mut buf = buf;
             let result = reader.read(&mut buf);
@@ -44,16 +44,20 @@ async fn pty_read_loop(
             return;
         };
         reader = returned_reader;
+        buf = returned_buf;
         let n = match read_result {
             Ok(0) => return,
             Ok(n) => n,
-            Err(_) => return,
+            Err(err) => {
+                tracing::warn!(error = %err, "pty_read_loop reader returned error; ending");
+                return;
+            }
         };
         let snapshot: Vec<Arc<dyn OutputSink>> = {
             let guard = sinks.read().await;
             guard.iter().cloned().collect()
         };
-        let chunk = &returned_buf[..n];
+        let chunk = &buf[..n];
         for sink in &snapshot {
             sink.write(chunk);
         }
@@ -168,12 +172,16 @@ impl SessionManager {
     /// child mutex, calls `child.wait()` under `spawn_blocking`, and lets
     /// the `JoinHandle<ExitStatus>` resolve to the observed exit code so
     /// the close path can consume it.
-    pub async fn create_session(
+    pub async fn create_session<F>(
         &self,
         binary: PathBuf,
         cwd: PathBuf,
         env: HashMap<String, String>,
-    ) -> Result<SessionId, SessionError> {
+        initial_sinks: F,
+    ) -> Result<SessionId, SessionError>
+    where
+        F: FnOnce(&SessionId) -> Vec<Arc<dyn OutputSink>>,
+    {
         let binary_str = binary
             .to_str()
             .ok_or_else(|| {
@@ -194,7 +202,14 @@ impl SessionManager {
         let pid = child.process_id();
         let child = Arc::new(Mutex::new(child));
         let (writer_tx, writer_rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
-        let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> = Arc::new(RwLock::new(Vec::new()));
+
+        // Allocate the id BEFORE spawning the reader so `initial_sinks` can
+        // build sinks bound to the final session id; populating the Vec here
+        // (not via attach_sink afterwards) closes the race where the PTY's
+        // first chunk arrives before any sink has been attached.
+        let id = SessionId::new();
+        let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> =
+            Arc::new(RwLock::new(initial_sinks(&id)));
 
         let reader_task = spawn(pty_read_loop(master_reader, Arc::clone(&sinks)));
         let writer_task = spawn(pty_write_loop(master_writer, writer_rx));
@@ -209,7 +224,6 @@ impl SessionManager {
             .expect("wait_task spawn_blocking join")
         });
 
-        let id = SessionId::new();
         let handle = SessionHandle::new(
             writer_tx,
             child,
@@ -390,7 +404,10 @@ mod tests {
 
     impl Write for VecWriter {
         fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-            self.0.lock().expect("VecWriter mutex").extend_from_slice(buf);
+            self.0
+                .lock()
+                .expect("VecWriter mutex")
+                .extend_from_slice(buf);
             Ok(buf.len())
         }
 
@@ -400,7 +417,9 @@ mod tests {
     }
 
     fn fresh_child() -> Arc<Mutex<Box<dyn Child + Send + Sync>>> {
-        Arc::new(Mutex::new(Box::new(FakeChild) as Box<dyn Child + Send + Sync>))
+        Arc::new(Mutex::new(
+            Box::new(FakeChild) as Box<dyn Child + Send + Sync>
+        ))
     }
 
     fn fresh_pool() -> SqlitePool {
@@ -429,7 +448,9 @@ mod tests {
             let env: HashMap<String, String> = HashMap::new();
 
             let id = manager
-                .create_session(PathBuf::from("/bin/sh"), PathBuf::from("/tmp"), env)
+                .create_session(PathBuf::from("/bin/sh"), PathBuf::from("/tmp"), env, |_| {
+                    Vec::new()
+                })
                 .await
                 .expect("create_session should spawn /bin/sh");
 
@@ -447,11 +468,18 @@ mod tests {
             let env: HashMap<String, String> = HashMap::new();
 
             let id1 = manager
-                .create_session(PathBuf::from("/bin/sh"), PathBuf::from("/tmp"), env.clone())
+                .create_session(
+                    PathBuf::from("/bin/sh"),
+                    PathBuf::from("/tmp"),
+                    env.clone(),
+                    |_| Vec::new(),
+                )
                 .await
                 .expect("first create_session");
             let id2 = manager
-                .create_session(PathBuf::from("/bin/sh"), PathBuf::from("/tmp"), env)
+                .create_session(PathBuf::from("/bin/sh"), PathBuf::from("/tmp"), env, |_| {
+                    Vec::new()
+                })
                 .await
                 .expect("second create_session");
 
@@ -471,7 +499,12 @@ mod tests {
             let env: HashMap<String, String> = HashMap::new();
 
             let id = manager
-                .create_session(PathBuf::from("/usr/bin/true"), PathBuf::from("/tmp"), env)
+                .create_session(
+                    PathBuf::from("/usr/bin/true"),
+                    PathBuf::from("/tmp"),
+                    env,
+                    |_| Vec::new(),
+                )
                 .await
                 .expect("create_session /usr/bin/true");
 
@@ -486,7 +519,9 @@ mod tests {
             };
 
             let started = Instant::now();
-            let status = wait_task.await.expect("wait observer task should not panic");
+            let status = wait_task
+                .await
+                .expect("wait observer task should not panic");
             let elapsed = started.elapsed();
 
             assert!(
@@ -508,7 +543,7 @@ mod tests {
             let manager = SessionManager::new(pool);
             let bad = PathBuf::from(OsString::from_vec(vec![0xff, 0xfe, 0xfd]));
             let err = manager
-                .create_session(bad, PathBuf::from("/tmp"), HashMap::new())
+                .create_session(bad, PathBuf::from("/tmp"), HashMap::new(), |_| Vec::new())
                 .await
                 .expect_err("non-utf8 binary path should fail before spawn");
             match err {
@@ -545,16 +580,14 @@ mod tests {
     #[test]
     fn pty_read_loop_forwards_chunks_to_attached_sink() {
         block_on(async {
-            let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> =
-                Arc::new(RwLock::new(Vec::new()));
+            let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> = Arc::new(RwLock::new(Vec::new()));
             let sink = Arc::new(VecSink::new());
             sinks
                 .write()
                 .await
                 .push(Arc::clone(&sink) as Arc<dyn OutputSink>);
 
-            let reader: Box<dyn Read + Send> =
-                Box::new(Cursor::new(b"hello world".to_vec()));
+            let reader: Box<dyn Read + Send> = Box::new(Cursor::new(b"hello world".to_vec()));
             pty_read_loop(reader, Arc::clone(&sinks)).await;
 
             assert_eq!(sink.snapshot(), b"hello world");
@@ -564,8 +597,7 @@ mod tests {
     #[test]
     fn pty_read_loop_fans_out_to_all_attached_sinks() {
         block_on(async {
-            let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> =
-                Arc::new(RwLock::new(Vec::new()));
+            let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> = Arc::new(RwLock::new(Vec::new()));
             let a = Arc::new(VecSink::new());
             let b = Arc::new(VecSink::new());
             {
@@ -594,7 +626,8 @@ mod tests {
             let payload = vec![b'x'; 100];
             tx.send(payload).await.expect("send 100 bytes");
             drop(tx);
-            task.await.expect("writer task should exit on channel close");
+            task.await
+                .expect("writer task should exit on channel close");
 
             let captured = observed.lock().expect("VecWriter mutex").clone();
             assert_eq!(captured.len(), 100);
@@ -616,7 +649,10 @@ mod tests {
             drop(tx);
             task.await.expect("writer task join");
 
-            assert_eq!(observed.lock().expect("VecWriter mutex").as_slice(), b"hello world");
+            assert_eq!(
+                observed.lock().expect("VecWriter mutex").as_slice(),
+                b"hello world"
+            );
         });
     }
 
@@ -674,8 +710,7 @@ mod tests {
     #[test]
     fn pty_read_loop_iterates_until_eof_across_multiple_reads() {
         block_on(async {
-            let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> =
-                Arc::new(RwLock::new(Vec::new()));
+            let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> = Arc::new(RwLock::new(Vec::new()));
             let sink = Arc::new(VecSink::new());
             sinks
                 .write()
@@ -868,7 +903,9 @@ mod tests {
             let env: HashMap<String, String> = HashMap::new();
 
             let id = manager
-                .create_session(script_path.clone(), PathBuf::from("/tmp"), env)
+                .create_session(script_path.clone(), PathBuf::from("/tmp"), env, |_| {
+                    Vec::new()
+                })
                 .await
                 .expect("create_session trap-sigterm.sh");
 
@@ -924,7 +961,9 @@ mod tests {
             let env: HashMap<String, String> = HashMap::new();
 
             let id = manager
-                .create_session(PathBuf::from("/bin/sh"), PathBuf::from("/tmp"), env)
+                .create_session(PathBuf::from("/bin/sh"), PathBuf::from("/tmp"), env, |_| {
+                    Vec::new()
+                })
                 .await
                 .expect("create_session /bin/sh");
 

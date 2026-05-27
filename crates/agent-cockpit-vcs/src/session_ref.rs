@@ -120,8 +120,8 @@ mod tests {
 
         commit_empty(&repo, "advance");
 
-        let err = create_session_ref(&repo, "id")
-            .expect_err("second call should fail when HEAD moved");
+        let err =
+            create_session_ref(&repo, "id").expect_err("second call should fail when HEAD moved");
         let VcsError::Git(inner) = err;
         assert_eq!(inner.code(), git2::ErrorCode::Exists);
     }

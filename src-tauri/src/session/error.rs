@@ -17,6 +17,9 @@ pub enum SessionError {
 
     #[error("session input channel closed")]
     InputClosed,
+
+    #[error("failed to register session ref: {0}")]
+    SessionRef(String),
 }
 
 impl Serialize for SessionError {
@@ -45,6 +48,10 @@ impl Serialize for SessionError {
             SessionError::InputClosed => {
                 map.serialize_entry("kind", "input_closed")?;
                 map.serialize_entry("message", "session input channel closed")?;
+            }
+            SessionError::SessionRef(message) => {
+                map.serialize_entry("kind", "session_ref")?;
+                map.serialize_entry("message", message)?;
             }
         }
         map.end()
@@ -82,6 +89,13 @@ mod tests {
         let err = SessionError::NotFound("01H8XYZ".into());
         let json = serde_json::to_string(&err).expect("serialize");
         assert_eq!(json, r#"{"kind":"not_found","session_id":"01H8XYZ"}"#);
+    }
+
+    #[test]
+    fn serializes_session_ref_with_kind_and_message() {
+        let err = SessionError::SessionRef("repo not found".into());
+        let json = serde_json::to_string(&err).expect("serialize");
+        assert_eq!(json, r#"{"kind":"session_ref","message":"repo not found"}"#);
     }
 
     #[test]

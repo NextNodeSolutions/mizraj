@@ -91,7 +91,10 @@ export const startAgentEventsBridge = (): void => {
 		if (!store.get(sessionsAtom)[session_id]) {
 			logger.warn(
 				`agent:output for unknown session ${session_id}; dropping chunk`,
-				{ scope: 'sessions-store', details: { kind, bytes: text.length } },
+				{
+					scope: 'sessions-store',
+					details: { kind, bytes: text.length },
+				},
 			)
 			return
 		}

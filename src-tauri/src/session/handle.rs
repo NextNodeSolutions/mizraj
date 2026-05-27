@@ -141,7 +141,9 @@ mod tests {
     }
 
     fn fresh_child() -> Arc<Mutex<Box<dyn Child + Send + Sync>>> {
-        Arc::new(Mutex::new(Box::new(FakeChild) as Box<dyn Child + Send + Sync>))
+        Arc::new(Mutex::new(
+            Box::new(FakeChild) as Box<dyn Child + Send + Sync>
+        ))
     }
 
     #[test]
@@ -226,9 +228,18 @@ mod tests {
                 let _ = spawn(async {}).await;
             }
 
-            assert!(reader_dropped.load(Ordering::SeqCst), "reader task should be aborted");
-            assert!(writer_dropped.load(Ordering::SeqCst), "writer task should be aborted");
-            assert!(wait_dropped.load(Ordering::SeqCst), "wait task should be aborted");
+            assert!(
+                reader_dropped.load(Ordering::SeqCst),
+                "reader task should be aborted"
+            );
+            assert!(
+                writer_dropped.load(Ordering::SeqCst),
+                "writer task should be aborted"
+            );
+            assert!(
+                wait_dropped.load(Ordering::SeqCst),
+                "wait task should be aborted"
+            );
         });
     }
 }
