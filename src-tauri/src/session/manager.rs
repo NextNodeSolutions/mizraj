@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -13,6 +14,46 @@ use crate::session::pty::{self, PtySession};
 use crate::session::sink::OutputSink;
 
 const INPUT_CHANNEL_CAPACITY: usize = 64;
+const PTY_READ_BUFFER_SIZE: usize = 4096;
+
+/// Drain `reader` in 4KB chunks until EOF, fanning each chunk out to every
+/// sink currently registered in `sinks` (D4 mechanism (a)).
+///
+/// The sink list is snapshotted (Arc clones, then the read lock is released)
+/// before any `OutputSink::write` call. Per `OutputSink`'s contract a write
+/// is supposed to be ~1ms, but holding the registry's RwLock across user-
+/// supplied code is still a deadlock hazard the dossier explicitly flags.
+async fn pty_read_loop(
+    mut reader: Box<dyn Read + Send>,
+    sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>>,
+) {
+    loop {
+        let buf = vec![0u8; PTY_READ_BUFFER_SIZE];
+        let join = spawn_blocking(move || {
+            let mut buf = buf;
+            let result = reader.read(&mut buf);
+            (reader, buf, result)
+        })
+        .await;
+        let Ok((returned_reader, returned_buf, read_result)) = join else {
+            return;
+        };
+        reader = returned_reader;
+        let n = match read_result {
+            Ok(0) => return,
+            Ok(n) => n,
+            Err(_) => return,
+        };
+        let snapshot: Vec<Arc<dyn OutputSink>> = {
+            let guard = sinks.read().await;
+            guard.iter().cloned().collect()
+        };
+        let chunk = &returned_buf[..n];
+        for sink in &snapshot {
+            sink.write(chunk);
+        }
+    }
+}
 
 /// Central registry of live agent sessions (D4).
 ///
@@ -46,14 +87,14 @@ impl SessionManager {
     }
 
     /// Allocate a fresh `SessionId`, spawn the PTY under
-    /// `tauri::async_runtime::spawn_blocking`, and register a skeleton
-    /// `SessionHandle` in the registry.
+    /// `tauri::async_runtime::spawn_blocking`, and register a `SessionHandle`
+    /// in the registry.
     ///
-    /// "Skeleton" means the three long-running task slots (reader / writer /
-    /// wait) are filled with placeholder bodies that pend forever while
-    /// holding their slice of the PTY plumbing alive. The real loops land in
-    /// P3-07 (reader), P3-08 (writer), and P3-09 (wait) by replacing the
-    /// placeholder bodies in this function.
+    /// The reader task drains the PTY master and fans bytes out to every
+    /// attached sink (P3-07, see [`pty_read_loop`]). The writer and wait
+    /// tasks are still placeholders that pend forever while holding their
+    /// PTY plumbing alive; the real loops land in P3-08 (writer) and P3-09
+    /// (wait) by replacing the placeholder bodies in this function.
     pub async fn create_session(
         &self,
         binary: PathBuf,
@@ -81,10 +122,7 @@ impl SessionManager {
         let (writer_tx, writer_rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
         let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> = Arc::new(RwLock::new(Vec::new()));
 
-        let reader_task = spawn(async move {
-            let _hold = master_reader;
-            std::future::pending::<()>().await
-        });
+        let reader_task = spawn(pty_read_loop(master_reader, Arc::clone(&sinks)));
         let writer_task = spawn(async move {
             let _hold = (master_writer, writer_rx);
             std::future::pending::<()>().await
@@ -110,10 +148,13 @@ impl SessionManager {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
     use sqlx::sqlite::SqlitePoolOptions;
     use tauri::async_runtime::block_on;
 
     use super::*;
+    use crate::session::sink::test_support::VecSink;
 
     fn fresh_pool() -> SqlitePool {
         block_on(async {
@@ -193,6 +234,88 @@ mod tests {
                 ),
                 other => panic!("expected Spawn error, got {other:?}"),
             }
+        });
+    }
+
+    // A `Read` impl that hands the loop one queued chunk per `read` call,
+    // then returns Ok(0) to signal EOF. Used to exercise the
+    // multi-iteration path of `pty_read_loop`.
+    struct ChunkedReader {
+        chunks: Vec<Vec<u8>>,
+        idx: usize,
+    }
+
+    impl Read for ChunkedReader {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if self.idx >= self.chunks.len() {
+                return Ok(0);
+            }
+            let chunk = &self.chunks[self.idx];
+            let n = chunk.len().min(buf.len());
+            buf[..n].copy_from_slice(&chunk[..n]);
+            self.idx += 1;
+            Ok(n)
+        }
+    }
+
+    #[test]
+    fn pty_read_loop_forwards_chunks_to_attached_sink() {
+        block_on(async {
+            let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> =
+                Arc::new(RwLock::new(Vec::new()));
+            let sink = Arc::new(VecSink::new());
+            sinks
+                .write()
+                .await
+                .push(Arc::clone(&sink) as Arc<dyn OutputSink>);
+
+            let reader: Box<dyn Read + Send> =
+                Box::new(Cursor::new(b"hello world".to_vec()));
+            pty_read_loop(reader, Arc::clone(&sinks)).await;
+
+            assert_eq!(sink.snapshot(), b"hello world");
+        });
+    }
+
+    #[test]
+    fn pty_read_loop_fans_out_to_all_attached_sinks() {
+        block_on(async {
+            let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> =
+                Arc::new(RwLock::new(Vec::new()));
+            let a = Arc::new(VecSink::new());
+            let b = Arc::new(VecSink::new());
+            {
+                let mut guard = sinks.write().await;
+                guard.push(Arc::clone(&a) as Arc<dyn OutputSink>);
+                guard.push(Arc::clone(&b) as Arc<dyn OutputSink>);
+            }
+
+            let reader: Box<dyn Read + Send> = Box::new(Cursor::new(b"abc".to_vec()));
+            pty_read_loop(reader, Arc::clone(&sinks)).await;
+
+            assert_eq!(a.snapshot(), b"abc");
+            assert_eq!(b.snapshot(), b"abc");
+        });
+    }
+
+    #[test]
+    fn pty_read_loop_iterates_until_eof_across_multiple_reads() {
+        block_on(async {
+            let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> =
+                Arc::new(RwLock::new(Vec::new()));
+            let sink = Arc::new(VecSink::new());
+            sinks
+                .write()
+                .await
+                .push(Arc::clone(&sink) as Arc<dyn OutputSink>);
+
+            let reader: Box<dyn Read + Send> = Box::new(ChunkedReader {
+                chunks: vec![b"hel".to_vec(), b"lo ".to_vec(), b"world".to_vec()],
+                idx: 0,
+            });
+            pty_read_loop(reader, Arc::clone(&sinks)).await;
+
+            assert_eq!(sink.snapshot(), b"hello world");
         });
     }
 }
