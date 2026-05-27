@@ -14,6 +14,12 @@ pub struct PtySession {
 
 /// Spawn `binary` under a 24x80 PTY with the given `cwd` and `env`.
 ///
+/// `env` is applied on top of the parent process environment (portable-pty
+/// inherits parent env by default); vars in `env` override matching parent
+/// vars. Pass `binary` as an absolute path (resolve via [`super::path::resolve`])
+/// so a missing binary surfaces as `BinaryNotFound` rather than an opaque
+/// spawn failure.
+///
 /// Sync by design. Callers invoking this from a Tauri command MUST wrap it in
 /// `tauri::async_runtime::spawn_blocking` so the event loop is not blocked.
 pub fn spawn(

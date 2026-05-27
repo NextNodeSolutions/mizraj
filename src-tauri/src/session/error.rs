@@ -13,12 +13,6 @@ pub enum SessionError {
     PathProbe(#[source] std::io::Error),
 }
 
-impl From<which::Error> for SessionError {
-    fn from(err: which::Error) -> Self {
-        SessionError::BinaryNotFound(err.to_string())
-    }
-}
-
 impl Serialize for SessionError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

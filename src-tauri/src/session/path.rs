@@ -8,29 +8,27 @@ pub fn resolve(binary: &str) -> Result<PathBuf, SessionError> {
 
 #[cfg(target_os = "macos")]
 pub fn probe_login_shell() -> Result<String, std::io::Error> {
-    use std::io::{Error, ErrorKind};
+    use std::io::Error;
 
-    let output = std::process::Command::new("/bin/zsh")
+    let shell = std::env::var("SHELL")
+        .map_err(|err| Error::other(format!("SHELL env var not set: {err}")))?;
+    let output = std::process::Command::new(&shell)
         .args(["-lc", "echo $PATH"])
         .output()?;
 
     if !output.status.success() {
-        return Err(Error::new(
-            ErrorKind::Other,
-            format!(
-                "/bin/zsh PATH probe exited with {}: {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr).trim()
-            ),
-        ));
+        return Err(Error::other(format!(
+            "{shell} PATH probe exited with {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
     }
 
     let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if path.is_empty() {
-        return Err(Error::new(
-            ErrorKind::Other,
-            "/bin/zsh PATH probe returned empty output",
-        ));
+        return Err(Error::other(format!(
+            "{shell} PATH probe returned empty output"
+        )));
     }
 
     Ok(path)
