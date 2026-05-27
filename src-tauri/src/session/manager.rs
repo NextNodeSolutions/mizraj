@@ -135,6 +135,29 @@ impl SessionManager {
             .map_err(|_| SessionError::InputClosed)
     }
 
+    /// Register an additional [`OutputSink`] on a live session.
+    ///
+    /// The reader task fans every PTY chunk out to the session's sink list, so
+    /// callers — typically the `session_create` Tauri command attaching a
+    /// `TauriEventSink` right after spawn — can subscribe to the live stream
+    /// without changing `create_session`'s public signature.
+    ///
+    /// The registry lock is held only long enough to clone the per-handle
+    /// sinks `Arc`; the actual `Vec` push happens under the handle's own
+    /// `RwLock`, which never spans the registry lock.
+    pub async fn attach_sink(
+        &self,
+        id: &SessionId,
+        sink: Arc<dyn OutputSink>,
+    ) -> Result<(), SessionError> {
+        let state = self.state.read().await;
+        let handle = state
+            .get(id)
+            .ok_or_else(|| SessionError::NotFound(id.to_string()))?;
+        handle.attach_sink(sink).await;
+        Ok(())
+    }
+
     /// Allocate a fresh `SessionId`, spawn the PTY under
     /// `tauri::async_runtime::spawn_blocking`, and register a `SessionHandle`
     /// in the registry.
@@ -607,6 +630,62 @@ mod tests {
             pty_read_loop(reader, Arc::clone(&sinks)).await;
 
             assert_eq!(sink.snapshot(), b"hello world");
+        });
+    }
+
+    #[test]
+    fn attach_sink_returns_not_found_for_unknown_id() {
+        let pool = fresh_pool();
+        block_on(async {
+            let manager = SessionManager::new(pool);
+            let id = SessionId::new();
+            let sink: Arc<dyn OutputSink> = Arc::new(VecSink::new());
+            let err = manager
+                .attach_sink(&id, sink)
+                .await
+                .expect_err("unknown id should fail");
+            match err {
+                SessionError::NotFound(s) => assert_eq!(s, id.to_string()),
+                other => panic!("expected NotFound, got {other:?}"),
+            }
+        });
+    }
+
+    #[test]
+    fn attach_sink_receives_subsequent_pty_chunks() {
+        let pool = fresh_pool();
+        block_on(async {
+            let manager = SessionManager::new(pool);
+
+            let (writer_tx, _writer_rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
+            let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> = Arc::new(RwLock::new(Vec::new()));
+            let reader_task = spawn(async { std::future::pending::<()>().await });
+            let writer_task = spawn(async { std::future::pending::<()>().await });
+            let wait_task = spawn(async { std::future::pending::<ExitStatus>().await });
+
+            let handle = SessionHandle::new(
+                writer_tx,
+                fresh_child(),
+                reader_task,
+                writer_task,
+                wait_task,
+                Arc::clone(&sinks),
+                None,
+            );
+            let id = SessionId::new();
+            manager.state.write().await.insert(id.clone(), handle);
+
+            let observer = Arc::new(VecSink::new());
+            manager
+                .attach_sink(&id, Arc::clone(&observer) as Arc<dyn OutputSink>)
+                .await
+                .expect("attach_sink on live session");
+
+            let snapshot: Vec<Arc<dyn OutputSink>> = sinks.read().await.iter().cloned().collect();
+            for sink in &snapshot {
+                sink.write(b"first chunk");
+            }
+            assert_eq!(observer.snapshot(), b"first chunk");
         });
     }
 
