@@ -20,6 +20,9 @@ pub enum SessionError {
 
     #[error("failed to register session ref: {0}")]
     SessionRef(String),
+
+    #[error("database error: {0}")]
+    Database(String),
 }
 
 impl Serialize for SessionError {
@@ -51,6 +54,10 @@ impl Serialize for SessionError {
             }
             SessionError::SessionRef(message) => {
                 map.serialize_entry("kind", "session_ref")?;
+                map.serialize_entry("message", message)?;
+            }
+            SessionError::Database(message) => {
+                map.serialize_entry("kind", "database")?;
                 map.serialize_entry("message", message)?;
             }
         }
@@ -96,6 +103,16 @@ mod tests {
         let err = SessionError::SessionRef("repo not found".into());
         let json = serde_json::to_string(&err).expect("serialize");
         assert_eq!(json, r#"{"kind":"session_ref","message":"repo not found"}"#);
+    }
+
+    #[test]
+    fn serializes_database_with_kind_and_message() {
+        let err = SessionError::Database("constraint failed".into());
+        let json = serde_json::to_string(&err).expect("serialize");
+        assert_eq!(
+            json,
+            r#"{"kind":"database","message":"constraint failed"}"#
+        );
     }
 
     #[test]
