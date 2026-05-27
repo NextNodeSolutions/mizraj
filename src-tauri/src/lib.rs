@@ -4,6 +4,7 @@ mod db;
 mod files;
 mod logging;
 pub mod session;
+pub mod worktree;
 
 use tauri::Manager;
 
