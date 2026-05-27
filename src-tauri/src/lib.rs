@@ -3,7 +3,7 @@ mod commands;
 mod db;
 mod files;
 mod logging;
-mod session;
+pub mod session;
 
 use tauri::Manager;
 
