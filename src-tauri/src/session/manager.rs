@@ -279,6 +279,7 @@ impl SessionManager {
         };
 
         if escalate {
+            tracing::warn!(session_id = %id, "escalating to SIGKILL");
             if let Some(pid) = pid {
                 let _ = kill(pid, Signal::SIGKILL);
             }
@@ -297,9 +298,14 @@ impl SessionManager {
 /// `try_read` is used (not `blocking_read`) because Drop may run inside a
 /// tokio worker, where blocking-on-the-runtime would deadlock.
 ///
-/// This is best-effort: it does NOT await reaping, does NOT escalate to
-/// `SIGKILL` (that path lives in `session_close` and is extended for the
-/// shutdown case in SAS-404), and does NOT panic if the registry is empty.
+/// A detached `std::thread` then sleeps [`SHUTDOWN_GRACE`] and escalates to
+/// `SIGKILL` for any PID still alive — same 2s timeout as `session_close`.
+/// `std::thread` is used (not a tokio task) because the runtime may be
+/// shutting down concurrently with this Drop and could refuse to schedule a
+/// new task.
+///
+/// This is best-effort: it does NOT await reaping and does NOT panic if the
+/// registry is empty.
 impl Drop for SessionManager {
     fn drop(&mut self) {
         let pids: Vec<Pid> = match self.state.try_read() {
@@ -322,6 +328,22 @@ impl Drop for SessionManager {
             let _ = kill(*pid, Signal::SIGTERM);
         }
         tracing::info!(count, "SessionManager dropped");
+
+        if !pids.is_empty() {
+            std::thread::spawn(move || {
+                std::thread::sleep(SHUTDOWN_GRACE);
+                for pid in pids {
+                    // ESRCH means the kernel has already reaped the child; any
+                    // other Ok/Err means the PID is still claimed and worth
+                    // escalating. The PID-recycle race is benign here because
+                    // a recycled PID within 2s on macOS is extremely unlikely.
+                    if kill(pid, None).is_ok() {
+                        tracing::warn!(pid = pid.as_raw(), "escalating to SIGKILL on shutdown");
+                        let _ = kill(pid, Signal::SIGKILL);
+                    }
+                }
+            });
+        }
     }
 }
 
@@ -813,6 +835,76 @@ mod tests {
             Some(Signal::SIGTERM as i32),
             "child 2 should be killed by SIGTERM, got {status2:?}"
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn session_close_escalates_to_sigkill_when_child_traps_sigterm() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+        use std::time::{Duration, Instant};
+
+        use nix::errno::Errno;
+        use tempfile::TempDir;
+
+        // A shell script that ignores both SIGTERM (target of escalation)
+        // and SIGHUP (sent to the slave when the PTY master is dropped after
+        // session_close returns). With both traps installed, the ONLY way
+        // for this process to die within the assertion window is the
+        // SIGKILL escalation path under test.
+        let tmp = TempDir::new().expect("tempdir for trap script");
+        let script_path = tmp.path().join("trap-sigterm.sh");
+        fs::write(
+            &script_path,
+            "#!/bin/sh\ntrap '' TERM HUP\nwhile :; do sleep 1; done\n",
+        )
+        .expect("write trap script");
+        fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755))
+            .expect("chmod +x trap script");
+
+        let pool = fresh_pool();
+        block_on(async {
+            let manager = SessionManager::new(pool);
+            let env: HashMap<String, String> = HashMap::new();
+
+            let id = manager
+                .create_session(script_path.clone(), PathBuf::from("/tmp"), env)
+                .await
+                .expect("create_session trap-sigterm.sh");
+
+            let pid_raw = {
+                let state = manager.state.read().await;
+                let handle = state.get(&id).expect("session registered");
+                handle.pid().expect("trap script should expose a pid")
+            };
+            let pid = Pid::from_raw(i32::try_from(pid_raw).expect("pid fits in i32"));
+
+            // Give the script enough time to reach its `trap ''` line.
+            // Without this, SIGTERM may arrive before the trap is installed
+            // and the child would die from the SIGTERM itself, not the
+            // SIGKILL escalation we're trying to exercise.
+            tokio::time::sleep(Duration::from_millis(250)).await;
+
+            manager.session_close(&id).await.expect("session_close ok");
+
+            let started = Instant::now();
+            let mut gone = false;
+            while started.elapsed() < Duration::from_secs(3) {
+                match kill(pid, None) {
+                    Err(Errno::ESRCH) => {
+                        gone = true;
+                        break;
+                    }
+                    _ => {
+                        tokio::time::sleep(Duration::from_millis(50)).await;
+                    }
+                }
+            }
+            assert!(
+                gone,
+                "SIGTERM-trapping child {pid_raw} should be SIGKILLed within 3s of session_close"
+            );
+        });
     }
 
     #[cfg(target_os = "macos")]
