@@ -2,6 +2,7 @@ pub mod commands;
 pub mod error;
 pub mod handle;
 pub mod id;
+pub mod label;
 pub mod manager;
 pub mod path;
 pub mod pty;
