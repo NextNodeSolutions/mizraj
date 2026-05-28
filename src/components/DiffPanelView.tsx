@@ -1,6 +1,7 @@
 import { PatchDiff } from '@pierre/diffs/react'
 
 import type { DiffStyle } from '../lib/useLayoutToggle'
+import { NEXTNODE_DIFF_THEME } from '../theme/shiki-nextnode'
 
 type Props = {
 	patch: string
@@ -9,7 +10,10 @@ type Props = {
 
 const DiffPanelView = ({ patch, diffStyle }: Props): React.JSX.Element => (
 	<div className="diff-panel__container">
-		<PatchDiff patch={patch} options={{ diffStyle }} />
+		<PatchDiff
+			patch={patch}
+			options={{ diffStyle, theme: NEXTNODE_DIFF_THEME }}
+		/>
 	</div>
 )
 
