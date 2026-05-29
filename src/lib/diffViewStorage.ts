@@ -17,7 +17,10 @@ export const readStoredDiffView = (sessionId: string): DiffView => {
 	return isDiffView(raw) ? raw : DEFAULT_DIFF_VIEW
 }
 
-export const writeStoredDiffView = (sessionId: string, view: DiffView): void => {
+export const writeStoredDiffView = (
+	sessionId: string,
+	view: DiffView,
+): void => {
 	if (typeof window === 'undefined') return
 	window.localStorage.setItem(storageKeyFor(sessionId), view)
 }

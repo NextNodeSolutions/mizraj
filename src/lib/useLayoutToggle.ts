@@ -14,7 +14,9 @@ type LayoutToggle = {
 	diffStyle: DiffStyle
 }
 
-export const useLayoutToggle = (initial: DiffLayout = 'split'): LayoutToggle => {
+export const useLayoutToggle = (
+	initial: DiffLayout = 'split',
+): LayoutToggle => {
 	const [layout, setLayout] = useState<DiffLayout>(initial)
 	const toggleLayout = (): void => {
 		setLayout(prev => (prev === 'split' ? 'stacked' : 'split'))
