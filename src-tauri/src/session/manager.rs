@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
+use portable_pty::PtySize;
 use sqlx::sqlite::SqlitePool;
 use tauri::async_runtime::{channel, spawn, spawn_blocking, Mutex, Receiver, RwLock};
 use tokio::time::timeout;
@@ -194,6 +195,7 @@ impl SessionManager {
             .map_err(|err| SessionError::Spawn(format!("spawn_blocking join failed: {err}")))??;
 
         let PtySession {
+            master,
             master_reader,
             master_writer,
             child,
@@ -201,6 +203,7 @@ impl SessionManager {
 
         let pid = child.process_id();
         let child = Arc::new(Mutex::new(child));
+        let shared_master = Arc::new(StdMutex::new(master));
         let (writer_tx, writer_rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
 
         // Allocate the id BEFORE spawning the reader so `initial_sinks` can
@@ -232,6 +235,7 @@ impl SessionManager {
             wait_task,
             sinks,
             pid,
+            Some(shared_master),
         );
 
         {
@@ -240,6 +244,27 @@ impl SessionManager {
         }
 
         Ok(id)
+    }
+
+    /// Propagate a frontend resize to the kernel via TIOCSWINSZ. The child
+    /// receives SIGWINCH and reflows its output (e.g. claude redraws its
+    /// TUI at the new dimensions). Returns `NotFound` for unknown sessions.
+    pub async fn resize_session(
+        &self,
+        id: &SessionId,
+        cols: u16,
+        rows: u16,
+    ) -> Result<(), SessionError> {
+        let state = self.state.read().await;
+        let handle = state
+            .get(id)
+            .ok_or_else(|| SessionError::NotFound(id.to_string()))?;
+        handle.resize(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
     }
 
     /// Graceful per-session shutdown (D4 mechanism (c)).
@@ -695,6 +720,7 @@ mod tests {
                 wait_task,
                 sinks,
                 None,
+                None,
             );
             let id = SessionId::new();
             manager.state.write().await.insert(id.clone(), handle);
@@ -765,6 +791,7 @@ mod tests {
                 wait_task,
                 Arc::clone(&sinks),
                 None,
+                None,
             );
             let id = SessionId::new();
             manager.state.write().await.insert(id.clone(), handle);
@@ -791,6 +818,23 @@ mod tests {
             let id = SessionId::new();
             let err = manager
                 .session_close(&id)
+                .await
+                .expect_err("unknown id should fail");
+            match err {
+                SessionError::NotFound(s) => assert_eq!(s, id.to_string()),
+                other => panic!("expected NotFound, got {other:?}"),
+            }
+        });
+    }
+
+    #[test]
+    fn resize_session_returns_not_found_for_unknown_id() {
+        let pool = fresh_pool();
+        block_on(async {
+            let manager = SessionManager::new(pool);
+            let id = SessionId::new();
+            let err = manager
+                .resize_session(&id, 120, 40)
                 .await
                 .expect_err("unknown id should fail");
             match err {
@@ -851,6 +895,7 @@ mod tests {
                     wait_task,
                     sinks,
                     Some(pid),
+                    None,
                 );
                 manager.state.write().await.insert(SessionId::new(), handle);
             }

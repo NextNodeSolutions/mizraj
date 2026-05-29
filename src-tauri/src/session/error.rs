@@ -23,6 +23,9 @@ pub enum SessionError {
 
     #[error("database error: {0}")]
     Database(String),
+
+    #[error("failed to resize pty: {0}")]
+    Resize(String),
 }
 
 impl Serialize for SessionError {
@@ -58,6 +61,10 @@ impl Serialize for SessionError {
             }
             SessionError::Database(message) => {
                 map.serialize_entry("kind", "database")?;
+                map.serialize_entry("message", message)?;
+            }
+            SessionError::Resize(message) => {
+                map.serialize_entry("kind", "resize")?;
                 map.serialize_entry("message", message)?;
             }
         }

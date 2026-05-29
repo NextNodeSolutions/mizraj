@@ -113,6 +113,7 @@ pub fn run() {
             commands::set_active_project::clear_active_project,
             commands::plan_protocol::resolve_plan,
             session::commands::session_create,
+            session::commands::session_resize,
             session::label::session_label,
         ])
         .run(tauri::generate_context!())

@@ -15,6 +15,7 @@ use tauri_app_lib::session::pty::{self, PtySession};
 fn spawn_shell_prints_y_and_exits_zero() {
     let env: HashMap<String, String> = HashMap::new();
     let PtySession {
+        master: _master,
         master_reader,
         mut master_writer,
         mut child,

@@ -129,6 +129,16 @@ pub async fn session_create<R: Runtime>(
     .await
 }
 
+#[tauri::command]
+pub async fn session_resize(
+    session_id: SessionId,
+    cols: u16,
+    rows: u16,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.resize_session(&session_id, cols, rows).await
+}
+
 #[cfg(test)]
 mod tests {
     use sqlx::sqlite::SqlitePoolOptions;

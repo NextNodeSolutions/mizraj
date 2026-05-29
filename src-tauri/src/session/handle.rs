@@ -1,9 +1,13 @@
 use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
 
-use portable_pty::{Child, ExitStatus};
+use portable_pty::{Child, ExitStatus, MasterPty, PtySize};
 use tauri::async_runtime::{JoinHandle, Mutex, RwLock, Sender};
 
+use crate::session::error::SessionError;
 use crate::session::sink::OutputSink;
+
+pub type SharedMaster = Arc<StdMutex<Box<dyn MasterPty + Send>>>;
 
 /// Per-session ownership of PTY channels, child process, and the three
 /// long-running tokio tasks that keep the session alive.
@@ -27,6 +31,11 @@ pub struct SessionHandle {
     wait_task: Option<JoinHandle<ExitStatus>>,
     sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>>,
     pid: Option<u32>,
+    /// Live PTY master kept alive so `resize` can call `MasterPty::resize`
+    /// (TIOCSWINSZ on Unix) to propagate frontend dimensions to the child.
+    /// `None` only in tests that build `SessionHandle` directly without a
+    /// real spawn; production always wires `Some(...)` from `PtySession`.
+    master: Option<SharedMaster>,
 }
 
 impl SessionHandle {
@@ -38,6 +47,7 @@ impl SessionHandle {
         wait_task: JoinHandle<ExitStatus>,
         sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>>,
         pid: Option<u32>,
+        master: Option<SharedMaster>,
     ) -> Self {
         Self {
             writer,
@@ -47,7 +57,23 @@ impl SessionHandle {
             wait_task: Some(wait_task),
             sinks,
             pid,
+            master,
         }
+    }
+
+    /// Forward `size` to the kernel via TIOCSWINSZ so the child reflows. A
+    /// no-op for test fixtures that have no real PTY (`master == None`); in
+    /// production every handle ships with a live master.
+    pub fn resize(&self, size: PtySize) -> Result<(), SessionError> {
+        let Some(master) = self.master.as_ref() else {
+            return Ok(());
+        };
+        let guard = master
+            .lock()
+            .map_err(|_| SessionError::Resize("master mutex poisoned".into()))?;
+        guard
+            .resize(size)
+            .map_err(|err| SessionError::Resize(err.to_string()))
     }
 
     pub fn writer(&self) -> &Sender<Vec<u8>> {
@@ -163,6 +189,7 @@ mod tests {
                 wait_task,
                 Arc::clone(&sinks),
                 None,
+                None,
             );
 
             let a: Arc<dyn OutputSink> = Arc::new(VecSink::new());
@@ -217,6 +244,7 @@ mod tests {
                     writer_task,
                     wait_task,
                     sinks,
+                    None,
                     None,
                 );
                 drop(handle);
