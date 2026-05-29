@@ -19,6 +19,7 @@ type Props = {
 	onViewChange: (next: DiffView) => void
 	layout: DiffLayout
 	onToggle: () => void
+	onClose?: () => void
 }
 
 const DiffPanelToolbar = ({
@@ -26,6 +27,7 @@ const DiffPanelToolbar = ({
 	onViewChange,
 	layout,
 	onToggle,
+	onClose,
 }: Props): React.JSX.Element => {
 	const handleViewChange = (event: ChangeEvent<HTMLSelectElement>): void => {
 		const next = event.target.value
@@ -66,6 +68,16 @@ const DiffPanelToolbar = ({
 			>
 				{layout === 'split' ? 'Stacked view' : 'Split view'}
 			</button>
+			{onClose && (
+				<button
+					type="button"
+					className="diff-panel__close"
+					aria-label="Hide diffs"
+					onClick={onClose}
+				>
+					›
+				</button>
+			)}
 		</div>
 	)
 }

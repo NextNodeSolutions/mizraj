@@ -7,9 +7,10 @@ import DiffPanelToolbar from './DiffPanelToolbar'
 
 type Props = {
 	sessionId: string
+	onClose?: () => void
 }
 
-const DiffPanel = ({ sessionId }: Props): React.JSX.Element => {
+const DiffPanel = ({ sessionId, onClose }: Props): React.JSX.Element => {
 	const { view, setView } = useDiffView(sessionId)
 	const state = useDiff(sessionId, view)
 	const { layout, toggleLayout, diffStyle } = useLayoutToggle()
@@ -21,6 +22,7 @@ const DiffPanel = ({ sessionId }: Props): React.JSX.Element => {
 				onViewChange={setView}
 				layout={layout}
 				onToggle={toggleLayout}
+				onClose={onClose}
 			/>
 			<DiffPanelBody state={state} diffStyle={diffStyle} />
 		</div>
