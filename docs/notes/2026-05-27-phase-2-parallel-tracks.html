@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="fr">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Ce qu'il reste à faire pour avoir un terminal · Agent Cockpit</title>
+		<script>
+			;(function () {
+				try {
+					var stored = localStorage.getItem('np-theme')
+					var theme =
+						stored ||
+						(window.matchMedia('(prefers-color-scheme: dark)').matches
+							? 'dark'
+							: 'light')
+					document.documentElement.setAttribute('data-theme', theme)
+				} catch (e) {
+					document.documentElement.setAttribute('data-theme', 'light')
+				}
+			})()
+		</script>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap"
+			rel="stylesheet"
+		/>
+		<style>
+			:root {
+				--np-bg: oklch(98.4% 0.003 247.86);
+				--np-bg-soft: oklch(96.8% 0.007 247.84);
+				--np-text: oklch(20.8% 0.042 265.76);
+				--np-text-muted: oklch(55.4% 0.046 257.42);
+				--np-border: oklch(92.9% 0.013 255.51);
+				--np-accent: oklch(70.4% 0.14 182.503);
+				--np-accent-bg: oklch(95.3% 0.051 180.801);
+				--np-accent-hover: oklch(60% 0.118 184.704);
+				--np-success: #16a34a;
+				--np-warn: #d97706;
+				--np-shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.06);
+				--np-radius: 10px;
+				--np-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+				--np-sans: 'DM Sans', -apple-system, system-ui, sans-serif;
+				--np-display: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+			}
+			[data-theme='dark'] {
+				--np-bg: oklch(20.8% 0.042 265.76);
+				--np-bg-soft: oklch(27.9% 0.041 260.03);
+				--np-text: oklch(98.4% 0.003 247.86);
+				--np-text-muted: oklch(70.4% 0.04 256.79);
+				--np-border: oklch(37.2% 0.044 257.29);
+				--np-accent: oklch(77.7% 0.152 181.912);
+				--np-accent-bg: oklch(38.6% 0.063 188.416);
+				--np-accent-hover: oklch(85.5% 0.138 181.071);
+				--np-success: #4ade80;
+				--np-warn: #fbbf24;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			html,
+			body {
+				margin: 0;
+				padding: 0;
+				background: var(--np-bg);
+				color: var(--np-text);
+				font-family: var(--np-sans);
+				font-size: 15.5px;
+				line-height: 1.55;
+			}
+			.wrap {
+				max-width: 980px;
+				margin: 0 auto;
+				padding: 56px 32px 96px;
+			}
+			h1 {
+				font-family: var(--np-display);
+				font-weight: 800;
+				font-size: 36px;
+				line-height: 1.15;
+				margin: 0 0 14px;
+				letter-spacing: -0.02em;
+			}
+			h2 {
+				font-family: var(--np-display);
+				font-weight: 700;
+				font-size: 24px;
+				margin: 56px 0 16px;
+				letter-spacing: -0.01em;
+			}
+			.eyebrow {
+				font-family: var(--np-display);
+				font-weight: 700;
+				font-size: 11px;
+				letter-spacing: 0.16em;
+				text-transform: uppercase;
+				color: var(--np-accent-hover);
+				margin-bottom: 14px;
+			}
+			.lede {
+				font-size: 17px;
+				color: var(--np-text-muted);
+				max-width: 680px;
+				margin-bottom: 8px;
+			}
+			.lede strong {
+				color: var(--np-text);
+			}
+			code {
+				font-family: var(--np-mono);
+				font-size: 12.5px;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				padding: 1px 5px;
+				border-radius: 4px;
+			}
+			.theme-toggle {
+				position: fixed;
+				top: 18px;
+				right: 18px;
+				width: 38px;
+				height: 38px;
+				border-radius: 50%;
+				border: 1px solid var(--np-border);
+				background: var(--np-bg-soft);
+				color: var(--np-text);
+				cursor: pointer;
+				font-size: 16px;
+				z-index: 100;
+			}
+
+			/* The big callout: what's done, what's the goal */
+			.status-row {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 16px;
+				margin: 28px 0 8px;
+			}
+			.status-card {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				padding: 20px 22px;
+			}
+			.status-card.goal {
+				border-left: 4px solid var(--np-accent);
+			}
+			.status-card .tag {
+				font-family: var(--np-mono);
+				font-size: 11px;
+				color: var(--np-text-muted);
+				letter-spacing: 0.05em;
+				text-transform: uppercase;
+				margin-bottom: 8px;
+			}
+			.status-card .big {
+				font-family: var(--np-display);
+				font-weight: 800;
+				font-size: 22px;
+				line-height: 1.2;
+				color: var(--np-text);
+				margin-bottom: 6px;
+			}
+			.status-card .small {
+				font-size: 13.5px;
+				color: var(--np-text-muted);
+			}
+
+			/* The 5 chantiers */
+			.board {
+				display: grid;
+				grid-template-columns: repeat(2, 1fr);
+				gap: 18px;
+				margin-top: 12px;
+			}
+			.chantier {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				padding: 22px 24px;
+				position: relative;
+			}
+			.chantier.needed {
+				border: 1.5px solid var(--np-accent);
+				background: linear-gradient(
+					180deg,
+					var(--np-accent-bg) 0%,
+					var(--np-bg-soft) 25%
+				);
+			}
+			.chantier .stamp {
+				position: absolute;
+				top: 18px;
+				right: 18px;
+				font-family: var(--np-mono);
+				font-size: 10.5px;
+				font-weight: 600;
+				letter-spacing: 0.05em;
+				text-transform: uppercase;
+				padding: 3px 8px;
+				border-radius: 999px;
+			}
+			.chantier .stamp.todo {
+				background: var(--np-bg);
+				color: var(--np-warn);
+				border: 1px solid var(--np-warn);
+			}
+			.chantier .stamp.partial {
+				background: var(--np-bg);
+				color: var(--np-accent-hover);
+				border: 1px solid var(--np-accent);
+			}
+			.chantier .stamp.done {
+				background: rgba(22, 163, 74, 0.1);
+				color: var(--np-success);
+				border: 1px solid rgba(22, 163, 74, 0.5);
+			}
+			.chantier .number {
+				font-family: var(--np-display);
+				font-weight: 800;
+				font-size: 12px;
+				letter-spacing: 0.15em;
+				text-transform: uppercase;
+				color: var(--np-accent-hover);
+				margin-bottom: 8px;
+			}
+			.chantier h3 {
+				font-family: var(--np-display);
+				font-weight: 700;
+				font-size: 19px;
+				margin: 0 0 8px;
+				color: var(--np-text);
+				letter-spacing: -0.005em;
+			}
+			.chantier .pitch {
+				font-size: 14px;
+				color: var(--np-text-muted);
+				margin: 0 0 14px;
+			}
+			.chantier .meta {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				margin-top: 6px;
+			}
+			.chantier .meta .pill {
+				font-family: var(--np-mono);
+				font-size: 11px;
+				background: var(--np-bg);
+				border: 1px solid var(--np-border);
+				padding: 2px 8px;
+				border-radius: 999px;
+				color: var(--np-text-muted);
+			}
+			.chantier .meta .pill.effort {
+				color: var(--np-accent-hover);
+			}
+
+			/* Order indicator */
+			.order {
+				display: grid;
+				grid-template-columns: repeat(5, 1fr) auto;
+				gap: 10px;
+				align-items: center;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				padding: 18px;
+				margin-top: 12px;
+			}
+			.order .step {
+				background: var(--np-bg);
+				border: 1px solid var(--np-border);
+				border-radius: 8px;
+				padding: 10px 12px;
+				text-align: center;
+				position: relative;
+			}
+			.order .step.parallel {
+				border-color: var(--np-accent);
+				background: var(--np-accent-bg);
+			}
+			.order .step .n {
+				font-family: var(--np-display);
+				font-weight: 800;
+				font-size: 11px;
+				letter-spacing: 0.1em;
+				color: var(--np-accent-hover);
+				text-transform: uppercase;
+			}
+			.order .step .what {
+				font-size: 13px;
+				font-weight: 600;
+				margin-top: 4px;
+			}
+			.order .arrow {
+				color: var(--np-text-muted);
+				font-size: 16px;
+			}
+			.order .goal-pill {
+				background: var(--np-accent);
+				color: white;
+				border-radius: 999px;
+				padding: 10px 16px;
+				font-family: var(--np-display);
+				font-weight: 800;
+				font-size: 12px;
+				letter-spacing: 0.05em;
+				text-transform: uppercase;
+				white-space: nowrap;
+			}
+			[data-theme='dark'] .order .goal-pill {
+				color: oklch(20.8% 0.042 265.76);
+			}
+
+			/* What can run in // */
+			.parallel-box {
+				margin-top: 16px;
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 16px;
+			}
+			.parallel-box .col {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				padding: 20px 22px;
+			}
+			.parallel-box .col.go {
+				border-top: 4px solid var(--np-success);
+			}
+			.parallel-box .col.wait {
+				border-top: 4px solid var(--np-warn);
+			}
+			.parallel-box .col h3 {
+				font-family: var(--np-display);
+				font-weight: 700;
+				font-size: 16px;
+				margin: 0 0 10px;
+			}
+			.parallel-box .col ul {
+				list-style: none;
+				padding: 0;
+				margin: 0;
+			}
+			.parallel-box .col li {
+				padding: 8px 0;
+				border-bottom: 1px dashed var(--np-border);
+				font-size: 14px;
+				color: var(--np-text);
+				display: flex;
+				justify-content: space-between;
+				gap: 12px;
+			}
+			.parallel-box .col li:last-child {
+				border-bottom: none;
+			}
+			.parallel-box .col li .name {
+				font-weight: 500;
+			}
+			.parallel-box .col li .hint {
+				font-size: 12px;
+				color: var(--np-text-muted);
+				font-style: italic;
+			}
+
+			@media (max-width: 760px) {
+				.status-row,
+				.board,
+				.parallel-box {
+					grid-template-columns: 1fr;
+				}
+				.order {
+					grid-template-columns: 1fr;
+				}
+				.order .arrow {
+					display: none;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<button
+			class="theme-toggle"
+			aria-label="Toggle theme"
+			onclick="toggleTheme()"
+		>
+			◐
+		</button>
+		<div class="wrap">
+			<div class="eyebrow">Agent Cockpit · 2026-05-27</div>
+			<h1>Ce qu'il reste à faire pour avoir <em>claude</em> dans une fenêtre de l'app</h1>
+			<p class="lede">
+				Oublie les phases, les tracks et les D-machin. Il y a
+				<strong>5 chantiers</strong>. Quatre te bloquent pour avoir
+				un terminal qui marche. Le cinquième est à côté. Voilà.
+			</p>
+
+			<div class="status-row">
+				<div class="status-card">
+					<div class="tag">Aujourd'hui</div>
+					<div class="big">Le binding <code>libghostty</code> est fini</div>
+					<div class="small">
+						La crate Rust <code>agent-cockpit-term</code> sait déjà
+						parser les bytes ANSI en grille de cells. C'est la pièce
+						la plus risquée. <strong>Elle est mergée.</strong>
+					</div>
+				</div>
+				<div class="status-card goal">
+					<div class="tag">Objectif</div>
+					<div class="big">Claude tourne dans une fenêtre de l'app</div>
+					<div class="small">
+						Tu cliques « nouvelle session », tu vois
+						<code>claude</code> démarrer, tu tapes dedans, l'output
+						s'affiche. Pas de scrollback persistant, pas de
+						multi-pane. Juste la boucle qui marche.
+					</div>
+				</div>
+			</div>
+
+			<h2>Les 5 chantiers qui restent</h2>
+			<div class="board">
+				<div class="chantier needed">
+					<span class="stamp todo">à faire</span>
+					<div class="number">CHANTIER 1</div>
+					<h3>Lancer un process dans un PTY</h3>
+					<p class="pitch">
+						Spawner <code>claude</code> dans un pseudo-terminal,
+						pouvoir lire son output et lui envoyer des keystrokes.
+						Crate <code>portable-pty</code>, la même que wezterm/alacritty.
+					</p>
+					<div class="meta">
+						<span class="pill">Rust · tauri-app</span>
+						<span class="pill effort">effort I4</span>
+					</div>
+				</div>
+
+				<div class="chantier needed">
+					<span class="stamp todo">à faire</span>
+					<div class="number">CHANTIER 2</div>
+					<h3>Gérer les sessions côté backend</h3>
+					<p class="pitch">
+						Un objet qui garde la liste des PTYs vivants, qui
+						démarre/arrête les process proprement, et qui meurt
+						bien quand l'app quitte (SIGTERM puis SIGKILL après 2s).
+					</p>
+					<div class="meta">
+						<span class="pill">Rust · tauri-app</span>
+						<span class="pill effort">effort I6</span>
+					</div>
+				</div>
+
+				<div class="chantier needed">
+					<span class="stamp todo">à faire</span>
+					<div class="number">CHANTIER 3</div>
+					<h3>Faire transiter les bytes entre Rust et React</h3>
+					<p class="pitch">
+						Les channels Tauri v2 : un canal par session, qui
+						transporte les cells dans un sens, les keystrokes dans
+						l'autre. C'est l'autoroute qui relie le backend au
+						frontend.
+					</p>
+					<div class="meta">
+						<span class="pill">Rust + React</span>
+						<span class="pill effort">effort I4</span>
+					</div>
+				</div>
+
+				<div class="chantier needed">
+					<span class="stamp todo">à faire</span>
+					<div class="number">CHANTIER 4</div>
+					<h3>Afficher la grille dans un canvas</h3>
+					<p class="pitch">
+						Le composant React <code>&lt;TerminalPane&gt;</code>
+						qui reçoit les cells et les dessine dans un
+						<code>&lt;canvas&gt;</code>. Plus la capture des
+						keystrokes qui repartent vers le PTY.
+					</p>
+					<div class="meta">
+						<span class="pill">React · canvas 2D</span>
+						<span class="pill effort">effort I6</span>
+					</div>
+				</div>
+
+				<div class="chantier">
+					<span class="stamp partial">en cours</span>
+					<div class="number">CHANTIER 5 · à côté</div>
+					<h3>Les wrappers Git (libgit2)</h3>
+					<p class="pitch">
+						Les fonctions <code>diff_session</code>,
+						<code>diff_working_tree</code>,
+						<code>worktree_list</code>… dans la crate
+						<code>agent-cockpit-vcs</code>. <strong>Indépendant du
+						terminal</strong> — tu peux le faire en // ou plus tard,
+						ça ne bloque rien.
+					</p>
+					<div class="meta">
+						<span class="pill">Rust · agent-cockpit-vcs</span>
+						<span class="pill effort">effort I4</span>
+					</div>
+				</div>
+			</div>
+
+			<h2>L'ordre — qui doit attendre quoi</h2>
+			<div class="order">
+				<div class="step parallel">
+					<div class="n">EN MÊME TEMPS</div>
+					<div class="what">Chantier 1<br />(PTY)</div>
+				</div>
+				<div class="arrow">→</div>
+				<div class="step">
+					<div class="n">PUIS</div>
+					<div class="what">Chantier 2<br />(Sessions)</div>
+				</div>
+				<div class="arrow">→</div>
+				<div class="step">
+					<div class="n">PUIS</div>
+					<div class="what">Chantier 3<br />(Channels)</div>
+				</div>
+				<div class="arrow">→</div>
+				<div class="step">
+					<div class="n">PUIS</div>
+					<div class="what">Chantier 4<br />(Canvas)</div>
+				</div>
+				<div class="arrow">→</div>
+				<div class="goal-pill">Terminal vivant</div>
+			</div>
+			<p style="font-size: 13.5px; color: var(--np-text-muted); margin-top: 10px;">
+				Le 4 a besoin du 3, qui a besoin du 2, qui a besoin du 1. C'est
+				une chaîne. <strong>Tu ne peux pas paralléliser les chantiers
+				1→2→3→4 entre eux.</strong>
+			</p>
+
+			<h2>Ce que tu peux faire EN MÊME TEMPS</h2>
+			<div class="parallel-box">
+				<div class="col go">
+					<h3>✓ Vraiment en parallèle</h3>
+					<ul>
+						<li>
+							<span class="name">Chantier 1 (PTY) en backend</span>
+							<span class="hint">la chaîne principale</span>
+						</li>
+						<li>
+							<span class="name">Chantier 5 (libgit2 wrappers)</span>
+							<span class="hint">à côté, zéro contention</span>
+						</li>
+						<li>
+							<span class="name">Squelette du Chantier 4</span>
+							<span class="hint">avec des cells mockées</span>
+						</li>
+					</ul>
+					<p style="font-size: 13px; color: var(--np-text-muted); margin-top: 12px;">
+						3 trucs en // si tu as deux têtes (toi + un agent
+						Claude par exemple). Sinon prends 1 + 5 en alternance.
+					</p>
+				</div>
+				<div class="col wait">
+					<h3>✗ Faut attendre</h3>
+					<ul>
+						<li>
+							<span class="name">Chantier 3 (channels)</span>
+							<span class="hint">attend le Chantier 2</span>
+						</li>
+						<li>
+							<span class="name">Chantier 4 final (wire-up)</span>
+							<span class="hint">attend le Chantier 3</span>
+						</li>
+						<li>
+							<span class="name">Scrollback persistant SQLite</span>
+							<span class="hint">après le terminal vivant</span>
+						</li>
+						<li>
+							<span class="name">Multi-pane, raccourcis Cmd+K</span>
+							<span class="hint">polish, après le palier</span>
+						</li>
+					</ul>
+				</div>
+			</div>
+
+			<h2>TL;DR</h2>
+			<div
+				style="background: var(--np-bg-soft); border: 1px solid var(--np-border); border-left: 4px solid var(--np-accent); border-radius: var(--np-radius); padding: 22px 26px; font-size: 16px; line-height: 1.7;"
+			>
+				<strong>Tu fais le Chantier 1 (PTY).</strong> En même temps un
+				agent Claude peut bosser sur le Chantier 5 (libgit2). Quand 1
+				est fini, tu enchaînes 2 → 3 → 4. À la fin du 4,
+				<strong>claude tourne dans une fenêtre de ton app.</strong>
+				Multi-pane, scrollback, raccourcis : tout ça vient après.
+			</div>
+
+			<div
+				style="margin-top: 56px; padding-top: 22px; border-top: 1px dashed var(--np-border); display: flex; justify-content: space-between; font-size: 12px; color: var(--np-text-muted);"
+			>
+				<span>Source : plan terminal embarqué du 22/05</span>
+				<span>NextNode · 2026-05-27</span>
+			</div>
+		</div>
+
+		<script>
+			function toggleTheme() {
+				const cur =
+					document.documentElement.getAttribute('data-theme') || 'light'
+				const next = cur === 'dark' ? 'light' : 'dark'
+				document.documentElement.setAttribute('data-theme', next)
+				try {
+					localStorage.setItem('np-theme', next)
+				} catch (e) {}
+			}
+		</script>
+	</body>
+</html>

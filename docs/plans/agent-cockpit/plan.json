@@ -1,0 +1,257 @@
+{
+  "effort": "V8",
+  "milestones": [
+    {
+      "id": "M1",
+      "demo": "L'app packagée v0.1.0 lance un agent, on peut le stopper, choisir le repo via un picker, et le diff s'ouvre seul en fin de run — release GitHub avec binaires.",
+      "skeleton": true,
+      "tracks": [
+        {
+          "id": "A",
+          "tasks": [
+            {
+              "step": "01",
+              "title": "Revert la migration 0004_diff_comments",
+              "size": "I3",
+              "slice_of": ["D12"],
+              "done_when": "la table diff_comments n'existe plus, le guard CI compte 3 migrations et passe",
+              "description": "WHAT: supprimer la migration 0004_diff_comments et aligner le guard CI de comptage.\n\nWHY: D12 — le schéma doit refléter la décision V1 read-only (aucune feature de commentaires). À faire tôt avant que d'autres migrations s'empilent.\n\nWHERE: supprimer src-tauri/migrations/0004_diff_comments.sql ; mettre à jour .github/workflows/ci.yml (job phase-3-migration-audit : 'exactly 4' → 3, liste 0001-0003).\n\nDONE WHEN:\n- 0004_diff_comments.sql supprimé\n- guard CI assert 3 migrations (0001-0003) et passe vert\n- le DiffPanel fonctionne toujours (read-only, inchangé)",
+              "sink_id": null
+            },
+            {
+              "step": "02",
+              "title": "Stopper un run depuis l'UI",
+              "size": "I4",
+              "slice_of": ["D8"],
+              "done_when": "un bouton Stop tue le PTY de la session courante et la session passe à ended",
+              "description": "WHAT: exposer une commande session_close et la câbler à un bouton Stop dans la vue du run.\n\nWHY: D8 — le stop/kill est un bloquant v0.1. manager.session_close existe déjà (src-tauri/src/session/manager.rs:288) mais n'est pas exposé (invoke_handler n'enregistre que session_create/resize/label).\n\nWHERE: src-tauri/src/session/commands.rs (commande session_close, calquée sur session_resize) + src-tauri/src/lib.rs (generate_handler!) ; src/views/AgentRun.tsx (bouton Stop, invoke('session_close'), disabled si status === 'ended').\n\nDONE WHEN:\n- session_close(session_id) tue le PTY et nettoie le registry (test inclus)\n- clic sur Stop → invoke session_close, erreurs loguées\n- bouton disabled quand la session est ended",
+              "sink_id": null
+            },
+            {
+              "step": "03",
+              "title": "Choisir le repo via un project picker",
+              "size": "I4",
+              "slice_of": ["D8"],
+              "done_when": "un bouton ouvre un dialogue dossier, le chemin choisi devient le repo actif et persiste",
+              "description": "WHAT: bouton dans le header ouvrant un dialogue de sélection de dossier (tauri-plugin-dialog) et fixant le repo actif.\n\nWHY: D8 — le project picker est un bloquant v0.1. plugin-dialog est déjà enregistré (lib.rs) et settings.setLastProjectPath existe déjà (src/lib/settings.ts) ; useActiveProject consomme lastProjectPath.\n\nWHERE: nouveau src/components/ProjectPicker.tsx monté dans le header de src/App.tsx ; open({ directory: true }) de @tauri-apps/plugin-dialog ; settings.setLastProjectPath.\n\nDONE WHEN:\n- clic → dialogue dossier natif\n- chemin choisi passé à setLastProjectPath, reflété par useActiveProject (RunAgentButton apparaît)\n- annulation du dialogue = no-op",
+              "sink_id": null
+            },
+            {
+              "step": "04",
+              "title": "Ouvrir le diff automatiquement en fin de run",
+              "size": "I4",
+              "slice_of": ["D8"],
+              "done_when": "quand la session se termine, un event de fin remonte l'exit code et le DiffPanel s'ouvre seul",
+              "description": "WHAT: émettre un event de fin de session (avec exit code) quand le wait_task se résout, le consommer côté front et ouvrir le DiffPanel.\n\nWHY: D8 — auto-open du diff en fin de run. Aujourd'hui aucun event de fin n'est émis (le bridge n'écoute que agent:output) et endSessionAtom est mort. Tranche verticale unique : backend émission + bridge + UI.\n\nWHERE: src-tauri/src/session/manager.rs (autour du wait_task, manager.rs:220) + src-tauri/src/session/tauri_sink.rs (SessionEndPayload + constante d'event) ; src/state/sessions.ts (listen → endSessionAtom) ; src/views/AgentRun.tsx (ouvrir DiffPanel quand status === 'ended').\n\nDONE WHEN:\n- event de fin émis une fois à la terminaison, payload { session_id, exit_code }\n- bridge mappe vers endSessionAtom (status 'ended', exitCode)\n- fin de session → DiffPanel ouvert sans clic, réouverture/fermeture manuelle préservée",
+              "sink_id": null
+            },
+            {
+              "step": "05",
+              "title": "Taguer la release v0.1.0",
+              "size": "I3",
+              "slice_of": ["D7"],
+              "done_when": "tag v0.1.0 poussé, release.yml build les binaires, release GitHub publiée",
+              "description": "WHAT: rédiger les release notes et pousser le tag v0.1.0 pour déclencher la build des binaires.\n\nWHY: D7 — première release publique AGPL, capstone de M1 (après que les tâches 01-04 soient vertes). La version est déjà 0.1.0 partout (tauri.conf.json, package.json, Cargo.toml).\n\nWHERE: workflow natif .github/workflows/release.yml (tauri-action, déclenché sur tags v* — platform-native, rien à réécrire) ; release notes ; git tag v0.1.0.\n\nDONE WHEN:\n- release notes rédigées (sans promesse de support)\n- tag v0.1.0 poussé\n- release GitHub avec binaires macOS/Linux/Windows produite par release.yml",
+              "sink_id": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M2",
+      "demo": "claude tourne dans une fenêtre : l'output s'affiche sur un canvas natif (libghostty), on tape au clavier et la commande s'exécute ; ghostty-web est supprimé.",
+      "skeleton": false,
+      "tracks": [
+        {
+          "id": "A",
+          "tasks": [
+            {
+              "step": "01",
+              "title": "Émettre des CellFrame depuis les bytes PTY",
+              "size": "I4",
+              "slice_of": ["D4"],
+              "done_when": "une session spawnée parse ses bytes PTY en Cells et émet un CellFrame par snapshot via IPC",
+              "description": "WHAT: brancher agent-cockpit-term à src-tauri via un OutputSink qui feed les bytes dans un Terminal, snapshote RenderState→Cells, sérialise en CellFrame et l'émet par IPC.\n\nWHY: D4 — coeur du rendu natif. La crate expose déjà Terminal::feed et RenderState::snapshot (Cell/Cells/Color/Attrs). Le contrat OutputSink impose write < ~1ms (src/session/sink.rs) → feed/snapshot dans une tâche dédiée alimentée par channel.\n\nWHERE: src-tauri/Cargo.toml (dep agent-cockpit-term) ; nouveau src-tauri/src/session/cell_frame.rs (CellFrame + From<Cells> + Serialize) ; nouveau src-tauri/src/session/term_sink.rs (OutputSink → tâche de rendu → emit) ; src-tauri/src/session/commands.rs (attacher le sink dans la sink_factory de session_create).\n\nDONE WHEN:\n- src-tauri compile avec agent-cockpit-term\n- write() non bloquant ; la tâche feed + snapshot + émet CellFrame\n- test : une séquence produit le CellFrame attendu",
+              "sink_id": null
+            },
+            {
+              "step": "02",
+              "title": "Dessiner l'output sur un canvas natif",
+              "size": "I4",
+              "slice_of": ["D4"],
+              "done_when": "AgentRun rend l'output sur un <canvas> à partir des CellFrame ; ghostty-web n'existe plus",
+              "description": "WHAT: composant <TerminalPane> qui s'abonne aux events CellFrame et dessine la grille sur un <canvas>, monté dans AgentRun à la place de GhosttyLog, avec retrait de ghostty-web.\n\nWHY: D4 — front du rendu natif, consomme le CellFrame de la tâche 01. Vérification : `grep ghostty-web package.json` vide.\n\nWHERE: nouveau src/components/TerminalPane.tsx (abonnement CellFrame via src/state/sessions.ts, rendu canvas 2D fg/bg/attrs, propagation resize via session_resize) ; src/views/AgentRun.tsx (swap) ; supprimer src/components/GhosttyLog.tsx ; retirer ghostty-web de package.json (+ lockfile).\n\nDONE WHEN:\n- l'output d'un run réel s'affiche sur le canvas\n- GhosttyLog.tsx supprimé, ghostty-web absent de package.json/lockfile\n- resize du conteneur propage cols/rows",
+              "sink_id": null
+            },
+            {
+              "step": "03",
+              "title": "Taper au clavier dans le terminal",
+              "size": "I4",
+              "slice_of": ["D5"],
+              "done_when": "taper `ls\\n` dans le pane exécute la commande et l'output revient",
+              "description": "WHAT: exposer session_write et capturer les keydown du TerminalPane, encodés en séquences VT, vers le PTY master.\n\nWHY: D5 — terminal bidirectionnel d'un bloc avec l'output. manager.send_input existe déjà (manager.rs:129) mais n'est pas exposé. Dépend du canvas (02).\n\nWHERE: src-tauri/src/session/commands.rs (commande session_write → manager.send_input) + src-tauri/src/lib.rs (generate_handler!) ; src/components/TerminalPane.tsx (keydown → encodage VT → invoke('session_write')).\n\nDONE WHEN:\n- session_write(session_id, bytes) écrit dans le PTY (test : session connue OK, inconnue → erreur typée)\n- touches imprimables + Enter/Backspace/flèches/Ctrl encodées en VT\n- `ls\\n` s'exécute, l'output réapparaît dans le canvas",
+              "sink_id": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M3",
+      "demo": "2+ sessions vivantes apparaissent dans une sidebar avec un compteur ; un clic switche le pane actif et la session courante est surlignée.",
+      "skeleton": false,
+      "tracks": [
+        {
+          "id": "A",
+          "tasks": [
+            {
+              "step": "01",
+              "title": "Naviguer entre sessions via une sidebar",
+              "size": "I4",
+              "slice_of": ["D9"],
+              "done_when": "les sessions vivantes sont listées dans la sidebar et un clic switche le pane actif",
+              "description": "WHAT: dériver la liste des sessions vivantes et l'afficher dans une sidebar cliquable qui navigue vers chaque run.\n\nWHY: D9 — navigation souris entre sessions (pas de Cmd+1..9, pas de palette). sessionsAtom existe déjà (src/state/sessions.ts), useSession sélectionne déjà une session, le router expose agentRunHref/matchAgentRunRoute.\n\nWHERE: nouveau src/lib/useSessions.ts (atom dérivé mémoïsé → liste ordonnée) ; nouveau src/components/SessionSidebar.tsx monté dans le slot aside de src/App.tsx ; clic → navigate(agentRunHref).\n\nDONE WHEN:\n- chaque session vivante = une entrée cliquable (label/status)\n- clic → navigation vers le run correspondant\n- recalcul à l'ouverture/fin d'une session",
+              "sink_id": null
+            },
+            {
+              "step": "02",
+              "title": "Surligner la session active et compter les sessions",
+              "size": "I3",
+              "slice_of": ["D9"],
+              "done_when": "la session de la route courante est surlignée et le header affiche « N sessions actives »",
+              "description": "WHAT: surligner l'entrée de la session active dans la sidebar et afficher un compteur de sessions vivantes dans le header.\n\nWHY: D9 — repère visuel de la session courante et de la charge multi-session.\n\nWHERE: src/components/SessionSidebar.tsx (surlignage selon matchAgentRunRoute) ; src/App.tsx (header, useSessions filtré sur status 'running').\n\nDONE WHEN:\n- l'entrée correspondant à la route est surlignée\n- header « N sessions actives » mis à jour live\n- 0 session = état neutre lisible",
+              "sink_id": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M4",
+      "demo": "On crée, liste, change le statut et assigne des tâches en SQLite (zéro Linear) ; la CI échoue si un import Linear apparaît.",
+      "skeleton": false,
+      "tracks": [
+        {
+          "id": "A",
+          "tasks": [
+            {
+              "step": "01",
+              "title": "Lister les tâches du repo actif",
+              "size": "I3",
+              "slice_of": ["D10"],
+              "done_when": "TasksView affiche les tâches du repo actif via une commande tasks_list",
+              "description": "WHAT: commande tasks_list(repo_path) + vue TasksView qui affiche les tâches (état vide compris).\n\nWHY: D10 — pilier Tasks en SQLite, zéro Linear. Le schéma 0002_tasks existe déjà (id, title, description, status, repo_path, created_at) avec index par repo_path/status.\n\nWHERE: nouveau src-tauri/src/commands/tasks.rs (tasks_list) + src-tauri/src/lib.rs (generate_handler!) ; nouveau src/views/TasksView.tsx + route (src/router.tsx), invoke('tasks_list', { repoPath }) ; repo via useActiveProject.\n\nDONE WHEN:\n- tasks_list filtre par repo_path (index existant), test sur pool in-memory\n- TasksView liste les tâches groupées par status\n- état vide lisible",
+              "sink_id": null
+            },
+            {
+              "step": "02",
+              "title": "Créer une tâche en inline",
+              "size": "I3",
+              "slice_of": ["D10"],
+              "done_when": "un form inline crée une tâche qui apparaît dans la liste sans reload",
+              "description": "WHAT: commande tasks_create + formulaire de création inline dans TasksView.\n\nWHY: D10 — création de tâches sans quitter la vue. Dépend de la liste (01).\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_create, status défaut 'backlog', created_at SQLite) + lib.rs ; src/views/TasksView.tsx (form titre/description → invoke('tasks_create')).\n\nDONE WHEN:\n- saisie titre (+ description optionnelle) → tasks_create persiste\n- la nouvelle tâche apparaît sans reload\n- titre vide rejeté",
+              "sink_id": null
+            },
+            {
+              "step": "03",
+              "title": "Changer le statut d'une tâche",
+              "size": "I3",
+              "slice_of": ["D10"],
+              "done_when": "modifier le statut d'une tâche persiste en SQLite et se reflète dans la liste",
+              "description": "WHAT: commande tasks_update + contrôle de statut dans TasksView.\n\nWHY: D10 — cycle de vie backlog/todo/in_progress/done (contrainte CHECK déjà au schéma).\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_update) + lib.rs ; src/views/TasksView.tsx (sélecteur de statut → invoke('tasks_update')).\n\nDONE WHEN:\n- tasks_update modifie status (test inclus)\n- changement reflété dans la liste sans reload\n- statut hors enum rejeté",
+              "sink_id": null
+            },
+            {
+              "step": "04",
+              "title": "Assigner une tâche à une session",
+              "size": "I4",
+              "slice_of": ["D10"],
+              "done_when": "assigner une tâche à une session vivante persiste et survit au reload",
+              "description": "WHAT: commande tasks_assign + UI d'assignation tâche↔session dans TasksView.\n\nWHY: D10 — lien tâche↔session, socle du futur grid (M6). Le schéma 0003_task_assignments existe déjà (PK (task_id, session_id), FK cascade).\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_assign) + lib.rs ; src/views/TasksView.tsx (choix d'une session vivante via useSessions → invoke('tasks_assign')).\n\nDONE WHEN:\n- tasks_assign insère dans task_assignments (idempotent sur PK), test inclus\n- assignation persiste (vérifiée au reload)\n- session assignée visible sur la tâche",
+              "sink_id": null
+            },
+            {
+              "step": "05",
+              "title": "Bloquer les imports Linear en CI",
+              "size": "I3",
+              "slice_of": ["D10"],
+              "done_when": "la CI échoue si un import Linear apparaît dans src/ ou src-tauri/src/",
+              "description": "WHAT: job CI échouant si une référence d'import Linear (SDK/API) apparaît dans le code applicatif.\n\nWHY: D10 — Linear gelé en legacy (D1) ; aucune dépendance Linear ne doit rentrer dans l'app.\n\nWHERE: .github/workflows/ci.yml (nouveau job : grep ciblé sur src/ et src-tauri/src/, exit 1 si match).\n\nDONE WHEN:\n- le guard échoue sur un import Linear introduit volontairement\n- passe vert sur l'arbre courant\n- portée limitée au code app (pas docs/)",
+              "sink_id": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M5",
+      "demo": "Après un reload UI, l'historique de session réapparaît dans le terminal ; stress test : 10MB de scrollback replay en < 500ms.",
+      "skeleton": false,
+      "tracks": [
+        {
+          "id": "A",
+          "tasks": [
+            {
+              "step": "01",
+              "title": "Persister le scrollback en SQLite",
+              "size": "I4",
+              "slice_of": ["D6"],
+              "done_when": "chaque session écrit ses bytes PTY bruts append-only avec flush au seuil 256B/100ms",
+              "description": "WHAT: migration 0005_session_scrollback + ScrollbackSink (OutputSink) qui persiste les bytes PTY bruts append-only, attaché au spawn.\n\nWHY: D6 — socle de la persistance du scrollback. Contrat OutputSink (write < ~1ms) → buffer + flush asynchrone vers SQLite. Après le revert de 0004 (M1), le compte de migrations repasse à 4 (0001-0003 + 0005).\n\nWHERE: nouveau src-tauri/migrations/0005_session_scrollback.sql (table session_id FK cascade, seq, bytes BLOB, written_at, PRAGMA foreign_keys=ON) + .github/workflows/ci.yml (guard 3 → 4) ; nouveau src-tauri/src/session/scrollback_sink.rs ; src-tauri/src/session/commands.rs (attacher dans la sink_factory).\n\nDONE WHEN:\n- guard CI assert 4 migrations et passe\n- write() bufferise sans bloquer, flush à 256B ou 100ms, ordre seq monotone (test inclus)\n- une session réelle écrit son scrollback en base",
+              "sink_id": null
+            },
+            {
+              "step": "02",
+              "title": "Rejouer le scrollback au reload",
+              "size": "I4",
+              "slice_of": ["D6"],
+              "done_when": "après reload UI, l'historique réapparaît dans le pane avant le flux live",
+              "description": "WHAT: commande session_scrollback(session_id) renvoyant les bytes stockés ordonnés, rejoués par TerminalPane avant abonnement au flux CellFrame live.\n\nWHY: D6 — l'historique réapparaît au reload. Dépend de M2 (TerminalPane) et de la persistance (01).\n\nWHERE: src-tauri/src/session/commands.rs (session_scrollback) + src-tauri/src/lib.rs ; src/components/TerminalPane.tsx (invoke('session_scrollback') → replay → puis abonnement live).\n\nDONE WHEN:\n- session_scrollback renvoie les bytes ordonnés par seq (vide si aucun)\n- reload UI → scrollback rejoué puis live, sans doublon ni trou à la jointure\n- stress test 10MB replay < 500ms",
+              "sink_id": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M6",
+      "demo": "2 tâches × 2 agents → grille peuplée de logs live ; drag-drop d'assignation, désassignation en lâchant hors de la grille.",
+      "skeleton": false,
+      "tracks": [
+        {
+          "id": "A",
+          "tasks": [
+            {
+              "step": "01",
+              "title": "Renvoyer la matrice agents × tâches",
+              "size": "I4",
+              "slice_of": ["D11"],
+              "done_when": "list_active_grid(repo_path) renvoie la matrice des sessions vivantes par tâche assignée",
+              "description": "WHAT: commande list_active_grid(repo_path) joignant agent_sessions × tasks × task_assignments pour produire la matrice du cockpit.\n\nWHY: D11 — donnée source du grid (1 ligne = 1 agent, 1 colonne = 1 tâche). Réutilise les schémas existants (M4).\n\nWHERE: nouveau src-tauri/src/commands/grid.rs + src-tauri/src/lib.rs (generate_handler!).\n\nDONE WHEN:\n- jointure sessions/tâches/assignations pour le repo, shape exploitable par une CSS Grid\n- cellules vides pour les couples non assignés représentées\n- tests sur pool in-memory",
+              "sink_id": null
+            },
+            {
+              "step": "02",
+              "title": "Afficher la grille de logs live",
+              "size": "I4",
+              "slice_of": ["D11"],
+              "done_when": "la grille affiche une ligne par agent, une colonne par tâche, chaque cellule assignée montrant les logs live",
+              "description": "WHAT: vue <CockpitGrid> en CSS Grid alimentée par list_active_grid, chaque cellule assignée étant un <CockpitCell> embarquant un <TerminalPane>.\n\nWHY: D11 — board multi-agents. Réutilise TerminalPane (M2) tel quel ; consomme list_active_grid (01).\n\nWHERE: nouveau src/views/CockpitGrid.tsx + route ; nouveau src/components/CockpitCell.tsx (TerminalPane de la session) ; invoke('list_active_grid', { repoPath }).\n\nDONE WHEN:\n- 1 ligne/agent, 1 colonne/tâche\n- cellule assignée = logs live via TerminalPane, cellule non assignée = état vide\n- mise à jour quand l'assignation change",
+              "sink_id": null
+            },
+            {
+              "step": "03",
+              "title": "Assigner par drag-drop dans la grille",
+              "size": "I4",
+              "slice_of": ["D11"],
+              "done_when": "drag-drop assigne une tâche à un agent ; lâcher hors de la grille désassigne",
+              "description": "WHAT: assignation par drag-drop (tasks_assign) et désassignation en lâchant hors de la grille, dans CockpitGrid.\n\nWHY: D11 — interaction d'assignation du cockpit, démo finale 2 tâches × 2 agents. Build-or-Borrow à exécuter au dev : le drag-drop est borrow-par-défaut (DnD natif HTML5 vs lib) — trancher via la probe dans /next.\n\nWHERE: src/views/CockpitGrid.tsx + src/components/CockpitCell.tsx ; invoke('tasks_assign') / désassignation.\n\nDONE WHEN:\n- drop sur une cellule → assignation persistée\n- drop hors grille → désassignation\n- la grille se rafraîchit (démo 2 tâches × 2 agents)",
+              "sink_id": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
