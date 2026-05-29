@@ -116,10 +116,7 @@ mod tests {
     fn serializes_database_with_kind_and_message() {
         let err = SessionError::Database("constraint failed".into());
         let json = serde_json::to_string(&err).expect("serialize");
-        assert_eq!(
-            json,
-            r#"{"kind":"database","message":"constraint failed"}"#
-        );
+        assert_eq!(json, r#"{"kind":"database","message":"constraint failed"}"#);
     }
 
     #[test]

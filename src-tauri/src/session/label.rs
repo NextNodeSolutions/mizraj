@@ -1,7 +1,10 @@
 use std::path::Path;
 
 pub fn derive_label(binary: &str, worktree_path: &str) -> String {
-    match Path::new(worktree_path).file_name().and_then(|s| s.to_str()) {
+    match Path::new(worktree_path)
+        .file_name()
+        .and_then(|s| s.to_str())
+    {
         Some(segment) if !segment.is_empty() => format!("{binary} @ {segment}"),
         _ => binary.to_string(),
     }
@@ -19,7 +22,10 @@ mod tests {
     #[test]
     fn deep_path_uses_final_segment() {
         assert_eq!(
-            derive_label("claude", "/Users/walid/repos/agent-cockpit/feat-foundations"),
+            derive_label(
+                "claude",
+                "/Users/walid/repos/agent-cockpit/feat-foundations"
+            ),
             "claude @ feat-foundations"
         );
     }

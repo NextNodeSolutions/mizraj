@@ -29,7 +29,10 @@ const AgentRun = ({ sessionId }: Props): React.JSX.Element => {
 				data-open={diffOpen}
 				aria-hidden={!diffOpen}
 			>
-				<DiffPanel sessionId={sessionId} onClose={() => setDiffOpen(false)} />
+				<DiffPanel
+					sessionId={sessionId}
+					onClose={() => setDiffOpen(false)}
+				/>
 			</aside>
 		</div>
 	)
