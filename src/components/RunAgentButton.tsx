@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { describeError } from '../errors'
 import { logger } from '../logger'
-import { navigate } from '../router'
+import { agentRunHref, navigate } from '../router'
 import { startSessionAtom } from '../state/sessions'
 
 type Props = {
@@ -13,8 +13,6 @@ type Props = {
 }
 
 const DEFAULT_BINARY = 'claude'
-
-const agentRunHref = (sessionId: string): string => `/agent-run/${sessionId}`
 
 const RunAgentButton = ({
 	repoPath,
