@@ -226,6 +226,38 @@ describe('AgentLog', () => {
 		})
 	})
 
+	it('renders ANSI color escapes as styled spans while keeping plain text intact', async () => {
+		store.set(startSessionAtom, 'sess-ansi')
+		store.set(appendOutputAtom, {
+			sessionId: 'sess-ansi',
+			chunk: { kind: 'stdout', text: '\x1b[31mred\x1b[0m\n' },
+		})
+		await mount('sess-ansi')
+
+		const el = list()
+		expect(el.dataset.rowCount).toBe('1')
+		const row = el.firstElementChild
+		if (row === null) expect.unreachable()
+		expect(row.textContent).toBe('red')
+		const span = row.querySelector('span')
+		if (span === null) expect.unreachable()
+		expect(span.style.color).toBe('rgb(187, 0, 0)')
+	})
+
+	it('escapes HTML metacharacters in agent output to prevent XSS', async () => {
+		store.set(startSessionAtom, 'sess-xss')
+		store.set(appendOutputAtom, {
+			sessionId: 'sess-xss',
+			chunk: { kind: 'stdout', text: '<script>alert(1)</script>\n' },
+		})
+		await mount('sess-xss')
+
+		const row = list().firstElementChild
+		if (row === null) expect.unreachable()
+		expect(row.querySelector('script')).toBeNull()
+		expect(row.textContent).toBe('<script>alert(1)</script>')
+	})
+
 	it('pauses auto-scroll after the user scrolls away from the bottom', async () => {
 		store.set(startSessionAtom, 'sess-pause')
 		store.set(appendOutputAtom, {

@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import { List, useListRef } from 'react-window'
 import type { RowComponentProps } from 'react-window'
 
+import { parseAnsiSegments } from '../lib/ansi'
+import type { AnsiSegment } from '../lib/ansi'
 import { useAgentLines } from '../lib/useAgentLines'
 import type { AgentLine } from '../lib/useAgentLines'
 import { useStickToBottom } from '../lib/useStickToBottom'
@@ -9,6 +11,17 @@ import { useStickToBottom } from '../lib/useStickToBottom'
 const ROW_HEIGHT_PX = 22
 
 type LogRowProps = { lines: ReadonlyArray<AgentLine> }
+
+const segmentStyle = (segment: AnsiSegment): React.CSSProperties => ({
+	color: segment.fg ?? undefined,
+	backgroundColor: segment.bg ?? undefined,
+	fontWeight: segment.bold ? 'bold' : undefined,
+	fontStyle: segment.italic ? 'italic' : undefined,
+	textDecoration: segment.underline ? 'underline' : undefined,
+})
+
+const segmentKey = (segment: AnsiSegment): string =>
+	`${segment.fg ?? ''}|${segment.bg ?? ''}|${segment.bold ? 'b' : ''}${segment.italic ? 'i' : ''}|${segment.content}`
 
 const LogRow = ({
 	index,
@@ -18,12 +31,18 @@ const LogRow = ({
 	const line = lines[index]
 	const text = line?.text ?? ''
 	const kind = line?.kind ?? 'stdout'
+	const segments = useMemo(() => parseAnsiSegments(text), [text])
+
 	return (
 		<div
 			style={style}
 			className={`agent-log__line agent-log__line--${kind}`}
 		>
-			{text === '' ? ' ' : text}
+			{segments.map(segment => (
+				<span key={segmentKey(segment)} style={segmentStyle(segment)}>
+					{segment.content}
+				</span>
+			))}
 		</div>
 	)
 }
