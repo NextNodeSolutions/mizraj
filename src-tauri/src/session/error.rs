@@ -11,6 +11,21 @@ pub enum SessionError {
 
     #[error("failed to probe login-shell PATH: {0}")]
     PathProbe(#[source] std::io::Error),
+
+    #[error("session not found: {0}")]
+    NotFound(String),
+
+    #[error("session input channel closed")]
+    InputClosed,
+
+    #[error("failed to register session ref: {0}")]
+    SessionRef(String),
+
+    #[error("database error: {0}")]
+    Database(String),
+
+    #[error("failed to resize pty: {0}")]
+    Resize(String),
 }
 
 impl Serialize for SessionError {
@@ -31,6 +46,26 @@ impl Serialize for SessionError {
             SessionError::PathProbe(err) => {
                 map.serialize_entry("kind", "path_probe")?;
                 map.serialize_entry("message", &err.to_string())?;
+            }
+            SessionError::NotFound(id) => {
+                map.serialize_entry("kind", "not_found")?;
+                map.serialize_entry("session_id", id)?;
+            }
+            SessionError::InputClosed => {
+                map.serialize_entry("kind", "input_closed")?;
+                map.serialize_entry("message", "session input channel closed")?;
+            }
+            SessionError::SessionRef(message) => {
+                map.serialize_entry("kind", "session_ref")?;
+                map.serialize_entry("message", message)?;
+            }
+            SessionError::Database(message) => {
+                map.serialize_entry("kind", "database")?;
+                map.serialize_entry("message", message)?;
+            }
+            SessionError::Resize(message) => {
+                map.serialize_entry("kind", "resize")?;
+                map.serialize_entry("message", message)?;
             }
         }
         map.end()
@@ -61,5 +96,36 @@ mod tests {
         let err = SessionError::PathProbe(io_err);
         let json = serde_json::to_string(&err).expect("serialize");
         assert_eq!(json, r#"{"kind":"path_probe","message":"no zsh"}"#);
+    }
+
+    #[test]
+    fn serializes_not_found_with_kind_and_session_id() {
+        let err = SessionError::NotFound("01H8XYZ".into());
+        let json = serde_json::to_string(&err).expect("serialize");
+        assert_eq!(json, r#"{"kind":"not_found","session_id":"01H8XYZ"}"#);
+    }
+
+    #[test]
+    fn serializes_session_ref_with_kind_and_message() {
+        let err = SessionError::SessionRef("repo not found".into());
+        let json = serde_json::to_string(&err).expect("serialize");
+        assert_eq!(json, r#"{"kind":"session_ref","message":"repo not found"}"#);
+    }
+
+    #[test]
+    fn serializes_database_with_kind_and_message() {
+        let err = SessionError::Database("constraint failed".into());
+        let json = serde_json::to_string(&err).expect("serialize");
+        assert_eq!(json, r#"{"kind":"database","message":"constraint failed"}"#);
+    }
+
+    #[test]
+    fn serializes_input_closed_with_kind_and_message() {
+        let err = SessionError::InputClosed;
+        let json = serde_json::to_string(&err).expect("serialize");
+        assert_eq!(
+            json,
+            r#"{"kind":"input_closed","message":"session input channel closed"}"#
+        );
     }
 }

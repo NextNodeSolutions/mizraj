@@ -2,11 +2,15 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::Path;
 
-use portable_pty::{native_pty_system, Child, CommandBuilder, PtySize};
+use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 
 use crate::session::error::SessionError;
 
 pub struct PtySession {
+    /// Kept alive so `resize_session` can call `MasterPty::resize` after spawn.
+    /// Reader/writer are derived from this master but do NOT keep it alive on
+    /// their own — drop the master and subsequent ioctl(TIOCSWINSZ) fails.
+    pub master: Box<dyn MasterPty + Send>,
     pub master_reader: Box<dyn Read + Send>,
     pub master_writer: Box<dyn Write + Send>,
     pub child: Box<dyn Child + Send + Sync>,
@@ -60,6 +64,7 @@ pub fn spawn(
         .map_err(|e| SessionError::Spawn(e.to_string()))?;
 
     Ok(PtySession {
+        master: pair.master,
         master_reader,
         master_writer,
         child,

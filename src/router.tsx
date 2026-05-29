@@ -4,28 +4,50 @@ import type { PlanKind } from './lib/plans'
 import { PLAN_KINDS } from './lib/plans'
 
 const PLANS_PATH_ROOT = 'plans'
+const AGENT_RUN_PATH_ROOT = 'agent-run'
 const PLAN_KIND_SET: ReadonlySet<string> = new Set(PLAN_KINDS)
-const ROUTE_SEGMENTS = 3
+const PLAN_ROUTE_SEGMENTS = 3
+const AGENT_RUN_ROUTE_SEGMENTS = 2
 const KIND_INDEX = 1
 const SLUG_INDEX = 2
+const AGENT_SESSION_ID_INDEX = 1
 
 export type PlanRoute = { kind: PlanKind; slug: string }
+export type AgentRunRoute = { sessionId: string }
 
 export const planRouteHref = ({ kind, slug }: PlanRoute): string =>
 	`/${PLANS_PATH_ROOT}/${kind}/${slug}`
 
+export const agentRunHref = (sessionId: string): string =>
+	`/${AGENT_RUN_PATH_ROOT}/${sessionId}`
+
 const isPlanRoute = (
 	segments: ReadonlyArray<string>,
 ): segments is readonly [typeof PLANS_PATH_ROOT, PlanKind, string] =>
-	segments.length === ROUTE_SEGMENTS &&
+	segments.length === PLAN_ROUTE_SEGMENTS &&
 	segments[0] === PLANS_PATH_ROOT &&
 	segments[KIND_INDEX] !== undefined &&
 	PLAN_KIND_SET.has(segments[KIND_INDEX])
+
+const isAgentRunRoute = (
+	segments: ReadonlyArray<string>,
+): segments is readonly [typeof AGENT_RUN_PATH_ROOT, string] =>
+	segments.length === AGENT_RUN_ROUTE_SEGMENTS &&
+	segments[0] === AGENT_RUN_PATH_ROOT &&
+	segments[AGENT_SESSION_ID_INDEX] !== undefined &&
+	segments[AGENT_SESSION_ID_INDEX].length > 0
 
 export const matchPlanRoute = (pathname: string): PlanRoute | null => {
 	const segments = pathname.split('/').filter(Boolean)
 	return isPlanRoute(segments)
 		? { kind: segments[KIND_INDEX], slug: segments[SLUG_INDEX] }
+		: null
+}
+
+export const matchAgentRunRoute = (pathname: string): AgentRunRoute | null => {
+	const segments = pathname.split('/').filter(Boolean)
+	return isAgentRunRoute(segments)
+		? { sessionId: segments[AGENT_SESSION_ID_INDEX] }
 		: null
 }
 

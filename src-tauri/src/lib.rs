@@ -1,13 +1,16 @@
 mod active_project;
 mod commands;
 mod db;
+pub mod diff_format;
 mod files;
 mod logging;
 pub mod session;
+pub mod worktree;
 
 use tauri::Manager;
 
 use crate::active_project::ActiveProject;
+use crate::session::SessionManager;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -92,7 +95,9 @@ pub fn run() {
                 );
                 err
             })?;
+            let session_manager = SessionManager::new(pool.clone());
             app.manage(pool);
+            app.manage(session_manager);
             #[cfg(all(desktop, not(debug_assertions)))]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
@@ -102,10 +107,14 @@ pub fn run() {
             greet,
             log_from_frontend,
             files::read_interview_state,
+            commands::get_diff::get_diff,
             commands::list_plans::list_plans,
             commands::set_active_project::set_active_project,
             commands::set_active_project::clear_active_project,
             commands::plan_protocol::resolve_plan,
+            session::commands::session_create,
+            session::commands::session_resize,
+            session::label::session_label,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|err| {
