@@ -9,6 +9,16 @@ use crate::session::sink::OutputSink;
 
 pub type SharedMaster = Arc<StdMutex<Box<dyn MasterPty + Send>>>;
 
+/// Triplet of background tasks bound to a session. Grouped together because
+/// they are spawned, owned, and aborted as a unit — passing them individually
+/// pushed `SessionHandle::new` over clippy's 7-arg threshold without adding
+/// any semantic value.
+pub struct SessionTasks {
+    pub reader: JoinHandle<()>,
+    pub writer: JoinHandle<()>,
+    pub wait: JoinHandle<ExitStatus>,
+}
+
 /// Per-session ownership of PTY channels, child process, and the three
 /// long-running tokio tasks that keep the session alive.
 ///
@@ -42,9 +52,7 @@ impl SessionHandle {
     pub fn new(
         writer: Sender<Vec<u8>>,
         child: Arc<Mutex<Box<dyn Child + Send + Sync>>>,
-        reader_task: JoinHandle<()>,
-        writer_task: JoinHandle<()>,
-        wait_task: JoinHandle<ExitStatus>,
+        tasks: SessionTasks,
         sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>>,
         pid: Option<u32>,
         master: Option<SharedMaster>,
@@ -52,9 +60,9 @@ impl SessionHandle {
         Self {
             writer,
             child,
-            reader_task,
-            writer_task,
-            wait_task: Some(wait_task),
+            reader_task: tasks.reader,
+            writer_task: tasks.writer,
+            wait_task: Some(tasks.wait),
             sinks,
             pid,
             master,
@@ -184,9 +192,11 @@ mod tests {
             let handle = SessionHandle::new(
                 writer_tx,
                 fresh_child(),
-                reader_task,
-                writer_task,
-                wait_task,
+                SessionTasks {
+                    reader: reader_task,
+                    writer: writer_task,
+                    wait: wait_task,
+                },
                 Arc::clone(&sinks),
                 None,
                 None,
@@ -240,9 +250,11 @@ mod tests {
                 let handle = SessionHandle::new(
                     writer_tx,
                     fresh_child(),
-                    reader_task,
-                    writer_task,
-                    wait_task,
+                    SessionTasks {
+                        reader: reader_task,
+                        writer: writer_task,
+                        wait: wait_task,
+                    },
                     sinks,
                     None,
                     None,

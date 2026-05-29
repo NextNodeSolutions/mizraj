@@ -12,7 +12,7 @@ use tauri::async_runtime::{channel, spawn, spawn_blocking, Mutex, Receiver, RwLo
 use tokio::time::timeout;
 
 use crate::session::error::SessionError;
-use crate::session::handle::SessionHandle;
+use crate::session::handle::{SessionHandle, SessionTasks};
 use crate::session::id::SessionId;
 use crate::session::pty::{self, PtySession};
 use crate::session::sink::OutputSink;
@@ -230,9 +230,11 @@ impl SessionManager {
         let handle = SessionHandle::new(
             writer_tx,
             child,
-            reader_task,
-            writer_task,
-            wait_task,
+            SessionTasks {
+                reader: reader_task,
+                writer: writer_task,
+                wait: wait_task,
+            },
             sinks,
             pid,
             Some(shared_master),
@@ -715,9 +717,11 @@ mod tests {
             let handle = SessionHandle::new(
                 tx,
                 fresh_child(),
-                reader_task,
-                writer_task,
-                wait_task,
+                SessionTasks {
+                    reader: reader_task,
+                    writer: writer_task,
+                    wait: wait_task,
+                },
                 sinks,
                 None,
                 None,
@@ -786,9 +790,11 @@ mod tests {
             let handle = SessionHandle::new(
                 writer_tx,
                 fresh_child(),
-                reader_task,
-                writer_task,
-                wait_task,
+                SessionTasks {
+                    reader: reader_task,
+                    writer: writer_task,
+                    wait: wait_task,
+                },
                 Arc::clone(&sinks),
                 None,
                 None,
@@ -890,9 +896,11 @@ mod tests {
                 let handle = SessionHandle::new(
                     writer_tx,
                     fresh_child(),
-                    reader_task,
-                    writer_task,
-                    wait_task,
+                    SessionTasks {
+                        reader: reader_task,
+                        writer: writer_task,
+                        wait: wait_task,
+                    },
                     sinks,
                     Some(pid),
                     None,
