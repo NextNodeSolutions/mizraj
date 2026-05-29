@@ -152,16 +152,16 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
-            - name: Assert exactly 4 SQL migrations (0001-0004)
+            - name: Assert exactly 3 SQL migrations (0001-0003)
               run: |
                   set -euo pipefail
                   count=$(ls src-tauri/migrations/*.sql | wc -l | tr -d ' ')
-                  if [ "$count" -ne 4 ]; then
-                      echo "Expected 4 .sql migrations in src-tauri/migrations/, got $count" >&2
+                  if [ "$count" -ne 3 ]; then
+                      echo "Expected 3 .sql migrations in src-tauri/migrations/, got $count" >&2
                       ls src-tauri/migrations/ >&2
                       exit 1
                   fi
-                  for expected in 0001 0002 0003 0004; do
+                  for expected in 0001 0002 0003; do
                       if ! ls src-tauri/migrations/${expected}_*.sql >/dev/null 2>&1; then
                           echo "Missing expected migration prefix: ${expected}_*.sql" >&2
                           exit 1
