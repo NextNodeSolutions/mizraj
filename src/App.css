@@ -285,6 +285,12 @@
 	color: var(--color-text);
 }
 
+.session-sidebar__link[aria-current='page'] {
+	background: var(--color-active-overlay);
+	color: var(--color-text);
+	font-weight: 600;
+}
+
 .session-sidebar__label {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -480,6 +486,17 @@
 	margin: 0;
 	font-size: 1.25rem;
 	text-align: left;
+}
+
+.top-bar__brand {
+	display: flex;
+	align-items: baseline;
+	gap: 0.75rem;
+}
+
+.top-bar__session-count {
+	font-size: 0.8rem;
+	color: var(--color-text-muted);
 }
 
 .top-bar__actions {

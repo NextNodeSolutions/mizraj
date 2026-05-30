@@ -7,7 +7,13 @@ const STATUS_LABEL: Readonly<Record<SessionState['status'], string>> = {
 	ended: 'Ended',
 }
 
-const SessionSidebar = (): React.JSX.Element => {
+type SessionSidebarProps = {
+	activeSessionId: string | null
+}
+
+const SessionSidebar = ({
+	activeSessionId,
+}: SessionSidebarProps): React.JSX.Element => {
 	const sessions = useSessions()
 
 	return (
@@ -21,6 +27,11 @@ const SessionSidebar = (): React.JSX.Element => {
 						<li key={session.id}>
 							<a
 								className="session-sidebar__link"
+								aria-current={
+									session.id === activeSessionId
+										? 'page'
+										: undefined
+								}
 								href={agentRunHref(session.id)}
 								onClick={event => {
 									event.preventDefault()
