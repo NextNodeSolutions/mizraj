@@ -38,3 +38,6 @@ __pycache__/
 
 # Rust
 /target/
+
+# Claude Code local state
+.claude/
