@@ -3,14 +3,17 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Ce qu'il reste à faire pour avoir un terminal · Agent Cockpit</title>
+		<title>
+			Ce qu'il reste à faire pour avoir un terminal · Agent Cockpit
+		</title>
 		<script>
 			;(function () {
 				try {
 					var stored = localStorage.getItem('np-theme')
 					var theme =
 						stored ||
-						(window.matchMedia('(prefers-color-scheme: dark)').matches
+						(window.matchMedia('(prefers-color-scheme: dark)')
+							.matches
 							? 'dark'
 							: 'light')
 					document.documentElement.setAttribute('data-theme', theme)
@@ -387,17 +390,22 @@
 		</button>
 		<div class="wrap">
 			<div class="eyebrow">Agent Cockpit · 2026-05-27</div>
-			<h1>Ce qu'il reste à faire pour avoir <em>claude</em> dans une fenêtre de l'app</h1>
+			<h1>
+				Ce qu'il reste à faire pour avoir <em>claude</em> dans une
+				fenêtre de l'app
+			</h1>
 			<p class="lede">
 				Oublie les phases, les tracks et les D-machin. Il y a
-				<strong>5 chantiers</strong>. Quatre te bloquent pour avoir
-				un terminal qui marche. Le cinquième est à côté. Voilà.
+				<strong>5 chantiers</strong>. Quatre te bloquent pour avoir un
+				terminal qui marche. Le cinquième est à côté. Voilà.
 			</p>
 
 			<div class="status-row">
 				<div class="status-card">
 					<div class="tag">Aujourd'hui</div>
-					<div class="big">Le binding <code>libghostty</code> est fini</div>
+					<div class="big">
+						Le binding <code>libghostty</code> est fini
+					</div>
 					<div class="small">
 						La crate Rust <code>agent-cockpit-term</code> sait déjà
 						parser les bytes ANSI en grille de cells. C'est la pièce
@@ -406,7 +414,9 @@
 				</div>
 				<div class="status-card goal">
 					<div class="tag">Objectif</div>
-					<div class="big">Claude tourne dans une fenêtre de l'app</div>
+					<div class="big">
+						Claude tourne dans une fenêtre de l'app
+					</div>
 					<div class="small">
 						Tu cliques « nouvelle session », tu vois
 						<code>claude</code> démarrer, tu tapes dedans, l'output
@@ -425,7 +435,8 @@
 					<p class="pitch">
 						Spawner <code>claude</code> dans un pseudo-terminal,
 						pouvoir lire son output et lui envoyer des keystrokes.
-						Crate <code>portable-pty</code>, la même que wezterm/alacritty.
+						Crate <code>portable-pty</code>, la même que
+						wezterm/alacritty.
 					</p>
 					<div class="meta">
 						<span class="pill">Rust · tauri-app</span>
@@ -439,8 +450,8 @@
 					<h3>Gérer les sessions côté backend</h3>
 					<p class="pitch">
 						Un objet qui garde la liste des PTYs vivants, qui
-						démarre/arrête les process proprement, et qui meurt
-						bien quand l'app quitte (SIGTERM puis SIGKILL après 2s).
+						démarre/arrête les process proprement, et qui meurt bien
+						quand l'app quitte (SIGTERM puis SIGKILL après 2s).
 					</p>
 					<div class="meta">
 						<span class="pill">Rust · tauri-app</span>
@@ -488,9 +499,9 @@
 						Les fonctions <code>diff_session</code>,
 						<code>diff_working_tree</code>,
 						<code>worktree_list</code>… dans la crate
-						<code>agent-cockpit-vcs</code>. <strong>Indépendant du
-						terminal</strong> — tu peux le faire en // ou plus tard,
-						ça ne bloque rien.
+						<code>agent-cockpit-vcs</code>.
+						<strong>Indépendant du terminal</strong> — tu peux le
+						faire en // ou plus tard, ça ne bloque rien.
 					</p>
 					<div class="meta">
 						<span class="pill">Rust · agent-cockpit-vcs</span>
@@ -523,10 +534,19 @@
 				<div class="arrow">→</div>
 				<div class="goal-pill">Terminal vivant</div>
 			</div>
-			<p style="font-size: 13.5px; color: var(--np-text-muted); margin-top: 10px;">
+			<p
+				style="
+					font-size: 13.5px;
+					color: var(--np-text-muted);
+					margin-top: 10px;
+				"
+			>
 				Le 4 a besoin du 3, qui a besoin du 2, qui a besoin du 1. C'est
-				une chaîne. <strong>Tu ne peux pas paralléliser les chantiers
-				1→2→3→4 entre eux.</strong>
+				une chaîne.
+				<strong
+					>Tu ne peux pas paralléliser les chantiers 1→2→3→4 entre
+					eux.</strong
+				>
 			</p>
 
 			<h2>Ce que tu peux faire EN MÊME TEMPS</h2>
@@ -535,11 +555,15 @@
 					<h3>✓ Vraiment en parallèle</h3>
 					<ul>
 						<li>
-							<span class="name">Chantier 1 (PTY) en backend</span>
+							<span class="name"
+								>Chantier 1 (PTY) en backend</span
+							>
 							<span class="hint">la chaîne principale</span>
 						</li>
 						<li>
-							<span class="name">Chantier 5 (libgit2 wrappers)</span>
+							<span class="name"
+								>Chantier 5 (libgit2 wrappers)</span
+							>
 							<span class="hint">à côté, zéro contention</span>
 						</li>
 						<li>
@@ -547,9 +571,15 @@
 							<span class="hint">avec des cells mockées</span>
 						</li>
 					</ul>
-					<p style="font-size: 13px; color: var(--np-text-muted); margin-top: 12px;">
-						3 trucs en // si tu as deux têtes (toi + un agent
-						Claude par exemple). Sinon prends 1 + 5 en alternance.
+					<p
+						style="
+							font-size: 13px;
+							color: var(--np-text-muted);
+							margin-top: 12px;
+						"
+					>
+						3 trucs en // si tu as deux têtes (toi + un agent Claude
+						par exemple). Sinon prends 1 + 5 en alternance.
 					</p>
 				</div>
 				<div class="col wait">
@@ -564,11 +594,15 @@
 							<span class="hint">attend le Chantier 3</span>
 						</li>
 						<li>
-							<span class="name">Scrollback persistant SQLite</span>
+							<span class="name"
+								>Scrollback persistant SQLite</span
+							>
 							<span class="hint">après le terminal vivant</span>
 						</li>
 						<li>
-							<span class="name">Multi-pane, raccourcis Cmd+K</span>
+							<span class="name"
+								>Multi-pane, raccourcis Cmd+K</span
+							>
 							<span class="hint">polish, après le palier</span>
 						</li>
 					</ul>
@@ -577,7 +611,15 @@
 
 			<h2>TL;DR</h2>
 			<div
-				style="background: var(--np-bg-soft); border: 1px solid var(--np-border); border-left: 4px solid var(--np-accent); border-radius: var(--np-radius); padding: 22px 26px; font-size: 16px; line-height: 1.7;"
+				style="
+					background: var(--np-bg-soft);
+					border: 1px solid var(--np-border);
+					border-left: 4px solid var(--np-accent);
+					border-radius: var(--np-radius);
+					padding: 22px 26px;
+					font-size: 16px;
+					line-height: 1.7;
+				"
 			>
 				<strong>Tu fais le Chantier 1 (PTY).</strong> En même temps un
 				agent Claude peut bosser sur le Chantier 5 (libgit2). Quand 1
@@ -587,7 +629,15 @@
 			</div>
 
 			<div
-				style="margin-top: 56px; padding-top: 22px; border-top: 1px dashed var(--np-border); display: flex; justify-content: space-between; font-size: 12px; color: var(--np-text-muted);"
+				style="
+					margin-top: 56px;
+					padding-top: 22px;
+					border-top: 1px dashed var(--np-border);
+					display: flex;
+					justify-content: space-between;
+					font-size: 12px;
+					color: var(--np-text-muted);
+				"
 			>
 				<span>Source : plan terminal embarqué du 22/05</span>
 				<span>NextNode · 2026-05-27</span>
@@ -597,7 +647,8 @@
 		<script>
 			function toggleTheme() {
 				const cur =
-					document.documentElement.getAttribute('data-theme') || 'light'
+					document.documentElement.getAttribute('data-theme') ||
+					'light'
 				const next = cur === 'dark' ? 'light' : 'dark'
 				document.documentElement.setAttribute('data-theme', next)
 				try {

@@ -1,56 +1,71 @@
 {
-  "slug": "agent-cockpit-roadmap",
-  "change_kind": "additive-brownfield",
-  "phase": "sealed",
-  "status": "closure approved — plan promoted to docs/plans/2026-05-29-agent-cockpit-roadmap.html, backlog-bundle.json emitted (12 decisions)",
-  "round_2": {
-    "q_term_scope": "both — output+input in same milestone (M2)",
-    "q_scrollback": "ownmilestone — dedicated milestone M5 after live terminal",
-    "q_navigation": "sidebar ONLY — dropped Cmd+1..9 and Cmd+K palette",
-    "q_sequence": "seq_dep — M2 Terminal -> M3 Nav -> M4 Tasks -> M5 Scrollback -> M6 Grid",
-    "q_diff_comments": "revert — drop migration 0004_diff_comments to match read-only D9/D12"
-  },
-  "milestones": {
-    "M1": "Polish P3 must-have (stop/kill, project picker, auto-open diff) -> tag v0.1.0",
-    "M2": "Terminal natif libghostty->canvas, output+input, retire ghostty-web",
-    "M3": "Navigation: sidebar multi-session only",
-    "M4": "Pilier Tasks (SQLite CRUD + TasksView)",
-    "M5": "Scrollback persistant (migration 0005, writer, replay)",
-    "M6": "Cockpit grid multi-agents (D16)"
-  },
-  "linear_project_id": "f84f7e83-f8bc-4f74-9927-b961f0c99750",
-  "context": {
-    "shipped": ["foundation (Tauri2/React19/AGPL)", "vcs crate git2", "session+PTY backend", "run-agent flow (session_create/wt new/TauriEventSink)", "diff panel 3 views @pierre/diffs drawer", "plan panel", "ghostty-web log (TO BE RETIRED per R1)"],
-    "linear_drift": "96 issues, 0 marked Done despite ~3 phases shipped",
-    "numbering_collision": "two interviews both pushed P4-P7; P5 and P6 each mean two different lots",
-    "schema_ahead": "migrations 0002_tasks/0003_task_assignments/0004_diff_comments exist without UI; 0004 contradicts D9/D12 read-only decision"
-  },
-  "resolved": {
-    "b12_pilot": {
-      "fact": "plan.json piloté par /backlog → /track → /next devient la source de vérité canonique. Linear n'est plus source de vérité : il est lu une seule fois pour amorcer plan.json puis gelé en legacy (pas de miroir live, pas de re-push).",
-      "choice": "planjson",
-      "user_note": "linear ne sera plus source de verité, apres importation linear deviens legacy"
-    },
-    "b2_numbering": {
-      "fact": "La numérotation P{N} des deux interviews est abandonnée. Tout est ré-séquencé dans le schéma milestone+track de /backlog (M1.A, M1.B…).",
-      "choice": "flatten"
-    },
-    "b1_reconcile": {
-      "fact": "On ne répare pas le board existant. On extrait une fois le scope encore valide des 96 issues vers le nouveau plan.json, puis Linear est gelé en legacy. Pas de mark-Done/cancel API.",
-      "choice": "reimport"
-    },
-    "b3_terminal": {
-      "fact": "Le terminal passe au pipeline NATIF libghostty→canvas. ghostty-web est retiré. La crate agent-cockpit-term existante (cells, render_state) est câblée : PTY → cells → Channel<CellFrame> → canvas React TerminalPane. Le plan embedded-terminal P4–P7 est réactivé (pas obsolète).",
-      "choice": "native"
-    },
-    "b6_release": {
-      "fact": "Première release publique AGPL (binaires GitHub par tag SemVer) = v0.1.0, taguée juste après le polish P3 must-have.",
-      "choice": "afterpolish"
-    },
-    "b7_polish_scope": {
-      "fact": "Bloquants v0.1 : stop/kill agent UI, project picker, auto-open du diff en fin de run. NON bloquants (déférés) : états empty/loading/error, démo e2e, bindings specta, CI guards.",
-      "choices": ["stopkill", "picker", "autoopen"]
-    }
-  },
-  "pending_round_2": ["b4_stdin", "b5_scrollback", "b8_tasks", "b9_grid", "b10_navigation", "b11_diff_comments"]
+	"slug": "agent-cockpit-roadmap",
+	"change_kind": "additive-brownfield",
+	"phase": "sealed",
+	"status": "closure approved — plan promoted to docs/plans/2026-05-29-agent-cockpit-roadmap.html, backlog-bundle.json emitted (12 decisions)",
+	"round_2": {
+		"q_term_scope": "both — output+input in same milestone (M2)",
+		"q_scrollback": "ownmilestone — dedicated milestone M5 after live terminal",
+		"q_navigation": "sidebar ONLY — dropped Cmd+1..9 and Cmd+K palette",
+		"q_sequence": "seq_dep — M2 Terminal -> M3 Nav -> M4 Tasks -> M5 Scrollback -> M6 Grid",
+		"q_diff_comments": "revert — drop migration 0004_diff_comments to match read-only D9/D12"
+	},
+	"milestones": {
+		"M1": "Polish P3 must-have (stop/kill, project picker, auto-open diff) -> tag v0.1.0",
+		"M2": "Terminal natif libghostty->canvas, output+input, retire ghostty-web",
+		"M3": "Navigation: sidebar multi-session only",
+		"M4": "Pilier Tasks (SQLite CRUD + TasksView)",
+		"M5": "Scrollback persistant (migration 0005, writer, replay)",
+		"M6": "Cockpit grid multi-agents (D16)"
+	},
+	"linear_project_id": "f84f7e83-f8bc-4f74-9927-b961f0c99750",
+	"context": {
+		"shipped": [
+			"foundation (Tauri2/React19/AGPL)",
+			"vcs crate git2",
+			"session+PTY backend",
+			"run-agent flow (session_create/wt new/TauriEventSink)",
+			"diff panel 3 views @pierre/diffs drawer",
+			"plan panel",
+			"ghostty-web log (TO BE RETIRED per R1)"
+		],
+		"linear_drift": "96 issues, 0 marked Done despite ~3 phases shipped",
+		"numbering_collision": "two interviews both pushed P4-P7; P5 and P6 each mean two different lots",
+		"schema_ahead": "migrations 0002_tasks/0003_task_assignments/0004_diff_comments exist without UI; 0004 contradicts D9/D12 read-only decision"
+	},
+	"resolved": {
+		"b12_pilot": {
+			"fact": "plan.json piloté par /backlog → /track → /next devient la source de vérité canonique. Linear n'est plus source de vérité : il est lu une seule fois pour amorcer plan.json puis gelé en legacy (pas de miroir live, pas de re-push).",
+			"choice": "planjson",
+			"user_note": "linear ne sera plus source de verité, apres importation linear deviens legacy"
+		},
+		"b2_numbering": {
+			"fact": "La numérotation P{N} des deux interviews est abandonnée. Tout est ré-séquencé dans le schéma milestone+track de /backlog (M1.A, M1.B…).",
+			"choice": "flatten"
+		},
+		"b1_reconcile": {
+			"fact": "On ne répare pas le board existant. On extrait une fois le scope encore valide des 96 issues vers le nouveau plan.json, puis Linear est gelé en legacy. Pas de mark-Done/cancel API.",
+			"choice": "reimport"
+		},
+		"b3_terminal": {
+			"fact": "Le terminal passe au pipeline NATIF libghostty→canvas. ghostty-web est retiré. La crate agent-cockpit-term existante (cells, render_state) est câblée : PTY → cells → Channel<CellFrame> → canvas React TerminalPane. Le plan embedded-terminal P4–P7 est réactivé (pas obsolète).",
+			"choice": "native"
+		},
+		"b6_release": {
+			"fact": "Première release publique AGPL (binaires GitHub par tag SemVer) = v0.1.0, taguée juste après le polish P3 must-have.",
+			"choice": "afterpolish"
+		},
+		"b7_polish_scope": {
+			"fact": "Bloquants v0.1 : stop/kill agent UI, project picker, auto-open du diff en fin de run. NON bloquants (déférés) : états empty/loading/error, démo e2e, bindings specta, CI guards.",
+			"choices": ["stopkill", "picker", "autoopen"]
+		}
+	},
+	"pending_round_2": [
+		"b4_stdin",
+		"b5_scrollback",
+		"b8_tasks",
+		"b9_grid",
+		"b10_navigation",
+		"b11_diff_comments"
+	]
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import './App.css'
 import PlansMenu from './components/PlansMenu'
+import ProjectPicker from './components/ProjectPicker'
 import RunAgentButton from './components/RunAgentButton'
 import SettingsPanel from './components/SettingsPanel'
 import { useActiveProject } from './lib/activeProject'
@@ -26,6 +27,7 @@ function App(): React.JSX.Element {
 			<header className="top-bar">
 				<h1>Agent Cockpit</h1>
 				<div className="top-bar__actions">
+					<ProjectPicker onSelect={settings.setLastProjectPath} />
 					{activeProjectPath !== null && (
 						<RunAgentButton repoPath={activeProjectPath} />
 					)}
