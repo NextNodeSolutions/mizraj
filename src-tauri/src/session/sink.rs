@@ -9,6 +9,14 @@
 /// dedicated task and hand it bytes through a non-blocking channel.
 pub trait OutputSink: Send + Sync {
     fn write(&self, bytes: &[u8]);
+
+    /// Called exactly once when the session's child process terminates,
+    /// carrying the observed exit code (D8: auto-open the diff at end of run).
+    ///
+    /// Same ~1ms budget as [`write`] — move heavy work off-thread. Default
+    /// no-op so output-only sinks (scrollback, tests) need not react to
+    /// termination.
+    fn end(&self, _exit_code: u32) {}
 }
 
 #[cfg(test)]

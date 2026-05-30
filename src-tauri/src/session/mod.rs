@@ -14,4 +14,6 @@ pub use handle::SessionHandle;
 pub use id::SessionId;
 pub use manager::SessionManager;
 pub use sink::OutputSink;
-pub use tauri_sink::{AgentOutputPayload, TauriEventSink, AGENT_OUTPUT_EVENT};
+pub use tauri_sink::{
+    AgentOutputPayload, SessionEndPayload, TauriEventSink, AGENT_END_EVENT, AGENT_OUTPUT_EVENT,
+};

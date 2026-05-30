@@ -22,9 +22,19 @@ const stopSession = (sessionId: string): void => {
 }
 
 const AgentRun = ({ sessionId }: Props): React.JSX.Element => {
-	const [diffOpen, setDiffOpen] = useState(false)
 	const session = useSession(sessionId)
 	const ended = session?.status === 'ended'
+
+	const [diffOpen, setDiffOpen] = useState(false)
+	// Auto-open the diff once, on the transition to `ended` (D8). Tracking the
+	// previous `ended` value and adjusting state during render — rather than an
+	// effect — keeps this a one-shot reaction to the transition: a later manual
+	// close sticks, and the Diffs button can still reopen it.
+	const [endedSeen, setEndedSeen] = useState(ended)
+	if (ended !== endedSeen) {
+		setEndedSeen(ended)
+		if (ended) setDiffOpen(true)
+	}
 
 	return (
 		<div className="agent-run">

@@ -26,7 +26,14 @@ export type AgentOutputPayload = {
 	text: string
 }
 
+export type SessionEndPayload = {
+	session_id: string
+	exit_code: number
+}
+
 export const AGENT_OUTPUT_EVENT = 'agent:output'
+
+export const AGENT_END_EVENT = 'agent:end'
 
 type SessionsMap = Readonly<Record<string, SessionState>>
 
@@ -86,30 +93,52 @@ export const startAgentEventsBridge = (): void => {
 	bridgeStarted = true
 
 	const store = getDefaultStore()
-	listen<AgentOutputPayload>(AGENT_OUTPUT_EVENT, event => {
-		const { session_id, kind, text } = event.payload
-		if (!store.get(sessionsAtom)[session_id]) {
-			logger.warn(
-				`agent:output for unknown session ${session_id}; dropping chunk`,
-				{
-					scope: 'sessions-store',
-					details: { kind, bytes: text.length },
-				},
+
+	// Subscribe to a per-session Tauri event, dropping (with a warning) any
+	// payload whose session we don't know about, and resetting the bridge on a
+	// failed subscription so a later startAgentEventsBridge() can retry.
+	const forwardSessionEvent = <T extends { session_id: string }>(
+		event: string,
+		route: (payload: T) => void,
+	): void => {
+		listen<T>(event, ({ payload }) => {
+			if (!store.get(sessionsAtom)[payload.session_id]) {
+				logger.warn(
+					`${event} for unknown session ${payload.session_id}; dropping`,
+					{ scope: 'sessions-store' },
+				)
+				return
+			}
+			route(payload)
+		}).catch((error: unknown) => {
+			bridgeStarted = false
+			const { message, stack } = describeError(error)
+			logger.error(
+				`startAgentEventsBridge: listen('${event}') failed: ${message}`,
+				{ scope: 'sessions-store', details: { stack } },
 			)
-			return
-		}
-		store.set(appendOutputAtom, {
-			sessionId: session_id,
-			chunk: { kind, text },
 		})
-	}).catch((error: unknown) => {
-		bridgeStarted = false
-		const { message, stack } = describeError(error)
-		logger.error(
-			`startAgentEventsBridge: listen('${AGENT_OUTPUT_EVENT}') failed: ${message}`,
-			{ scope: 'sessions-store', details: { stack } },
-		)
-	})
+	}
+
+	forwardSessionEvent<AgentOutputPayload>(
+		AGENT_OUTPUT_EVENT,
+		({ session_id, kind, text }) => {
+			store.set(appendOutputAtom, {
+				sessionId: session_id,
+				chunk: { kind, text },
+			})
+		},
+	)
+
+	forwardSessionEvent<SessionEndPayload>(
+		AGENT_END_EVENT,
+		({ session_id, exit_code }) => {
+			store.set(endSessionAtom, {
+				sessionId: session_id,
+				exitCode: exit_code,
+			})
+		},
+	)
 }
 
 // Test-only escape hatch so suites can verify idempotency from a clean slate.

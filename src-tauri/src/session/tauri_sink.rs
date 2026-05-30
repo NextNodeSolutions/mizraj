@@ -8,6 +8,8 @@ use crate::session::sink::OutputSink;
 
 pub const AGENT_OUTPUT_EVENT: &str = "agent:output";
 
+pub const AGENT_END_EVENT: &str = "agent:end";
+
 /// Wire shape of the `agent:output` Tauri event (D1, D13).
 ///
 /// PTY merges stdout and stderr into a single stream, so `kind` is always
@@ -18,6 +20,16 @@ pub struct AgentOutputPayload<'a> {
     pub session_id: &'a str,
     pub kind: &'a str,
     pub text: &'a str,
+}
+
+/// Wire shape of the `agent:end` Tauri event (D8).
+///
+/// Emitted once when the child process terminates, so the frontend can flip
+/// the session to `ended` and auto-open the diff at the end of a run.
+#[derive(Debug, Clone, Serialize)]
+pub struct SessionEndPayload<'a> {
+    pub session_id: &'a str,
+    pub exit_code: u32,
 }
 
 /// `OutputSink` that forwards each PTY chunk to the frontend as an
@@ -113,6 +125,16 @@ impl<R: Runtime> OutputSink for TauriEventSink<R> {
             },
         );
     }
+
+    fn end(&self, exit_code: u32) {
+        let _ = self.app.emit(
+            AGENT_END_EVENT,
+            SessionEndPayload {
+                session_id: self.session_id.as_str(),
+                exit_code,
+            },
+        );
+    }
 }
 
 #[cfg(test)]
@@ -136,6 +158,23 @@ mod tests {
         assert_eq!(json["session_id"], id.as_str());
         assert_eq!(json["kind"], "stdout");
         assert_eq!(json["text"], "hello world");
+    }
+
+    #[test]
+    fn agent_end_event_name_is_stable() {
+        assert_eq!(AGENT_END_EVENT, "agent:end");
+    }
+
+    #[test]
+    fn session_end_payload_serializes_with_session_id_and_exit_code() {
+        let id = SessionId::new();
+        let payload = SessionEndPayload {
+            session_id: id.as_str(),
+            exit_code: 0,
+        };
+        let json = serde_json::to_value(&payload).expect("serialize payload");
+        assert_eq!(json["session_id"], id.as_str());
+        assert_eq!(json["exit_code"], 0);
     }
 
     #[test]

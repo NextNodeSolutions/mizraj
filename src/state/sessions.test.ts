@@ -8,6 +8,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 }))
 
 import {
+	AGENT_END_EVENT,
 	AGENT_OUTPUT_EVENT,
 	resetAgentEventsBridgeForTests,
 	appendOutputAtom,
@@ -16,7 +17,7 @@ import {
 	startAgentEventsBridge,
 	startSessionAtom,
 } from './sessions'
-import type { AgentOutputPayload } from './sessions'
+import type { AgentOutputPayload, SessionEndPayload } from './sessions'
 
 const store = getDefaultStore()
 
@@ -113,14 +114,20 @@ describe('startAgentEventsBridge', () => {
 		return handler
 	}
 
-	it('subscribes to agent:output exactly once', () => {
+	it('subscribes to agent:output and agent:end exactly once each', () => {
 		startAgentEventsBridge()
 		startAgentEventsBridge()
 		startAgentEventsBridge()
 
-		expect(listenMock).toHaveBeenCalledTimes(1)
-		expect(listenMock).toHaveBeenCalledWith(
+		expect(listenMock).toHaveBeenCalledTimes(2)
+		expect(listenMock).toHaveBeenNthCalledWith(
+			1,
 			AGENT_OUTPUT_EVENT,
+			expect.any(Function),
+		)
+		expect(listenMock).toHaveBeenNthCalledWith(
+			2,
+			AGENT_END_EVENT,
 			expect.any(Function),
 		)
 	})
@@ -137,5 +144,29 @@ describe('startAgentEventsBridge', () => {
 		expect(store.get(sessionsAtom)['sess-a']?.output).toEqual([
 			{ kind: 'stderr', text: 'boom' },
 		])
+	})
+
+	const getCapturedEndHandler = (): ((event: {
+		payload: SessionEndPayload
+	}) => void) => {
+		const call = listenMock.mock.calls[1]
+		if (!call) throw new Error('agent:end listen() was not called')
+		const handler = call[1]
+		if (typeof handler !== 'function') {
+			throw new Error('agent:end listen() handler was not a function')
+		}
+		return handler
+	}
+
+	it('routes agent:end into endSessionAtom for a known session', () => {
+		startAgentEventsBridge()
+		const handler = getCapturedEndHandler()
+
+		store.set(startSessionAtom, 'sess-a')
+		handler({ payload: { session_id: 'sess-a', exit_code: 0 } })
+
+		const session = store.get(sessionsAtom)['sess-a']
+		expect(session?.status).toBe('ended')
+		expect(session?.exitCode).toBe(0)
 	})
 })

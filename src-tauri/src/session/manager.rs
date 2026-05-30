@@ -22,13 +22,26 @@ const SHUTDOWN_GRACE: Duration = Duration::from_secs(2);
 const INPUT_CHANNEL_CAPACITY: usize = 64;
 const PTY_READ_BUFFER_SIZE: usize = 4096;
 
+/// Snapshot the sink registry (Arc clones, then the read lock is released),
+/// then invoke `call` on each sink *outside* the lock. Per `OutputSink`'s
+/// contract a sink call is supposed to be ~1ms, but holding the registry's
+/// RwLock across user-supplied code is still a deadlock hazard the dossier
+/// explicitly flags — so the snapshot/dispatch discipline lives here, once.
+async fn dispatch_to_sinks(
+    sinks: &Arc<RwLock<Vec<Arc<dyn OutputSink>>>>,
+    call: impl Fn(&Arc<dyn OutputSink>),
+) {
+    let snapshot: Vec<Arc<dyn OutputSink>> = {
+        let guard = sinks.read().await;
+        guard.iter().cloned().collect()
+    };
+    for sink in &snapshot {
+        call(sink);
+    }
+}
+
 /// Drain `reader` in 4KB chunks until EOF, fanning each chunk out to every
 /// sink currently registered in `sinks` (D4 mechanism (a)).
-///
-/// The sink list is snapshotted (Arc clones, then the read lock is released)
-/// before any `OutputSink::write` call. Per `OutputSink`'s contract a write
-/// is supposed to be ~1ms, but holding the registry's RwLock across user-
-/// supplied code is still a deadlock hazard the dossier explicitly flags.
 async fn pty_read_loop(
     mut reader: Box<dyn Read + Send>,
     sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>>,
@@ -54,14 +67,8 @@ async fn pty_read_loop(
                 return;
             }
         };
-        let snapshot: Vec<Arc<dyn OutputSink>> = {
-            let guard = sinks.read().await;
-            guard.iter().cloned().collect()
-        };
         let chunk = &buf[..n];
-        for sink in &snapshot {
-            sink.write(chunk);
-        }
+        dispatch_to_sinks(&sinks, |sink| sink.write(chunk)).await;
     }
 }
 
@@ -217,14 +224,25 @@ impl SessionManager {
         let reader_task = spawn(pty_read_loop(master_reader, Arc::clone(&sinks)));
         let writer_task = spawn(pty_write_loop(master_writer, writer_rx));
         let child_for_wait = Arc::clone(&child);
+        let sinks_for_wait = Arc::clone(&sinks);
         let wait_task = spawn(async move {
             let guard = child_for_wait.lock_owned().await;
-            spawn_blocking(move || {
+            let status = spawn_blocking(move || {
                 let mut guard = guard;
                 guard.wait().expect("child.wait()")
             })
             .await
-            .expect("wait_task spawn_blocking join")
+            .expect("wait_task spawn_blocking join");
+
+            // The child has terminated: fan the exit code out to every
+            // registered sink so the UI (TauriEventSink → `agent:end`) can
+            // auto-open the diff, without coupling the manager to Tauri. Fired
+            // exactly once whether the exit was natural or forced via
+            // `session_close` (which awaits this same task).
+            let exit_code = status.exit_code();
+            dispatch_to_sinks(&sinks_for_wait, |sink| sink.end(exit_code)).await;
+
+            status
         });
 
         let handle = SessionHandle::new(
@@ -556,6 +574,58 @@ mod tests {
                 "wait observer should resolve within 1s, took {elapsed:?}"
             );
             assert_eq!(status.exit_code(), 0);
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn create_session_fires_end_once_with_exit_code_on_natural_exit() {
+        // A sink that records every `end` call so we can assert the wait task
+        // fans the terminal event out exactly once with the observed code.
+        struct EndSink(Arc<StdMutex<Vec<u32>>>);
+        impl OutputSink for EndSink {
+            fn write(&self, _bytes: &[u8]) {}
+            fn end(&self, exit_code: u32) {
+                self.0.lock().expect("EndSink mutex").push(exit_code);
+            }
+        }
+
+        let pool = fresh_pool();
+        block_on(async {
+            let manager = SessionManager::new(pool);
+            let calls = Arc::new(StdMutex::new(Vec::<u32>::new()));
+            let calls_for_sink = Arc::clone(&calls);
+
+            let id = manager
+                .create_session(
+                    PathBuf::from("/usr/bin/true"),
+                    PathBuf::from("/tmp"),
+                    HashMap::new(),
+                    move |_| {
+                        vec![Arc::new(EndSink(Arc::clone(&calls_for_sink))) as Arc<dyn OutputSink>]
+                    },
+                )
+                .await
+                .expect("create_session /usr/bin/true");
+
+            let wait_task = {
+                let mut state = manager.state.write().await;
+                state
+                    .get_mut(&id)
+                    .expect("session registered")
+                    .take_wait_task()
+                    .expect("wait_task present right after create_session")
+            };
+
+            // `end` is fanned out inside the wait task *before* it returns the
+            // status, so once the JoinHandle resolves the sink is notified.
+            let status = wait_task.await.expect("wait observer should not panic");
+            assert_eq!(status.exit_code(), 0);
+            assert_eq!(
+                *calls.lock().expect("calls mutex"),
+                vec![0],
+                "end should fire exactly once with exit code 0"
+            );
         });
     }
 
