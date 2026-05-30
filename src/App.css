@@ -186,6 +186,29 @@
 	overflow-y: auto;
 }
 
+.sidebar-nav {
+	display: flex;
+	flex-direction: column;
+	margin-bottom: 1rem;
+	padding-bottom: 1rem;
+	border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.sidebar-nav__link {
+	display: block;
+	padding: 0.35rem 0.5rem;
+	border-radius: 6px;
+	color: var(--color-text);
+	text-decoration: none;
+	font-size: 0.9rem;
+	font-weight: 600;
+}
+
+.sidebar-nav__link:hover {
+	background: var(--color-hover-overlay);
+	color: var(--color-text);
+}
+
 .plans-menu {
 	display: flex;
 	flex-direction: column;
@@ -278,6 +301,88 @@
 	text-align: center;
 	color: var(--color-text-muted);
 	font-size: 0.95rem;
+}
+
+.tasks-view {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+
+.tasks-view__title-bar {
+	margin: 0;
+	font-size: 1.1rem;
+	font-weight: 600;
+}
+
+.tasks-view__group {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.tasks-view__heading {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 0;
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: var(--color-text-muted);
+}
+
+.tasks-view__count {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.25rem;
+	padding: 0 0.4rem;
+	border-radius: 999px;
+	background: var(--color-surface);
+	font-size: 0.7rem;
+	color: var(--color-text-muted);
+}
+
+.tasks-view__list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+}
+
+.tasks-view__item {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	padding: 0.5rem 0.6rem;
+	border: 1px solid var(--color-border-subtle);
+	border-radius: 6px;
+	background: var(--color-bg-elevated);
+}
+
+.tasks-view__title {
+	font-size: 0.9rem;
+	color: var(--color-text);
+}
+
+.tasks-view__description {
+	font-size: 0.8rem;
+	color: var(--color-text-muted);
+}
+
+.tasks-view__empty {
+	margin: 0;
+	padding: 0.25rem 0.5rem;
+	font-size: 0.85rem;
+	color: var(--color-text-muted);
+}
+
+.tasks-view__empty--error {
+	color: var(--color-danger, var(--ctp-red));
 }
 
 .agent-run {

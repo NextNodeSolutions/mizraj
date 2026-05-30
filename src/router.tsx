@@ -5,6 +5,7 @@ import { PLAN_KINDS } from './lib/plans'
 
 const PLANS_PATH_ROOT = 'plans'
 const AGENT_RUN_PATH_ROOT = 'agent-run'
+const TASKS_PATH_ROOT = 'tasks'
 const PLAN_KIND_SET: ReadonlySet<string> = new Set(PLAN_KINDS)
 const PLAN_ROUTE_SEGMENTS = 3
 const AGENT_RUN_ROUTE_SEGMENTS = 2
@@ -20,6 +21,8 @@ export const planRouteHref = ({ kind, slug }: PlanRoute): string =>
 
 export const agentRunHref = (sessionId: string): string =>
 	`/${AGENT_RUN_PATH_ROOT}/${sessionId}`
+
+export const tasksHref = (): string => `/${TASKS_PATH_ROOT}`
 
 const isPlanRoute = (
 	segments: ReadonlyArray<string>,
@@ -49,6 +52,11 @@ export const matchAgentRunRoute = (pathname: string): AgentRunRoute | null => {
 	return isAgentRunRoute(segments)
 		? { sessionId: segments[AGENT_SESSION_ID_INDEX] }
 		: null
+}
+
+export const matchTasksRoute = (pathname: string): boolean => {
+	const segments = pathname.split('/').filter(Boolean)
+	return segments.length === 1 && segments[0] === TASKS_PATH_ROOT
 }
 
 export const navigate = (href: string): void => {

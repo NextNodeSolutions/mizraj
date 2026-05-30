@@ -111,6 +111,7 @@ pub fn run() {
             commands::list_plans::list_plans,
             commands::set_active_project::set_active_project,
             commands::set_active_project::clear_active_project,
+            commands::tasks::tasks_list,
             commands::plan_protocol::resolve_plan,
             session::commands::session_create,
             session::commands::session_resize,

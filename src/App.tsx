@@ -1,22 +1,19 @@
 import { useEffect, useState } from 'react'
 
 import './App.css'
+import MainContent from './components/MainContent'
 import PlansMenu from './components/PlansMenu'
 import ProjectPicker from './components/ProjectPicker'
 import RunAgentButton from './components/RunAgentButton'
 import SettingsPanel from './components/SettingsPanel'
 import { useActiveProject } from './lib/activeProject'
 import { useSettings } from './lib/settings'
-import { matchAgentRunRoute, usePathname } from './router'
-import AgentRun from './views/AgentRun'
-import PlanView from './views/PlanView'
+import { navigate, tasksHref } from './router'
 
 function App(): React.JSX.Element {
 	const settings = useSettings()
 	const activeProjectPath = useActiveProject(settings.lastProjectPath)
 	const [panelOpen, setPanelOpen] = useState(false)
-	const pathname = usePathname()
-	const agentRunRoute = matchAgentRunRoute(pathname)
 
 	useEffect(() => {
 		document.documentElement.dataset.theme = settings.theme
@@ -43,17 +40,22 @@ function App(): React.JSX.Element {
 			</header>
 			<div className="layout">
 				<aside className="sidebar" aria-label="Sidebar">
+					<nav className="sidebar-nav" aria-label="Views">
+						<a
+							className="sidebar-nav__link"
+							href={tasksHref()}
+							onClick={event => {
+								event.preventDefault()
+								navigate(tasksHref())
+							}}
+						>
+							Tasks
+						</a>
+					</nav>
 					<PlansMenu repoPath={activeProjectPath} />
 				</aside>
 				<section className="main-content">
-					{agentRunRoute ? (
-						<AgentRun
-							key={agentRunRoute.sessionId}
-							sessionId={agentRunRoute.sessionId}
-						/>
-					) : (
-						<PlanView />
-					)}
+					<MainContent activeProjectPath={activeProjectPath} />
 				</section>
 			</div>
 			<SettingsPanel
