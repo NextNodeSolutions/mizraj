@@ -139,6 +139,14 @@ pub async fn session_resize(
     manager.resize_session(&session_id, cols, rows).await
 }
 
+#[tauri::command]
+pub async fn session_close(
+    session_id: SessionId,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.session_close(&session_id).await
+}
+
 #[cfg(test)]
 mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
