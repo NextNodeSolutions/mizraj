@@ -2,14 +2,33 @@ name: Release
 
 on:
     push:
-        tags:
-            - 'v*'
+        branches:
+            - main
 
 permissions:
     contents: write
+    pull-requests: write
 
 jobs:
+    # Maintains a release PR from Conventional Commits (version bump +
+    # CHANGELOG). Merging that PR creates the git tag + GitHub release, which
+    # gates the binary build below. release_created is only true on that merge.
+    release-please:
+        runs-on: ubuntu-latest
+        outputs:
+            release_created: ${{ steps.release.outputs.release_created }}
+            tag_name: ${{ steps.release.outputs.tag_name }}
+        steps:
+            - uses: googleapis/release-please-action@v4
+              id: release
+
+    # Builds the signed binaries and uploads them to the release that
+    # release-please just published. Runs in the same workflow because a tag
+    # pushed with the default GITHUB_TOKEN does not trigger a separate
+    # tag-listening workflow.
     publish-tauri:
+        needs: release-please
+        if: ${{ needs.release-please.outputs.release_created == 'true' }}
         strategy:
             fail-fast: false
             matrix:
@@ -19,6 +38,8 @@ jobs:
 
         steps:
             - uses: actions/checkout@v4
+              with:
+                  ref: ${{ needs.release-please.outputs.tag_name }}
 
             - uses: pnpm/action-setup@v4
 
@@ -79,7 +100,4 @@ jobs:
                   APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
                   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
               with:
-                  tagName: ${{ github.ref_name }}
-                  releaseName: ${{ github.ref_name }}
-                  releaseDraft: false
-                  prerelease: false
+                  tagName: ${{ needs.release-please.outputs.tag_name }}
