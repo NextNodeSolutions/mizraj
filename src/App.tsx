@@ -4,6 +4,7 @@ import './App.css'
 import PlansMenu from './components/PlansMenu'
 import ProjectPicker from './components/ProjectPicker'
 import RunAgentButton from './components/RunAgentButton'
+import SessionSidebar from './components/SessionSidebar'
 import SettingsPanel from './components/SettingsPanel'
 import { useActiveProject } from './lib/activeProject'
 import { useSettings } from './lib/settings'
@@ -43,6 +44,7 @@ function App(): React.JSX.Element {
 			</header>
 			<div className="layout">
 				<aside className="sidebar" aria-label="Sidebar">
+					<SessionSidebar />
 					<PlansMenu repoPath={activeProjectPath} />
 				</aside>
 				<section className="main-content">
