@@ -12,6 +12,7 @@ use crate::session::manager::SessionManager;
 use crate::session::path;
 use crate::session::sink::OutputSink;
 use crate::session::tauri_sink::TauriEventSink;
+use crate::session::term_sink::TermSink;
 
 fn session_ref_name(session_id: &str) -> String {
     format!("refs/agent-cockpit/sessions/{session_id}")
@@ -124,7 +125,10 @@ pub async fn session_create<R: Runtime>(
     manager: tauri::State<'_, SessionManager>,
 ) -> Result<SessionId, SessionError> {
     session_create_inner(&manager, &binary, cwd, move |id| {
-        vec![Arc::new(TauriEventSink::new(app, id.clone())) as Arc<dyn OutputSink>]
+        vec![
+            Arc::new(TauriEventSink::new(app.clone(), id.clone())) as Arc<dyn OutputSink>,
+            Arc::new(TermSink::new(app, id.clone())) as Arc<dyn OutputSink>,
+        ]
     })
     .await
 }

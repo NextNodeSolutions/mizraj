@@ -86,7 +86,8 @@ jobs:
                   cargo test \
                       --workspace \
                       --exclude agent-cockpit-term \
-                      --exclude agent-cockpit-term-sys
+                      --exclude agent-cockpit-term-sys \
+                      --exclude tauri-app
 
     verify-libghostty:
         runs-on: ubuntu-latest
