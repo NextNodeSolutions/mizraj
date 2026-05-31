@@ -2,44 +2,37 @@ import { invoke } from '@tauri-apps/api/core'
 
 import { useRepoResource } from './repoResource'
 
-export const TASK_STATES = [
-	'in_progress',
-	'pending',
-	'done',
-	'blocked',
-] as const
-export type TaskState = (typeof TASK_STATES)[number]
+export const TASK_STATUSES = ['backlog', 'in_progress', 'done'] as const
+export type TaskStatus = (typeof TASK_STATUSES)[number]
 
-export type TrackTask = {
-	identifier: string
+export type TaskOrigin = 'user' | 'track'
+
+export type Task = {
+	id: string
 	title: string
-	state: TaskState
-	commit: string | null
+	description: string | null
+	status: TaskStatus
+	origin: TaskOrigin
+	createdAt: string
 }
 
-export type Track = {
-	title: string
-	milestone: string
-	tasks: ReadonlyArray<TrackTask>
-}
-
-export type TrackState =
+export type TasksState =
 	| { status: 'idle' }
 	| { status: 'loading' }
-	| { status: 'ready'; track: Track | null }
+	| { status: 'ready'; tasks: ReadonlyArray<Task> }
 	| { status: 'error'; message: string }
 
-const fetchTrack = (repoPath: string): Promise<Track | null> =>
-	invoke<Track | null>('track_read', { repoPath })
+const fetchTasks = (repoPath: string): Promise<ReadonlyArray<Task>> =>
+	invoke<ReadonlyArray<Task>>('tasks_list', { repoPath })
 
-export const useTrack = (repoPath: string | null): TrackState => {
+export const useTasks = (repoPath: string | null): TasksState => {
 	const state = useRepoResource(
 		repoPath,
-		fetchTrack,
+		fetchTasks,
 		'tasks-view',
-		'useTrack: track_read',
+		'useTasks: tasks_list',
 	)
 	return state.status === 'ready'
-		? { status: 'ready', track: state.data }
+		? { status: 'ready', tasks: state.data }
 		: state
 }

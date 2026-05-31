@@ -1,228 +1,154 @@
-use std::fs;
-use std::path::{Path, PathBuf};
+use sqlx::SqlitePool;
 
-/// Lifecycle state of a track task, read from the `progress.md` checkbox:
-/// `[x]` done, `[~]` in progress, `[ ]` pending. A pending line flagged with a
-/// leading `⚠ ` is reported as blocked.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TaskState {
-    Done,
-    InProgress,
-    Pending,
-    Blocked,
-}
-
-/// A single task of the active milestone track.
+/// A task row from the shared cockpit database, scoped to one repository.
 ///
-/// `identifier` is the bare `M<n>.<TRACK>-<step>` tag (no brackets). `commit`
-/// is the short SHA appended to a done line (`- abc1234`), absent otherwise.
+/// `status` is one of `backlog`, `in_progress`, `done` and `origin` one of
+/// `user`, `track` — both enforced by the schema. `repo_path` is the filter
+/// key and is not serialized (the caller already knows which repo it asked
+/// for). `created_at` is an ISO-8601 UTC string produced by SQLite.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TrackTask {
-    pub identifier: String,
+pub struct Task {
+    pub id: String,
     pub title: String,
-    pub state: TaskState,
-    pub commit: Option<String>,
+    pub description: Option<String>,
+    pub status: String,
+    pub origin: String,
+    pub created_at: String,
 }
 
-/// The active milestone track, parsed from `docs/plans/<slug>/progress.md`.
-///
-/// `title` is the `# ` heading, `milestone` the `Milestone:` line.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Track {
-    pub title: String,
-    pub milestone: String,
-    pub tasks: Vec<TrackTask>,
+/// Row tuple as selected from `tasks`, mapped into [`Task`]. A tuple keeps us on
+/// `sqlx`'s built-in `FromRow` (no derive-macro feature dependency), matching
+/// the query style used elsewhere in the crate.
+type TaskRow = (String, String, Option<String>, String, String, String);
+
+async fn tasks_list_inner(pool: &SqlitePool, repo_path: &str) -> Result<Vec<Task>, sqlx::Error> {
+    let rows: Vec<TaskRow> = sqlx::query_as(
+        "SELECT id, title, description, status, origin, created_at \
+         FROM tasks WHERE repo_path = ? ORDER BY created_at DESC, id DESC",
+    )
+    .bind(repo_path)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, title, description, status, origin, created_at)| Task {
+                id,
+                title,
+                description,
+                status,
+                origin,
+                created_at,
+            },
+        )
+        .collect())
 }
 
-const MIN_SHA_LEN: usize = 7;
-
-/// Split a task body into `(title, commit)`. A trailing ` - <hex>` suffix of at
-/// least 7 hex chars is treated as the commit SHA; anything else (e.g. a blocked
-/// reason) stays part of the title.
-fn split_title_commit(body: &str) -> (String, Option<String>) {
-    if let Some((title, suffix)) = body.rsplit_once(" - ") {
-        if suffix.len() >= MIN_SHA_LEN && suffix.chars().all(|c| c.is_ascii_hexdigit()) {
-            return (title.trim().to_string(), Some(suffix.to_string()));
-        }
-    }
-    (body.trim().to_string(), None)
-}
-
-/// Parse a single checklist line, or `None` if it is not a task line.
-fn parse_task_line(line: &str) -> Option<TrackTask> {
-    let rest = line.strip_prefix("- [")?;
-    let (mark, rest) = rest.split_once("] ")?;
-
-    let (state, rest) = match rest.strip_prefix("⚠ ") {
-        Some(blocked) => (TaskState::Blocked, blocked),
-        None => {
-            let state = match mark {
-                "x" => TaskState::Done,
-                "~" => TaskState::InProgress,
-                " " => TaskState::Pending,
-                _ => return None,
-            };
-            (state, rest)
-        }
-    };
-
-    let rest = rest.strip_prefix('[')?;
-    let (identifier, body) = rest.split_once(']')?;
-    let (title, commit) = split_title_commit(body.trim());
-
-    Some(TrackTask {
-        identifier: identifier.to_string(),
-        title,
-        state,
-        commit,
-    })
-}
-
-/// Parse a `progress.md` document into a [`Track`].
-fn parse_track(content: &str) -> Track {
-    let mut title = String::new();
-    let mut milestone = String::new();
-    let mut tasks = Vec::new();
-
-    for line in content.lines() {
-        if title.is_empty() {
-            if let Some(heading) = line.strip_prefix("# ") {
-                title = heading.trim().to_string();
-                continue;
-            }
-        }
-        if milestone.is_empty() {
-            if let Some(value) = line.strip_prefix("Milestone:") {
-                milestone = value.trim().to_string();
-                continue;
-            }
-        }
-        if let Some(task) = parse_task_line(line) {
-            tasks.push(task);
-        }
-    }
-
-    Track {
-        title,
-        milestone,
-        tasks,
-    }
-}
-
-/// Locate the active track's `progress.md` under `<repo>/docs/plans/*/`.
-///
-/// The tracker store holds one directory per slug; the active track is the one
-/// carrying a `progress.md`. When more than one is present the lexicographically
-/// smallest path is picked so the choice is deterministic.
-fn find_progress_file(repo_path: &Path) -> Option<PathBuf> {
-    let plans_dir = repo_path.join("docs").join("plans");
-    fs::read_dir(plans_dir)
-        .ok()?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path().join("progress.md"))
-        .filter(|path| path.is_file())
-        .min()
-}
-
-/// Read the active milestone track of `repo_path`, or `None` when the repo has
-/// no `docs/plans/<slug>/progress.md` yet.
+/// List every task of `repo_path` from the shared cockpit database, newest
+/// first. Returns an empty vec when the repo has no tasks yet.
 #[tauri::command]
-pub async fn track_read(repo_path: String) -> Result<Option<Track>, String> {
-    let Some(progress) = find_progress_file(Path::new(&repo_path)) else {
-        return Ok(None);
-    };
-    let content = fs::read_to_string(&progress).map_err(|err| err.to_string())?;
-    Ok(Some(parse_track(&content)))
+pub async fn tasks_list(
+    repo_path: String,
+    pool: tauri::State<'_, SqlitePool>,
+) -> Result<Vec<Task>, String> {
+    tasks_list_inner(pool.inner(), &repo_path)
+        .await
+        .map_err(|err| err.to_string())
 }
 
 #[cfg(test)]
 mod tests {
+    use sqlx::sqlite::SqlitePoolOptions;
+    use tauri::async_runtime::block_on;
+
     use super::*;
 
-    const SAMPLE: &str = "# M4.A — agent-cockpit\n\
-\n\
-Started: 2026-05-30T12:41:51Z\n\
-Slug: agent-cockpit\n\
-Milestone: M4 — La vue Tasks affiche le /track actif.\n\
-\n\
-## Tasks\n\
-\n\
-- [x] [M4.A-01] Parser le track actif - b8fb5a7\n\
-- [~] [M4.A-02] Afficher le track\n\
-- [ ] [M4.A-03] Rafraîchir au focus\n\
-- [ ] ⚠ [M4.A-04] Tâche bloquée - en attente d'une spec\n";
+    fn fresh_pool() -> SqlitePool {
+        block_on(async {
+            let pool = SqlitePoolOptions::new()
+                .max_connections(1)
+                .connect("sqlite::memory:")
+                .await
+                .expect("connect in-memory sqlite");
+            sqlx::migrate!()
+                .run(&pool)
+                .await
+                .expect("apply migrations to in-memory sqlite");
+            pool
+        })
+    }
 
-    #[test]
-    fn parses_heading_and_milestone() {
-        let track = parse_track(SAMPLE);
-        assert_eq!(track.title, "M4.A — agent-cockpit");
-        assert_eq!(track.milestone, "M4 — La vue Tasks affiche le /track actif.");
+    async fn insert_task(
+        pool: &SqlitePool,
+        id: &str,
+        title: &str,
+        status: &str,
+        origin: &str,
+        repo_path: &str,
+    ) {
+        sqlx::query(
+            "INSERT INTO tasks (id, title, description, status, origin, repo_path, created_at) \
+             VALUES (?, ?, NULL, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+        )
+        .bind(id)
+        .bind(title)
+        .bind(status)
+        .bind(origin)
+        .bind(repo_path)
+        .execute(pool)
+        .await
+        .expect("insert task row");
     }
 
     #[test]
-    fn parses_every_task_with_its_state() {
-        let track = parse_track(SAMPLE);
-        let states: Vec<&TaskState> = track.tasks.iter().map(|t| &t.state).collect();
-        assert_eq!(
-            states,
-            [
-                &TaskState::Done,
-                &TaskState::InProgress,
-                &TaskState::Pending,
-                &TaskState::Blocked,
-            ]
-        );
+    fn tasks_list_returns_only_rows_of_the_given_repo() {
+        let pool = fresh_pool();
+        block_on(async {
+            insert_task(&pool, "a1", "repo-a one", "backlog", "user", "/repo/a").await;
+            insert_task(&pool, "a2", "repo-a two", "in_progress", "track", "/repo/a").await;
+            insert_task(&pool, "b1", "repo-b one", "done", "user", "/repo/b").await;
+
+            let tasks = tasks_list_inner(&pool, "/repo/a")
+                .await
+                .expect("tasks_list should succeed");
+
+            let ids: Vec<&str> = tasks.iter().map(|t| t.id.as_str()).collect();
+            assert_eq!(ids.len(), 2, "only repo-a tasks are returned");
+            assert!(ids.contains(&"a1") && ids.contains(&"a2"));
+            assert!(!ids.contains(&"b1"), "repo-b task must be filtered out");
+        });
     }
 
     #[test]
-    fn extracts_the_commit_sha_of_done_tasks() {
-        let track = parse_track(SAMPLE);
-        assert_eq!(track.tasks[0].identifier, "M4.A-01");
-        assert_eq!(track.tasks[0].title, "Parser le track actif");
-        assert_eq!(track.tasks[0].commit.as_deref(), Some("b8fb5a7"));
+    fn tasks_list_is_empty_for_a_repo_without_tasks() {
+        let pool = fresh_pool();
+        block_on(async {
+            insert_task(&pool, "b1", "repo-b one", "backlog", "user", "/repo/b").await;
+
+            let tasks = tasks_list_inner(&pool, "/repo/unknown")
+                .await
+                .expect("tasks_list should succeed");
+
+            assert!(tasks.is_empty());
+        });
     }
 
     #[test]
-    fn leaves_commit_none_when_absent() {
-        let track = parse_track(SAMPLE);
-        assert_eq!(track.tasks[1].commit, None);
-        assert_eq!(track.tasks[1].title, "Afficher le track");
-    }
+    fn tasks_list_serializes_fields_as_camel_case() {
+        let pool = fresh_pool();
+        block_on(async {
+            insert_task(&pool, "a1", "only", "backlog", "user", "/repo/a").await;
 
-    #[test]
-    fn keeps_blocked_reason_in_the_title() {
-        let track = parse_track(SAMPLE);
-        let blocked = &track.tasks[3];
-        assert_eq!(blocked.identifier, "M4.A-04");
-        assert_eq!(blocked.state, TaskState::Blocked);
-        assert_eq!(blocked.title, "Tâche bloquée - en attente d'une spec");
-        assert_eq!(blocked.commit, None);
-    }
+            let tasks = tasks_list_inner(&pool, "/repo/a")
+                .await
+                .expect("tasks_list should succeed");
+            let json = serde_json::to_string(&tasks[0]).expect("serialize task");
 
-    #[test]
-    fn ignores_non_task_lines() {
-        assert!(parse_task_line("## Tasks").is_none());
-        assert!(parse_task_line("Slug: agent-cockpit").is_none());
-        assert!(parse_task_line("- not a checkbox").is_none());
-    }
-
-    #[test]
-    fn find_progress_file_picks_the_track_under_docs_plans() {
-        let repo = tempfile::tempdir().expect("tempdir");
-        let plan_dir = repo.path().join("docs").join("plans").join("agent-cockpit");
-        fs::create_dir_all(&plan_dir).expect("create plan dir");
-        let progress = plan_dir.join("progress.md");
-        fs::write(&progress, SAMPLE).expect("write progress");
-
-        assert_eq!(find_progress_file(repo.path()), Some(progress));
-    }
-
-    #[test]
-    fn find_progress_file_is_none_without_a_track() {
-        let repo = tempfile::tempdir().expect("tempdir");
-        assert_eq!(find_progress_file(repo.path()), None);
+            assert!(json.contains("\"createdAt\""), "created_at -> createdAt");
+            assert!(!json.contains("repo_path"), "repo_path is not serialized");
+            assert!(json.contains("\"origin\":\"user\""));
+        });
     }
 }

@@ -315,25 +315,6 @@
 	font-weight: 600;
 }
 
-.tasks-view__track-header {
-	display: flex;
-	flex-direction: column;
-	gap: 0.2rem;
-}
-
-.tasks-view__track-title {
-	margin: 0;
-	font-size: 0.95rem;
-	font-weight: 600;
-	color: var(--color-text);
-}
-
-.tasks-view__track-milestone {
-	margin: 0;
-	font-size: 0.8rem;
-	color: var(--color-text-muted);
-}
-
 .tasks-view__group {
 	display: flex;
 	flex-direction: column;
@@ -375,7 +356,7 @@
 
 .tasks-view__item {
 	display: flex;
-	align-items: baseline;
+	align-items: flex-start;
 	gap: 0.5rem;
 	padding: 0.5rem 0.6rem;
 	border: 1px solid var(--color-border-subtle);
@@ -393,19 +374,15 @@
 	color: var(--color-accent);
 }
 
-.tasks-view__item--blocked .tasks-view__marker {
-	color: var(--color-danger, var(--ctp-red));
-}
-
-.tasks-view__identifier {
-	flex: 0 0 auto;
-	font-size: 0.7rem;
-	font-variant-numeric: tabular-nums;
-	color: var(--color-text-muted);
+.tasks-view__body {
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	min-width: 0;
 }
 
 .tasks-view__title {
-	flex: 1 1 auto;
 	font-size: 0.9rem;
 	color: var(--color-text);
 }
@@ -414,10 +391,20 @@
 	color: var(--color-text-muted);
 }
 
-.tasks-view__commit {
+.tasks-view__description {
+	font-size: 0.8rem;
+	color: var(--color-text-muted);
+}
+
+.tasks-view__origin {
 	flex: 0 0 auto;
-	font-size: 0.7rem;
-	font-family: var(--font-mono, monospace);
+	align-self: flex-start;
+	padding: 0.05rem 0.4rem;
+	border-radius: 999px;
+	background: var(--color-surface);
+	font-size: 0.65rem;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
 	color: var(--color-text-muted);
 }
 
