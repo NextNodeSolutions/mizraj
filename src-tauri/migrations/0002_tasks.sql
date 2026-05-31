@@ -11,8 +11,9 @@ CREATE TABLE tasks (
     created_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_tasks_repo_path ON tasks(repo_path);
-CREATE INDEX idx_tasks_status ON tasks(status);
+-- Serves the only read path: filter by repo_path, newest-first by (created_at,
+-- id). The composite covers the ORDER BY so the query needs no separate sort.
+CREATE INDEX idx_tasks_repo_path_created ON tasks(repo_path, created_at DESC, id DESC);
 
 -- Single-row table carrying the version of the shared schema contract, so a
 -- skill can detect an app it is incompatible with before writing.

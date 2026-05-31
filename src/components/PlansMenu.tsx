@@ -72,7 +72,7 @@ const renderState = (
 				<PlansMenuSection
 					key={section.kind}
 					title={section.title}
-					entries={state.entries.filter(
+					entries={state.data.filter(
 						entry => entry.kind === section.kind,
 					)}
 					onSelect={onSelect}

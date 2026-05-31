@@ -1,5 +1,8 @@
+import { useState } from 'react'
+
+import { describeError } from '../errors'
 import type { Task, TaskStatus, TasksState } from '../lib/tasks'
-import { TASK_STATUSES, useTasks } from '../lib/tasks'
+import { createTask, TASK_STATUSES, useTasks } from '../lib/tasks'
 
 const STATUS_CONFIG: Record<TaskStatus, { label: string; marker: string }> = {
 	backlog: { label: 'Backlog', marker: '○' },
@@ -49,6 +52,79 @@ const TaskGroup = ({ status, tasks }: GroupProps): React.JSX.Element => (
 	</section>
 )
 
+type CreateFormProps = {
+	repoPath: string
+	onCreated: () => void
+}
+
+const TaskCreateForm = ({
+	repoPath,
+	onCreated,
+}: CreateFormProps): React.JSX.Element => {
+	const [title, setTitle] = useState('')
+	const [description, setDescription] = useState('')
+	const [submitting, setSubmitting] = useState(false)
+	const [error, setError] = useState<string | null>(null)
+
+	const trimmedTitle = title.trim()
+	const canSubmit = trimmedTitle !== '' && !submitting
+
+	const handleSubmit = async (
+		event: React.FormEvent<HTMLFormElement>,
+	): Promise<void> => {
+		event.preventDefault()
+		if (!canSubmit) return
+		setSubmitting(true)
+		setError(null)
+		try {
+			await createTask(repoPath, trimmedTitle, description)
+			setTitle('')
+			setDescription('')
+			onCreated()
+		} catch (caught: unknown) {
+			setError(describeError(caught).message)
+		} finally {
+			setSubmitting(false)
+		}
+	}
+
+	return (
+		<form
+			className="tasks-view__form"
+			onSubmit={event => void handleSubmit(event)}
+		>
+			<input
+				className="tasks-view__input"
+				type="text"
+				value={title}
+				onChange={event => setTitle(event.target.value)}
+				placeholder="New task title"
+				aria-label="Task title"
+			/>
+			<input
+				className="tasks-view__input"
+				type="text"
+				value={description}
+				onChange={event => setDescription(event.target.value)}
+				placeholder="Description (optional)"
+				aria-label="Task description"
+			/>
+			<button
+				className="tasks-view__submit"
+				type="submit"
+				disabled={!canSubmit}
+			>
+				Add task
+			</button>
+			{error !== null && (
+				<p className="tasks-view__form-error" role="alert">
+					Could not create task: {error}
+				</p>
+			)}
+		</form>
+	)
+}
+
 const renderTasks = (tasks: ReadonlyArray<Task>): React.JSX.Element => {
 	if (tasks.length === 0) {
 		return (
@@ -88,14 +164,17 @@ const renderState = (state: TasksState): React.JSX.Element => {
 			</p>
 		)
 	}
-	return renderTasks(state.tasks)
+	return renderTasks(state.data)
 }
 
 const TasksView = ({ repoPath }: Props): React.JSX.Element => {
-	const state = useTasks(repoPath)
+	const { state, refetch } = useTasks(repoPath)
 	return (
 		<section className="tasks-view" aria-label="Tasks">
 			<h2 className="tasks-view__title-bar">Tasks</h2>
+			{repoPath !== null && (
+				<TaskCreateForm repoPath={repoPath} onCreated={refetch} />
+			)}
 			{renderState(state)}
 		</section>
 	)

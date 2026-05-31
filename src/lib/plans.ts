@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 
+import type { ResourceState } from './repoResource'
 import { useRepoResource } from './repoResource'
 
 export const PLAN_KINDS = ['interview', 'plan'] as const
@@ -13,23 +14,11 @@ export type PlanEntry = {
 	mtime: number
 }
 
-export type PlansState =
-	| { status: 'idle' }
-	| { status: 'loading' }
-	| { status: 'ready'; entries: ReadonlyArray<PlanEntry> }
-	| { status: 'error'; message: string }
+export type PlansState = ResourceState<ReadonlyArray<PlanEntry>>
 
-const fetchPlans = (repoPath: string): Promise<PlanEntry[]> =>
+const fetchPlans = (repoPath: string): Promise<ReadonlyArray<PlanEntry>> =>
 	invoke<PlanEntry[]>('list_plans', { repoPath })
 
-export const usePlans = (repoPath: string | null): PlansState => {
-	const state = useRepoResource(
-		repoPath,
-		fetchPlans,
-		'plans-menu',
-		'usePlans: list_plans',
-	)
-	return state.status === 'ready'
-		? { status: 'ready', entries: state.data }
-		: state
-}
+export const usePlans = (repoPath: string | null): PlansState =>
+	useRepoResource(repoPath, fetchPlans, 'plans-menu', 'usePlans: list_plans')
+		.state
