@@ -9,6 +9,7 @@
 			"tracks": [
 				{
 					"id": "A",
+					"branch": "feat/walking-skeleton-release",
 					"tasks": [
 						{
 							"step": "01",
@@ -67,6 +68,7 @@
 			"tracks": [
 				{
 					"id": "A",
+					"branch": "feat/native-terminal",
 					"tasks": [
 						{
 							"step": "01",
@@ -107,6 +109,7 @@
 			"tracks": [
 				{
 					"id": "A",
+					"branch": "feat/session-navigation",
 					"tasks": [
 						{
 							"step": "01",
@@ -132,56 +135,30 @@
 		},
 		{
 			"id": "M4",
-			"demo": "On crée, liste, change le statut et assigne des tâches en SQLite (zéro Linear) ; la CI échoue si un import Linear apparaît.",
+			"demo": "Créer une tâche dans la base partagée cockpit.db (chemin XDG, clé repo_path) et la voir listée par statut — sans relancer l'app.",
 			"skeleton": false,
-			"needs": ["M3"],
+			"needs": ["M1"],
 			"tracks": [
 				{
 					"id": "A",
+					"branch": "feat/shared-db-tasks",
 					"tasks": [
 						{
 							"step": "01",
-							"title": "Lister les tâches du repo actif",
-							"size": "I3",
-							"slice_of": ["D10"],
-							"done_when": "TasksView affiche les tâches du repo actif via une commande tasks_list",
-							"description": "WHAT: commande tasks_list(repo_path) + vue TasksView qui affiche les tâches (état vide compris).\n\nWHY: D10 — pilier Tasks en SQLite, zéro Linear. Le schéma 0002_tasks existe déjà (id, title, description, status, repo_path, created_at) avec index par repo_path/status.\n\nWHERE: nouveau src-tauri/src/commands/tasks.rs (tasks_list) + src-tauri/src/lib.rs (generate_handler!) ; nouveau src/views/TasksView.tsx + route (src/router.tsx), invoke('tasks_list', { repoPath }) ; repo via useActiveProject.\n\nDONE WHEN:\n- tasks_list filtre par repo_path (index existant), test sur pool in-memory\n- TasksView liste les tâches groupées par status\n- état vide lisible",
+							"title": "Lister les tâches du repo actif depuis la base partagée",
+							"size": "I4",
+							"slice_of": ["D1", "D2", "D3"],
+							"done_when": "la base ouvre à ~/.local/share/agent-cockpit/cockpit.db et TasksView liste les tâches du repo actif via tasks_list",
+							"description": "WHAT: relocaliser la base SQLite vers le chemin partagé ~/.local/share/agent-cockpit/cockpit.db (XDG, contrat commun skills/app) + migration créant tasks(id, title, description, status, origin, repo_path, created_at) et schema_meta(version) + commande tasks_list(repo_path) + TasksView qui liste par statut (état vide compris).\n\nWHY: D1 (une base globale partagée à contrat, WAL/busy_timeout déjà en place, DB-only) + D2 (schéma tasks+origin + table meta de version du contrat) + D3 (app cliente lectrice). Remplace le viewer track_read du working-tree, désormais obsolète — le supprimer.\n\nWHERE: src-tauri/src/lib.rs (résoudre ~/.local/share/agent-cockpit/cockpit.db au lieu de app_data_dir().join('agent-cockpit.db') — les sessions existantes suivent le pool ; greenfield, pas de migration des données) ; nouvelle migration src-tauri/migrations/0002_tasks.sql (+ schema_meta) ; src-tauri/src/commands/tasks.rs (tasks_list, remplace track_read) + lib.rs (generate_handler!) ; src/views/TasksView.tsx + src/lib/tasks.ts (invoke tasks_list, retire useTrack/track_read).\n\nDONE WHEN:\n- la base ouvre à cockpit.db (XDG), WAL actif\n- tasks_list filtre par repo_path (test sur pool in-memory)\n- TasksView liste les tâches groupées par statut, état vide lisible",
 							"sink_id": null
 						},
 						{
 							"step": "02",
 							"title": "Créer une tâche en inline",
 							"size": "I3",
-							"slice_of": ["D10"],
-							"done_when": "un form inline crée une tâche qui apparaît dans la liste sans reload",
-							"description": "WHAT: commande tasks_create + formulaire de création inline dans TasksView.\n\nWHY: D10 — création de tâches sans quitter la vue. Dépend de la liste (01).\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_create, status défaut 'backlog', created_at SQLite) + lib.rs ; src/views/TasksView.tsx (form titre/description → invoke('tasks_create')).\n\nDONE WHEN:\n- saisie titre (+ description optionnelle) → tasks_create persiste\n- la nouvelle tâche apparaît sans reload\n- titre vide rejeté",
-							"sink_id": null
-						},
-						{
-							"step": "03",
-							"title": "Changer le statut d'une tâche",
-							"size": "I3",
-							"slice_of": ["D10"],
-							"done_when": "modifier le statut d'une tâche persiste en SQLite et se reflète dans la liste",
-							"description": "WHAT: commande tasks_update + contrôle de statut dans TasksView.\n\nWHY: D10 — cycle de vie backlog/todo/in_progress/done (contrainte CHECK déjà au schéma).\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_update) + lib.rs ; src/views/TasksView.tsx (sélecteur de statut → invoke('tasks_update')).\n\nDONE WHEN:\n- tasks_update modifie status (test inclus)\n- changement reflété dans la liste sans reload\n- statut hors enum rejeté",
-							"sink_id": null
-						},
-						{
-							"step": "04",
-							"title": "Assigner une tâche à une session",
-							"size": "I4",
-							"slice_of": ["D10"],
-							"done_when": "assigner une tâche à une session vivante persiste et survit au reload",
-							"description": "WHAT: commande tasks_assign + UI d'assignation tâche↔session dans TasksView.\n\nWHY: D10 — lien tâche↔session, socle du futur grid (M6). Le schéma 0003_task_assignments existe déjà (PK (task_id, session_id), FK cascade).\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_assign) + lib.rs ; src/views/TasksView.tsx (choix d'une session vivante via useSessions → invoke('tasks_assign')).\n\nDONE WHEN:\n- tasks_assign insère dans task_assignments (idempotent sur PK), test inclus\n- assignation persiste (vérifiée au reload)\n- session assignée visible sur la tâche",
-							"sink_id": null
-						},
-						{
-							"step": "05",
-							"title": "Bloquer les imports Linear en CI",
-							"size": "I3",
-							"slice_of": ["D10"],
-							"done_when": "la CI échoue si un import Linear apparaît dans src/ ou src-tauri/src/",
-							"description": "WHAT: job CI échouant si une référence d'import Linear (SDK/API) apparaît dans le code applicatif.\n\nWHY: D10 — Linear gelé en legacy (D1) ; aucune dépendance Linear ne doit rentrer dans l'app.\n\nWHERE: .github/workflows/ci.yml (nouveau job : grep ciblé sur src/ et src-tauri/src/, exit 1 si match).\n\nDONE WHEN:\n- le guard échoue sur un import Linear introduit volontairement\n- passe vert sur l'arbre courant\n- portée limitée au code app (pas docs/)",
+							"slice_of": ["D2", "D3"],
+							"done_when": "un form inline crée une tâche origin='user' qui apparaît dans la liste sans reload",
+							"description": "WHAT: commande tasks_create (origin='user', status défaut 'backlog', created_at SQLite) + formulaire de création inline dans TasksView.\n\nWHY: D3 — création de tâches user dans l'app, à côté des tâches d'origine 'track' (écrites par les skills, hors-repo). Dépend de la liste (01).\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_create) + lib.rs ; src/views/TasksView.tsx (form titre/description → invoke('tasks_create')).\n\nDONE WHEN:\n- saisie titre (+ description optionnelle) → tasks_create persiste avec origin='user'\n- la nouvelle tâche apparaît sans reload\n- titre vide rejeté",
 							"sink_id": null
 						}
 					]
@@ -190,20 +167,126 @@
 		},
 		{
 			"id": "M5",
-			"demo": "Après un reload UI, l'historique de session réapparaît dans le terminal ; stress test : 10MB de scrollback replay en < 500ms.",
+			"demo": "Une tâche user est entièrement éditable (statut, titre, description) ; une tâche d'origine track est en lecture seule, sauf son nom.",
 			"skeleton": false,
 			"needs": ["M4"],
 			"tracks": [
 				{
 					"id": "A",
+					"branch": "feat/task-edit-by-origin",
 					"tasks": [
 						{
 							"step": "01",
-							"title": "Persister le scrollback en SQLite",
+							"title": "Changer le statut d'une tâche user",
+							"size": "I3",
+							"slice_of": ["D3"],
+							"done_when": "modifier le statut d'une tâche user persiste et se reflète dans la liste sans reload",
+							"description": "WHAT: commande tasks_update (statut) + sélecteur de statut dans TasksView pour les tâches user.\n\nWHY: D3 — cycle de vie des tâches user (backlog/todo/in_progress/done). Dépend de la liste/CRUD (M4).\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_update) + lib.rs ; src/views/TasksView.tsx (sélecteur de statut).\n\nDONE WHEN:\n- tasks_update modifie le statut (test inclus)\n- changement reflété sans reload\n- statut hors enum rejeté",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Éditer titre et description d'une tâche user",
+							"size": "I3",
+							"slice_of": ["D3"],
+							"done_when": "éditer le titre/description d'une tâche user persiste et se reflète sans reload",
+							"description": "WHAT: étendre tasks_update aux champs titre/description + édition inline dans TasksView, restreinte aux tâches origin='user'.\n\nWHY: D3 — CRUD complet sur les tâches user.\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_update champs) ; src/views/TasksView.tsx (édition inline titre/description).\n\nDONE WHEN:\n- l'édition titre/description persiste (test)\n- reflétée sans reload\n- édition restreinte à origin='user'",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Restreindre les tâches track en lecture seule sauf le nom",
+							"size": "I3",
+							"slice_of": ["D3"],
+							"done_when": "une tâche origin='track' n'autorise que l'édition du nom ; statut et description verrouillés, badge d'origine visible",
+							"description": "WHAT: gating des droits d'édition par origine — origin='track' : seul le titre (nom) est éditable, statut/description verrouillés ; badge d'origine dans la liste. Insérer une tâche origin='track' de fixture pour la démo.\n\nWHY: D3 — droits selon l'origine ; le statut des tâches track est piloté par les skills (D4, chantier mac-config hors-repo), l'app ne le mute pas.\n\nWHERE: src/views/TasksView.tsx (gating par origin, badge) ; fixture/seed d'une tâche origin='track' (test ou insert dev).\n\nDONE WHEN:\n- une tâche origin='track' n'autorise que l'édition du nom\n- statut et description non éditables pour origin='track'\n- badge d'origine visible (track vs user)",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M6",
+			"demo": "Assigner une tâche à une session vivante depuis la liste ; l'assignation persiste et survit au reload.",
+			"skeleton": false,
+			"needs": ["M1", "M4"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/task-session-assignment",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Assigner une tâche à une session vivante",
+							"size": "I4",
+							"slice_of": ["D2", "D3"],
+							"done_when": "assigner une tâche à une session vivante insère dans task_assignments et survit au reload",
+							"description": "WHAT: migration task_assignments(task_id, session_id, PK (task_id, session_id), FK cascade) dans cockpit.db + commande tasks_assign (idempotent sur la PK) + UI de choix d'une session vivante (useSessions) dans TasksView.\n\nWHY: D2 (table task_assignments dans la base partagée) + D3 (l'app assigne une tâche à une session). agent_sessions existe déjà (migration 0001, base partagée).\n\nWHERE: nouvelle migration src-tauri/migrations/0003_task_assignments.sql ; src-tauri/src/commands/tasks.rs (tasks_assign) + lib.rs ; src/views/TasksView.tsx (choix d'une session vivante via src/lib/useSessions).\n\nDONE WHEN:\n- tasks_assign insère dans task_assignments (idempotent sur PK, test inclus)\n- l'assignation persiste (vérifiée au reload)\n- la session assignée est choisie parmi les sessions vivantes",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Afficher et retirer l'assignation d'une tâche",
+							"size": "I3",
+							"slice_of": ["D3"],
+							"done_when": "la session assignée est visible sur la tâche et peut être retirée, le changement persiste",
+							"description": "WHAT: afficher la session assignée sur la tâche dans la liste + action de désassignation.\n\nWHY: D3 — rendre l'assignation lisible et réversible.\n\nWHERE: src-tauri/src/commands/tasks.rs (suppression dans task_assignments) + lib.rs ; src/views/TasksView.tsx (affichage + désassigner).\n\nDONE WHEN:\n- la session assignée est visible sur la tâche\n- désassigner retire la ligne et persiste\n- état sans assignation lisible",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M7",
+			"demo": "Une vue agrège les tâches de plusieurs repos (clé repo_path) depuis la base partagée — l'app est maître de l'historique multi-projets.",
+			"skeleton": false,
+			"needs": ["M4"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/cross-project-tasks",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Lister les tâches tous projets confondus",
+							"size": "I4",
+							"slice_of": ["D3"],
+							"done_when": "une vue agrège les tâches de la base partagée groupées par repo_path, ≥2 repos visibles",
+							"description": "WHAT: commande tasks_list_all (sans filtre repo_path, groupée par repo_path) + vue d'aperçu cross-projets.\n\nWHY: D3 — l'app lit la base globale (tous projets, clé repo_path) pour être maître de l'historique multi-projets.\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_list_all) + lib.rs ; nouvelle vue/onglet cross-projets (src/views/), invoke('tasks_list_all').\n\nDONE WHEN:\n- la vue agrège les tâches par repo_path\n- ≥2 repos visibles (test/fixture sur pool in-memory)\n- état vide lisible",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Filtrer l'aperçu par projet connu",
+							"size": "I3",
+							"slice_of": ["D3"],
+							"done_when": "choisir un projet dans la liste des repo_path distincts filtre l'aperçu",
+							"description": "WHAT: sélecteur de projet dérivé des repo_path distincts présents en base, qui filtre l'aperçu cross-projets.\n\nWHY: D3 — naviguer l'historique projet par projet.\n\nWHERE: src-tauri/src/commands/tasks.rs (distinct repo_path) + lib.rs ; vue cross-projets (sélecteur).\n\nDONE WHEN:\n- la liste des projets est dérivée des repo_path en base\n- choisir un projet filtre la liste\n- option « tous » rétablit l'agrégat",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M8",
+			"demo": "Après un reload UI, l'historique de session réapparaît dans le terminal natif ; stress test : 10MB de scrollback replay en < 500ms.",
+			"skeleton": false,
+			"needs": ["M2", "M4"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/session-scrollback",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Persister le scrollback en base partagée",
 							"size": "I4",
 							"slice_of": ["D6"],
-							"done_when": "chaque session écrit ses bytes PTY bruts append-only avec flush au seuil 256B/100ms",
-							"description": "WHAT: migration 0005_session_scrollback + ScrollbackSink (OutputSink) qui persiste les bytes PTY bruts append-only, attaché au spawn.\n\nWHY: D6 — socle de la persistance du scrollback. Contrat OutputSink (write < ~1ms) → buffer + flush asynchrone vers SQLite. Après le revert de 0004 (M1), le compte de migrations repasse à 4 (0001-0003 + 0005).\n\nWHERE: nouveau src-tauri/migrations/0005_session_scrollback.sql (table session_id FK cascade, seq, bytes BLOB, written_at, PRAGMA foreign_keys=ON) + .github/workflows/ci.yml (guard 3 → 4) ; nouveau src-tauri/src/session/scrollback_sink.rs ; src-tauri/src/session/commands.rs (attacher dans la sink_factory).\n\nDONE WHEN:\n- guard CI assert 4 migrations et passe\n- write() bufferise sans bloquer, flush à 256B ou 100ms, ordre seq monotone (test inclus)\n- une session réelle écrit son scrollback en base",
+							"done_when": "chaque session écrit ses bytes PTY bruts append-only dans cockpit.db avec flush au seuil 256B/100ms",
+							"description": "WHAT: migration session_scrollback + ScrollbackSink (OutputSink) qui persiste les bytes PTY bruts append-only dans la base partagée cockpit.db, attaché au spawn.\n\nWHY: D6 — socle de la persistance du scrollback. Contrat OutputSink (write < ~1ms) → buffer + flush asynchrone. Écrit dans la base partagée cockpit.db (D1) ; pas de guard CI de comptage de migrations (abandonné, D5).\n\nWHERE: nouvelle migration src-tauri/migrations/000N_session_scrollback.sql (table session_id FK cascade, seq, bytes BLOB, written_at) ; nouveau src-tauri/src/session/scrollback_sink.rs ; src-tauri/src/session/commands.rs (attacher dans la sink_factory).\n\nDONE WHEN:\n- write() bufferise sans bloquer, flush à 256B ou 100ms, ordre seq monotone (test inclus)\n- une session réelle écrit son scrollback dans cockpit.db",
 							"sink_id": null
 						},
 						{
@@ -213,46 +296,6 @@
 							"slice_of": ["D6"],
 							"done_when": "après reload UI, l'historique réapparaît dans le pane avant le flux live",
 							"description": "WHAT: commande session_scrollback(session_id) renvoyant les bytes stockés ordonnés, rejoués par TerminalPane avant abonnement au flux CellFrame live.\n\nWHY: D6 — l'historique réapparaît au reload. Dépend de M2 (TerminalPane) et de la persistance (01).\n\nWHERE: src-tauri/src/session/commands.rs (session_scrollback) + src-tauri/src/lib.rs ; src/components/TerminalPane.tsx (invoke('session_scrollback') → replay → puis abonnement live).\n\nDONE WHEN:\n- session_scrollback renvoie les bytes ordonnés par seq (vide si aucun)\n- reload UI → scrollback rejoué puis live, sans doublon ni trou à la jointure\n- stress test 10MB replay < 500ms",
-							"sink_id": null
-						}
-					]
-				}
-			]
-		},
-		{
-			"id": "M6",
-			"demo": "2 tâches × 2 agents → grille peuplée de logs live ; drag-drop d'assignation, désassignation en lâchant hors de la grille.",
-			"skeleton": false,
-			"needs": ["M5"],
-			"tracks": [
-				{
-					"id": "A",
-					"tasks": [
-						{
-							"step": "01",
-							"title": "Renvoyer la matrice agents × tâches",
-							"size": "I4",
-							"slice_of": ["D11"],
-							"done_when": "list_active_grid(repo_path) renvoie la matrice des sessions vivantes par tâche assignée",
-							"description": "WHAT: commande list_active_grid(repo_path) joignant agent_sessions × tasks × task_assignments pour produire la matrice du cockpit.\n\nWHY: D11 — donnée source du grid (1 ligne = 1 agent, 1 colonne = 1 tâche). Réutilise les schémas existants (M4).\n\nWHERE: nouveau src-tauri/src/commands/grid.rs + src-tauri/src/lib.rs (generate_handler!).\n\nDONE WHEN:\n- jointure sessions/tâches/assignations pour le repo, shape exploitable par une CSS Grid\n- cellules vides pour les couples non assignés représentées\n- tests sur pool in-memory",
-							"sink_id": null
-						},
-						{
-							"step": "02",
-							"title": "Afficher la grille de logs live",
-							"size": "I4",
-							"slice_of": ["D11"],
-							"done_when": "la grille affiche une ligne par agent, une colonne par tâche, chaque cellule assignée montrant les logs live",
-							"description": "WHAT: vue <CockpitGrid> en CSS Grid alimentée par list_active_grid, chaque cellule assignée étant un <CockpitCell> embarquant un <TerminalPane>.\n\nWHY: D11 — board multi-agents. Réutilise TerminalPane (M2) tel quel ; consomme list_active_grid (01).\n\nWHERE: nouveau src/views/CockpitGrid.tsx + route ; nouveau src/components/CockpitCell.tsx (TerminalPane de la session) ; invoke('list_active_grid', { repoPath }).\n\nDONE WHEN:\n- 1 ligne/agent, 1 colonne/tâche\n- cellule assignée = logs live via TerminalPane, cellule non assignée = état vide\n- mise à jour quand l'assignation change",
-							"sink_id": null
-						},
-						{
-							"step": "03",
-							"title": "Assigner par drag-drop dans la grille",
-							"size": "I4",
-							"slice_of": ["D11"],
-							"done_when": "drag-drop assigne une tâche à un agent ; lâcher hors de la grille désassigne",
-							"description": "WHAT: assignation par drag-drop (tasks_assign) et désassignation en lâchant hors de la grille, dans CockpitGrid.\n\nWHY: D11 — interaction d'assignation du cockpit, démo finale 2 tâches × 2 agents. Build-or-Borrow à exécuter au dev : le drag-drop est borrow-par-défaut (DnD natif HTML5 vs lib) — trancher via la probe dans /next.\n\nWHERE: src/views/CockpitGrid.tsx + src/components/CockpitCell.tsx ; invoke('tasks_assign') / désassignation.\n\nDONE WHEN:\n- drop sur une cellule → assignation persistée\n- drop hors grille → désassignation\n- la grille se rafraîchit (démo 2 tâches × 2 agents)",
 							"sink_id": null
 						}
 					]

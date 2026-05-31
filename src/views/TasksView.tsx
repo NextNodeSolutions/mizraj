@@ -1,11 +1,11 @@
-import type { Task, TaskStatus, TasksState } from '../lib/tasks'
-import { TASK_STATUSES, useTasks } from '../lib/tasks'
+import type { Track, TaskState, TrackTask, TrackState } from '../lib/tasks'
+import { TASK_STATES, useTrack } from '../lib/tasks'
 
-const STATUS_LABELS: Record<TaskStatus, string> = {
-	backlog: 'Backlog',
-	todo: 'Todo',
-	in_progress: 'In progress',
-	done: 'Done',
+const STATE_CONFIG: Record<TaskState, { label: string; marker: string }> = {
+	in_progress: { label: 'In progress', marker: '◐' },
+	pending: { label: 'To do', marker: '○' },
+	done: { label: 'Done', marker: '✓' },
+	blocked: { label: 'Blocked', marker: '⚠' },
 }
 
 type Props = {
@@ -13,61 +13,75 @@ type Props = {
 }
 
 type GroupProps = {
-	title: string
-	tasks: ReadonlyArray<Task>
+	state: TaskState
+	tasks: ReadonlyArray<TrackTask>
 }
 
-const TasksViewGroup = ({ title, tasks }: GroupProps): React.JSX.Element => (
+const TrackGroup = ({ state, tasks }: GroupProps): React.JSX.Element => (
 	<section className="tasks-view__group">
 		<h3 className="tasks-view__heading">
-			{title} <span className="tasks-view__count">{tasks.length}</span>
+			{STATE_CONFIG[state].label}{' '}
+			<span className="tasks-view__count">{tasks.length}</span>
 		</h3>
-		{tasks.length === 0 ? (
-			<p className="tasks-view__empty">None.</p>
-		) : (
-			<ul className="tasks-view__list">
-				{tasks.map(task => (
-					<li key={task.id} className="tasks-view__item">
-						<span className="tasks-view__title">{task.title}</span>
-						{task.description !== null && (
-							<span className="tasks-view__description">
-								{task.description}
-							</span>
-						)}
-					</li>
-				))}
-			</ul>
-		)}
+		<ul className="tasks-view__list">
+			{tasks.map(task => (
+				<li
+					key={task.identifier}
+					className={`tasks-view__item tasks-view__item--${task.state}`}
+				>
+					<span
+						className="tasks-view__marker"
+						aria-hidden="true"
+					>
+						{STATE_CONFIG[task.state].marker}
+					</span>
+					<span className="tasks-view__identifier">
+						{task.identifier}
+					</span>
+					<span className="tasks-view__title">{task.title}</span>
+					{task.commit !== null && (
+						<span className="tasks-view__commit">{task.commit}</span>
+					)}
+				</li>
+			))}
+		</ul>
 	</section>
 )
 
-const renderReady = (tasks: ReadonlyArray<Task>): React.JSX.Element => {
-	if (tasks.length === 0) {
+const renderTrack = (track: Track | null): React.JSX.Element => {
+	if (track === null || track.tasks.length === 0) {
 		return (
-			<p className="tasks-view__empty">No tasks yet for this project.</p>
+			<p className="tasks-view__empty">No active track for this project.</p>
 		)
 	}
 	return (
 		<>
-			{TASK_STATUSES.map(status => (
-				<TasksViewGroup
-					key={status}
-					title={STATUS_LABELS[status]}
-					tasks={tasks.filter(task => task.status === status)}
-				/>
-			))}
+			<header className="tasks-view__track-header">
+				<p className="tasks-view__track-title">{track.title}</p>
+				{track.milestone !== '' && (
+					<p className="tasks-view__track-milestone">
+						{track.milestone}
+					</p>
+				)}
+			</header>
+			{TASK_STATES.map(state => {
+				const tasks = track.tasks.filter(task => task.state === state)
+				return tasks.length === 0 ? null : (
+					<TrackGroup key={state} state={state} tasks={tasks} />
+				)
+			})}
 		</>
 	)
 }
 
-const renderState = (state: TasksState): React.JSX.Element => {
+const renderState = (state: TrackState): React.JSX.Element => {
 	if (state.status === 'idle') {
 		return <p className="tasks-view__empty">No project selected.</p>
 	}
 	if (state.status === 'loading') {
 		return (
 			<p className="tasks-view__empty" role="status" aria-live="polite">
-				Loading tasks…
+				Loading track…
 			</p>
 		)
 	}
@@ -77,18 +91,18 @@ const renderState = (state: TasksState): React.JSX.Element => {
 				className="tasks-view__empty tasks-view__empty--error"
 				role="alert"
 			>
-				Tasks unavailable: {state.message}
+				Track unavailable: {state.message}
 			</p>
 		)
 	}
-	return renderReady(state.tasks)
+	return renderTrack(state.track)
 }
 
 const TasksView = ({ repoPath }: Props): React.JSX.Element => {
-	const state = useTasks(repoPath)
+	const state = useTrack(repoPath)
 	return (
-		<section className="tasks-view" aria-label="Tasks">
-			<h2 className="tasks-view__title-bar">Tasks</h2>
+		<section className="tasks-view" aria-label="Track">
+			<h2 className="tasks-view__title-bar">Track</h2>
 			{renderState(state)}
 		</section>
 	)

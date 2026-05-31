@@ -1,9 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
-import { useEffect, useState } from 'react'
 
-import { describeError } from '../errors'
-import { logger } from '../logger'
+import { useRepoResource } from './repoResource'
 
 export const PLAN_KINDS = ['interview', 'plan'] as const
 export type PlanKind = (typeof PLAN_KINDS)[number]
@@ -26,44 +23,13 @@ const fetchPlans = (repoPath: string): Promise<PlanEntry[]> =>
 	invoke<PlanEntry[]>('list_plans', { repoPath })
 
 export const usePlans = (repoPath: string | null): PlansState => {
-	const [state, setState] = useState<PlansState>({ status: 'idle' })
-
-	useEffect(() => {
-		if (repoPath === null) {
-			setState({ status: 'idle' })
-			return
-		}
-
-		let cancelled = false
-
-		const reload = async (): Promise<void> => {
-			try {
-				const entries = await fetchPlans(repoPath)
-				if (!cancelled) setState({ status: 'ready', entries })
-			} catch (error: unknown) {
-				const { message, stack } = describeError(error)
-				logger.error(`usePlans: list_plans failed: ${message}`, {
-					scope: 'plans-menu',
-					details: { stack, repoPath },
-				})
-				if (!cancelled) setState({ status: 'error', message })
-			}
-		}
-
-		setState({ status: 'loading' })
-		void reload()
-
-		const unlistenPromise = getCurrentWindow().onFocusChanged(
-			({ payload: focused }) => {
-				if (focused) void reload()
-			},
-		)
-
-		return () => {
-			cancelled = true
-			void unlistenPromise.then(off => off())
-		}
-	}, [repoPath])
-
-	return state
+	const state = useRepoResource(
+		repoPath,
+		fetchPlans,
+		'plans-menu',
+		'usePlans: list_plans',
+	)
+	return state.status === 'ready'
+		? { status: 'ready', entries: state.data }
+		: state
 }

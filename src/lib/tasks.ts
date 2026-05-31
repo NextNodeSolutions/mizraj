@@ -1,70 +1,45 @@
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
-import { useEffect, useState } from 'react'
 
-import { describeError } from '../errors'
-import { logger } from '../logger'
+import { useRepoResource } from './repoResource'
 
-export const TASK_STATUSES = ['backlog', 'todo', 'in_progress', 'done'] as const
-export type TaskStatus = (typeof TASK_STATUSES)[number]
+export const TASK_STATES = [
+	'in_progress',
+	'pending',
+	'done',
+	'blocked',
+] as const
+export type TaskState = (typeof TASK_STATES)[number]
 
-export type Task = {
-	id: string
+export type TrackTask = {
+	identifier: string
 	title: string
-	description: string | null
-	status: TaskStatus
-	repoPath: string
-	createdAt: string
+	state: TaskState
+	commit: string | null
 }
 
-export type TasksState =
+export type Track = {
+	title: string
+	milestone: string
+	tasks: ReadonlyArray<TrackTask>
+}
+
+export type TrackState =
 	| { status: 'idle' }
 	| { status: 'loading' }
-	| { status: 'ready'; tasks: ReadonlyArray<Task> }
+	| { status: 'ready'; track: Track | null }
 	| { status: 'error'; message: string }
 
-const fetchTasks = (repoPath: string): Promise<Task[]> =>
-	invoke<Task[]>('tasks_list', { repoPath })
+const fetchTrack = (repoPath: string): Promise<Track | null> =>
+	invoke<Track | null>('track_read', { repoPath })
 
-export const useTasks = (repoPath: string | null): TasksState => {
-	const [state, setState] = useState<TasksState>({ status: 'idle' })
-
-	useEffect(() => {
-		if (repoPath === null) {
-			setState({ status: 'idle' })
-			return
-		}
-
-		let cancelled = false
-
-		const reload = async (): Promise<void> => {
-			try {
-				const tasks = await fetchTasks(repoPath)
-				if (!cancelled) setState({ status: 'ready', tasks })
-			} catch (error: unknown) {
-				const { message, stack } = describeError(error)
-				logger.error(`useTasks: tasks_list failed: ${message}`, {
-					scope: 'tasks-view',
-					details: { stack, repoPath },
-				})
-				if (!cancelled) setState({ status: 'error', message })
-			}
-		}
-
-		setState({ status: 'loading' })
-		void reload()
-
-		const unlistenPromise = getCurrentWindow().onFocusChanged(
-			({ payload: focused }) => {
-				if (focused) void reload()
-			},
-		)
-
-		return () => {
-			cancelled = true
-			void unlistenPromise.then(off => off())
-		}
-	}, [repoPath])
-
-	return state
+export const useTrack = (repoPath: string | null): TrackState => {
+	const state = useRepoResource(
+		repoPath,
+		fetchTrack,
+		'tasks-view',
+		'useTrack: track_read',
+	)
+	return state.status === 'ready'
+		? { status: 'ready', track: state.data }
+		: state
 }
