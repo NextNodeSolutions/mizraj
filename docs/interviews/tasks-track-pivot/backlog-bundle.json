@@ -1,78 +1,78 @@
 {
-  "schema_version": "1",
-  "source": {
-    "kind": "interview",
-    "slug": "tasks-track-pivot",
-    "change_kind": "breaking-brownfield"
-  },
-  "target": {
-    "linear_project_hint": "",
-    "linear_team_hint": "",
-    "repo_path_hint": ""
-  },
-  "decisions": [
-    {
-      "id": "D1",
-      "theme": "archi",
-      "fact": "Une unique base SQLite globale, à `~/.local/share/agent-cockpit/cockpit.db` (clé `repo_path`, multi-projets), est la source de vérité unique des tâches et de l'historique. Les skills (mac-config) et l'app (agent-cockpit) sont deux clients indépendants conformes au même schéma-contrat. DB-only : aucun fichier plan.json/progress.md.",
-      "mechanism": "SQLite au chemin XDG, `journal_mode=WAL` + `busy_timeout`, transactions courtes. Chaque client ouvre la base directement (aucun app-serveur intermédiaire). Le schéma est un contrat versionné, partagé entre les deux repos.",
-      "edge": "Touche le substrat de persistance (app + skills) et le chemin de la base. Ne touche pas la logique PTY/terminal au-delà de son stockage. Ne conserve AUCUN fichier backlog (pas d'export).",
-      "rejected": "Fichiers autoritaires + index dérivé (intermédiaire jetable → contraire à la règle greenfield) ; SQLite app-only + sync bidirectionnel fichiers↔DB (la réconciliation = la complexité à supprimer) ; DB serveur libSQL/Turso (service réseau, skills hors-ligne cassés — reporté pour la collab temps réel).",
-      "order": "Le schéma-contrat doit être conçu EN PREMIER : c'est la dépendance commune à l'app-client et à la réécriture des skills. Bloque tout le reste.",
-      "verification": "`~/.local/share/agent-cockpit/cockpit.db` existe, WAL activé ; l'app lit/écrit des tâches ; un helper skill lit/écrit la même base ; aucun plan.json/progress.md n'est produit."
-    },
-    {
-      "id": "D2",
-      "theme": "archi",
-      "fact": "Une table `tasks` unique avec colonne `origin` ('track'|'user') porte les deux types de tâches. `agent_sessions` et l'assignation agent↔tâche vivent dans la même base globale.",
-      "mechanism": "Migration définissant `tasks(id, title, description, status, origin, repo_path, created_at)` ; assignation via table `task_assignments(task_id, session_id)` (many-to-many) ; `agent_sessions` (migration 0001 existante) rejoint la base globale. Schéma documenté et versionné comme contrat cross-repo.",
-      "edge": "Touche le schéma DB et les migrations. Ne touche pas l'UI au-delà de ce qu'elle requête, ni le code des skills (qui consomme le même contrat de son côté).",
-      "rejected": "Deux tables séparées track_tasks/user_tasks (UNION à chaque lecture, FK d'assignation ambiguë) ; colonne task_id directe sur agent_sessions (le many-to-many task_assignments a été préféré pour qu'une tâche porte plusieurs agents).",
-      "order": "Après D1 (contrat décidé). Bloque l'app-client (D3) et les skills-clients (D4).",
-      "verification": "Les migrations créent tasks + task_assignments ; un test insère une tâche origin='user' et une origin='track', les lit par repo_path, en assigne une à une session."
-    },
-    {
-      "id": "D3",
-      "theme": "app",
-      "fact": "L'app lit la base globale (tous projets, clé `repo_path`) pour lister les tâches et proposer le workflow. Tâches user : CRUD complet. Tâches track : read-only sauf le nom, éditable. La vue est une liste par tâche — pas de grille.",
-      "mechanism": "Commandes Tauri requêtant cockpit.db (remplacent track_read/tasks_list) : list/create/update/assign selon origin ; TasksView = liste groupée par statut ; droits d'édition pilotés par `origin`.",
-      "edge": "Touche les commandes Tauri tasks_* et TasksView. Ne touche pas les skills. Abandonne la grille M6 et le viewer read-only progress.md.",
-      "rejected": "Grille tâches×agents M6 (abandonnée → liste simple) ; viewer read-only pur du progress.md (le working-tree track_read — désormais obsolète) ; app passage obligé / seule-writer pour les skills (casserait le standalone G1).",
-      "order": "Après D2 (schéma figé). Parallélisable avec D4.",
-      "verification": "La vue liste les tâches de la base ; créer/éditer une tâche user persiste sans reload ; éditer le nom d'une tâche track persiste ; le statut d'une tâche track n'est pas modifiable dans l'app."
-    },
-    {
-      "id": "D4",
-      "theme": "app",
-      "fact": "`/backlog`, `/track`, `/next` sont réécrits pour être clients de cockpit.db au lieu d'écrire plan.json/progress.md. C'est un projet distinct dans le repo mac-config, hors du backlog agent-cockpit, coordonné uniquement via le schéma-contrat.",
-      "mechanism": "Helpers (python sqlite3) dans les skills ouvrant cockpit.db : /backlog insère les tâches (origin='track'), /track les sélectionne, /next met à jour statut + commit. WAL + busy_timeout côté skill aussi. Plus aucun plan.json/progress.md écrit.",
-      "edge": "Touche le repo mac-config (les skills). Ne touche pas le code de l'app. Coordination uniquement par le schéma versionné.",
-      "rejected": "Garder les skills file-based + import fichiers→DB (re-crée la double-représentation) ; faire de l'app un proxy d'écriture obligatoire (casse le standalone des skills).",
-      "order": "Dépend de D1/D2 (le contrat doit être figé). Parallélisable avec D3 une fois le schéma stable.",
-      "verification": "`/next` dans un repo coche une tâche → la ligne `tasks.status` change dans cockpit.db (vérifié via `sqlite3`) ; aucun progress.md n'est écrit."
-    },
-    {
-      "id": "D5",
-      "theme": "scope",
-      "fact": "La grille cockpit M6 (tâches×agents, drag-drop) est abandonnée au profit d'une liste par tâche. Le guard CI « no Linear imports » est abandonné.",
-      "mechanism": "Ni CockpitGrid ni job CI guard ne sont implémentés ; ces deux items sortent du périmètre. Les décisions D11 (grille) et la tâche ex-M4.A-05 (guard) sont retirées.",
-      "edge": "Touche le périmètre planifié (retire deux livrables). Ne touche pas les décisions D1–D4.",
-      "rejected": "Conserver la grille (feature phare D16 mais non prioritaire vs la simplification du modèle de données) ; conserver le guard CI (jugé non nécessaire par l'user).",
-      "order": "Indépendant ; à acter dès le re-/backlog (ne pas re-décomposer ces items).",
-      "verification": "Le nouveau plan.json ne contient ni tâche CockpitGrid ni tâche guard-CI-Linear."
-    }
-  ],
-  "open_facts": {
-    "db_path": "~/.local/share/agent-cockpit/cockpit.db",
-    "db_keyed_by": "repo_path",
-    "concurrency": "WAL + busy_timeout",
-    "files": "DB-only — no plan.json/progress.md",
-    "skills_repo": "mac-config (separate chantier, D4)",
-    "dropped": [
-      "M6 cockpit grid",
-      "CI Linear-imports guard",
-      "track_read progress.md viewer (working-tree)"
-    ]
-  },
-  "freeform": "Skills(/backlog,/track,/next) and the app become two independent clients of one global SQLite (schema=contract). Build the schema first; app walking-skeleton = user-origin tasks (no skills needed); track-origin tasks arrive once the skills are rewritten in mac-config."
+	"schema_version": "1",
+	"source": {
+		"kind": "interview",
+		"slug": "tasks-track-pivot",
+		"change_kind": "breaking-brownfield"
+	},
+	"target": {
+		"linear_project_hint": "",
+		"linear_team_hint": "",
+		"repo_path_hint": ""
+	},
+	"decisions": [
+		{
+			"id": "D1",
+			"theme": "archi",
+			"fact": "Une unique base SQLite globale, à `~/.local/share/agent-cockpit/cockpit.db` (clé `repo_path`, multi-projets), est la source de vérité unique des tâches et de l'historique. Les skills (mac-config) et l'app (agent-cockpit) sont deux clients indépendants conformes au même schéma-contrat. DB-only : aucun fichier plan.json/progress.md.",
+			"mechanism": "SQLite au chemin XDG, `journal_mode=WAL` + `busy_timeout`, transactions courtes. Chaque client ouvre la base directement (aucun app-serveur intermédiaire). Le schéma est un contrat versionné, partagé entre les deux repos.",
+			"edge": "Touche le substrat de persistance (app + skills) et le chemin de la base. Ne touche pas la logique PTY/terminal au-delà de son stockage. Ne conserve AUCUN fichier backlog (pas d'export).",
+			"rejected": "Fichiers autoritaires + index dérivé (intermédiaire jetable → contraire à la règle greenfield) ; SQLite app-only + sync bidirectionnel fichiers↔DB (la réconciliation = la complexité à supprimer) ; DB serveur libSQL/Turso (service réseau, skills hors-ligne cassés — reporté pour la collab temps réel).",
+			"order": "Le schéma-contrat doit être conçu EN PREMIER : c'est la dépendance commune à l'app-client et à la réécriture des skills. Bloque tout le reste.",
+			"verification": "`~/.local/share/agent-cockpit/cockpit.db` existe, WAL activé ; l'app lit/écrit des tâches ; un helper skill lit/écrit la même base ; aucun plan.json/progress.md n'est produit."
+		},
+		{
+			"id": "D2",
+			"theme": "archi",
+			"fact": "Une table `tasks` unique avec colonne `origin` ('track'|'user') porte les deux types de tâches. `agent_sessions` et l'assignation agent↔tâche vivent dans la même base globale.",
+			"mechanism": "Migration définissant `tasks(id, title, description, status, origin, repo_path, created_at)` ; assignation via table `task_assignments(task_id, session_id)` (many-to-many) ; `agent_sessions` (migration 0001 existante) rejoint la base globale. Schéma documenté et versionné comme contrat cross-repo.",
+			"edge": "Touche le schéma DB et les migrations. Ne touche pas l'UI au-delà de ce qu'elle requête, ni le code des skills (qui consomme le même contrat de son côté).",
+			"rejected": "Deux tables séparées track_tasks/user_tasks (UNION à chaque lecture, FK d'assignation ambiguë) ; colonne task_id directe sur agent_sessions (le many-to-many task_assignments a été préféré pour qu'une tâche porte plusieurs agents).",
+			"order": "Après D1 (contrat décidé). Bloque l'app-client (D3) et les skills-clients (D4).",
+			"verification": "Les migrations créent tasks + task_assignments ; un test insère une tâche origin='user' et une origin='track', les lit par repo_path, en assigne une à une session."
+		},
+		{
+			"id": "D3",
+			"theme": "app",
+			"fact": "L'app lit la base globale (tous projets, clé `repo_path`) pour lister les tâches et proposer le workflow. Tâches user : CRUD complet. Tâches track : read-only sauf le nom, éditable. La vue est une liste par tâche — pas de grille.",
+			"mechanism": "Commandes Tauri requêtant cockpit.db (remplacent track_read/tasks_list) : list/create/update/assign selon origin ; TasksView = liste groupée par statut ; droits d'édition pilotés par `origin`.",
+			"edge": "Touche les commandes Tauri tasks_* et TasksView. Ne touche pas les skills. Abandonne la grille M6 et le viewer read-only progress.md.",
+			"rejected": "Grille tâches×agents M6 (abandonnée → liste simple) ; viewer read-only pur du progress.md (le working-tree track_read — désormais obsolète) ; app passage obligé / seule-writer pour les skills (casserait le standalone G1).",
+			"order": "Après D2 (schéma figé). Parallélisable avec D4.",
+			"verification": "La vue liste les tâches de la base ; créer/éditer une tâche user persiste sans reload ; éditer le nom d'une tâche track persiste ; le statut d'une tâche track n'est pas modifiable dans l'app."
+		},
+		{
+			"id": "D4",
+			"theme": "app",
+			"fact": "`/backlog`, `/track`, `/next` sont réécrits pour être clients de cockpit.db au lieu d'écrire plan.json/progress.md. C'est un projet distinct dans le repo mac-config, hors du backlog agent-cockpit, coordonné uniquement via le schéma-contrat.",
+			"mechanism": "Helpers (python sqlite3) dans les skills ouvrant cockpit.db : /backlog insère les tâches (origin='track'), /track les sélectionne, /next met à jour statut + commit. WAL + busy_timeout côté skill aussi. Plus aucun plan.json/progress.md écrit.",
+			"edge": "Touche le repo mac-config (les skills). Ne touche pas le code de l'app. Coordination uniquement par le schéma versionné.",
+			"rejected": "Garder les skills file-based + import fichiers→DB (re-crée la double-représentation) ; faire de l'app un proxy d'écriture obligatoire (casse le standalone des skills).",
+			"order": "Dépend de D1/D2 (le contrat doit être figé). Parallélisable avec D3 une fois le schéma stable.",
+			"verification": "`/next` dans un repo coche une tâche → la ligne `tasks.status` change dans cockpit.db (vérifié via `sqlite3`) ; aucun progress.md n'est écrit."
+		},
+		{
+			"id": "D5",
+			"theme": "scope",
+			"fact": "La grille cockpit M6 (tâches×agents, drag-drop) est abandonnée au profit d'une liste par tâche. Le guard CI « no Linear imports » est abandonné.",
+			"mechanism": "Ni CockpitGrid ni job CI guard ne sont implémentés ; ces deux items sortent du périmètre. Les décisions D11 (grille) et la tâche ex-M4.A-05 (guard) sont retirées.",
+			"edge": "Touche le périmètre planifié (retire deux livrables). Ne touche pas les décisions D1–D4.",
+			"rejected": "Conserver la grille (feature phare D16 mais non prioritaire vs la simplification du modèle de données) ; conserver le guard CI (jugé non nécessaire par l'user).",
+			"order": "Indépendant ; à acter dès le re-/backlog (ne pas re-décomposer ces items).",
+			"verification": "Le nouveau plan.json ne contient ni tâche CockpitGrid ni tâche guard-CI-Linear."
+		}
+	],
+	"open_facts": {
+		"db_path": "~/.local/share/agent-cockpit/cockpit.db",
+		"db_keyed_by": "repo_path",
+		"concurrency": "WAL + busy_timeout",
+		"files": "DB-only — no plan.json/progress.md",
+		"skills_repo": "mac-config (separate chantier, D4)",
+		"dropped": [
+			"M6 cockpit grid",
+			"CI Linear-imports guard",
+			"track_read progress.md viewer (working-tree)"
+		]
+	},
+	"freeform": "Skills(/backlog,/track,/next) and the app become two independent clients of one global SQLite (schema=contract). Build the schema first; app walking-skeleton = user-origin tasks (no skills needed); track-origin tasks arrive once the skills are rewritten in mac-config."
 }
