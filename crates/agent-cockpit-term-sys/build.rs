@@ -50,53 +50,65 @@ fn emit_link_flags() {
 }
 
 fn emit_link_flags_macos() {
-    let lib_dir = env::var_os("LIBGHOSTTY_LIB_DIR").map(PathBuf::from);
+    let Some(dir) = env::var_os("LIBGHOSTTY_LIB_DIR").map(PathBuf::from) else {
+        println!(
+            "cargo:warning=LIBGHOSTTY_LIB_DIR is not set - downstream binaries that use agent-cockpit-term-sys will fail to link; export it to the directory containing libghostty.dylib"
+        );
+        return;
+    };
 
-    match lib_dir {
-        Some(dir) if dir.join("libghostty.dylib").is_file() => {
-            println!("cargo:rustc-link-search=native={}", dir.display());
-            println!("cargo:rustc-link-lib=dylib=ghostty");
-            // Match the Linux side: embed an rpath relative to the binary
-            // so the dylib can sit next to the executable in dev runs and
-            // packaged builds without `DYLD_LIBRARY_PATH` gymnastics.
-            println!("cargo:rustc-link-arg=-Wl,-rpath,@loader_path");
-            println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path");
-        }
-        Some(dir) => {
-            println!(
-                "cargo:warning=libghostty.dylib not found at {} - set LIBGHOSTTY_LIB_DIR to the directory containing it",
-                dir.display()
-            );
-        }
-        None => {
-            println!(
-                "cargo:warning=LIBGHOSTTY_LIB_DIR is not set - downstream binaries that use agent-cockpit-term-sys will fail to link; export it to the directory containing libghostty.dylib"
-            );
-        }
+    // The link decision below hinges on whether this dylib exists, but cargo
+    // only re-runs a build script when a *declared* input changes. Track the
+    // path (even while it is still absent) so that producing it later via
+    // scripts/setup-libghostty.sh re-runs this script and emits the link flags.
+    // Without it, a build that runs before the dylib exists caches a "not
+    // found" verdict — no link flags — and the dylib later appearing never
+    // invalidates it, leaving the dependent binary with undefined ghostty_*
+    // symbols at link time.
+    let dylib = dir.join("libghostty.dylib");
+    println!("cargo:rerun-if-changed={}", dylib.display());
+
+    if !dylib.is_file() {
+        println!(
+            "cargo:warning=libghostty.dylib not found at {} - run scripts/setup-libghostty.sh to build it",
+            dir.display()
+        );
+        return;
     }
+
+    println!("cargo:rustc-link-search=native={}", dir.display());
+    println!("cargo:rustc-link-lib=dylib=ghostty");
+    // Match the Linux side: embed an rpath relative to the binary so the dylib
+    // can sit next to the executable in dev runs and packaged builds without
+    // `DYLD_LIBRARY_PATH` gymnastics.
+    println!("cargo:rustc-link-arg=-Wl,-rpath,@loader_path");
+    println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path");
 }
 
 fn emit_link_flags_linux() {
-    let lib_dir = env::var_os("LIBGHOSTTY_LIB_DIR").map(PathBuf::from);
+    let Some(dir) = env::var_os("LIBGHOSTTY_LIB_DIR").map(PathBuf::from) else {
+        println!(
+            "cargo:warning=LIBGHOSTTY_LIB_DIR is not set - downstream binaries that use agent-cockpit-term-sys will fail to link; export it to the directory containing libghostty.so"
+        );
+        return;
+    };
 
-    match lib_dir {
-        Some(dir) if dir.join("libghostty.so").is_file() => {
-            println!("cargo:rustc-link-search=native={}", dir.display());
-            println!("cargo:rustc-link-lib=dylib=ghostty");
-            println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN");
-        }
-        Some(dir) => {
-            println!(
-                "cargo:warning=libghostty.so not found at {} - set LIBGHOSTTY_LIB_DIR to the directory containing it",
-                dir.display()
-            );
-        }
-        None => {
-            println!(
-                "cargo:warning=LIBGHOSTTY_LIB_DIR is not set - downstream binaries that use agent-cockpit-term-sys will fail to link; export it to the directory containing libghostty.so"
-            );
-        }
+    // See emit_link_flags_macos: track the dylib path so creating it later
+    // re-runs this script instead of reusing a cached "not found" verdict.
+    let dylib = dir.join("libghostty.so");
+    println!("cargo:rerun-if-changed={}", dylib.display());
+
+    if !dylib.is_file() {
+        println!(
+            "cargo:warning=libghostty.so not found at {} - build it before linking",
+            dir.display()
+        );
+        return;
     }
+
+    println!("cargo:rustc-link-search=native={}", dir.display());
+    println!("cargo:rustc-link-lib=dylib=ghostty");
+    println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN");
 }
 
 fn rerun_if_changed_recursive(dir: &Path) {
