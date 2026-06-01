@@ -8,12 +8,13 @@ use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
 use portable_pty::PtySize;
 use sqlx::sqlite::SqlitePool;
-use tauri::async_runtime::{channel, spawn, spawn_blocking, Mutex, Receiver, RwLock};
+use tauri::async_runtime::{channel, spawn, spawn_blocking, Mutex, Receiver, RwLock, Sender};
 use tokio::time::timeout;
 
 use crate::session::error::SessionError;
 use crate::session::handle::{SessionHandle, SessionTasks};
 use crate::session::id::SessionId;
+use crate::session::key::KeyStroke;
 use crate::session::pty::{self, PtySession};
 use crate::session::sink::OutputSink;
 
@@ -147,6 +148,21 @@ impl SessionManager {
             .map_err(|_| SessionError::InputClosed)
     }
 
+    /// Forward a frontend key press to the session's terminal sink, which
+    /// VT-encodes it against the live terminal modes and writes the bytes to the
+    /// PTY. Fans out through the sink list exactly like [`resize_session`]; only
+    /// the terminal sink acts on it (byte-only sinks ignore `key`). Returns
+    /// `NotFound` for unknown sessions; delivery past that is best-effort (a
+    /// wedged child drops the keystroke rather than stalling the render thread).
+    pub async fn send_key(&self, id: &SessionId, stroke: KeyStroke) -> Result<(), SessionError> {
+        let state = self.state.read().await;
+        let handle = state
+            .get(id)
+            .ok_or_else(|| SessionError::NotFound(id.to_string()))?;
+        dispatch_to_sinks(handle.sinks(), |sink| sink.key(stroke.clone())).await;
+        Ok(())
+    }
+
     /// Register an additional [`OutputSink`] on a live session.
     ///
     /// The reader task fans every PTY chunk out to the session's sink list, so
@@ -188,7 +204,7 @@ impl SessionManager {
         initial_sinks: F,
     ) -> Result<SessionId, SessionError>
     where
-        F: FnOnce(&SessionId) -> Vec<Arc<dyn OutputSink>>,
+        F: FnOnce(&SessionId, Sender<Vec<u8>>) -> Vec<Arc<dyn OutputSink>>,
     {
         let binary_str = binary
             .to_str()
@@ -216,10 +232,12 @@ impl SessionManager {
         // Allocate the id BEFORE spawning the reader so `initial_sinks` can
         // build sinks bound to the final session id; populating the Vec here
         // (not via attach_sink afterwards) closes the race where the PTY's
-        // first chunk arrives before any sink has been attached.
+        // first chunk arrives before any sink has been attached. The closure
+        // also receives a clone of the PTY input channel so a terminal sink can
+        // write encoded keystrokes back to the child.
         let id = SessionId::new();
         let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> =
-            Arc::new(RwLock::new(initial_sinks(&id)));
+            Arc::new(RwLock::new(initial_sinks(&id, writer_tx.clone())));
 
         let reader_task = spawn(pty_read_loop(master_reader, Arc::clone(&sinks)));
         let writer_task = spawn(pty_write_loop(master_writer, writer_rx));
@@ -500,9 +518,12 @@ mod tests {
             let env: HashMap<String, String> = HashMap::new();
 
             let id = manager
-                .create_session(PathBuf::from("/bin/sh"), PathBuf::from("/tmp"), env, |_| {
-                    Vec::new()
-                })
+                .create_session(
+                    PathBuf::from("/bin/sh"),
+                    PathBuf::from("/tmp"),
+                    env,
+                    |_, _| Vec::new(),
+                )
                 .await
                 .expect("create_session should spawn /bin/sh");
 
@@ -524,14 +545,17 @@ mod tests {
                     PathBuf::from("/bin/sh"),
                     PathBuf::from("/tmp"),
                     env.clone(),
-                    |_| Vec::new(),
+                    |_, _| Vec::new(),
                 )
                 .await
                 .expect("first create_session");
             let id2 = manager
-                .create_session(PathBuf::from("/bin/sh"), PathBuf::from("/tmp"), env, |_| {
-                    Vec::new()
-                })
+                .create_session(
+                    PathBuf::from("/bin/sh"),
+                    PathBuf::from("/tmp"),
+                    env,
+                    |_, _| Vec::new(),
+                )
                 .await
                 .expect("second create_session");
 
@@ -555,7 +579,7 @@ mod tests {
                     PathBuf::from("/usr/bin/true"),
                     PathBuf::from("/tmp"),
                     env,
-                    |_| Vec::new(),
+                    |_, _| Vec::new(),
                 )
                 .await
                 .expect("create_session /usr/bin/true");
@@ -608,7 +632,7 @@ mod tests {
                     PathBuf::from("/usr/bin/true"),
                     PathBuf::from("/tmp"),
                     HashMap::new(),
-                    move |_| {
+                    move |_, _| {
                         vec![Arc::new(EndSink(Arc::clone(&calls_for_sink))) as Arc<dyn OutputSink>]
                     },
                 )
@@ -647,7 +671,9 @@ mod tests {
             let manager = SessionManager::new(pool);
             let bad = PathBuf::from(OsString::from_vec(vec![0xff, 0xfe, 0xfd]));
             let err = manager
-                .create_session(bad, PathBuf::from("/tmp"), HashMap::new(), |_| Vec::new())
+                .create_session(bad, PathBuf::from("/tmp"), HashMap::new(), |_, _| {
+                    Vec::new()
+                })
                 .await
                 .expect_err("non-utf8 binary path should fail before spawn");
             match err {
@@ -1033,7 +1059,7 @@ mod tests {
             let env: HashMap<String, String> = HashMap::new();
 
             let id = manager
-                .create_session(script_path.clone(), PathBuf::from("/tmp"), env, |_| {
+                .create_session(script_path.clone(), PathBuf::from("/tmp"), env, |_, _| {
                     Vec::new()
                 })
                 .await
@@ -1091,9 +1117,12 @@ mod tests {
             let env: HashMap<String, String> = HashMap::new();
 
             let id = manager
-                .create_session(PathBuf::from("/bin/sh"), PathBuf::from("/tmp"), env, |_| {
-                    Vec::new()
-                })
+                .create_session(
+                    PathBuf::from("/bin/sh"),
+                    PathBuf::from("/tmp"),
+                    env,
+                    |_, _| Vec::new(),
+                )
                 .await
                 .expect("create_session /bin/sh");
 

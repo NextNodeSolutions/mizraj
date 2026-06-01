@@ -1,7 +1,9 @@
-/// Consumer of raw PTY output bytes.
-///
-/// The PTY reader fans out every chunk it receives to all registered sinks
-/// (D4: channel sink for the live UI, scrollback sink for replay, etc.).
+use crate::session::key::KeyStroke;
+
+/// Per-session terminal endpoint: the PTY reader fans out every output chunk to
+/// all registered sinks (D4: channel sink for the live UI, scrollback sink for
+/// replay, etc.), and the same fan-out carries control input — [`resize`] and
+/// [`key`] — to whichever sink owns the terminal emulator.
 ///
 /// Implementations MUST NOT block longer than ~1ms inside [`write`]; anything
 /// slower backs up the PTY reader and risks dropping or stalling output.
@@ -24,6 +26,13 @@ pub trait OutputSink: Send + Sync {
     /// no-op so output-only sinks (scrollback, tests) need not react to
     /// termination.
     fn end(&self, _exit_code: u32) {}
+
+    /// Called when the frontend sends a key press. Like [`resize`], this is
+    /// control INPUT routed through the same fan-out: only the terminal sink
+    /// consumes it (VT-encoding the stroke against the live terminal modes and
+    /// writing it to the PTY); byte-only sinks ignore it. Same ~1ms budget —
+    /// the encode itself happens off-thread on the render thread.
+    fn key(&self, _stroke: KeyStroke) {}
 }
 
 #[cfg(test)]

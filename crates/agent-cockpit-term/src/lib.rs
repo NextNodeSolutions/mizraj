@@ -1,10 +1,12 @@
 use thiserror::Error;
 
 mod cells;
+mod key;
 mod render_state;
 mod terminal;
 
 pub use cells::{Attrs, Cell, Cells, Color};
+pub use key::{KeyEncoder, Mods};
 pub use render_state::{Dirty, RenderState};
 pub use terminal::Terminal;
 
@@ -18,4 +20,6 @@ pub enum TermError {
     Feed(String),
     #[error("resize failed: {0}")]
     Resize(String),
+    #[error("key encode failed: {0}")]
+    Encode(String),
 }

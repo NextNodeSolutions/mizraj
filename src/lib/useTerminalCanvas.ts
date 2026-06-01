@@ -8,7 +8,12 @@ import { logger } from '../logger'
 import { AGENT_CELLS_EVENT } from '../state/sessions'
 
 import type { CellFramePayload, TerminalTheme } from './terminalRenderer'
-import { drawFrame, gridForSize, measureCell, syncBackingStore } from './terminalRenderer'
+import {
+	drawFrame,
+	gridForSize,
+	measureCell,
+	syncBackingStore,
+} from './terminalRenderer'
 
 type TerminalCanvasHandles = {
 	containerRef: RefObject<HTMLDivElement | null>
@@ -23,10 +28,13 @@ const propagateResize = (
 	invoke('session_resize', { sessionId, cols, rows }).catch(
 		(error: unknown) => {
 			const { message, stack } = describeError(error)
-			logger.warn(`useTerminalCanvas: session_resize failed: ${message}`, {
-				scope: 'terminal-pane',
-				details: { stack, sessionId, cols, rows },
-			})
+			logger.warn(
+				`useTerminalCanvas: session_resize failed: ${message}`,
+				{
+					scope: 'terminal-pane',
+					details: { stack, sessionId, cols, rows },
+				},
+			)
 		},
 	)
 }
@@ -82,7 +90,8 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 			canvas.style.height = `${height}px`
 
 			const { cols, rows } = gridForSize(width, height, metrics)
-			if (lastGrid && lastGrid.cols === cols && lastGrid.rows === rows) return
+			if (lastGrid && lastGrid.cols === cols && lastGrid.rows === rows)
+				return
 			lastGrid = { cols, rows }
 			propagateResize(sessionId, cols, rows)
 		}
@@ -110,7 +119,10 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 					const { message, stack } = describeError(error)
 					logger.warn(
 						`useTerminalCanvas: agent:cells unlisten failed: ${message}`,
-						{ scope: 'terminal-pane', details: { stack, sessionId } },
+						{
+							scope: 'terminal-pane',
+							details: { stack, sessionId },
+						},
 					)
 				})
 		}

@@ -3,6 +3,7 @@ pub mod commands;
 pub mod error;
 pub mod handle;
 pub mod id;
+pub mod key;
 pub mod label;
 pub mod manager;
 pub mod path;
@@ -15,6 +16,7 @@ pub use cell_frame::CellFrame;
 pub use error::SessionError;
 pub use handle::SessionHandle;
 pub use id::SessionId;
+pub use key::KeyStroke;
 pub use manager::SessionManager;
 pub use sink::OutputSink;
 pub use tauri_sink::{
