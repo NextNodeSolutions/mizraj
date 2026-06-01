@@ -1,402 +1,1193 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr" data-theme="light">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TermSink + CellFrame — architecture du rendu de grille</title>
-<script>
-(function () {
-  try {
-    var stored = localStorage.getItem('np-theme');
-    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme', theme);
-  } catch (e) {
-    document.documentElement.setAttribute('data-theme', 'light');
-  }
-})();
-</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-:root {
-  --np-bg:          oklch(98.4% 0.003 247.86);
-  --np-bg-soft:     oklch(96.8% 0.007 247.84);
-  --np-text:        oklch(20.8% 0.042 265.76);
-  --np-text-muted:  oklch(55.4% 0.046 257.42);
-  --np-border:      oklch(92.9% 0.013 255.51);
-  --np-border-soft: oklch(96.8% 0.007 247.84);
-  --np-accent:      oklch(70.4% 0.14 182.503);
-  --np-accent-bg:   oklch(95.3% 0.051 180.801);
-  --np-accent-hover:oklch(60% 0.118 184.704);
-  --np-highlight:   #F97316;
-  --np-success:     #16A34A;
-  --np-warn:        #D97706;
-  --np-danger:      #DC2626;
-  --np-add-bg:      #DCFCE7;
-  --np-add-text:    #166534;
-  --np-add-border:  #BBF7D0;
-  --np-del-bg:      #FEE2E2;
-  --np-del-text:    #991B1B;
-  --np-del-border:  #FECACA;
-  --np-edit-bg:     #FFF8C5;
-  --np-edit-text:   #854D0E;
-  --np-edit-border: #FDE68A;
-  --np-shadow-soft: 0 2px 6px rgba(0,0,0,.06);
-  --np-shadow-pop:  0 4px 16px rgba(0,0,0,.12);
-  --np-radius:      8px;
-  --np-mono:        "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --np-sans:        "DM Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --np-display:     "Plus Jakarta Sans", "DM Sans", sans-serif;
-}
-[data-theme="dark"] {
-  --np-bg:          oklch(20.8% 0.042 265.76);
-  --np-bg-soft:     oklch(27.9% 0.041 260.03);
-  --np-text:        oklch(98.4% 0.003 247.86);
-  --np-text-muted:  oklch(70.4% 0.04 256.79);
-  --np-border:      oklch(37.2% 0.044 257.29);
-  --np-border-soft: oklch(27.9% 0.041 260.03);
-  --np-accent:      oklch(77.7% 0.152 181.912);
-  --np-accent-bg:   oklch(38.6% 0.063 188.416);
-  --np-accent-hover:oklch(85.5% 0.138 181.071);
-  --np-highlight:   #FB923C;
-  --np-success:     #4ADE80;
-  --np-warn:        #FBBF24;
-  --np-danger:      #F87171;
-  --np-add-bg:      rgba(74,222,128,.18);
-  --np-add-text:    #86EFAC;
-  --np-add-border:  rgba(74,222,128,.40);
-  --np-del-bg:      rgba(248,113,113,.18);
-  --np-del-text:    #FCA5A5;
-  --np-del-border:  rgba(248,113,113,.40);
-  --np-edit-bg:     rgba(251,191,36,.18);
-  --np-edit-text:   #FCD34D;
-  --np-edit-border: rgba(251,191,36,.40);
-  --np-shadow-soft: 0 2px 6px rgba(0,0,0,.40);
-  --np-shadow-pop:  0 4px 16px rgba(0,0,0,.55);
-}
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>TermSink + CellFrame — architecture du rendu de grille</title>
+		<script>
+			;(function () {
+				try {
+					var stored = localStorage.getItem('np-theme')
+					var theme =
+						stored ||
+						(window.matchMedia('(prefers-color-scheme: dark)')
+							.matches
+							? 'dark'
+							: 'light')
+					document.documentElement.setAttribute('data-theme', theme)
+				} catch (e) {
+					document.documentElement.setAttribute('data-theme', 'light')
+				}
+			})()
+		</script>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+			rel="stylesheet"
+		/>
+		<style>
+			:root {
+				--np-bg: oklch(98.4% 0.003 247.86);
+				--np-bg-soft: oklch(96.8% 0.007 247.84);
+				--np-text: oklch(20.8% 0.042 265.76);
+				--np-text-muted: oklch(55.4% 0.046 257.42);
+				--np-border: oklch(92.9% 0.013 255.51);
+				--np-border-soft: oklch(96.8% 0.007 247.84);
+				--np-accent: oklch(70.4% 0.14 182.503);
+				--np-accent-bg: oklch(95.3% 0.051 180.801);
+				--np-accent-hover: oklch(60% 0.118 184.704);
+				--np-highlight: #f97316;
+				--np-success: #16a34a;
+				--np-warn: #d97706;
+				--np-danger: #dc2626;
+				--np-add-bg: #dcfce7;
+				--np-add-text: #166534;
+				--np-add-border: #bbf7d0;
+				--np-del-bg: #fee2e2;
+				--np-del-text: #991b1b;
+				--np-del-border: #fecaca;
+				--np-edit-bg: #fff8c5;
+				--np-edit-text: #854d0e;
+				--np-edit-border: #fde68a;
+				--np-shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.06);
+				--np-shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.12);
+				--np-radius: 8px;
+				--np-mono:
+					'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo,
+					monospace;
+				--np-sans:
+					'DM Sans', -apple-system, BlinkMacSystemFont, system-ui,
+					sans-serif;
+				--np-display: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+			}
+			[data-theme='dark'] {
+				--np-bg: oklch(20.8% 0.042 265.76);
+				--np-bg-soft: oklch(27.9% 0.041 260.03);
+				--np-text: oklch(98.4% 0.003 247.86);
+				--np-text-muted: oklch(70.4% 0.04 256.79);
+				--np-border: oklch(37.2% 0.044 257.29);
+				--np-border-soft: oklch(27.9% 0.041 260.03);
+				--np-accent: oklch(77.7% 0.152 181.912);
+				--np-accent-bg: oklch(38.6% 0.063 188.416);
+				--np-accent-hover: oklch(85.5% 0.138 181.071);
+				--np-highlight: #fb923c;
+				--np-success: #4ade80;
+				--np-warn: #fbbf24;
+				--np-danger: #f87171;
+				--np-add-bg: rgba(74, 222, 128, 0.18);
+				--np-add-text: #86efac;
+				--np-add-border: rgba(74, 222, 128, 0.4);
+				--np-del-bg: rgba(248, 113, 113, 0.18);
+				--np-del-text: #fca5a5;
+				--np-del-border: rgba(248, 113, 113, 0.4);
+				--np-edit-bg: rgba(251, 191, 36, 0.18);
+				--np-edit-text: #fcd34d;
+				--np-edit-border: rgba(251, 191, 36, 0.4);
+				--np-shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.4);
+				--np-shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.55);
+			}
 
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
-body {
-  font-family: var(--np-sans);
-  background: var(--np-bg);
-  color: var(--np-text);
-  line-height: 1.6;
-  font-size: 15px;
-  -webkit-font-smoothing: antialiased;
-}
-.wrap { max-width: 1120px; margin: 0 auto; padding: 32px 28px 96px; }
+			* {
+				box-sizing: border-box;
+			}
+			html,
+			body {
+				margin: 0;
+				padding: 0;
+			}
+			body {
+				font-family: var(--np-sans);
+				background: var(--np-bg);
+				color: var(--np-text);
+				line-height: 1.6;
+				font-size: 15px;
+				-webkit-font-smoothing: antialiased;
+			}
+			.wrap {
+				max-width: 1120px;
+				margin: 0 auto;
+				padding: 32px 28px 96px;
+			}
 
-.eyebrow {
-  font-family: var(--np-display);
-  font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--np-accent-hover);
-}
-h1 {
-  font-family: var(--np-display);
-  font-weight: 800; font-size: 30px; line-height: 1.15;
-  margin: 8px 0 14px; letter-spacing: -.01em;
-}
-h2 {
-  font-family: var(--np-display);
-  font-weight: 700; font-size: 20px; margin: 44px 0 14px; letter-spacing: -.01em;
-  scroll-margin-top: 20px;
-}
-h3 { font-size: 15px; font-weight: 600; margin: 22px 0 8px; }
-p { margin: 0 0 12px; }
-a { color: var(--np-accent-hover); text-decoration: none; border-bottom: 1px solid var(--np-accent-bg); }
-strong { font-weight: 600; }
+			.eyebrow {
+				font-family: var(--np-display);
+				font-size: 12px;
+				font-weight: 700;
+				letter-spacing: 0.12em;
+				text-transform: uppercase;
+				color: var(--np-accent-hover);
+			}
+			h1 {
+				font-family: var(--np-display);
+				font-weight: 800;
+				font-size: 30px;
+				line-height: 1.15;
+				margin: 8px 0 14px;
+				letter-spacing: -0.01em;
+			}
+			h2 {
+				font-family: var(--np-display);
+				font-weight: 700;
+				font-size: 20px;
+				margin: 44px 0 14px;
+				letter-spacing: -0.01em;
+				scroll-margin-top: 20px;
+			}
+			h3 {
+				font-size: 15px;
+				font-weight: 600;
+				margin: 22px 0 8px;
+			}
+			p {
+				margin: 0 0 12px;
+			}
+			a {
+				color: var(--np-accent-hover);
+				text-decoration: none;
+				border-bottom: 1px solid var(--np-accent-bg);
+			}
+			strong {
+				font-weight: 600;
+			}
 
-.prompt-box {
-  font-family: var(--np-mono); font-size: 13px;
-  background: var(--np-bg-soft); border: 1px solid var(--np-border);
-  border-left: 3px solid var(--np-accent); border-radius: var(--np-radius);
-  padding: 10px 14px; color: var(--np-text-muted); margin: 14px 0 0;
-}
+			.prompt-box {
+				font-family: var(--np-mono);
+				font-size: 13px;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-left: 3px solid var(--np-accent);
+				border-radius: var(--np-radius);
+				padding: 10px 14px;
+				color: var(--np-text-muted);
+				margin: 14px 0 0;
+			}
 
-.tldr {
-  background: var(--np-bg-soft); border: 1px solid var(--np-border);
-  border-left: 4px solid var(--np-accent); border-radius: var(--np-radius);
-  padding: 16px 18px; margin: 22px 0 8px;
-}
-.tldr p:last-child { margin-bottom: 0; }
+			.tldr {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-left: 4px solid var(--np-accent);
+				border-radius: var(--np-radius);
+				padding: 16px 18px;
+				margin: 22px 0 8px;
+			}
+			.tldr p:last-child {
+				margin-bottom: 0;
+			}
 
-.strip {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 24px 0 8px;
-}
-.strip .cell {
-  background: var(--np-bg-soft); border: 1px solid var(--np-border);
-  border-radius: var(--np-radius); padding: 12px 14px;
-}
-.strip .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--np-text-muted); font-weight: 600; }
-.strip .v { font-size: 15px; font-weight: 600; margin-top: 4px; }
-.strip .v small { font-weight: 400; color: var(--np-text-muted); font-size: 12px; }
+			.strip {
+				display: grid;
+				grid-template-columns: repeat(4, 1fr);
+				gap: 10px;
+				margin: 24px 0 8px;
+			}
+			.strip .cell {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				padding: 12px 14px;
+			}
+			.strip .k {
+				font-size: 11px;
+				text-transform: uppercase;
+				letter-spacing: 0.06em;
+				color: var(--np-text-muted);
+				font-weight: 600;
+			}
+			.strip .v {
+				font-size: 15px;
+				font-weight: 600;
+				margin-top: 4px;
+			}
+			.strip .v small {
+				font-weight: 400;
+				color: var(--np-text-muted);
+				font-size: 12px;
+			}
 
-/* SVG flow */
-.figure {
-  background: var(--np-bg-soft); border: 1px solid var(--np-border);
-  border-radius: var(--np-radius); padding: 18px; margin: 18px 0 6px; overflow-x: auto;
-}
-.figure svg { display: block; min-width: 880px; width: 100%; height: auto; }
-.fcap {
-  font-family: var(--np-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
-  color: var(--np-text-muted); border-top: 1px dashed var(--np-border); margin-top: 14px; padding-top: 10px;
-}
-.svg-box { fill: var(--np-bg); stroke: var(--np-border); stroke-width: 1.5; }
-.svg-box-new { fill: var(--np-accent-bg); stroke: var(--np-accent); stroke-width: 1.5; }
-.svg-label { fill: var(--np-text); font-family: var(--np-sans); font-size: 13px; font-weight: 600; }
-.svg-sub { fill: var(--np-text-muted); font-family: var(--np-mono); font-size: 10.5px; }
-.svg-edge { stroke: var(--np-text-muted); stroke-width: 1.6; fill: none; }
-.svg-edge-async { stroke: var(--np-accent); stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; }
-.svg-edge-label { fill: var(--np-text-muted); font-family: var(--np-mono); font-size: 10px; }
-.svg-accent-label { fill: var(--np-accent-hover); font-family: var(--np-mono); font-size: 10px; font-weight: 600; }
+			/* SVG flow */
+			.figure {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				padding: 18px;
+				margin: 18px 0 6px;
+				overflow-x: auto;
+			}
+			.figure svg {
+				display: block;
+				min-width: 880px;
+				width: 100%;
+				height: auto;
+			}
+			.fcap {
+				font-family: var(--np-mono);
+				font-size: 11px;
+				text-transform: uppercase;
+				letter-spacing: 0.05em;
+				color: var(--np-text-muted);
+				border-top: 1px dashed var(--np-border);
+				margin-top: 14px;
+				padding-top: 10px;
+			}
+			.svg-box {
+				fill: var(--np-bg);
+				stroke: var(--np-border);
+				stroke-width: 1.5;
+			}
+			.svg-box-new {
+				fill: var(--np-accent-bg);
+				stroke: var(--np-accent);
+				stroke-width: 1.5;
+			}
+			.svg-label {
+				fill: var(--np-text);
+				font-family: var(--np-sans);
+				font-size: 13px;
+				font-weight: 600;
+			}
+			.svg-sub {
+				fill: var(--np-text-muted);
+				font-family: var(--np-mono);
+				font-size: 10.5px;
+			}
+			.svg-edge {
+				stroke: var(--np-text-muted);
+				stroke-width: 1.6;
+				fill: none;
+			}
+			.svg-edge-async {
+				stroke: var(--np-accent);
+				stroke-width: 1.6;
+				fill: none;
+				stroke-dasharray: 5 4;
+			}
+			.svg-edge-label {
+				fill: var(--np-text-muted);
+				font-family: var(--np-mono);
+				font-size: 10px;
+			}
+			.svg-accent-label {
+				fill: var(--np-accent-hover);
+				font-family: var(--np-mono);
+				font-size: 10px;
+				font-weight: 600;
+			}
 
-.legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; font-size: 12px; color: var(--np-text-muted); }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
-.legend i { width: 22px; height: 0; border-top-width: 2px; border-top-style: solid; display: inline-block; }
-.legend .swatch { width: 13px; height: 13px; border-radius: 3px; border: 1px solid var(--np-border); display: inline-block; }
+			.legend {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 16px;
+				margin-top: 12px;
+				font-size: 12px;
+				color: var(--np-text-muted);
+			}
+			.legend span {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+			}
+			.legend i {
+				width: 22px;
+				height: 0;
+				border-top-width: 2px;
+				border-top-style: solid;
+				display: inline-block;
+			}
+			.legend .swatch {
+				width: 13px;
+				height: 13px;
+				border-radius: 3px;
+				border: 1px solid var(--np-border);
+				display: inline-block;
+			}
 
-/* code-block */
-.code-block { margin: 0 0 16px; border: 1px solid var(--np-border); border-radius: var(--np-radius); overflow: hidden; background: var(--np-bg-soft); }
-.code-block__head { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--np-bg); border-bottom: 1px solid var(--np-border); font-family: var(--np-mono); font-size: 12px; color: var(--np-text-muted); }
-.code-block__file { flex: 1; font-weight: 600; color: var(--np-text); }
-.code-block__lang { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--np-accent-hover); padding: 1px 6px; background: var(--np-accent-bg); border-radius: 3px; }
-.code-block__copy { font: inherit; font-size: 11px; padding: 2px 8px; background: transparent; border: 1px solid var(--np-border); border-radius: 4px; color: var(--np-text-muted); cursor: pointer; }
-.code-block__copy:hover { color: var(--np-accent-hover); border-color: var(--np-accent); }
-.code-block__copy.is-copied { color: var(--np-add-text); border-color: var(--np-add-border); }
-pre { margin: 0; padding: 14px 16px; background: var(--np-bg-soft); border: 1px solid var(--np-border); border-radius: var(--np-radius); overflow-x: auto; font-family: var(--np-mono); font-size: 12.5px; line-height: 1.65; color: var(--np-text); tab-size: 4; }
-pre code, pre code.hljs { background: transparent; padding: 0; font: inherit; color: inherit; }
-.code-block pre { margin: 0; border: 0; border-radius: 0; background: var(--np-bg-soft); }
-:not(pre) > code { font-family: var(--np-mono); font-size: .9em; padding: 1px 6px; background: var(--np-bg-soft); border: 1px solid var(--np-border); border-radius: 4px; color: var(--np-text); }
+			/* code-block */
+			.code-block {
+				margin: 0 0 16px;
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				overflow: hidden;
+				background: var(--np-bg-soft);
+			}
+			.code-block__head {
+				display: flex;
+				align-items: center;
+				gap: 12px;
+				padding: 8px 12px;
+				background: var(--np-bg);
+				border-bottom: 1px solid var(--np-border);
+				font-family: var(--np-mono);
+				font-size: 12px;
+				color: var(--np-text-muted);
+			}
+			.code-block__file {
+				flex: 1;
+				font-weight: 600;
+				color: var(--np-text);
+			}
+			.code-block__lang {
+				font-size: 10px;
+				font-weight: 700;
+				letter-spacing: 0.06em;
+				text-transform: uppercase;
+				color: var(--np-accent-hover);
+				padding: 1px 6px;
+				background: var(--np-accent-bg);
+				border-radius: 3px;
+			}
+			.code-block__copy {
+				font: inherit;
+				font-size: 11px;
+				padding: 2px 8px;
+				background: transparent;
+				border: 1px solid var(--np-border);
+				border-radius: 4px;
+				color: var(--np-text-muted);
+				cursor: pointer;
+			}
+			.code-block__copy:hover {
+				color: var(--np-accent-hover);
+				border-color: var(--np-accent);
+			}
+			.code-block__copy.is-copied {
+				color: var(--np-add-text);
+				border-color: var(--np-add-border);
+			}
+			pre {
+				margin: 0;
+				padding: 14px 16px;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				overflow-x: auto;
+				font-family: var(--np-mono);
+				font-size: 12.5px;
+				line-height: 1.65;
+				color: var(--np-text);
+				tab-size: 4;
+			}
+			pre code,
+			pre code.hljs {
+				background: transparent;
+				padding: 0;
+				font: inherit;
+				color: inherit;
+			}
+			.code-block pre {
+				margin: 0;
+				border: 0;
+				border-radius: 0;
+				background: var(--np-bg-soft);
+			}
+			:not(pre) > code {
+				font-family: var(--np-mono);
+				font-size: 0.9em;
+				padding: 1px 6px;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: 4px;
+				color: var(--np-text);
+			}
 
-/* file-tree */
-.file-tree { font-family: var(--np-mono); font-size: 13px; line-height: 1.8; background: var(--np-bg-soft); border: 1px solid var(--np-border); border-radius: var(--np-radius); padding: 14px 18px; }
-.file-tree ul { list-style: none; margin: 0; padding-left: 18px; }
-.file-tree > ul { padding-left: 0; }
-.file-tree li { position: relative; }
-.file-tree li::before { position: absolute; left: -14px; color: var(--np-text-muted); }
-.file-tree li.dir::before { content: '▸'; }
-.file-tree li.file::before { content: '·'; }
-.file-tree .action { display: inline-block; margin-left: 8px; padding: 1px 6px; font-size: 10px; font-weight: 700; border-radius: 3px; letter-spacing: .04em; }
-.file-tree .action.create { background: var(--np-add-bg); color: var(--np-add-text); border: 1px solid var(--np-add-border); }
-.file-tree .action.edit { background: var(--np-edit-bg); color: var(--np-edit-text); border: 1px solid var(--np-edit-border); }
-.file-tree .note { color: var(--np-text-muted); margin-left: 6px; }
+			/* file-tree */
+			.file-tree {
+				font-family: var(--np-mono);
+				font-size: 13px;
+				line-height: 1.8;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				padding: 14px 18px;
+			}
+			.file-tree ul {
+				list-style: none;
+				margin: 0;
+				padding-left: 18px;
+			}
+			.file-tree > ul {
+				padding-left: 0;
+			}
+			.file-tree li {
+				position: relative;
+			}
+			.file-tree li::before {
+				position: absolute;
+				left: -14px;
+				color: var(--np-text-muted);
+			}
+			.file-tree li.dir::before {
+				content: '▸';
+			}
+			.file-tree li.file::before {
+				content: '·';
+			}
+			.file-tree .action {
+				display: inline-block;
+				margin-left: 8px;
+				padding: 1px 6px;
+				font-size: 10px;
+				font-weight: 700;
+				border-radius: 3px;
+				letter-spacing: 0.04em;
+			}
+			.file-tree .action.create {
+				background: var(--np-add-bg);
+				color: var(--np-add-text);
+				border: 1px solid var(--np-add-border);
+			}
+			.file-tree .action.edit {
+				background: var(--np-edit-bg);
+				color: var(--np-edit-text);
+				border: 1px solid var(--np-edit-border);
+			}
+			.file-tree .note {
+				color: var(--np-text-muted);
+				margin-left: 6px;
+			}
 
-/* diff */
-.diff { font-family: var(--np-mono); font-size: 12.5px; line-height: 1.5; background: var(--np-bg-soft); border: 1px solid var(--np-border); border-radius: var(--np-radius); overflow: hidden; margin: 0 0 16px; }
-.diff[data-file]::before { content: attr(data-file); display: block; padding: 8px 12px; background: var(--np-bg); border-bottom: 1px solid var(--np-border); font-weight: 600; }
-.diff .line { display: block; padding: 0 12px; white-space: pre; }
-.diff .line.hunk { color: var(--np-text-muted); background: var(--np-bg); }
-.diff .line.add { background: var(--np-add-bg); color: var(--np-add-text); }
-.diff .line.add::before { content: '+ '; opacity: .7; }
-.diff .line.del { background: var(--np-del-bg); color: var(--np-del-text); }
-.diff .line.del::before { content: '- '; opacity: .7; }
-.diff .line.ctx::before { content: '  '; }
+			/* diff */
+			.diff {
+				font-family: var(--np-mono);
+				font-size: 12.5px;
+				line-height: 1.5;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				overflow: hidden;
+				margin: 0 0 16px;
+			}
+			.diff[data-file]::before {
+				content: attr(data-file);
+				display: block;
+				padding: 8px 12px;
+				background: var(--np-bg);
+				border-bottom: 1px solid var(--np-border);
+				font-weight: 600;
+			}
+			.diff .line {
+				display: block;
+				padding: 0 12px;
+				white-space: pre;
+			}
+			.diff .line.hunk {
+				color: var(--np-text-muted);
+				background: var(--np-bg);
+			}
+			.diff .line.add {
+				background: var(--np-add-bg);
+				color: var(--np-add-text);
+			}
+			.diff .line.add::before {
+				content: '+ ';
+				opacity: 0.7;
+			}
+			.diff .line.del {
+				background: var(--np-del-bg);
+				color: var(--np-del-text);
+			}
+			.diff .line.del::before {
+				content: '- ';
+				opacity: 0.7;
+			}
+			.diff .line.ctx::before {
+				content: '  ';
+			}
 
-/* file-by-file */
-details.fbf { border: 1px solid var(--np-border); border-radius: var(--np-radius); margin: 0 0 10px; background: var(--np-bg-soft); overflow: hidden; }
-details.fbf > summary { cursor: pointer; padding: 12px 16px; font-weight: 600; font-family: var(--np-mono); font-size: 13px; list-style: none; display: flex; align-items: center; gap: 10px; }
-details.fbf > summary::-webkit-details-marker { display: none; }
-details.fbf > summary::before { content: '▸'; color: var(--np-text-muted); transition: transform .15s; }
-details.fbf[open] > summary::before { transform: rotate(90deg); }
-details.fbf .body { padding: 4px 16px 16px; border-top: 1px solid var(--np-border); }
-details.fbf .why { color: var(--np-text-muted); font-size: 13.5px; margin: 12px 0; }
+			/* file-by-file */
+			details.fbf {
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				margin: 0 0 10px;
+				background: var(--np-bg-soft);
+				overflow: hidden;
+			}
+			details.fbf > summary {
+				cursor: pointer;
+				padding: 12px 16px;
+				font-weight: 600;
+				font-family: var(--np-mono);
+				font-size: 13px;
+				list-style: none;
+				display: flex;
+				align-items: center;
+				gap: 10px;
+			}
+			details.fbf > summary::-webkit-details-marker {
+				display: none;
+			}
+			details.fbf > summary::before {
+				content: '▸';
+				color: var(--np-text-muted);
+				transition: transform 0.15s;
+			}
+			details.fbf[open] > summary::before {
+				transform: rotate(90deg);
+			}
+			details.fbf .body {
+				padding: 4px 16px 16px;
+				border-top: 1px solid var(--np-border);
+			}
+			details.fbf .why {
+				color: var(--np-text-muted);
+				font-size: 13.5px;
+				margin: 12px 0;
+			}
 
-.pill { display: inline-block; padding: 1px 8px; font-size: 11px; font-weight: 600; line-height: 1.6; border-radius: 999px; border: 1px solid var(--np-border); background: var(--np-bg-soft); color: var(--np-text-muted); white-space: nowrap; }
-.pill.success { background: var(--np-add-bg); color: var(--np-add-text); border-color: var(--np-add-border); }
-.pill.warn { background: var(--np-edit-bg); color: var(--np-edit-text); border-color: var(--np-edit-border); }
-.pill.danger { background: var(--np-del-bg); color: var(--np-del-text); border-color: var(--np-del-border); }
-.pill.accent { background: var(--np-accent-bg); color: var(--np-accent-hover); border-color: var(--np-accent); }
-.pill.create { background: var(--np-add-bg); color: var(--np-add-text); border-color: var(--np-add-border); }
+			.pill {
+				display: inline-block;
+				padding: 1px 8px;
+				font-size: 11px;
+				font-weight: 600;
+				line-height: 1.6;
+				border-radius: 999px;
+				border: 1px solid var(--np-border);
+				background: var(--np-bg-soft);
+				color: var(--np-text-muted);
+				white-space: nowrap;
+			}
+			.pill.success {
+				background: var(--np-add-bg);
+				color: var(--np-add-text);
+				border-color: var(--np-add-border);
+			}
+			.pill.warn {
+				background: var(--np-edit-bg);
+				color: var(--np-edit-text);
+				border-color: var(--np-edit-border);
+			}
+			.pill.danger {
+				background: var(--np-del-bg);
+				color: var(--np-del-text);
+				border-color: var(--np-del-border);
+			}
+			.pill.accent {
+				background: var(--np-accent-bg);
+				color: var(--np-accent-hover);
+				border-color: var(--np-accent);
+			}
+			.pill.create {
+				background: var(--np-add-bg);
+				color: var(--np-add-text);
+				border-color: var(--np-add-border);
+			}
 
-/* open questions */
-.oq { border: 1px solid var(--np-border); border-left: 4px solid var(--np-highlight); border-radius: var(--np-radius); background: var(--np-bg-soft); padding: 14px 18px; margin: 0 0 12px; }
-.oq h3 { margin: 0 0 4px; font-size: 14.5px; }
-.oq .meta { font-family: var(--np-mono); font-size: 11px; color: var(--np-text-muted); margin-top: 8px; }
-.oq.ok { border-left-color: var(--np-success); }
+			/* open questions */
+			.oq {
+				border: 1px solid var(--np-border);
+				border-left: 4px solid var(--np-highlight);
+				border-radius: var(--np-radius);
+				background: var(--np-bg-soft);
+				padding: 14px 18px;
+				margin: 0 0 12px;
+			}
+			.oq h3 {
+				margin: 0 0 4px;
+				font-size: 14.5px;
+			}
+			.oq .meta {
+				font-family: var(--np-mono);
+				font-size: 11px;
+				color: var(--np-text-muted);
+				margin-top: 8px;
+			}
+			.oq.ok {
+				border-left-color: var(--np-success);
+			}
 
-ul.clean { margin: 6px 0 16px; padding-left: 20px; }
-ul.clean li { margin: 5px 0; }
+			ul.clean {
+				margin: 6px 0 16px;
+				padding-left: 20px;
+			}
+			ul.clean li {
+				margin: 5px 0;
+			}
 
-.np-theme-toggle {
-  position: fixed; top: 16px; right: 16px; z-index: 50;
-  width: 38px; height: 38px; border-radius: 999px;
-  border: 1px solid var(--np-border); background: var(--np-bg-soft); color: var(--np-text);
-  cursor: pointer; font-size: 16px; box-shadow: var(--np-shadow-soft);
-}
-.muted { color: var(--np-text-muted); }
-.divider { border: 0; border-top: 1px solid var(--np-border); margin: 36px 0; }
+			.np-theme-toggle {
+				position: fixed;
+				top: 16px;
+				right: 16px;
+				z-index: 50;
+				width: 38px;
+				height: 38px;
+				border-radius: 999px;
+				border: 1px solid var(--np-border);
+				background: var(--np-bg-soft);
+				color: var(--np-text);
+				cursor: pointer;
+				font-size: 16px;
+				box-shadow: var(--np-shadow-soft);
+			}
+			.muted {
+				color: var(--np-text-muted);
+			}
+			.divider {
+				border: 0;
+				border-top: 1px solid var(--np-border);
+				margin: 36px 0;
+			}
 
-@media (max-width: 780px) {
-  .strip { grid-template-columns: repeat(2, 1fr); }
-  h1 { font-size: 24px; }
-}
-</style>
-</head>
-<body>
-<button class="np-theme-toggle" aria-label="Basculer le thème" title="Thème clair / sombre">◐</button>
-<div class="wrap">
+			@media (max-width: 780px) {
+				.strip {
+					grid-template-columns: repeat(2, 1fr);
+				}
+				h1 {
+					font-size: 24px;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<button
+			class="np-theme-toggle"
+			aria-label="Basculer le thème"
+			title="Thème clair / sombre"
+		>
+			◐
+		</button>
+		<div class="wrap">
+			<!-- HEADER -->
+			<header>
+				<div class="eyebrow">
+					Code review · session/ · branche feat-libghostty
+				</div>
+				<h1>
+					TermSink + CellFrame — un second sink qui transforme le flux
+					PTY en grille rendue
+				</h1>
+				<div class="prompt-box">
+					« show me exactement tes changements comment ça fonctionne,
+					pour que je valide l'architecture de ce que tu mets en place
+					»
+				</div>
+			</header>
 
-  <!-- HEADER -->
-  <header>
-    <div class="eyebrow">Code review · session/ · branche feat-libghostty</div>
-    <h1>TermSink + CellFrame — un second sink qui transforme le flux PTY en grille rendue</h1>
-    <div class="prompt-box">« show me exactement tes changements comment ça fonctionne, pour que je valide l'architecture de ce que tu mets en place »</div>
-  </header>
+			<!-- TLDR -->
+			<div class="tldr">
+				<p>
+					<strong>Ce que ça fait.</strong> Aujourd'hui le PTY émet ses
+					octets bruts vers le frontend via
+					<code>TauriEventSink</code> (event
+					<code>agent:output</code>), et c'est
+					<code>&lt;AgentLog&gt;</code> qui parse l'ANSI côté JS. Ces
+					changements ajoutent une
+					<strong>seconde voie en parallèle</strong> : un nouveau
+					<code>TermSink</code> qui pousse les octets vers un thread
+					dédié possédant un émulateur de terminal
+					<strong>libghostty</strong>, et qui émet une
+					<strong>grille de cellules déjà rendue</strong> (event
+					<code>agent:cells</code>) — couleurs, attributs et glyphes
+					résolus côté Rust.
+				</p>
+				<p>
+					<strong>Le point d'architecture à valider.</strong> Les deux
+					sinks coexistent : on n'a <em>rien retiré</em>.
+					<code>agent:output</code> (stream texte) et
+					<code>agent:cells</code> (grille structurée) partent en même
+					temps depuis le même fan-out. C'est volontaire, mais ça veut
+					dire deux représentations du même flux qui transitent en
+					parallèle — c'est ce choix-là qu'il faut acter.
+				</p>
+			</div>
 
-  <!-- TLDR -->
-  <div class="tldr">
-    <p><strong>Ce que ça fait.</strong> Aujourd'hui le PTY émet ses octets bruts vers le frontend via <code>TauriEventSink</code> (event <code>agent:output</code>), et c'est <code>&lt;AgentLog&gt;</code> qui parse l'ANSI côté JS. Ces changements ajoutent une <strong>seconde voie en parallèle</strong> : un nouveau <code>TermSink</code> qui pousse les octets vers un thread dédié possédant un émulateur de terminal <strong>libghostty</strong>, et qui émet une <strong>grille de cellules déjà rendue</strong> (event <code>agent:cells</code>) — couleurs, attributs et glyphes résolus côté Rust.</p>
-    <p><strong>Le point d'architecture à valider.</strong> Les deux sinks coexistent : on n'a <em>rien retiré</em>. <code>agent:output</code> (stream texte) et <code>agent:cells</code> (grille structurée) partent en même temps depuis le même fan-out. C'est volontaire, mais ça veut dire deux représentations du même flux qui transitent en parallèle — c'est ce choix-là qu'il faut acter.</p>
-  </div>
+			<!-- SUMMARY STRIP -->
+			<div class="strip">
+				<div class="cell">
+					<div class="k">Difficulté feature</div>
+					<div class="v">
+						I6 <small>· FFI + threading + wire</small>
+					</div>
+				</div>
+				<div class="cell">
+					<div class="k">Mon cleanup</div>
+					<div class="v">I3 <small>· String → char</small></div>
+				</div>
+				<div class="cell">
+					<div class="k">Nouveaux events</div>
+					<div class="v">agent:cells</div>
+				</div>
+				<div class="cell">
+					<div class="k">Fichiers touchés</div>
+					<div class="v">7 <small>· 2 créés</small></div>
+				</div>
+			</div>
 
-  <!-- SUMMARY STRIP -->
-  <div class="strip">
-    <div class="cell"><div class="k">Difficulté feature</div><div class="v">I6 <small>· FFI + threading + wire</small></div></div>
-    <div class="cell"><div class="k">Mon cleanup</div><div class="v">I3 <small>· String → char</small></div></div>
-    <div class="cell"><div class="k">Nouveaux events</div><div class="v">agent:cells</div></div>
-    <div class="cell"><div class="k">Fichiers touchés</div><div class="v">7 <small>· 2 créés</small></div></div>
-  </div>
+			<!-- ARCHITECTURE FLOW -->
+			<h2 id="archi">L'architecture en un schéma</h2>
+			<p>
+				Le PTY reader ne connaît pas ses consommateurs : il itère sur un
+				<code>Vec&lt;Arc&lt;dyn OutputSink&gt;&gt;</code> et appelle
+				<code>write()</code> sur chacun. C'est le
+				<strong>point de fan-out</strong>. Les deux sinks vivent
+				derrière le même trait, sans se connaître.
+			</p>
 
-  <!-- ARCHITECTURE FLOW -->
-  <h2 id="archi">L'architecture en un schéma</h2>
-  <p>Le PTY reader ne connaît pas ses consommateurs : il itère sur un <code>Vec&lt;Arc&lt;dyn OutputSink&gt;&gt;</code> et appelle <code>write()</code> sur chacun. C'est le <strong>point de fan-out</strong>. Les deux sinks vivent derrière le même trait, sans se connaître.</p>
+			<div class="figure">
+				<svg
+					viewBox="0 0 920 380"
+					role="img"
+					aria-label="Diagramme de flux du PTY vers les deux sinks"
+				>
+					<defs>
+						<marker
+							id="arr"
+							markerWidth="9"
+							markerHeight="9"
+							refX="7"
+							refY="4.5"
+							orient="auto"
+						>
+							<path
+								d="M1,1 L8,4.5 L1,8"
+								fill="none"
+								stroke="var(--np-text-muted)"
+								stroke-width="1.6"
+							/>
+						</marker>
+						<marker
+							id="arrA"
+							markerWidth="9"
+							markerHeight="9"
+							refX="7"
+							refY="4.5"
+							orient="auto"
+						>
+							<path
+								d="M1,1 L8,4.5 L1,8"
+								fill="none"
+								stroke="var(--np-accent)"
+								stroke-width="1.6"
+							/>
+						</marker>
+					</defs>
 
-  <div class="figure">
-    <svg viewBox="0 0 920 380" role="img" aria-label="Diagramme de flux du PTY vers les deux sinks">
-      <defs>
-        <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
-          <path d="M1,1 L8,4.5 L1,8" fill="none" stroke="var(--np-text-muted)" stroke-width="1.6"/>
-        </marker>
-        <marker id="arrA" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
-          <path d="M1,1 L8,4.5 L1,8" fill="none" stroke="var(--np-accent)" stroke-width="1.6"/>
-        </marker>
-      </defs>
+					<!-- child -->
+					<rect
+						class="svg-box"
+						x="10"
+						y="150"
+						width="120"
+						height="62"
+						rx="8"
+					/>
+					<text class="svg-label" x="70" y="176" text-anchor="middle">
+						child (agent CLI)
+					</text>
+					<text class="svg-sub" x="70" y="194" text-anchor="middle">
+						stdout/stderr
+					</text>
 
-      <!-- child -->
-      <rect class="svg-box" x="10" y="150" width="120" height="62" rx="8"/>
-      <text class="svg-label" x="70" y="176" text-anchor="middle">child (agent CLI)</text>
-      <text class="svg-sub" x="70" y="194" text-anchor="middle">stdout/stderr</text>
+					<!-- pty reader -->
+					<rect
+						class="svg-box"
+						x="178"
+						y="150"
+						width="138"
+						height="62"
+						rx="8"
+					/>
+					<text
+						class="svg-label"
+						x="247"
+						y="176"
+						text-anchor="middle"
+					>
+						PTY reader loop
+					</text>
+					<text class="svg-sub" x="247" y="194" text-anchor="middle">
+						fan-out vers sinks
+					</text>
 
-      <!-- pty reader -->
-      <rect class="svg-box" x="178" y="150" width="138" height="62" rx="8"/>
-      <text class="svg-label" x="247" y="176" text-anchor="middle">PTY reader loop</text>
-      <text class="svg-sub" x="247" y="194" text-anchor="middle">fan-out vers sinks</text>
+					<!-- edges child -> reader -->
+					<path
+						class="svg-edge"
+						d="M130,181 L176,181"
+						marker-end="url(#arr)"
+					/>
+					<text
+						class="svg-edge-label"
+						x="153"
+						y="172"
+						text-anchor="middle"
+					>
+						PTY 24×80
+					</text>
 
-      <!-- edges child -> reader -->
-      <path class="svg-edge" d="M130,181 L176,181" marker-end="url(#arr)"/>
-      <text class="svg-edge-label" x="153" y="172" text-anchor="middle">PTY 24×80</text>
+					<!-- fan-out branches -->
+					<path
+						class="svg-edge"
+						d="M316,170 C346,150 356,96 386,96"
+						marker-end="url(#arr)"
+					/>
+					<path
+						class="svg-edge-async"
+						d="M316,192 C346,212 356,266 386,266"
+						marker-end="url(#arrA)"
+					/>
+					<text
+						class="svg-edge-label"
+						x="352"
+						y="120"
+						text-anchor="middle"
+					>
+						write()
+					</text>
+					<text
+						class="svg-accent-label"
+						x="352"
+						y="252"
+						text-anchor="middle"
+					>
+						write()
+					</text>
 
-      <!-- fan-out branches -->
-      <path class="svg-edge" d="M316,170 C346,150 356,96 386,96" marker-end="url(#arr)"/>
-      <path class="svg-edge-async" d="M316,192 C346,212 356,266 386,266" marker-end="url(#arrA)"/>
-      <text class="svg-edge-label" x="352" y="120" text-anchor="middle">write()</text>
-      <text class="svg-accent-label" x="352" y="252" text-anchor="middle">write()</text>
+					<!-- TauriEventSink (existing) -->
+					<rect
+						class="svg-box"
+						x="386"
+						y="66"
+						width="168"
+						height="60"
+						rx="8"
+					/>
+					<text class="svg-label" x="470" y="90" text-anchor="middle">
+						TauriEventSink
+					</text>
+					<text class="svg-sub" x="470" y="108" text-anchor="middle">
+						UTF-8 reassembly · existant
+					</text>
 
-      <!-- TauriEventSink (existing) -->
-      <rect class="svg-box" x="386" y="66" width="168" height="60" rx="8"/>
-      <text class="svg-label" x="470" y="90" text-anchor="middle">TauriEventSink</text>
-      <text class="svg-sub" x="470" y="108" text-anchor="middle">UTF-8 reassembly · existant</text>
+					<path
+						class="svg-edge"
+						d="M554,96 L612,96"
+						marker-end="url(#arr)"
+					/>
+					<text
+						class="svg-edge-label"
+						x="583"
+						y="88"
+						text-anchor="middle"
+					>
+						emit
+					</text>
 
-      <path class="svg-edge" d="M554,96 L612,96" marker-end="url(#arr)"/>
-      <text class="svg-edge-label" x="583" y="88" text-anchor="middle">emit</text>
+					<rect
+						class="svg-box"
+						x="612"
+						y="60"
+						width="150"
+						height="34"
+						rx="6"
+					/>
+					<text
+						class="svg-sub"
+						x="687"
+						y="81"
+						text-anchor="middle"
+						style="font-size: 11px"
+					>
+						event agent:output
+					</text>
+					<rect
+						class="svg-box"
+						x="612"
+						y="100"
+						width="150"
+						height="34"
+						rx="6"
+					/>
+					<text
+						class="svg-sub"
+						x="687"
+						y="121"
+						text-anchor="middle"
+						style="font-size: 11px"
+					>
+						&lt;AgentLog&gt; (ANSI JS)
+					</text>
+					<path
+						class="svg-edge"
+						d="M687,94 L687,100"
+						marker-end="url(#arr)"
+					/>
 
-      <rect class="svg-box" x="612" y="60" width="150" height="34" rx="6"/>
-      <text class="svg-sub" x="687" y="81" text-anchor="middle" style="font-size:11px">event agent:output</text>
-      <rect class="svg-box" x="612" y="100" width="150" height="34" rx="6"/>
-      <text class="svg-sub" x="687" y="121" text-anchor="middle" style="font-size:11px">&lt;AgentLog&gt; (ANSI JS)</text>
-      <path class="svg-edge" d="M687,94 L687,100" marker-end="url(#arr)"/>
+					<!-- TermSink (new) -->
+					<rect
+						class="svg-box-new"
+						x="386"
+						y="236"
+						width="168"
+						height="60"
+						rx="8"
+					/>
+					<text
+						class="svg-label"
+						x="470"
+						y="260"
+						text-anchor="middle"
+					>
+						TermSink
+					</text>
+					<text class="svg-sub" x="470" y="278" text-anchor="middle">
+						mpsc handoff · NOUVEAU
+					</text>
 
-      <!-- TermSink (new) -->
-      <rect class="svg-box-new" x="386" y="236" width="168" height="60" rx="8"/>
-      <text class="svg-label" x="470" y="260" text-anchor="middle">TermSink</text>
-      <text class="svg-sub" x="470" y="278" text-anchor="middle">mpsc handoff · NOUVEAU</text>
+					<!-- render thread -->
+					<path
+						class="svg-edge-async"
+						d="M554,266 L592,266"
+						marker-end="url(#arrA)"
+					/>
+					<text
+						class="svg-accent-label"
+						x="573"
+						y="258"
+						text-anchor="middle"
+					>
+						chan
+					</text>
 
-      <!-- render thread -->
-      <path class="svg-edge-async" d="M554,266 L592,266" marker-end="url(#arrA)"/>
-      <text class="svg-accent-label" x="573" y="258" text-anchor="middle">chan</text>
+					<rect
+						class="svg-box-new"
+						x="592"
+						y="216"
+						width="180"
+						height="100"
+						rx="8"
+					/>
+					<text
+						class="svg-label"
+						x="682"
+						y="242"
+						text-anchor="middle"
+					>
+						render thread
+					</text>
+					<text class="svg-sub" x="682" y="260" text-anchor="middle">
+						libghostty Terminal
+					</text>
+					<text class="svg-sub" x="682" y="276" text-anchor="middle">
+						+ RenderState (!Send)
+					</text>
+					<text class="svg-sub" x="682" y="298" text-anchor="middle">
+						dirty → snapshot → emit
+					</text>
 
-      <rect class="svg-box-new" x="592" y="216" width="180" height="100" rx="8"/>
-      <text class="svg-label" x="682" y="242" text-anchor="middle">render thread</text>
-      <text class="svg-sub" x="682" y="260" text-anchor="middle">libghostty Terminal</text>
-      <text class="svg-sub" x="682" y="276" text-anchor="middle">+ RenderState (!Send)</text>
-      <text class="svg-sub" x="682" y="298" text-anchor="middle">dirty → snapshot → emit</text>
+					<!-- render thread -> event -->
+					<path
+						class="svg-edge-async"
+						d="M772,300 C820,300 830,340 800,346 L470,346 L390,346"
+						marker-end="url(#arrA)"
+					/>
+					<text
+						class="svg-accent-label"
+						x="600"
+						y="362"
+						text-anchor="middle"
+					>
+						event agent:cells (CellFrame : cols, rows,
+						Vec&lt;WireCell&gt;)
+					</text>
+				</svg>
+				<div class="legend">
+					<span
+						><span
+							class="swatch"
+							style="background: var(--np-bg)"
+						></span>
+						existant</span
+					>
+					<span
+						><span
+							class="swatch"
+							style="
+								background: var(--np-accent-bg);
+								border-color: var(--np-accent);
+							"
+						></span>
+						nouveau</span
+					>
+					<span
+						><i style="border-color: var(--np-text-muted)"></i>
+						synchrone (budget ~1 ms du sink)</span
+					>
+					<span
+						><i
+							style="
+								border-color: var(--np-accent);
+								border-top-style: dashed;
+							"
+						></i>
+						asynchrone (hors hot-path PTY)</span
+					>
+				</div>
+				<div class="fcap">
+					Le PTY reader appelle write() sur chaque sink · TermSink ne
+					fait que copier les octets sur un canal · tout le travail
+					lourd (parse + snapshot + serde) vit sur le render thread
+				</div>
+			</div>
 
-      <!-- render thread -> event -->
-      <path class="svg-edge-async" d="M772,300 C820,300 830,340 800,346 L470,346 L390,346" marker-end="url(#arrA)"/>
-      <text class="svg-accent-label" x="600" y="362" text-anchor="middle">event agent:cells  (CellFrame : cols, rows, Vec&lt;WireCell&gt;)</text>
-    </svg>
-    <div class="legend">
-      <span><span class="swatch" style="background:var(--np-bg)"></span> existant</span>
-      <span><span class="swatch" style="background:var(--np-accent-bg);border-color:var(--np-accent)"></span> nouveau</span>
-      <span><i style="border-color:var(--np-text-muted)"></i> synchrone (budget ~1 ms du sink)</span>
-      <span><i style="border-color:var(--np-accent);border-top-style:dashed"></i> asynchrone (hors hot-path PTY)</span>
-    </div>
-    <div class="fcap">Le PTY reader appelle write() sur chaque sink · TermSink ne fait que copier les octets sur un canal · tout le travail lourd (parse + snapshot + serde) vit sur le render thread</div>
-  </div>
+			<p class="muted">
+				Pourquoi un thread dédié et pas du <code>tokio::spawn</code> ?
+				Parce que <code>Terminal</code> et
+				<code>RenderState</code> tiennent des pointeurs FFI bruts : ils
+				sont <code>!Send</code>, donc impossible à faire traverser un
+				runtime async multi-thread. Le thread <em>possède</em> le
+				terminal et reçoit les octets par canal — personne d'autre n'y
+				touche.
+			</p>
 
-  <p class="muted">Pourquoi un thread dédié et pas du <code>tokio::spawn</code> ? Parce que <code>Terminal</code> et <code>RenderState</code> tiennent des pointeurs FFI bruts : ils sont <code>!Send</code>, donc impossible à faire traverser un runtime async multi-thread. Le thread <em>possède</em> le terminal et reçoit les octets par canal — personne d'autre n'y touche.</p>
+			<!-- BLAST RADIUS -->
+			<h2 id="files">Périmètre — 7 fichiers</h2>
+			<div class="file-tree">
+				<ul>
+					<li class="dir">
+						src-tauri/src/session/
+						<ul>
+							<li class="file">
+								cell_frame.rs
+								<span class="action create">CREATE</span
+								><span class="note"
+									>types wire CellFrame / WireCell /
+									WireColor</span
+								>
+							</li>
+							<li class="file">
+								term_sink.rs
+								<span class="action create">CREATE</span
+								><span class="note"
+									>le sink + le render thread</span
+								>
+							</li>
+							<li class="file">
+								commands.rs <span class="action edit">EDIT</span
+								><span class="note"
+									>branche les 2 sinks dans
+									session_create</span
+								>
+							</li>
+							<li class="file">
+								mod.rs <span class="action edit">EDIT</span
+								><span class="note"
+									>déclare + ré-exporte les 2 modules</span
+								>
+							</li>
+							<li class="file">
+								pty.rs <span class="action edit">EDIT</span
+								><span class="note"
+									>constantes DEFAULT_ROWS /
+									DEFAULT_COLS</span
+								>
+							</li>
+						</ul>
+					</li>
+					<li class="file">
+						src-tauri/Cargo.toml
+						<span class="action edit">EDIT</span
+						><span class="note">dépendance agent-cockpit-term</span>
+					</li>
+					<li class="file">
+						.github/workflows/ci.yml
+						<span class="action edit">EDIT</span
+						><span class="note"
+							>--exclude tauri-app du cargo test ⚠️</span
+						>
+					</li>
+				</ul>
+			</div>
 
-  <!-- BLAST RADIUS -->
-  <h2 id="files">Périmètre — 7 fichiers</h2>
-  <div class="file-tree">
-    <ul>
-      <li class="dir">src-tauri/src/session/
-        <ul>
-          <li class="file">cell_frame.rs <span class="action create">CREATE</span><span class="note">types wire CellFrame / WireCell / WireColor</span></li>
-          <li class="file">term_sink.rs <span class="action create">CREATE</span><span class="note">le sink + le render thread</span></li>
-          <li class="file">commands.rs <span class="action edit">EDIT</span><span class="note">branche les 2 sinks dans session_create</span></li>
-          <li class="file">mod.rs <span class="action edit">EDIT</span><span class="note">déclare + ré-exporte les 2 modules</span></li>
-          <li class="file">pty.rs <span class="action edit">EDIT</span><span class="note">constantes DEFAULT_ROWS / DEFAULT_COLS</span></li>
-        </ul>
-      </li>
-      <li class="file">src-tauri/Cargo.toml <span class="action edit">EDIT</span><span class="note">dépendance agent-cockpit-term</span></li>
-      <li class="file">.github/workflows/ci.yml <span class="action edit">EDIT</span><span class="note">--exclude tauri-app du cargo test ⚠️</span></li>
-    </ul>
-  </div>
+			<!-- FILE BY FILE -->
+			<h2 id="code">Le code, fichier par fichier</h2>
 
-  <!-- FILE BY FILE -->
-  <h2 id="code">Le code, fichier par fichier</h2>
-
-  <details class="fbf" open>
-    <summary>1 · sink.rs — le contrat (inchangé, mais c'est le pivot)</summary>
-    <div class="body">
-      <p class="why">Rien n'a changé ici, mais c'est ce trait qui rend l'ajout possible sans toucher au PTY reader. Tout sink respecte <code>Send + Sync</code> et un budget de ~1 ms dans <code>write()</code> : le travail lourd doit partir sur un thread.</p>
-      <figure class="code-block">
-        <figcaption class="code-block__head"><span class="code-block__file">src-tauri/src/session/sink.rs</span><span class="code-block__lang">RS</span><button class="code-block__copy" type="button" aria-label="Copier">Copy</button></figcaption>
-<pre><code class="language-rust">pub trait OutputSink: Send + Sync {
+			<details class="fbf" open>
+				<summary>
+					1 · sink.rs — le contrat (inchangé, mais c'est le pivot)
+				</summary>
+				<div class="body">
+					<p class="why">
+						Rien n'a changé ici, mais c'est ce trait qui rend
+						l'ajout possible sans toucher au PTY reader. Tout sink
+						respecte <code>Send + Sync</code> et un budget de ~1 ms
+						dans <code>write()</code> : le travail lourd doit partir
+						sur un thread.
+					</p>
+					<figure class="code-block">
+						<figcaption class="code-block__head">
+							<span class="code-block__file"
+								>src-tauri/src/session/sink.rs</span
+							><span class="code-block__lang">RS</span
+							><button
+								class="code-block__copy"
+								type="button"
+								aria-label="Copier"
+							>
+								Copy
+							</button>
+						</figcaption>
+						<pre><code class="language-rust">pub trait OutputSink: Send + Sync {
     fn write(&self, bytes: &[u8]);
     fn end(&self, _exit_code: u32) {}
 }</code></pre>
-      </figure>
-    </div>
-  </details>
+					</figure>
+				</div>
+			</details>
 
-  <details class="fbf" open>
-    <summary>2 · commands.rs — le fan-out : deux sinks au lieu d'un</summary>
-    <div class="body">
-      <p class="why">Le cœur du changement côté wiring. <code>session_create</code> construit maintenant un vec de <strong>deux</strong> sinks. Noter le <code>app.clone()</code> : le premier sink garde un clone du handle, le second prend l'original. C'est ici qu'on décide « les deux voies partent ensemble ».</p>
-      <div class="diff" data-file="src-tauri/src/session/commands.rs">
-@@ session_create @@
-     session_create_inner(&amp;manager, &amp;binary, cwd, move |id| {
--        vec![Arc::new(TauriEventSink::new(app, id.clone())) as Arc&lt;dyn OutputSink&gt;]
-+        vec![
-+            Arc::new(TauriEventSink::new(app.clone(), id.clone())) as Arc&lt;dyn OutputSink&gt;,
-+            Arc::new(TermSink::new(app, id.clone())) as Arc&lt;dyn OutputSink&gt;,
-+        ]
-     })
-      </div>
-    </div>
-  </details>
+			<details class="fbf" open>
+				<summary>
+					2 · commands.rs — le fan-out : deux sinks au lieu d'un
+				</summary>
+				<div class="body">
+					<p class="why">
+						Le cœur du changement côté wiring.
+						<code>session_create</code> construit maintenant un vec
+						de <strong>deux</strong> sinks. Noter le
+						<code>app.clone()</code> : le premier sink garde un
+						clone du handle, le second prend l'original. C'est ici
+						qu'on décide « les deux voies partent ensemble ».
+					</p>
+					<div
+						class="diff"
+						data-file="src-tauri/src/session/commands.rs"
+					>
+						@@ session_create @@ session_create_inner(&amp;manager,
+						&amp;binary, cwd, move |id| { -
+						vec![Arc::new(TauriEventSink::new(app, id.clone())) as
+						Arc&lt;dyn OutputSink&gt;] + vec![ +
+						Arc::new(TauriEventSink::new(app.clone(), id.clone()))
+						as Arc&lt;dyn OutputSink&gt;, +
+						Arc::new(TermSink::new(app, id.clone())) as Arc&lt;dyn
+						OutputSink&gt;, + ] })
+					</div>
+				</div>
+			</details>
 
-  <details class="fbf" open>
-    <summary>3 · term_sink.rs — le handoff non-bloquant</summary>
-    <div class="body">
-      <p class="why"><code>write()</code> est sur le hot-path PTY : il ne fait que <code>to_vec()</code> + <code>send()</code> sur un canal mpsc. Le <code>Mutex</code> est là uniquement parce que <code>mpsc::Sender</code> est <code>Send</code> mais pas <code>Sync</code>, alors que le trait exige les deux. Le lock n'est tenu que le temps du passage d'octets.</p>
-      <figure class="code-block">
-        <figcaption class="code-block__head"><span class="code-block__file">src-tauri/src/session/term_sink.rs</span><span class="code-block__lang">RS</span><button class="code-block__copy" type="button" aria-label="Copier">Copy</button></figcaption>
-<pre><code class="language-rust">pub struct TermSink {
+			<details class="fbf" open>
+				<summary>3 · term_sink.rs — le handoff non-bloquant</summary>
+				<div class="body">
+					<p class="why">
+						<code>write()</code> est sur le hot-path PTY : il ne
+						fait que <code>to_vec()</code> + <code>send()</code> sur
+						un canal mpsc. Le <code>Mutex</code> est là uniquement
+						parce que <code>mpsc::Sender</code> est
+						<code>Send</code> mais pas <code>Sync</code>, alors que
+						le trait exige les deux. Le lock n'est tenu que le temps
+						du passage d'octets.
+					</p>
+					<figure class="code-block">
+						<figcaption class="code-block__head">
+							<span class="code-block__file"
+								>src-tauri/src/session/term_sink.rs</span
+							><span class="code-block__lang">RS</span
+							><button
+								class="code-block__copy"
+								type="button"
+								aria-label="Copier"
+							>
+								Copy
+							</button>
+						</figcaption>
+						<pre><code class="language-rust">pub struct TermSink {
     tx: Mutex&lt;Sender&lt;Vec&lt;u8&gt;&gt;&gt;,
 }
 
@@ -416,17 +1207,39 @@ impl OutputSink for TermSink {
         }
     }
 }</code></pre>
-      </figure>
-    </div>
-  </details>
+					</figure>
+				</div>
+			</details>
 
-  <details class="fbf" open>
-    <summary>4 · term_sink.rs — la boucle de rendu (coalescing + dirty)</summary>
-    <div class="body">
-      <p class="why">Le thread possède le terminal. Il <strong>bloque</strong> sur le prochain chunk, puis <strong>draine</strong> tout ce qui est déjà arrivé : une rafale de 50 chunks → un seul frame. Le garde <code>Dirty::Clean</code> est l'intérêt même de <code>RenderState</code> : si rien n'a bougé (chunk de contrôle pur), on ne snapshot ni n'émet rien.</p>
-      <figure class="code-block">
-        <figcaption class="code-block__head"><span class="code-block__file">src-tauri/src/session/term_sink.rs · render_loop</span><span class="code-block__lang">RS</span><button class="code-block__copy" type="button" aria-label="Copier">Copy</button></figcaption>
-<pre><code class="language-rust">while let Ok(chunk) = rx.recv() {
+			<details class="fbf" open>
+				<summary>
+					4 · term_sink.rs — la boucle de rendu (coalescing + dirty)
+				</summary>
+				<div class="body">
+					<p class="why">
+						Le thread possède le terminal. Il
+						<strong>bloque</strong> sur le prochain chunk, puis
+						<strong>draine</strong> tout ce qui est déjà arrivé :
+						une rafale de 50 chunks → un seul frame. Le garde
+						<code>Dirty::Clean</code> est l'intérêt même de
+						<code>RenderState</code> : si rien n'a bougé (chunk de
+						contrôle pur), on ne snapshot ni n'émet rien.
+					</p>
+					<figure class="code-block">
+						<figcaption class="code-block__head">
+							<span class="code-block__file"
+								>src-tauri/src/session/term_sink.rs ·
+								render_loop</span
+							><span class="code-block__lang">RS</span
+							><button
+								class="code-block__copy"
+								type="button"
+								aria-label="Copier"
+							>
+								Copy
+							</button>
+						</figcaption>
+						<pre><code class="language-rust">while let Ok(chunk) = rx.recv() {
     feed(&amp;mut terminal, &amp;chunk, sid);
     while let Ok(more) = rx.try_recv() {   // draine la rafale → 1 frame
         feed(&amp;mut terminal, &amp;more, sid);
@@ -450,17 +1263,38 @@ impl OutputSink for TermSink {
     render_state.mark_clean().ok();
 }
 // le thread sort quand le canal se déconnecte (session fermée → TermSink droppé)</code></pre>
-      </figure>
-    </div>
-  </details>
+					</figure>
+				</div>
+			</details>
 
-  <details class="fbf">
-    <summary>5 · cell_frame.rs — la forme du wire</summary>
-    <div class="body">
-      <p class="why">Les types de <code>agent-cockpit-term</code> (<code>Cell</code>, <code>Color</code>) n'ont pas de derive serde — d'où ces types miroir sérialisables à la frontière Tauri. <code>attrs</code> voyage en bits bruts (1 octet) plutôt qu'en 6 booléens. <code>CellFrame</code> embarque le <code>session_id</code> dans le payload, exactement comme <code>agent:output</code>, pour qu'un seul event global serve toutes les sessions.</p>
-      <figure class="code-block">
-        <figcaption class="code-block__head"><span class="code-block__file">src-tauri/src/session/cell_frame.rs</span><span class="code-block__lang">RS</span><button class="code-block__copy" type="button" aria-label="Copier">Copy</button></figcaption>
-<pre><code class="language-rust">#[derive(Serialize)]
+			<details class="fbf">
+				<summary>5 · cell_frame.rs — la forme du wire</summary>
+				<div class="body">
+					<p class="why">
+						Les types de
+						<code>agent-cockpit-term</code> (<code>Cell</code>,
+						<code>Color</code>) n'ont pas de derive serde — d'où ces
+						types miroir sérialisables à la frontière Tauri.
+						<code>attrs</code> voyage en bits bruts (1 octet) plutôt
+						qu'en 6 booléens. <code>CellFrame</code> embarque le
+						<code>session_id</code> dans le payload, exactement
+						comme <code>agent:output</code>, pour qu'un seul event
+						global serve toutes les sessions.
+					</p>
+					<figure class="code-block">
+						<figcaption class="code-block__head">
+							<span class="code-block__file"
+								>src-tauri/src/session/cell_frame.rs</span
+							><span class="code-block__lang">RS</span
+							><button
+								class="code-block__copy"
+								type="button"
+								aria-label="Copier"
+							>
+								Copy
+							</button>
+						</figcaption>
+						<pre><code class="language-rust">#[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum WireColor {
     Default,
@@ -483,133 +1317,236 @@ pub struct CellFrame {
     pub rows: u16,
     pub cells: Vec&lt;WireCell&gt;,   // row-major : row * cols + col
 }</code></pre>
-      </figure>
-    </div>
-  </details>
+					</figure>
+				</div>
+			</details>
 
-  <details class="fbf">
-    <summary>6 · pty.rs — la géométrie de départ partagée</summary>
-    <div class="body">
-      <p class="why">Le child PTY et le terminal du render thread doivent démarrer sur la <em>même</em> géométrie, sinon la grille snapshottée ne correspond pas à ce que le programme croit afficher. On extrait deux constantes <code>pub(crate)</code> que les deux côtés importent.</p>
-      <div class="diff" data-file="src-tauri/src/session/pty.rs">
-@@ pty.rs @@
-+pub(crate) const DEFAULT_ROWS: u16 = 24;
-+pub(crate) const DEFAULT_COLS: u16 = 80;
-@@ spawn @@
-         .openpty(PtySize {
--            rows: 24,
--            cols: 80,
-+            rows: DEFAULT_ROWS,
-+            cols: DEFAULT_COLS,
-      </div>
-    </div>
-  </details>
+			<details class="fbf">
+				<summary>6 · pty.rs — la géométrie de départ partagée</summary>
+				<div class="body">
+					<p class="why">
+						Le child PTY et le terminal du render thread doivent
+						démarrer sur la <em>même</em> géométrie, sinon la grille
+						snapshottée ne correspond pas à ce que le programme
+						croit afficher. On extrait deux constantes
+						<code>pub(crate)</code> que les deux côtés importent.
+					</p>
+					<div class="diff" data-file="src-tauri/src/session/pty.rs">
+						@@ pty.rs @@ +pub(crate) const DEFAULT_ROWS: u16 = 24;
+						+pub(crate) const DEFAULT_COLS: u16 = 80; @@ spawn @@
+						.openpty(PtySize { - rows: 24, - cols: 80, + rows:
+						DEFAULT_ROWS, + cols: DEFAULT_COLS,
+					</div>
+				</div>
+			</details>
 
-  <hr class="divider">
+			<hr class="divider" />
 
-  <!-- MY CLEANUP -->
-  <h2 id="cleanup">Mon seul changement de fond (cleanup /simplify)</h2>
-  <p>Sur le diff existant, le <code>/simplify</code> a convergé sur <strong>une</strong> amélioration nette, appliquée : <code>WireCell.ch</code> passait de <code>String</code> à <code>char</code>.</p>
-  <div class="diff" data-file="src-tauri/src/session/cell_frame.rs">
-@@ WireCell @@
- pub struct WireCell {
--    pub ch: String,
-+    pub ch: char,
- }
-@@ From&lt;&amp;Cell&gt; @@
--    ch: cell.ch.to_string(),
-+    ch: cell.ch,
-  </div>
-  <p class="muted">Pourquoi ça compte : <code>cell.ch</code> est déjà un <code>char</code>. Le <code>to_string()</code> allouait une <code>String</code> sur le tas <strong>par cellule</strong> — soit ~1 920 allocations par frame en 80×24, à chaque frame dirty. <code>char</code> sérialise en exactement la même string JSON (<code>"H"</code>) : <strong>la forme du wire est identique</strong>, le frontend ne voit aucune différence. Pur gain d'allocations + de typage.</p>
+			<!-- MY CLEANUP -->
+			<h2 id="cleanup">
+				Mon seul changement de fond (cleanup /simplify)
+			</h2>
+			<p>
+				Sur le diff existant, le <code>/simplify</code> a convergé sur
+				<strong>une</strong> amélioration nette, appliquée :
+				<code>WireCell.ch</code> passait de <code>String</code> à
+				<code>char</code>.
+			</p>
+			<div class="diff" data-file="src-tauri/src/session/cell_frame.rs">
+				@@ WireCell @@ pub struct WireCell { - pub ch: String, + pub ch:
+				char, } @@ From&lt;&amp;Cell&gt; @@ - ch: cell.ch.to_string(), +
+				ch: cell.ch,
+			</div>
+			<p class="muted">
+				Pourquoi ça compte : <code>cell.ch</code> est déjà un
+				<code>char</code>. Le <code>to_string()</code> allouait une
+				<code>String</code> sur le tas <strong>par cellule</strong> —
+				soit ~1 920 allocations par frame en 80×24, à chaque frame
+				dirty. <code>char</code> sérialise en exactement la même string
+				JSON (<code>"H"</code>) :
+				<strong>la forme du wire est identique</strong>, le frontend ne
+				voit aucune différence. Pur gain d'allocations + de typage.
+			</p>
 
-  <hr class="divider">
+			<hr class="divider" />
 
-  <!-- OPEN QUESTIONS -->
-  <h2 id="open">Deux points à acter (hors scope /simplify — pas corrigés)</h2>
-  <p>Ce ne sont pas des nits de qualité mais des décisions d'archi/comportement. Je les remonte au lieu de les corriger en douce.</p>
+			<!-- OPEN QUESTIONS -->
+			<h2 id="open">
+				Deux points à acter (hors scope /simplify — pas corrigés)
+			</h2>
+			<p>
+				Ce ne sont pas des nits de qualité mais des décisions
+				d'archi/comportement. Je les remonte au lieu de les corriger en
+				douce.
+			</p>
 
-  <div class="oq">
-    <h3>⚠️ La CI ne teste plus du tout <code>tauri-app</code></h3>
-    <p>Ajouter <code>agent-cockpit-term</code> en dépendance fait que le binaire de test de <code>tauri-app</code> doit linker libghostty — absent en CI. La parade a été <code>--exclude tauri-app</code> sur <code>cargo test</code>. Conséquence : <strong>tous</strong> les tests unitaires de <code>tauri-app</code> disparaissent de la CI — les anciens (<code>tauri_sink</code>, <code>sink</code>, <code>path</code>…) <em>et</em> les nouveaux (<code>cell_frame</code>, <code>term_sink</code>). Le job <code>verify-libghostty</code> ne fait que vérifier des checksums de headers, il ne lance aucun test.</p>
-    <p class="meta">FIX PROFOND (hors diff) : cible de test lib-only, ou un runner CI provisionné avec libghostty. À décider — c'est une régression de couverture réelle.</p>
-  </div>
+			<div class="oq">
+				<h3>⚠️ La CI ne teste plus du tout <code>tauri-app</code></h3>
+				<p>
+					Ajouter <code>agent-cockpit-term</code> en dépendance fait
+					que le binaire de test de <code>tauri-app</code> doit linker
+					libghostty — absent en CI. La parade a été
+					<code>--exclude tauri-app</code> sur
+					<code>cargo test</code>. Conséquence :
+					<strong>tous</strong> les tests unitaires de
+					<code>tauri-app</code> disparaissent de la CI — les anciens
+					(<code>tauri_sink</code>, <code>sink</code>,
+					<code>path</code>…) <em>et</em> les nouveaux
+					(<code>cell_frame</code>, <code>term_sink</code>). Le job
+					<code>verify-libghostty</code> ne fait que vérifier des
+					checksums de headers, il ne lance aucun test.
+				</p>
+				<p class="meta">
+					FIX PROFOND (hors diff) : cible de test lib-only, ou un
+					runner CI provisionné avec libghostty. À décider — c'est une
+					régression de couverture réelle.
+				</p>
+			</div>
 
-  <div class="oq">
-    <h3>⚠️ Le <code>Terminal</code> du render thread n'est jamais redimensionné</h3>
-    <p><code>session_resize</code> redimensionne le master PTY uniquement. Le <code>Terminal</code> du thread reste figé à <code>DEFAULT_ROWS/COLS</code>. Les constantes règlent l'accord <em>initial</em> ; mais au premier resize, la grille rendue (<code>agent:cells</code>) désynchronise de la taille réelle du terminal.</p>
-    <p class="meta">DOMAINE : correctness/feature (pas /simplify). C'est la suite logique de la feature — propager le resize jusqu'au render thread (canal d'événements, ou méthode resize sur OutputSink).</p>
-  </div>
+			<div class="oq">
+				<h3>
+					⚠️ Le <code>Terminal</code> du render thread n'est jamais
+					redimensionné
+				</h3>
+				<p>
+					<code>session_resize</code> redimensionne le master PTY
+					uniquement. Le <code>Terminal</code> du thread reste figé à
+					<code>DEFAULT_ROWS/COLS</code>. Les constantes règlent
+					l'accord <em>initial</em> ; mais au premier resize, la
+					grille rendue (<code>agent:cells</code>) désynchronise de la
+					taille réelle du terminal.
+				</p>
+				<p class="meta">
+					DOMAINE : correctness/feature (pas /simplify). C'est la
+					suite logique de la feature — propager le resize jusqu'au
+					render thread (canal d'événements, ou méthode resize sur
+					OutputSink).
+				</p>
+			</div>
 
-  <div class="oq ok">
-    <h3>✓ Ce qui est propre par ailleurs</h3>
-    <ul class="clean">
-      <li><strong>Reuse</strong> : pas de duplication — les types wire sont nécessaires (agent-cockpit-term n'est pas serde-aware), DEFAULT_ROWS/COLS sont partagés via pty.rs.</li>
-      <li><strong>Mutex&lt;Sender&gt;</strong> : justifié et documenté (Sender est <code>!Sync</code>) — pas un défaut.</li>
-      <li><strong>Hot-path</strong> : aucun travail lourd dans write() ; tout est sur le render thread, derrière le canal.</li>
-      <li>Le build a passé typeck + borrowck (l'échec local n'est que le link de libghostty, absent ici comme en CI).</li>
-    </ul>
-  </div>
+			<div class="oq ok">
+				<h3>✓ Ce qui est propre par ailleurs</h3>
+				<ul class="clean">
+					<li>
+						<strong>Reuse</strong> : pas de duplication — les types
+						wire sont nécessaires (agent-cockpit-term n'est pas
+						serde-aware), DEFAULT_ROWS/COLS sont partagés via
+						pty.rs.
+					</li>
+					<li>
+						<strong>Mutex&lt;Sender&gt;</strong> : justifié et
+						documenté (Sender est <code>!Sync</code>) — pas un
+						défaut.
+					</li>
+					<li>
+						<strong>Hot-path</strong> : aucun travail lourd dans
+						write() ; tout est sur le render thread, derrière le
+						canal.
+					</li>
+					<li>
+						Le build a passé typeck + borrowck (l'échec local n'est
+						que le link de libghostty, absent ici comme en CI).
+					</li>
+				</ul>
+			</div>
 
-  <p class="muted" style="margin-top:32px; font-size:12px;">Généré le 2026-05-30 · agent-cockpit · branche walid-mos/feat-libghostty</p>
+			<p class="muted" style="margin-top: 32px; font-size: 12px">
+				Généré le 2026-05-30 · agent-cockpit · branche
+				walid-mos/feat-libghostty
+			</p>
+		</div>
 
-</div>
+		<!-- theme toggle -->
+		<script>
+			;(function () {
+				var btn = document.querySelector('.np-theme-toggle')
+				if (!btn) return
+				btn.addEventListener('click', function () {
+					var cur =
+						document.documentElement.getAttribute('data-theme') ||
+						'light'
+					var next = cur === 'dark' ? 'light' : 'dark'
+					document.documentElement.setAttribute('data-theme', next)
+					try {
+						localStorage.setItem('np-theme', next)
+					} catch (e) {}
+					document.dispatchEvent(
+						new CustomEvent('np:theme-change', {
+							detail: { theme: next },
+						}),
+					)
+				})
+			})()
+		</script>
 
-<!-- theme toggle -->
-<script>
-(function () {
-  var btn = document.querySelector('.np-theme-toggle');
-  if (!btn) return;
-  btn.addEventListener('click', function () {
-    var cur = document.documentElement.getAttribute('data-theme') || 'light';
-    var next = cur === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    try { localStorage.setItem('np-theme', next); } catch (e) {}
-    document.dispatchEvent(new CustomEvent('np:theme-change', { detail: { theme: next } }));
-  });
-})();
-</script>
+		<!-- diff parser -->
+		<script>
+			document.querySelectorAll('.diff').forEach(el => {
+				const raw = el.textContent.trimEnd()
+				el.innerHTML = raw
+					.split('\n')
+					.map(l => {
+						const cls = l.startsWith('@@')
+							? 'hunk'
+							: l.startsWith('+')
+								? 'add'
+								: l.startsWith('-')
+									? 'del'
+									: 'ctx'
+						const body =
+							cls === 'add' || cls === 'del' ? l.slice(1) : l
+						return `<span class="line ${cls}">${body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`
+					})
+					.join('')
+			})
+		</script>
 
-<!-- diff parser -->
-<script>
-document.querySelectorAll('.diff').forEach((el) => {
-  const raw = el.textContent.trimEnd();
-  el.innerHTML = raw.split('\n').map((l) => {
-    const cls = l.startsWith('@@') ? 'hunk'
-              : l.startsWith('+')  ? 'add'
-              : l.startsWith('-')  ? 'del'
-              : 'ctx';
-    const body = cls === 'add' || cls === 'del' ? l.slice(1) : l;
-    return `<span class="line ${cls}">${body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`;
-  }).join('');
-});
-</script>
-
-<!-- hljs -->
-<link id="hljs-light" rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/atom-one-light.min.css">
-<link id="hljs-dark" rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/atom-one-dark.min.css" disabled>
-<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
-<script>
-(function () {
-  if (!document.querySelector('pre > code[class*="language-"]')) return;
-  function applyTheme(t) {
-    document.getElementById('hljs-light').disabled = (t === 'dark');
-    document.getElementById('hljs-dark').disabled  = (t !== 'dark');
-  }
-  hljs.highlightAll();
-  applyTheme(document.documentElement.dataset.theme || 'light');
-  document.addEventListener('np:theme-change', (e) => applyTheme(e.detail.theme));
-  document.querySelectorAll('.code-block__copy').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const code = btn.closest('.code-block')?.querySelector('pre code')?.innerText ?? '';
-      try {
-        await navigator.clipboard.writeText(code);
-        const prev = btn.textContent;
-        btn.textContent = 'Copied'; btn.classList.add('is-copied');
-        setTimeout(() => { btn.textContent = prev; btn.classList.remove('is-copied'); }, 1200);
-      } catch (e) {}
-    });
-  });
-})();
-</script>
-</body>
+		<!-- hljs -->
+		<link
+			id="hljs-light"
+			rel="stylesheet"
+			href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/atom-one-light.min.css"
+		/>
+		<link
+			id="hljs-dark"
+			rel="stylesheet"
+			href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/atom-one-dark.min.css"
+			disabled
+		/>
+		<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
+		<script>
+			;(function () {
+				if (!document.querySelector('pre > code[class*="language-"]'))
+					return
+				function applyTheme(t) {
+					document.getElementById('hljs-light').disabled =
+						t === 'dark'
+					document.getElementById('hljs-dark').disabled = t !== 'dark'
+				}
+				hljs.highlightAll()
+				applyTheme(document.documentElement.dataset.theme || 'light')
+				document.addEventListener('np:theme-change', e =>
+					applyTheme(e.detail.theme),
+				)
+				document.querySelectorAll('.code-block__copy').forEach(btn => {
+					btn.addEventListener('click', async () => {
+						const code =
+							btn
+								.closest('.code-block')
+								?.querySelector('pre code')?.innerText ?? ''
+						try {
+							await navigator.clipboard.writeText(code)
+							const prev = btn.textContent
+							btn.textContent = 'Copied'
+							btn.classList.add('is-copied')
+							setTimeout(() => {
+								btn.textContent = prev
+								btn.classList.remove('is-copied')
+							}, 1200)
+						} catch (e) {}
+					})
+				})
+			})()
+		</script>
+	</body>
 </html>

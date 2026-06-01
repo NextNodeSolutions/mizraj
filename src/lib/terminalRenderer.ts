@@ -142,8 +142,9 @@ const fontFor = (attrs: CellAttrs): string => {
 // in the per-cell hot path, instead of allocating a fresh attrs object and font
 // string for every cell of every frame (tens of thousands per second during a
 // heavy TUI redraw).
-const ATTR_TABLE: readonly CellAttrs[] = Array.from({ length: 256 }, (_, bits) =>
-	decodeAttrs(bits),
+const ATTR_TABLE: readonly CellAttrs[] = Array.from(
+	{ length: 256 },
+	(_, bits) => decodeAttrs(bits),
 )
 const FONT_TABLE: readonly string[] = ATTR_TABLE.map(fontFor)
 

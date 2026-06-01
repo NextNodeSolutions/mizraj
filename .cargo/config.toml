@@ -25,8 +25,8 @@ LIBGHOSTTY_LIB_DIR = { value = "target/libghostty", relative = true }
 # the dylib and every FFI-touching test aborts at launch.
 [target.'cfg(target_os = "macos")']
 rustflags = [
-    "-C",
-    "link-arg=-Wl,-rpath,@executable_path/../libghostty",
-    "-C",
-    "link-arg=-Wl,-rpath,@executable_path/../../libghostty",
+	"-C",
+	"link-arg=-Wl,-rpath,@executable_path/../libghostty",
+	"-C",
+	"link-arg=-Wl,-rpath,@executable_path/../../libghostty",
 ]

@@ -74,8 +74,7 @@ impl Terminal {
         // SAFETY: `self.handle` is a live handle from `ghostty_terminal_new`
         // (Drop hasn't run, guaranteed by `&mut self`). `cols`/`rows` are
         // non-zero as the header requires; the two pixel args are plain u32.
-        let result =
-            unsafe { ghostty_terminal_resize(self.handle.as_ptr(), cols, rows, 0, 0) };
+        let result = unsafe { ghostty_terminal_resize(self.handle.as_ptr(), cols, rows, 0, 0) };
         if result != GhosttyResult_GHOSTTY_SUCCESS {
             return Err(TermError::Resize(format!(
                 "ghostty_terminal_resize returned result code {result}"

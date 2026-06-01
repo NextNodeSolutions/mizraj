@@ -17,7 +17,7 @@ pas l'état final.
 
 - `agent-cockpit-term-sys` est un paquet `-sys` canonique : il lie la lib native et expose
   les symboles bruts, sans abstraction.
-- Modèle « system library » (la lib vit hors cargo, `build.rs` la *trouve* via
+- Modèle « system library » (la lib vit hors cargo, `build.rs` la _trouve_ via
   `LIBGHOSTTY_LIB_DIR`) — **pas** le modèle « vendored build-at-compile » : un build
   réseau + Zig à chaque `cargo build` casserait `--offline`/`--frozen` (reproductibilité).
 - Source du dylib : **build-from-source via Zig** (`zig build -Demit-lib-vt`), Zig **0.15.2**
