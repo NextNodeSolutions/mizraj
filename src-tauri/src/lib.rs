@@ -10,6 +10,7 @@ pub mod worktree;
 use tauri::Manager;
 
 use crate::active_project::ActiveProject;
+use crate::db::Db;
 use crate::session::SessionManager;
 
 #[tauri::command]
@@ -76,6 +77,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(ActiveProject::default())
+        .manage(Db::default())
         .register_uri_scheme_protocol(
             commands::plan_protocol::SCHEME,
             commands::plan_protocol::handle_request,
@@ -85,19 +87,10 @@ pub fn run() {
             if let Some(path) = session::path::capture_login_shell_path() {
                 std::env::set_var("PATH", path);
             }
-            let app_data_dir = app.path().app_data_dir()?;
-            let db_path = app_data_dir.join("agent-cockpit.db");
-            let pool = tauri::async_runtime::block_on(db::init_db(&db_path)).map_err(|err| {
-                tracing::error!(
-                    path = %db_path.display(),
-                    error = %err,
-                    "init_db failed during Tauri setup",
-                );
-                err
-            })?;
-            let session_manager = SessionManager::new(pool.clone());
-            app.manage(pool);
-            app.manage(session_manager);
+            // No database is opened here: the progress.db is per-project, so it
+            // is resolved and opened lazily when a project becomes active (see
+            // `set_active_project`). Until then the `Db` state holds no pool.
+            app.manage(SessionManager::new());
             #[cfg(all(desktop, not(debug_assertions)))]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
@@ -111,6 +104,9 @@ pub fn run() {
             commands::list_plans::list_plans,
             commands::set_active_project::set_active_project,
             commands::set_active_project::clear_active_project,
+            commands::tasks::tasks_overview,
+            commands::tasks::tasks_create,
+            commands::tasks::tasks_update,
             commands::plan_protocol::resolve_plan,
             session::commands::session_create,
             session::commands::session_resize,

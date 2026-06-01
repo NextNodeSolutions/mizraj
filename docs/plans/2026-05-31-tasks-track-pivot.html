@@ -1,0 +1,1101 @@
+<!doctype html>
+<html lang="fr">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Interview · Tasks → DB partagée · closure</title>
+		<script>
+			;(function () {
+				try {
+					var s = localStorage.getItem('np-theme')
+					var t =
+						s ||
+						(window.matchMedia('(prefers-color-scheme: dark)')
+							.matches
+							? 'dark'
+							: 'light')
+					document.documentElement.setAttribute('data-theme', t)
+				} catch (e) {
+					document.documentElement.setAttribute('data-theme', 'light')
+				}
+			})()
+		</script>
+		<style>
+			:root {
+				--np-bg: oklch(98.4% 0.003 247.86);
+				--np-bg-soft: oklch(96.8% 0.007 247.84);
+				--np-text: oklch(20.8% 0.042 265.76);
+				--np-text-muted: oklch(55.4% 0.046 257.42);
+				--np-border: oklch(92.9% 0.013 255.51);
+				--line-soft: oklch(96.8% 0.007 247.84);
+				--np-accent: oklch(70.4% 0.14 182.503);
+				--accent-tint: oklch(95.3% 0.051 180.801);
+				--np-accent-hover: oklch(60% 0.118 184.704);
+				--np-success: #16a34a;
+				--np-warn: #d97706;
+				--np-danger: #dc2626;
+				--np-shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.06);
+				--np-shadow-bar: 0 -2px 12px rgba(0, 0, 0, 0.04);
+				--np-mono:
+					'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo,
+					monospace;
+				--np-sans:
+					'DM Sans', -apple-system, BlinkMacSystemFont, system-ui,
+					sans-serif;
+				--np-display: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+			}
+			[data-theme='dark'] {
+				--np-bg: oklch(20.8% 0.042 265.76);
+				--np-bg-soft: oklch(27.9% 0.041 260.03);
+				--np-text: oklch(98.4% 0.003 247.86);
+				--np-text-muted: oklch(70.4% 0.04 256.79);
+				--np-border: oklch(37.2% 0.044 257.29);
+				--line-soft: oklch(27.9% 0.041 260.03);
+				--np-accent: oklch(77.7% 0.152 181.912);
+				--accent-tint: oklch(38.6% 0.063 188.416);
+				--np-accent-hover: oklch(85.5% 0.138 181.071);
+				--np-success: #4ade80;
+				--np-warn: #fbbf24;
+				--np-danger: #f87171;
+				--np-shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.4);
+				--np-shadow-bar: 0 -2px 12px rgba(0, 0, 0, 0.35);
+			}
+			* {
+				box-sizing: border-box;
+			}
+			html,
+			body {
+				margin: 0;
+				padding: 0;
+			}
+			body {
+				background: var(--np-bg);
+				color: var(--np-text);
+				font-family: var(--np-sans);
+				line-height: 1.55;
+				-webkit-font-smoothing: antialiased;
+				padding-bottom: 92px;
+			}
+			.np-theme-toggle {
+				position: fixed;
+				top: 14px;
+				right: 14px;
+				z-index: 60;
+				width: 34px;
+				height: 34px;
+				border-radius: 50%;
+				border: 1px solid var(--np-border);
+				background: var(--np-bg-soft);
+				color: var(--np-text-muted);
+				cursor: pointer;
+				font-size: 15px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				box-shadow: var(--np-shadow-soft);
+			}
+			.layout {
+				display: grid;
+				grid-template-columns: 208px 1fr;
+				gap: 28px;
+				max-width: 1080px;
+				margin: 0 auto;
+				padding: 0 20px;
+			}
+			.side {
+				position: sticky;
+				top: 0;
+				height: 100vh;
+				overflow: auto;
+				padding: 24px 0;
+				font-size: 12px;
+			}
+			.side::-webkit-scrollbar {
+				width: 5px;
+			}
+			.side::-webkit-scrollbar-thumb {
+				background: var(--np-border);
+				border-radius: 3px;
+			}
+			.side h4 {
+				font-family: var(--np-mono);
+				font-size: 9.5px;
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				color: var(--np-text-muted);
+				margin: 16px 0 6px;
+			}
+			.side a {
+				display: flex;
+				gap: 7px;
+				align-items: center;
+				color: var(--np-text-muted);
+				text-decoration: none;
+				padding: 4px 6px;
+				border-radius: 5px;
+				line-height: 1.3;
+			}
+			.side a:hover {
+				background: var(--np-bg-soft);
+				color: var(--np-text);
+			}
+			.side a.active {
+				background: var(--accent-tint);
+				color: var(--np-accent-hover);
+				font-weight: 600;
+			}
+			.dot {
+				width: 7px;
+				height: 7px;
+				border-radius: 50%;
+				border: 1.5px solid var(--np-warn);
+				flex: none;
+			}
+			.dot.ok {
+				background: var(--np-success);
+				border-color: var(--np-success);
+			}
+			.prog {
+				margin: 14px 6px 0;
+			}
+			.prog .bar {
+				height: 5px;
+				background: var(--np-border);
+				border-radius: 3px;
+				overflow: hidden;
+			}
+			.prog .fill {
+				height: 100%;
+				background: var(--np-success);
+				width: 100%;
+			}
+			.prog .lbl {
+				font-family: var(--np-mono);
+				font-size: 9.5px;
+				color: var(--np-text-muted);
+				margin-top: 4px;
+			}
+			main {
+				padding: 24px 0 0;
+				min-width: 0;
+			}
+			.eyebrow {
+				font-family: var(--np-mono);
+				font-size: 11px;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--np-accent-hover);
+			}
+			h1 {
+				font-family: var(--np-display);
+				font-size: 26px;
+				line-height: 1.18;
+				margin: 10px 0 0;
+				font-weight: 700;
+				letter-spacing: -0.01em;
+			}
+			.tldr {
+				margin: 14px 0 0;
+				background: var(--np-bg-soft);
+				border-left: 4px solid var(--np-accent);
+				border-radius: 6px;
+				padding: 12px 15px;
+				font-size: 13.5px;
+			}
+			.tldr code {
+				font-family: var(--np-mono);
+				font-size: 12px;
+				background: var(--np-bg);
+				padding: 1px 4px;
+				border-radius: 3px;
+			}
+			.theme-block {
+				margin: 26px 0 0;
+			}
+			.theme-block > h3 {
+				font-family: var(--np-mono);
+				font-size: 10.5px;
+				text-transform: uppercase;
+				letter-spacing: 0.07em;
+				color: var(--np-text-muted);
+				margin: 0 0 4px;
+				padding-bottom: 6px;
+				border-bottom: 1px solid var(--np-border);
+			}
+			.decision {
+				padding: 18px 0;
+				border-bottom: 1px solid var(--line-soft);
+			}
+			.dec-head {
+				display: flex;
+				gap: 10px;
+				align-items: baseline;
+			}
+			.dec-id {
+				font-family: var(--np-mono);
+				font-size: 11px;
+				color: var(--np-accent-hover);
+				font-weight: 700;
+				flex: none;
+			}
+			.dec-title {
+				font-family: var(--np-display);
+				font-size: 17px;
+				font-weight: 650;
+				line-height: 1.25;
+			}
+			.fact-preview {
+				margin: 10px 0 0;
+				background: var(--np-bg-soft);
+				border-left: 3px solid var(--np-accent);
+				border-radius: 5px;
+				padding: 9px 13px;
+				font-size: 13.5px;
+			}
+			.det-toggle {
+				margin: 10px 0 0;
+				background: none;
+				border: 1px solid var(--np-border);
+				border-radius: 6px;
+				color: var(--np-text-muted);
+				font-family: var(--np-mono);
+				font-size: 10px;
+				text-transform: uppercase;
+				letter-spacing: 0.04em;
+				padding: 4px 10px;
+				cursor: pointer;
+			}
+			.fields-grid {
+				display: none;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 14px;
+				margin-top: 12px;
+				align-items: start;
+			}
+			.decision.open .fields-grid {
+				display: grid;
+			}
+			.decision.open .fact-preview {
+				display: none;
+			}
+			@media (max-width: 720px) {
+				.fields-grid {
+					grid-template-columns: 1fr;
+				}
+			}
+			.field-prose {
+				position: relative;
+				border-left: 4px solid var(--np-accent);
+				border-radius: 6px;
+				background: var(--np-bg-soft);
+				padding: 10px 13px 10px 34px;
+				font-size: 13px;
+				line-height: 1.5;
+				outline: none;
+			}
+			.field-prose:hover {
+				box-shadow: inset 0 0 0 1px var(--accent-tint);
+			}
+			.field-prose:focus {
+				box-shadow: 0 0 0 1px var(--np-accent);
+				background: var(--np-bg);
+			}
+			.field-prose::before {
+				content: attr(data-badge);
+				position: absolute;
+				left: 10px;
+				top: 10px;
+				font-family: var(--np-mono);
+				font-size: 10px;
+				font-weight: 700;
+				color: var(--np-accent-hover);
+				text-transform: uppercase;
+			}
+			.field-prose.empty {
+				border-left-color: var(--np-warn);
+			}
+			.decision-footer {
+				display: flex;
+				gap: 10px;
+				align-items: flex-start;
+				margin-top: 12px;
+			}
+			.decision-note {
+				flex: 1;
+				border: 1px dashed var(--np-border);
+				background: transparent;
+				color: var(--np-text);
+				border-radius: 6px;
+				padding: 7px 10px;
+				font-family: var(--np-sans);
+				font-size: 12.5px;
+				resize: none;
+				overflow: hidden;
+				min-height: 34px;
+			}
+			.decision-note:focus {
+				outline: none;
+				border-style: solid;
+				border-color: var(--np-accent);
+				box-shadow: 0 0 0 3px var(--accent-tint);
+			}
+			.decision-note.has-value {
+				border-style: solid;
+				border-color: var(--np-accent);
+				background: var(--accent-tint);
+			}
+			.diagram {
+				margin: 12px 0 0;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: 10px;
+				padding: 14px 12px 10px;
+			}
+			.diag-body {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 4px;
+				flex-wrap: wrap;
+			}
+			.node {
+				font-family: var(--np-mono);
+				font-size: 11px;
+				background: var(--np-bg);
+				border: 1px solid var(--np-border);
+				border-radius: 6px;
+				padding: 6px 9px;
+				text-align: center;
+				white-space: nowrap;
+			}
+			.node.primary {
+				background: var(--accent-tint);
+				border-color: var(--np-accent);
+				color: var(--np-accent-hover);
+			}
+			.node.col {
+				flex-direction: column;
+				display: flex;
+				gap: 1px;
+				align-items: center;
+			}
+			.arrow-svg {
+				color: var(--np-text-muted);
+			}
+			.elbl {
+				font-family: var(--np-mono);
+				font-size: 9px;
+				color: var(--np-text-muted);
+				padding: 0 2px;
+			}
+			.diag-cap {
+				margin-top: 12px;
+				padding-top: 8px;
+				border-top: 1px dashed var(--np-border);
+				font-family: var(--np-mono);
+				font-size: 9.5px;
+				text-transform: uppercase;
+				letter-spacing: 0.05em;
+				color: var(--np-text-muted);
+				text-align: center;
+			}
+			.section {
+				margin: 34px 0 0;
+				scroll-margin-top: 18px;
+			}
+			.section > h2 {
+				font-family: var(--np-display);
+				font-size: 20px;
+				margin: 0 0 12px;
+				font-weight: 700;
+			}
+			.rg {
+				display: flex;
+				flex-direction: column;
+				gap: 8px;
+			}
+			.rg-row {
+				display: grid;
+				grid-template-columns: 1fr auto 1.3fr;
+				gap: 12px;
+				align-items: start;
+				border: 1px solid var(--np-border);
+				border-radius: 8px;
+				padding: 10px 12px;
+				background: var(--np-bg-soft);
+				font-size: 13px;
+			}
+			@media (max-width: 640px) {
+				.rg-row {
+					grid-template-columns: 1fr;
+				}
+			}
+			.sev {
+				font-family: var(--np-mono);
+				font-size: 9.5px;
+				text-transform: uppercase;
+				letter-spacing: 0.04em;
+				padding: 2px 8px;
+				border-radius: 999px;
+				height: fit-content;
+				white-space: nowrap;
+			}
+			.sev.high {
+				background: color-mix(
+					in oklab,
+					var(--np-danger) 16%,
+					transparent
+				);
+				color: var(--np-danger);
+			}
+			.sev.med {
+				background: color-mix(
+					in oklab,
+					var(--np-warn) 16%,
+					transparent
+				);
+				color: var(--np-warn);
+			}
+			.sev.low {
+				background: color-mix(
+					in oklab,
+					var(--np-success) 16%,
+					transparent
+				);
+				color: var(--np-success);
+			}
+			.rg-row .mit {
+				color: var(--np-text-muted);
+			}
+			.oq {
+				border-left: 3px solid var(--np-accent);
+				background: var(--np-bg-soft);
+				border-radius: 6px;
+				padding: 10px 13px;
+				margin-bottom: 8px;
+				font-size: 13px;
+			}
+			.oq b {
+				display: block;
+				margin-bottom: 2px;
+			}
+			.ns {
+				list-style: none;
+				padding: 0;
+				margin: 0;
+			}
+			.ns li {
+				display: flex;
+				gap: 9px;
+				align-items: baseline;
+				padding: 6px 0;
+				font-size: 13.5px;
+				border-bottom: 1px solid var(--line-soft);
+			}
+			.ns .n {
+				font-family: var(--np-mono);
+				font-size: 11px;
+				color: var(--np-accent-hover);
+				flex: none;
+			}
+			.copybtn {
+				margin: 16px 0 0;
+				background: var(--np-accent);
+				color: #fff;
+				border: 1px solid var(--np-accent);
+				border-radius: 7px;
+				font-family: var(--np-sans);
+				font-size: 13px;
+				font-weight: 600;
+				padding: 9px 16px;
+				cursor: pointer;
+			}
+			.copybtn.alt {
+				background: transparent;
+				color: var(--np-accent-hover);
+			}
+			code {
+				font-family: var(--np-mono);
+				font-size: 12px;
+			}
+			.rp-gate {
+				position: fixed;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				z-index: 50;
+				background: var(--np-bg-soft);
+				border-top: 1px solid var(--np-border);
+				box-shadow: var(--np-shadow-bar);
+				padding: 12px 20px;
+				display: flex;
+				gap: 12px;
+				align-items: center;
+				justify-content: flex-end;
+			}
+			.rp-gate .hint {
+				flex: 1;
+				font-size: 12.5px;
+				color: var(--np-text-muted);
+			}
+			.rp-btn {
+				font-family: var(--np-sans);
+				font-size: 14px;
+				font-weight: 600;
+				padding: 9px 22px;
+				border-radius: 7px;
+				cursor: pointer;
+			}
+			.rp-btn-ghost {
+				background: transparent;
+				border: 1px solid var(--np-border);
+				color: var(--np-text-muted);
+			}
+			.rp-btn-accent {
+				background: var(--np-accent);
+				border: 1px solid var(--np-accent);
+				color: #fff;
+			}
+		</style>
+	</head>
+	<body>
+		<button class="np-theme-toggle" id="themeToggle">◐</button>
+		<div class="layout">
+			<aside class="side" id="side">
+				<div class="eyebrow" style="font-size: 9.5px">Closure</div>
+				<div id="navDecisions"></div>
+				<h4>Sections</h4>
+				<a href="#sec-risks"><span class="dot ok"></span>Risques</a>
+				<a href="#sec-open"
+					><span class="dot ok"></span>Questions ouvertes</a
+				>
+				<a href="#sec-next"
+					><span class="dot ok"></span>Prochaines étapes</a
+				>
+				<div class="prog">
+					<div class="bar">
+						<div class="fill" id="progFill"></div>
+					</div>
+					<div class="lbl" id="progLbl">Cellules complètes 30/30</div>
+				</div>
+			</aside>
+			<main>
+				<div class="eyebrow">Interview · Décisions scellées</div>
+				<h1>
+					Cockpit Tasks : une SQLite globale partagée par les skills
+					et l'app
+				</h1>
+				<div class="tldr">
+					Pivot résolu en 4 rounds.
+					<b>Une seule base SQLite globale</b>
+					(<code>~/.local/share/agent-cockpit/cockpit.db</code>, clé
+					<code>repo_path</code>) est la source de vérité unique ;
+					<b
+						>les skills (mac-config) et l'app (agent-cockpit) en
+						sont deux clients indépendants</b
+					>
+					conformes à un même schéma-contrat. <b>DB-only</b> : plus de
+					<code>plan.json</code>/<code>progress.md</code>. Le viewer
+					<code>track_read</code> du working-tree et la grille M6 sont
+					abandonnés. La réécriture des skills est un chantier séparé
+					dans <code>mac-config</code>.
+				</div>
+				<div id="decisions"></div>
+
+				<section class="section" id="sec-risks">
+					<h2>Risques</h2>
+					<div class="rg" id="riskGrid"></div>
+				</section>
+				<section class="section" id="sec-open">
+					<h2>Questions ouvertes</h2>
+					<div id="openQ"></div>
+				</section>
+				<section class="section" id="sec-next">
+					<h2>Prochaines étapes</h2>
+					<ul class="ns" id="nextSteps"></ul>
+					<button class="copybtn" id="copyBundle">
+						Copier le backlog bundle (JSON)
+					</button>
+				</section>
+			</main>
+		</div>
+		<footer class="rp-gate">
+			<span class="hint"
+				>Édite une cellule si besoin, laisse une note 💬 par décision,
+				puis valide pour sceller → /backlog.</span
+			>
+			<button id="rp-reject" class="rp-btn rp-btn-ghost">Rejeter</button>
+			<button id="rp-approve" class="rp-btn rp-btn-accent">
+				Sceller la closure →
+			</button>
+		</footer>
+
+		<script>
+			const ARROW =
+				'<svg class="arrow-svg" width="30" height="10" viewBox="0 0 30 10"><line x1="0" y1="5" x2="22" y2="5" stroke="currentColor" stroke-width="1.5"/><path d="M22 1 L28 5 L22 9 Z" fill="currentColor"/></svg>'
+			const BI =
+				'<svg class="arrow-svg" width="38" height="12" viewBox="0 0 38 12"><line x1="6" y1="6" x2="32" y2="6" stroke="currentColor" stroke-width="1.5"/><path d="M32 2 L38 6 L32 10 Z" fill="currentColor"/><path d="M6 2 L0 6 L6 10 Z" fill="currentColor"/></svg>'
+
+			const THEMES = [
+				{ key: 'archi', label: 'Architecture & données' },
+				{ key: 'app', label: 'App & skills (clients)' },
+				{ key: 'scope', label: 'Périmètre' },
+			]
+			const DECISIONS = [
+				{
+					id: 'D1',
+					theme: 'archi',
+					title: 'Substrat : une SQLite globale à contrat partagé',
+					diagram:
+						'<div class="diagram"><div class="diag-body"><span class="node">skills (client)</span>' +
+						ARROW +
+						'<span class="node primary col"><span>cockpit.db</span><span>schéma = contrat</span></span>' +
+						'<svg class="arrow-svg" width="30" height="10" viewBox="0 0 30 10"><line x1="8" y1="5" x2="30" y2="5" stroke="currentColor" stroke-width="1.5"/><path d="M8 1 L2 5 L8 9 Z" fill="currentColor"/></svg>' +
+						'<span class="node">app (client)</span></div><div class="diag-cap">Une base, deux clients, zéro réconciliation</div></div>',
+					fact: "Une unique base SQLite globale, à `~/.local/share/agent-cockpit/cockpit.db` (clé `repo_path`, multi-projets), est la source de vérité unique des tâches et de l'historique. Les skills (mac-config) et l'app (agent-cockpit) sont deux clients indépendants conformes au même schéma-contrat. DB-only : aucun fichier plan.json/progress.md.",
+					mechanism:
+						'SQLite au chemin XDG, `journal_mode=WAL` + `busy_timeout`, transactions courtes. Chaque client ouvre la base directement (aucun app-serveur intermédiaire). Le schéma est un contrat versionné, partagé entre les deux repos.',
+					edge: "Touche le substrat de persistance (app + skills) et le chemin de la base. Ne touche pas la logique PTY/terminal au-delà de son stockage. Ne conserve AUCUN fichier backlog (pas d'export).",
+					rejected:
+						'Fichiers autoritaires + index dérivé (intermédiaire jetable → contraire à la règle greenfield) ; SQLite app-only + sync bidirectionnel fichiers↔DB (la réconciliation = la complexité à supprimer) ; DB serveur libSQL/Turso (service réseau, skills hors-ligne cassés — reporté pour la collab temps réel).',
+					order: "Le schéma-contrat doit être conçu EN PREMIER : c'est la dépendance commune à l'app-client et à la réécriture des skills. Bloque tout le reste.",
+					verification:
+						"`~/.local/share/agent-cockpit/cockpit.db` existe, WAL activé ; l'app lit/écrit des tâches ; un helper skill lit/écrit la même base ; aucun plan.json/progress.md n'est produit.",
+				},
+				{
+					id: 'D2',
+					theme: 'archi',
+					title: 'Le schéma-contrat : tasks + origin, assignations, sessions',
+					fact: "Une table `tasks` unique avec colonne `origin` ('track'|'user') porte les deux types de tâches. `agent_sessions` et l'assignation agent↔tâche vivent dans la même base globale.",
+					mechanism:
+						'Migration définissant `tasks(id, title, description, status, origin, repo_path, created_at)` ; assignation via table `task_assignments(task_id, session_id)` (many-to-many) ; `agent_sessions` (migration 0001 existante) rejoint la base globale. Schéma documenté et versionné comme contrat cross-repo.',
+					edge: "Touche le schéma DB et les migrations. Ne touche pas l'UI au-delà de ce qu'elle requête, ni le code des skills (qui consomme le même contrat de son côté).",
+					rejected:
+						"Deux tables séparées track_tasks/user_tasks (UNION à chaque lecture, FK d'assignation ambiguë) ; colonne task_id directe sur agent_sessions (le many-to-many task_assignments a été préféré pour qu'une tâche porte plusieurs agents).",
+					order: "Après D1 (contrat décidé). Bloque l'app-client (D3) et les skills-clients (D4).",
+					verification:
+						"Les migrations créent tasks + task_assignments ; un test insère une tâche origin='user' et une origin='track', les lit par repo_path, en assigne une à une session.",
+				},
+				{
+					id: 'D3',
+					theme: 'app',
+					title: "App = client lecteur/éditeur + maître de l'historique",
+					fact: "L'app lit la base globale (tous projets, clé `repo_path`) pour lister les tâches et proposer le workflow. Tâches user : CRUD complet. Tâches track : read-only sauf le nom, éditable. La vue est une liste par tâche — pas de grille.",
+					mechanism:
+						"Commandes Tauri requêtant cockpit.db (remplacent track_read/tasks_list) : list/create/update/assign selon origin ; TasksView = liste groupée par statut ; droits d'édition pilotés par `origin`.",
+					edge: 'Touche les commandes Tauri tasks_* et TasksView. Ne touche pas les skills. Abandonne la grille M6 et le viewer read-only progress.md.',
+					rejected:
+						'Grille tâches×agents M6 (abandonnée → liste simple) ; viewer read-only pur du progress.md (le working-tree track_read — désormais obsolète) ; app passage obligé / seule-writer pour les skills (casserait le standalone G1).',
+					order: 'Après D2 (schéma figé). Parallélisable avec D4.',
+					verification:
+						"La vue liste les tâches de la base ; créer/éditer une tâche user persiste sans reload ; éditer le nom d'une tâche track persiste ; le statut d'une tâche track n'est pas modifiable dans l'app.",
+				},
+				{
+					id: 'D4',
+					theme: 'app',
+					title: 'Réécriture des skills = chantier séparé (mac-config)',
+					fact: "`/backlog`, `/track`, `/next` sont réécrits pour être clients de cockpit.db au lieu d'écrire plan.json/progress.md. C'est un projet distinct dans le repo mac-config, hors du backlog agent-cockpit, coordonné uniquement via le schéma-contrat.",
+					mechanism:
+						"Helpers (python sqlite3) dans les skills ouvrant cockpit.db : /backlog insère les tâches (origin='track'), /track les sélectionne, /next met à jour statut + commit. WAL + busy_timeout côté skill aussi. Plus aucun plan.json/progress.md écrit.",
+					edge: "Touche le repo mac-config (les skills). Ne touche pas le code de l'app. Coordination uniquement par le schéma versionné.",
+					rejected:
+						"Garder les skills file-based + import fichiers→DB (re-crée la double-représentation) ; faire de l'app un proxy d'écriture obligatoire (casse le standalone des skills).",
+					order: 'Dépend de D1/D2 (le contrat doit être figé). Parallélisable avec D3 une fois le schéma stable.',
+					verification:
+						"`/next` dans un repo coche une tâche → la ligne `tasks.status` change dans cockpit.db (vérifié via `sqlite3`) ; aucun progress.md n'est écrit.",
+				},
+				{
+					id: 'D5',
+					theme: 'scope',
+					title: 'Réductions de périmètre : grille M6 + guard CI Linear abandonnés',
+					fact: "La grille cockpit M6 (tâches×agents, drag-drop) est abandonnée au profit d'une liste par tâche. Le guard CI « no Linear imports » est abandonné.",
+					mechanism:
+						'Ni CockpitGrid ni job CI guard ne sont implémentés ; ces deux items sortent du périmètre. Les décisions D11 (grille) et la tâche ex-M4.A-05 (guard) sont retirées.',
+					edge: 'Touche le périmètre planifié (retire deux livrables). Ne touche pas les décisions D1–D4.',
+					rejected:
+						"Conserver la grille (feature phare D16 mais non prioritaire vs la simplification du modèle de données) ; conserver le guard CI (jugé non nécessaire par l'user).",
+					order: 'Indépendant ; à acter dès le re-/backlog (ne pas re-décomposer ces items).',
+					verification:
+						'Le nouveau plan.json ne contient ni tâche CockpitGrid ni tâche guard-CI-Linear.',
+				},
+			]
+
+			const RISKS = [
+				{
+					r: 'Le working-tree actuel (viewer track_read parsant progress.md) ne correspond PLUS à la décision DB-only — il serait du code jeté.',
+					s: 'high',
+					m: 'Discard le working-tree (git restore + unstage des migrations supprimées). Repartir du schéma-contrat (D1/D2).',
+				},
+				{
+					r: "DB-only supprime plan.json/progress.md : tout le workflow file-based des skills (dont /interview→/backlog→/next tel qu'utilisé ici) est remplacé. Fenêtre de transition où l'app est DB-client mais les skills encore file-based.",
+					s: 'high',
+					m: "Walking skeleton = tâches origin='user' (l'app les crée directement dans la DB, sans skills). Les tâches origin='track' n'arrivent qu'une fois D4 livré. Séquencer ainsi dans /backlog.",
+				},
+				{
+					r: 'Le schéma devient un contrat cross-repo : une migration touche agent-cockpit ET mac-config.',
+					s: 'med',
+					m: 'Versionner le schéma explicitement (numéro de version en table meta) ; documenter le contrat dans les deux repos ; tester la compat de version au démarrage de chaque client.',
+				},
+				{
+					r: 'Écritures concurrentes app + process skill sur la même base.',
+					s: 'low',
+					m: 'WAL + busy_timeout + transactions courtes (D1). Charge faible (cocher une tâche) → contention négligeable.',
+				},
+			]
+			const OPENQ = [
+				{
+					q: 'Versioning du schéma-contrat',
+					d: "Comment un client réagit s'il ouvre une cockpit.db d'une version de schéma plus récente/ancienne que la sienne ? (table meta + check au boot — à spécifier au moment du schéma.)",
+				},
+				{
+					q: 'Migration des sessions existantes (0001)',
+					d: "agent_sessions vit aujourd'hui dans la DB locale du repo. Passe-t-il dans la base globale XDG ? Greenfield = recréer ; à confirmer qu'aucune session live ne doit survivre.",
+				},
+				{
+					q: 'Collab temps réel (G3) — plus tard',
+					d: "L'option DB serveur (libSQL/Turso) reste la porte pour le multi-éditeur temps réel. Hors périmètre maintenant ; à ré-ouvrir quand la collab devient prioritaire.",
+				},
+			]
+			const NEXT = [
+				{
+					n: '1',
+					t: 'Discard le working-tree (track_read / migrations supprimées) — il ne correspond pas à la cible DB-only.',
+				},
+				{
+					n: '2',
+					t: 'Concevoir le schéma-contrat cockpit.db (D1/D2) AVANT tout : tasks+origin, task_assignments, agent_sessions, table meta de version.',
+				},
+				{
+					n: '3',
+					t: "/backlog sur ce bundle → milestones de l'app-client (D3) : M1 = tâches user dans la DB globale (walking skeleton, sans skills).",
+				},
+				{
+					n: '4',
+					t: 'Chantier séparé mac-config (D4) : réécrire /backlog·/track·/next en clients DB — interview + backlog DE CE repo-là, jamais mélangé.',
+				},
+				{
+					n: '5',
+					t: 'Acter D5 : ne pas re-décomposer la grille M6 ni le guard CI.',
+				},
+			]
+
+			/* ---------- render ---------- */
+			const state = { decisions: {}, notes: {}, expanded: new Set() }
+			DECISIONS.forEach(d => {
+				state.decisions[d.id] = {
+					fact: d.fact,
+					mechanism: d.mechanism,
+					edge: d.edge,
+					rejected: d.rejected,
+					order: d.order,
+					verification: d.verification,
+				}
+			})
+			const FIELDS = [
+				['fact', 'F'],
+				['mechanism', 'M'],
+				['edge', 'E'],
+				['rejected', 'R'],
+				['order', 'O'],
+				['verification', 'V'],
+			]
+
+			const decEl = document.getElementById('decisions')
+			const navEl = document.getElementById('navDecisions')
+			function autoGrow(ta) {
+				ta.style.height = 'auto'
+				ta.style.height = ta.scrollHeight + 2 + 'px'
+			}
+
+			function renderNav() {
+				navEl.innerHTML = ''
+				for (const t of THEMES) {
+					const ds = DECISIONS.filter(d => d.theme === t.key)
+					if (!ds.length) continue
+					const h = document.createElement('h4')
+					h.textContent = t.label
+					navEl.appendChild(h)
+					ds.forEach(d => {
+						const a = document.createElement('a')
+						a.href = '#dec-' + d.id
+						a.dataset.nav = d.id
+						a.innerHTML =
+							'<span class="dot ok" data-dot="' +
+							d.id +
+							'"></span>' +
+							d.id +
+							' · ' +
+							d.title.split(':')[0].slice(0, 26)
+						navEl.appendChild(a)
+					})
+				}
+			}
+			function render() {
+				decEl.innerHTML = ''
+				for (const t of THEMES) {
+					const ds = DECISIONS.filter(d => d.theme === t.key)
+					if (!ds.length) continue
+					const tb = document.createElement('div')
+					tb.className = 'theme-block'
+					tb.id = 'theme-' + t.key
+					tb.innerHTML = '<h3>' + t.label + '</h3>'
+					ds.forEach(d => tb.appendChild(decCard(d)))
+					decEl.appendChild(tb)
+				}
+			}
+			function decCard(d) {
+				const open = state.expanded.has(d.id)
+				const art = document.createElement('article')
+				art.className = 'decision' + (open ? ' open' : '')
+				art.id = 'dec-' + d.id
+				const head = document.createElement('div')
+				head.className = 'dec-head'
+				head.innerHTML =
+					'<span class="dec-id">' +
+					d.id +
+					'</span><span class="dec-title">' +
+					d.title +
+					'</span>'
+				art.appendChild(head)
+				if (d.diagram) {
+					const dv = document.createElement('div')
+					dv.innerHTML = d.diagram
+					art.appendChild(dv.firstChild)
+				}
+				const fp = document.createElement('div')
+				fp.className = 'fact-preview'
+				fp.textContent = state.decisions[d.id].fact
+				art.appendChild(fp)
+				const tog = document.createElement('button')
+				tog.className = 'det-toggle'
+				tog.textContent = open ? '▾ Réduire' : '▸ Détails · 6 champs'
+				tog.onclick = () => {
+					if (open) state.expanded.delete(d.id)
+					else state.expanded.add(d.id)
+					render()
+					bindSpy()
+				}
+				art.appendChild(tog)
+				const grid = document.createElement('div')
+				grid.className = 'fields-grid'
+				FIELDS.forEach(([k, b]) => {
+					const fp2 = document.createElement('div')
+					fp2.className =
+						'field-prose' +
+						(state.decisions[d.id][k].trim() ? '' : ' empty')
+					fp2.setAttribute('contenteditable', 'true')
+					fp2.setAttribute('data-badge', b)
+					fp2.spellcheck = false
+					fp2.textContent = state.decisions[d.id][k]
+					fp2.oninput = () => {
+						state.decisions[d.id][k] = fp2.textContent
+						if (k === 'fact') fp.textContent = fp2.textContent
+						fp2.classList.toggle('empty', !fp2.textContent.trim())
+						updateProg()
+					}
+					grid.appendChild(fp2)
+				})
+				art.appendChild(grid)
+				const foot = document.createElement('div')
+				foot.className = 'decision-footer'
+				const note = document.createElement('textarea')
+				note.className =
+					'decision-note' + (state.notes[d.id] ? ' has-value' : '')
+				note.placeholder =
+					'💬 Afterthought, question, doute pour Claude…'
+				note.value = state.notes[d.id] || ''
+				note.oninput = () => {
+					state.notes[d.id] = note.value
+					note.classList.toggle('has-value', !!note.value.trim())
+					autoGrow(note)
+				}
+				foot.appendChild(note)
+				art.appendChild(foot)
+				if (open)
+					requestAnimationFrame(() => {
+						if (note.value) autoGrow(note)
+					})
+				return art
+			}
+			function updateProg() {
+				let total = 0,
+					ok = 0
+				DECISIONS.forEach(d =>
+					FIELDS.forEach(([k]) => {
+						total++
+						if (state.decisions[d.id][k].trim()) ok++
+					}),
+				)
+				document.getElementById('progFill').style.width =
+					(ok / total) * 100 + '%'
+				document.getElementById('progLbl').textContent =
+					'Cellules complètes ' + ok + '/' + total
+				DECISIONS.forEach(d => {
+					const allok = FIELDS.every(([k]) =>
+						state.decisions[d.id][k].trim(),
+					)
+					const dot = document.querySelector(
+						'[data-dot="' + d.id + '"]',
+					)
+					if (dot) dot.classList.toggle('ok', allok)
+				})
+			}
+
+			/* risks / open / next */
+			const rgEl = document.getElementById('riskGrid')
+			RISKS.forEach(x => {
+				const row = document.createElement('div')
+				row.className = 'rg-row'
+				row.innerHTML =
+					'<div>' +
+					x.r +
+					'</div><div class="sev ' +
+					x.s +
+					'">' +
+					x.s +
+					'</div><div class="mit">' +
+					x.m +
+					'</div>'
+				rgEl.appendChild(row)
+			})
+			const oqEl = document.getElementById('openQ')
+			OPENQ.forEach(x => {
+				const d = document.createElement('div')
+				d.className = 'oq'
+				d.innerHTML = '<b>' + x.q + '</b>' + x.d
+				oqEl.appendChild(d)
+			})
+			const nsEl = document.getElementById('nextSteps')
+			NEXT.forEach(x => {
+				const li = document.createElement('li')
+				li.innerHTML =
+					'<span class="n">' + x.n + '</span><span>' + x.t + '</span>'
+				nsEl.appendChild(li)
+			})
+
+			/* scrollspy */
+			let spyObs = null
+			function bindSpy() {
+				if (spyObs) spyObs.disconnect()
+				spyObs = new IntersectionObserver(
+					es => {
+						es.forEach(e => {
+							if (e.isIntersecting) {
+								document
+									.querySelectorAll('.side a')
+									.forEach(a => a.classList.remove('active'))
+								const id = e.target.id.replace('dec-', '')
+								const link =
+									document.querySelector(
+										'[data-nav="' + id + '"]',
+									) ||
+									document.querySelector(
+										'.side a[href="#' + e.target.id + '"]',
+									)
+								if (link) link.classList.add('active')
+							}
+						})
+					},
+					{ rootMargin: '-20% 0px -65% 0px' },
+				)
+				document
+					.querySelectorAll('.decision,.section')
+					.forEach(el => spyObs.observe(el))
+			}
+
+			/* bundle */
+			function buildBundle() {
+				return {
+					schema_version: '1',
+					source: {
+						kind: 'interview',
+						slug: 'tasks-track-pivot',
+						change_kind: 'breaking-brownfield',
+					},
+					target: {
+						linear_project_hint: '',
+						linear_team_hint: '',
+						repo_path_hint: '',
+					},
+					decisions: DECISIONS.map(d => ({
+						id: d.id,
+						theme: d.theme,
+						fact: state.decisions[d.id].fact,
+						mechanism: state.decisions[d.id].mechanism,
+						edge: state.decisions[d.id].edge,
+						rejected: state.decisions[d.id].rejected,
+						order: state.decisions[d.id].order,
+						verification: state.decisions[d.id].verification,
+					})),
+					open_facts: {
+						db_path: '~/.local/share/agent-cockpit/cockpit.db',
+						db_keyed_by: 'repo_path',
+						concurrency: 'WAL + busy_timeout',
+						files: 'DB-only — no plan.json/progress.md',
+						skills_repo: 'mac-config (separate chantier, D4)',
+						dropped: [
+							'M6 cockpit grid',
+							'CI Linear-imports guard',
+							'track_read progress.md viewer (working-tree)',
+						],
+					},
+					freeform:
+						'Skills(/backlog,/track,/next) and the app become two independent clients of one global SQLite (schema=contract). Build the schema first; app walking-skeleton = user-origin tasks (no skills needed); track-origin tasks arrive once the skills are rewritten in mac-config.',
+				}
+			}
+			document.getElementById('copyBundle').onclick = () => {
+				navigator.clipboard.writeText(
+					JSON.stringify(buildBundle(), null, 2),
+				)
+				document.getElementById('copyBundle').textContent =
+					'Copié ✓ — colle dans /backlog'
+			}
+
+			document.getElementById('themeToggle').onclick = () => {
+				const c = document.documentElement.getAttribute('data-theme')
+				const n = c === 'dark' ? 'light' : 'dark'
+				document.documentElement.setAttribute('data-theme', n)
+				try {
+					localStorage.setItem('np-theme', n)
+				} catch (e) {}
+			}
+
+			async function rpSubmit(mode) {
+				const comments = []
+				for (const id in state.notes) {
+					if (state.notes[id] && state.notes[id].trim())
+						comments.push({
+							target: id,
+							body: state.notes[id].trim(),
+						})
+				}
+				const payload = {
+					decisions: state.decisions,
+					comments,
+					bundle: buildBundle(),
+					freeform: '',
+					approval_mode: mode,
+				}
+				const res = await fetch('./submit', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(payload),
+				})
+				if (!res.ok) throw new Error('submit failed')
+				document.body.innerHTML =
+					'<main style="padding:4rem;font-family:var(--np-sans)"><h1>✓ ' +
+					(mode === 'rejected' ? 'Rejeté' : 'Closure scellée') +
+					'</h1><p>Reviens vers Claude — tu peux fermer cet onglet.</p></main>'
+			}
+			document.getElementById('rp-approve').onclick = () =>
+				rpSubmit('approved')
+			document.getElementById('rp-reject').onclick = () =>
+				rpSubmit('rejected')
+
+			renderNav()
+			render()
+			updateProg()
+			bindSpy()
+		</script>
+	</body>
+</html>

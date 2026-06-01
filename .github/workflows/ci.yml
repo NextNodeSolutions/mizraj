@@ -6,6 +6,12 @@ on:
         branches:
             - main
 
+# Cancel superseded runs on the same ref so rapid pushes don't pile up full
+# CI runs (rust + e2e + libghostty) that will be thrown away anyway.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
 jobs:
     format:
         runs-on: ubuntu-latest
@@ -139,32 +145,24 @@ jobs:
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
 
+            # The browser binaries live in ~/.cache/ms-playwright, which the pnpm
+            # store cache does not cover — cache them keyed on the lockfile.
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              id: playwright-cache
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
             - name: Install Playwright browsers
+              if: steps.playwright-cache.outputs.cache-hit != 'true'
               run: pnpm exec playwright install --with-deps chromium
+
+            # On a cache hit the binaries are restored but the OS-level libs are
+            # not — install just those (no browser re-download).
+            - name: Install Playwright system dependencies
+              if: steps.playwright-cache.outputs.cache-hit == 'true'
+              run: pnpm exec playwright install-deps chromium
 
             - name: Run E2E tests
               run: pnpm test:e2e
-
-    # D13 — Phase 3 keeps the schema unchanged. Migration 0005 lands in Phase 5
-    # (D7); update or remove this job there. See SAS-406.
-    phase-3-migration-audit:
-        runs-on: ubuntu-latest
-
-        steps:
-            - uses: actions/checkout@v4
-
-            - name: Assert exactly 3 SQL migrations (0001-0003)
-              run: |
-                  set -euo pipefail
-                  count=$(ls src-tauri/migrations/*.sql | wc -l | tr -d ' ')
-                  if [ "$count" -ne 3 ]; then
-                      echo "Expected 3 .sql migrations in src-tauri/migrations/, got $count" >&2
-                      ls src-tauri/migrations/ >&2
-                      exit 1
-                  fi
-                  for expected in 0001 0002 0003; do
-                      if ! ls src-tauri/migrations/${expected}_*.sql >/dev/null 2>&1; then
-                          echo "Missing expected migration prefix: ${expected}_*.sql" >&2
-                          exit 1
-                      fi
-                  done

@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 use nix::errno::Errno;
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
-use sqlx::sqlite::SqlitePoolOptions;
 use tauri::async_runtime::block_on;
 use tempfile::TempDir;
 
@@ -42,15 +41,7 @@ fn drop_kills_sleep_child_within_5s() {
     fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755))
         .expect("chmod +x sleep wrapper");
 
-    let pool = block_on(async {
-        SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await
-            .expect("connect in-memory sqlite")
-    });
-
-    let manager = SessionManager::new(pool);
+    let manager = SessionManager::new();
     block_on(async {
         let env: HashMap<String, String> = HashMap::new();
         manager

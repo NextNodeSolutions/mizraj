@@ -1,551 +1,1396 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>agent-cockpit — Milestones restantes</title>
-<script>
-(function () {
-  try {
-    var stored = localStorage.getItem('np-theme');
-    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme', theme);
-  } catch (e) {
-    document.documentElement.setAttribute('data-theme', 'light');
-  }
-})();
-</script>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-:root {
-  --np-bg:          oklch(98.4% 0.003 247.86);
-  --np-bg-soft:     oklch(96.8% 0.007 247.84);
-  --np-text:        oklch(20.8% 0.042 265.76);
-  --np-text-muted:  oklch(55.4% 0.046 257.42);
-  --np-border:      oklch(92.9% 0.013 255.51);
-  --np-border-soft: oklch(96.8% 0.007 247.84);
-  --np-accent:      oklch(70.4% 0.14 182.503);
-  --np-accent-bg:   oklch(95.3% 0.051 180.801);
-  --np-accent-hover:oklch(60% 0.118 184.704);
-  --np-highlight:   #F97316;
-  --np-success:     #16A34A;
-  --np-warn:        #D97706;
-  --np-danger:      #DC2626;
-  --np-shadow-soft: 0 2px 6px rgba(0,0,0,.06);
-  --np-shadow-pop:  0 4px 16px rgba(0,0,0,.12);
-  --np-radius:      8px;
-  --np-mono:        "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --np-sans:        "DM Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --np-display:     "Plus Jakarta Sans", "DM Sans", sans-serif;
-}
-[data-theme="dark"] {
-  --np-bg:          oklch(20.8% 0.042 265.76);
-  --np-bg-soft:     oklch(27.9% 0.041 260.03);
-  --np-text:        oklch(98.4% 0.003 247.86);
-  --np-text-muted:  oklch(70.4% 0.04 256.79);
-  --np-border:      oklch(37.2% 0.044 257.29);
-  --np-border-soft: oklch(27.9% 0.041 260.03);
-  --np-accent:      oklch(77.7% 0.152 181.912);
-  --np-accent-bg:   oklch(38.6% 0.063 188.416);
-  --np-accent-hover:oklch(85.5% 0.138 181.071);
-  --np-highlight:   #FB923C;
-  --np-success:     #4ADE80;
-  --np-warn:        #FBBF24;
-  --np-danger:      #F87171;
-  --np-shadow-soft: 0 2px 6px rgba(0,0,0,.40);
-  --np-shadow-pop:  0 4px 16px rgba(0,0,0,.55);
-}
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
-body {
-  background: var(--np-bg);
-  color: var(--np-text);
-  font-family: var(--np-sans);
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
-}
-.wrap { max-width: 1120px; margin: 0 auto; padding: 48px 28px 96px; }
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>agent-cockpit — Milestones restantes</title>
+		<script>
+			;(function () {
+				try {
+					var stored = localStorage.getItem('np-theme')
+					var theme =
+						stored ||
+						(window.matchMedia('(prefers-color-scheme: dark)')
+							.matches
+							? 'dark'
+							: 'light')
+					document.documentElement.setAttribute('data-theme', theme)
+				} catch (e) {
+					document.documentElement.setAttribute('data-theme', 'light')
+				}
+			})()
+		</script>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+			rel="stylesheet"
+		/>
+		<style>
+			:root {
+				--np-bg: oklch(98.4% 0.003 247.86);
+				--np-bg-soft: oklch(96.8% 0.007 247.84);
+				--np-text: oklch(20.8% 0.042 265.76);
+				--np-text-muted: oklch(55.4% 0.046 257.42);
+				--np-border: oklch(92.9% 0.013 255.51);
+				--np-border-soft: oklch(96.8% 0.007 247.84);
+				--np-accent: oklch(70.4% 0.14 182.503);
+				--np-accent-bg: oklch(95.3% 0.051 180.801);
+				--np-accent-hover: oklch(60% 0.118 184.704);
+				--np-highlight: #f97316;
+				--np-success: #16a34a;
+				--np-warn: #d97706;
+				--np-danger: #dc2626;
+				--np-shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.06);
+				--np-shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.12);
+				--np-radius: 8px;
+				--np-mono:
+					'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo,
+					monospace;
+				--np-sans:
+					'DM Sans', -apple-system, BlinkMacSystemFont, system-ui,
+					sans-serif;
+				--np-display: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+			}
+			[data-theme='dark'] {
+				--np-bg: oklch(20.8% 0.042 265.76);
+				--np-bg-soft: oklch(27.9% 0.041 260.03);
+				--np-text: oklch(98.4% 0.003 247.86);
+				--np-text-muted: oklch(70.4% 0.04 256.79);
+				--np-border: oklch(37.2% 0.044 257.29);
+				--np-border-soft: oklch(27.9% 0.041 260.03);
+				--np-accent: oklch(77.7% 0.152 181.912);
+				--np-accent-bg: oklch(38.6% 0.063 188.416);
+				--np-accent-hover: oklch(85.5% 0.138 181.071);
+				--np-highlight: #fb923c;
+				--np-success: #4ade80;
+				--np-warn: #fbbf24;
+				--np-danger: #f87171;
+				--np-shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.4);
+				--np-shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.55);
+			}
+			* {
+				box-sizing: border-box;
+			}
+			html,
+			body {
+				margin: 0;
+				padding: 0;
+			}
+			body {
+				background: var(--np-bg);
+				color: var(--np-text);
+				font-family: var(--np-sans);
+				line-height: 1.55;
+				-webkit-font-smoothing: antialiased;
+			}
+			.wrap {
+				max-width: 1120px;
+				margin: 0 auto;
+				padding: 48px 28px 96px;
+			}
 
-/* Header */
-.eyebrow {
-  font-family: var(--np-display);
-  font-weight: 800;
-  font-size: 12px;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: var(--np-accent-hover);
-  margin: 0 0 10px;
-}
-h1 {
-  font-family: var(--np-display);
-  font-weight: 800;
-  font-size: clamp(28px, 4vw, 40px);
-  line-height: 1.1;
-  margin: 0 0 12px;
-  letter-spacing: -.02em;
-}
-.lede { color: var(--np-text-muted); font-size: 16px; max-width: 760px; margin: 0; }
-.meta-row { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 16px; font-size: 13px; color: var(--np-text-muted); }
-.meta-row code { font-family: var(--np-mono); font-size: 12px; color: var(--np-text); background: var(--np-bg-soft); padding: 2px 6px; border-radius: 5px; border: 1px solid var(--np-border); }
+			/* Header */
+			.eyebrow {
+				font-family: var(--np-display);
+				font-weight: 800;
+				font-size: 12px;
+				letter-spacing: 0.12em;
+				text-transform: uppercase;
+				color: var(--np-accent-hover);
+				margin: 0 0 10px;
+			}
+			h1 {
+				font-family: var(--np-display);
+				font-weight: 800;
+				font-size: clamp(28px, 4vw, 40px);
+				line-height: 1.1;
+				margin: 0 0 12px;
+				letter-spacing: -0.02em;
+			}
+			.lede {
+				color: var(--np-text-muted);
+				font-size: 16px;
+				max-width: 760px;
+				margin: 0;
+			}
+			.meta-row {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px 18px;
+				margin-top: 16px;
+				font-size: 13px;
+				color: var(--np-text-muted);
+			}
+			.meta-row code {
+				font-family: var(--np-mono);
+				font-size: 12px;
+				color: var(--np-text);
+				background: var(--np-bg-soft);
+				padding: 2px 6px;
+				border-radius: 5px;
+				border: 1px solid var(--np-border);
+			}
 
-/* Summary strip */
-.strip {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin: 32px 0;
-}
-.stat {
-  background: var(--np-bg-soft);
-  border: 1px solid var(--np-border);
-  border-radius: var(--np-radius);
-  padding: 16px 18px;
-}
-.stat .n { font-family: var(--np-display); font-weight: 800; font-size: 30px; line-height: 1; letter-spacing: -.02em; }
-.stat .l { font-size: 12.5px; color: var(--np-text-muted); margin-top: 8px; }
-.stat.accent { border-left: 4px solid var(--np-accent); }
-.stat.done .n { color: var(--np-success); }
-.stat.now .n { color: var(--np-accent-hover); }
+			/* Summary strip */
+			.strip {
+				display: grid;
+				grid-template-columns: repeat(4, 1fr);
+				gap: 14px;
+				margin: 32px 0;
+			}
+			.stat {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				padding: 16px 18px;
+			}
+			.stat .n {
+				font-family: var(--np-display);
+				font-weight: 800;
+				font-size: 30px;
+				line-height: 1;
+				letter-spacing: -0.02em;
+			}
+			.stat .l {
+				font-size: 12.5px;
+				color: var(--np-text-muted);
+				margin-top: 8px;
+			}
+			.stat.accent {
+				border-left: 4px solid var(--np-accent);
+			}
+			.stat.done .n {
+				color: var(--np-success);
+			}
+			.stat.now .n {
+				color: var(--np-accent-hover);
+			}
 
-/* DAG */
-.dag-wrap { background: var(--np-bg-soft); border: 1px solid var(--np-border); border-radius: var(--np-radius); padding: 22px 24px; margin-bottom: 14px; overflow-x: auto; }
-.dag-title { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--np-text-muted); font-weight: 600; margin: 0 0 6px; }
-.dag-sub { font-size: 13px; color: var(--np-text-muted); margin: 0 0 16px; }
-svg { display: block; }
-svg text { font-family: var(--np-sans); }
+			/* DAG */
+			.dag-wrap {
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				padding: 22px 24px;
+				margin-bottom: 14px;
+				overflow-x: auto;
+			}
+			.dag-title {
+				font-size: 12px;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--np-text-muted);
+				font-weight: 600;
+				margin: 0 0 6px;
+			}
+			.dag-sub {
+				font-size: 13px;
+				color: var(--np-text-muted);
+				margin: 0 0 16px;
+			}
+			svg {
+				display: block;
+			}
+			svg text {
+				font-family: var(--np-sans);
+			}
 
-/* DAG legend */
-.dag-legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 12.5px; color: var(--np-text-muted); align-items: center; margin-bottom: 36px; }
-.dag-legend .dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; vertical-align: -1px; margin-right: 6px; }
-.dot.d-done { background: var(--np-success); }
-.dot.d-now { background: var(--np-accent); }
-.dot.d-next { background: var(--np-bg); border: 2px solid var(--np-accent); }
+			/* DAG legend */
+			.dag-legend {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 18px;
+				font-size: 12.5px;
+				color: var(--np-text-muted);
+				align-items: center;
+				margin-bottom: 36px;
+			}
+			.dag-legend .dot {
+				display: inline-block;
+				width: 13px;
+				height: 13px;
+				border-radius: 50%;
+				vertical-align: -1px;
+				margin-right: 6px;
+			}
+			.dot.d-done {
+				background: var(--np-success);
+			}
+			.dot.d-now {
+				background: var(--np-accent);
+			}
+			.dot.d-next {
+				background: var(--np-bg);
+				border: 2px solid var(--np-accent);
+			}
 
-/* Waves table */
-.waves { display: grid; grid-template-columns: 110px 1fr; gap: 0; border: 1px solid var(--np-border); border-radius: var(--np-radius); overflow: hidden; margin-bottom: 8px; }
-.waves .wcell { padding: 14px 16px; border-bottom: 1px solid var(--np-border); }
-.waves .wlabel { font-family: var(--np-display); font-weight: 700; font-size: 14px; background: var(--np-bg-soft); display: flex; flex-direction: column; gap: 3px; }
-.waves .wlabel small { font-weight: 400; font-size: 11px; color: var(--np-text-muted); }
-.waves .wbody { font-size: 13.5px; }
-.waves .wrow:last-child .wcell { border-bottom: none; }
-.waves .wbody b { color: var(--np-text); }
-.cp { font-size: 13px; color: var(--np-text-muted); margin: 10px 2px 0; }
-.cp code { font-family: var(--np-mono); font-size: 12px; color: var(--np-accent-hover); }
+			/* Waves table */
+			.waves {
+				display: grid;
+				grid-template-columns: 110px 1fr;
+				gap: 0;
+				border: 1px solid var(--np-border);
+				border-radius: var(--np-radius);
+				overflow: hidden;
+				margin-bottom: 8px;
+			}
+			.waves .wcell {
+				padding: 14px 16px;
+				border-bottom: 1px solid var(--np-border);
+			}
+			.waves .wlabel {
+				font-family: var(--np-display);
+				font-weight: 700;
+				font-size: 14px;
+				background: var(--np-bg-soft);
+				display: flex;
+				flex-direction: column;
+				gap: 3px;
+			}
+			.waves .wlabel small {
+				font-weight: 400;
+				font-size: 11px;
+				color: var(--np-text-muted);
+			}
+			.waves .wbody {
+				font-size: 13.5px;
+			}
+			.waves .wrow:last-child .wcell {
+				border-bottom: none;
+			}
+			.waves .wbody b {
+				color: var(--np-text);
+			}
+			.cp {
+				font-size: 13px;
+				color: var(--np-text-muted);
+				margin: 10px 2px 0;
+			}
+			.cp code {
+				font-family: var(--np-mono);
+				font-size: 12px;
+				color: var(--np-accent-hover);
+			}
 
-/* Section heading */
-.sec-head { font-family: var(--np-display); font-weight: 800; font-size: 18px; margin: 40px 0 18px; letter-spacing: -.01em; display: flex; align-items: center; gap: 10px; }
-.sec-head::before { content: ""; width: 4px; height: 18px; background: var(--np-accent); border-radius: 2px; }
+			/* Section heading */
+			.sec-head {
+				font-family: var(--np-display);
+				font-weight: 800;
+				font-size: 18px;
+				margin: 40px 0 18px;
+				letter-spacing: -0.01em;
+				display: flex;
+				align-items: center;
+				gap: 10px;
+			}
+			.sec-head::before {
+				content: '';
+				width: 4px;
+				height: 18px;
+				background: var(--np-accent);
+				border-radius: 2px;
+			}
 
-/* Milestone card */
-.ms {
-  position: relative;
-  background: var(--np-bg-soft);
-  border: 1px solid var(--np-border);
-  border-radius: 12px;
-  padding: 22px 24px 20px;
-  margin-bottom: 20px;
-}
-.ms.wave2 { border-left: 4px solid var(--np-border); }
-.ms-top { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-.ms-badge {
-  font-family: var(--np-display);
-  font-weight: 800;
-  font-size: 17px;
-  color: #fff;
-  background: var(--np-accent);
-  width: 52px; height: 52px;
-  border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  letter-spacing: -.01em;
-}
-.ms.wave2 .ms-badge { background: var(--np-bg); color: var(--np-accent-hover); border: 2px solid var(--np-accent); }
-.ms-headcol { flex: 1; min-width: 260px; }
-.ms-name { font-family: var(--np-display); font-weight: 700; font-size: 16px; margin: 2px 0 6px; }
-.ms-demo { color: var(--np-text-muted); font-size: 14px; margin: 0; }
-.ms-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.tag {
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 100px;
-  background: var(--np-bg);
-  border: 1px solid var(--np-border);
-  color: var(--np-text-muted);
-}
-.tag.dep { border-style: dashed; }
-.tag.dec { font-family: var(--np-mono); font-size: 11px; }
-.tag.wave { border-color: var(--np-accent); color: var(--np-accent-hover); }
-.tag.now { background: var(--np-accent); color: #fff; border-color: var(--np-accent); }
-.tag.leaf { color: var(--np-text-muted); }
+			/* Milestone card */
+			.ms {
+				position: relative;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-radius: 12px;
+				padding: 22px 24px 20px;
+				margin-bottom: 20px;
+			}
+			.ms.wave2 {
+				border-left: 4px solid var(--np-border);
+			}
+			.ms-top {
+				display: flex;
+				align-items: flex-start;
+				gap: 16px;
+				flex-wrap: wrap;
+			}
+			.ms-badge {
+				font-family: var(--np-display);
+				font-weight: 800;
+				font-size: 17px;
+				color: #fff;
+				background: var(--np-accent);
+				width: 52px;
+				height: 52px;
+				border-radius: 12px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				flex-shrink: 0;
+				letter-spacing: -0.01em;
+			}
+			.ms.wave2 .ms-badge {
+				background: var(--np-bg);
+				color: var(--np-accent-hover);
+				border: 2px solid var(--np-accent);
+			}
+			.ms-headcol {
+				flex: 1;
+				min-width: 260px;
+			}
+			.ms-name {
+				font-family: var(--np-display);
+				font-weight: 700;
+				font-size: 16px;
+				margin: 2px 0 6px;
+			}
+			.ms-demo {
+				color: var(--np-text-muted);
+				font-size: 14px;
+				margin: 0;
+			}
+			.ms-tags {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 6px;
+				margin-top: 12px;
+			}
+			.tag {
+				font-size: 11.5px;
+				font-weight: 600;
+				padding: 3px 9px;
+				border-radius: 100px;
+				background: var(--np-bg);
+				border: 1px solid var(--np-border);
+				color: var(--np-text-muted);
+			}
+			.tag.dep {
+				border-style: dashed;
+			}
+			.tag.dec {
+				font-family: var(--np-mono);
+				font-size: 11px;
+			}
+			.tag.wave {
+				border-color: var(--np-accent);
+				color: var(--np-accent-hover);
+			}
+			.tag.now {
+				background: var(--np-accent);
+				color: #fff;
+				border-color: var(--np-accent);
+			}
+			.tag.leaf {
+				color: var(--np-text-muted);
+			}
 
-/* Track block inside milestone */
-.track {
-  margin-top: 18px;
-  border-top: 1px solid var(--np-border);
-  padding-top: 16px;
-}
-.track-head {
-  display: flex; align-items: center; gap: 10px;
-  font-size: 13px; font-weight: 600; margin-bottom: 12px;
-}
-.track-head .pr {
-  font-size: 11px; font-weight: 600;
-  color: var(--np-accent-hover);
-  background: var(--np-bg);
-  border: 1px solid var(--np-accent);
-  padding: 2px 8px; border-radius: 100px;
-}
-.track-head .muted { color: var(--np-text-muted); font-weight: 400; }
-.track-head code { font-family: var(--np-mono); font-size: 11.5px; color: var(--np-accent-hover); background: var(--np-bg); padding: 1px 6px; border-radius: 5px; border: 1px solid var(--np-border); }
+			/* Track block inside milestone */
+			.track {
+				margin-top: 18px;
+				border-top: 1px solid var(--np-border);
+				padding-top: 16px;
+			}
+			.track-head {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				font-size: 13px;
+				font-weight: 600;
+				margin-bottom: 12px;
+			}
+			.track-head .pr {
+				font-size: 11px;
+				font-weight: 600;
+				color: var(--np-accent-hover);
+				background: var(--np-bg);
+				border: 1px solid var(--np-accent);
+				padding: 2px 8px;
+				border-radius: 100px;
+			}
+			.track-head .muted {
+				color: var(--np-text-muted);
+				font-weight: 400;
+			}
+			.track-head code {
+				font-family: var(--np-mono);
+				font-size: 11.5px;
+				color: var(--np-accent-hover);
+				background: var(--np-bg);
+				padding: 1px 6px;
+				border-radius: 5px;
+				border: 1px solid var(--np-border);
+			}
 
-/* Task rows */
-.task {
-  display: grid;
-  grid-template-columns: 30px 42px 1fr;
-  gap: 12px;
-  align-items: start;
-  padding: 11px 12px;
-  border-radius: 8px;
-  background: var(--np-bg);
-  border: 1px solid var(--np-border);
-  margin-bottom: 8px;
-}
-.task .step { font-family: var(--np-mono); font-size: 12px; color: var(--np-text-muted); padding-top: 2px; }
-.size {
-  font-family: var(--np-display);
-  font-weight: 700;
-  font-size: 11px;
-  text-align: center;
-  padding: 3px 0;
-  border-radius: 6px;
-  letter-spacing: .02em;
-}
-.size.i3 { background: var(--np-accent-bg); color: var(--np-accent-hover); }
-.size.i4 { background: color-mix(in oklch, var(--np-highlight) 18%, transparent); color: var(--np-highlight); }
-.task .t-title { font-weight: 600; font-size: 14px; }
-.task .t-when { color: var(--np-text-muted); font-size: 12.5px; margin-top: 3px; }
-.task .t-when code { font-family: var(--np-mono); font-size: 11.5px; background: var(--np-bg-soft); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--np-border); }
+			/* Task rows */
+			.task {
+				display: grid;
+				grid-template-columns: 30px 42px 1fr;
+				gap: 12px;
+				align-items: start;
+				padding: 11px 12px;
+				border-radius: 8px;
+				background: var(--np-bg);
+				border: 1px solid var(--np-border);
+				margin-bottom: 8px;
+			}
+			.task .step {
+				font-family: var(--np-mono);
+				font-size: 12px;
+				color: var(--np-text-muted);
+				padding-top: 2px;
+			}
+			.size {
+				font-family: var(--np-display);
+				font-weight: 700;
+				font-size: 11px;
+				text-align: center;
+				padding: 3px 0;
+				border-radius: 6px;
+				letter-spacing: 0.02em;
+			}
+			.size.i3 {
+				background: var(--np-accent-bg);
+				color: var(--np-accent-hover);
+			}
+			.size.i4 {
+				background: color-mix(
+					in oklch,
+					var(--np-highlight) 18%,
+					transparent
+				);
+				color: var(--np-highlight);
+			}
+			.task .t-title {
+				font-weight: 600;
+				font-size: 14px;
+			}
+			.task .t-when {
+				color: var(--np-text-muted);
+				font-size: 12.5px;
+				margin-top: 3px;
+			}
+			.task .t-when code {
+				font-family: var(--np-mono);
+				font-size: 11.5px;
+				background: var(--np-bg-soft);
+				padding: 1px 5px;
+				border-radius: 4px;
+				border: 1px solid var(--np-border);
+			}
 
-/* Legend / footer */
-.legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 8px 0 0; font-size: 12.5px; color: var(--np-text-muted); align-items: center; }
-.legend .size { display: inline-block; width: 34px; }
-.howto {
-  margin-top: 44px;
-  background: var(--np-bg-soft);
-  border: 1px solid var(--np-border);
-  border-left: 4px solid var(--np-accent);
-  border-radius: var(--np-radius);
-  padding: 18px 22px;
-}
-.howto h3 { font-family: var(--np-display); font-weight: 700; font-size: 14px; margin: 0 0 10px; }
-.howto ol { margin: 0; padding-left: 20px; color: var(--np-text-muted); font-size: 13.5px; }
-.howto li { margin-bottom: 5px; }
-.howto code { font-family: var(--np-mono); font-size: 12px; color: var(--np-text); background: var(--np-bg); padding: 1.5px 6px; border-radius: 5px; border: 1px solid var(--np-border); }
+			/* Legend / footer */
+			.legend {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 16px;
+				margin: 8px 0 0;
+				font-size: 12.5px;
+				color: var(--np-text-muted);
+				align-items: center;
+			}
+			.legend .size {
+				display: inline-block;
+				width: 34px;
+			}
+			.howto {
+				margin-top: 44px;
+				background: var(--np-bg-soft);
+				border: 1px solid var(--np-border);
+				border-left: 4px solid var(--np-accent);
+				border-radius: var(--np-radius);
+				padding: 18px 22px;
+			}
+			.howto h3 {
+				font-family: var(--np-display);
+				font-weight: 700;
+				font-size: 14px;
+				margin: 0 0 10px;
+			}
+			.howto ol {
+				margin: 0;
+				padding-left: 20px;
+				color: var(--np-text-muted);
+				font-size: 13.5px;
+			}
+			.howto li {
+				margin-bottom: 5px;
+			}
+			.howto code {
+				font-family: var(--np-mono);
+				font-size: 12px;
+				color: var(--np-text);
+				background: var(--np-bg);
+				padding: 1.5px 6px;
+				border-radius: 5px;
+				border: 1px solid var(--np-border);
+			}
 
-/* Theme toggle + export */
-.fab-row { position: fixed; top: 18px; right: 18px; display: flex; gap: 8px; z-index: 50; }
-.fab {
-  font-family: var(--np-sans);
-  font-size: 13px; font-weight: 600;
-  background: var(--np-bg-soft);
-  color: var(--np-text);
-  border: 1px solid var(--np-border);
-  border-radius: 100px;
-  padding: 8px 14px;
-  cursor: pointer;
-  box-shadow: var(--np-shadow-soft);
-}
-.fab:hover { border-color: var(--np-accent); }
-.fab.export { background: var(--np-highlight); color: #fff; border-color: var(--np-highlight); }
+			/* Theme toggle + export */
+			.fab-row {
+				position: fixed;
+				top: 18px;
+				right: 18px;
+				display: flex;
+				gap: 8px;
+				z-index: 50;
+			}
+			.fab {
+				font-family: var(--np-sans);
+				font-size: 13px;
+				font-weight: 600;
+				background: var(--np-bg-soft);
+				color: var(--np-text);
+				border: 1px solid var(--np-border);
+				border-radius: 100px;
+				padding: 8px 14px;
+				cursor: pointer;
+				box-shadow: var(--np-shadow-soft);
+			}
+			.fab:hover {
+				border-color: var(--np-accent);
+			}
+			.fab.export {
+				background: var(--np-highlight);
+				color: #fff;
+				border-color: var(--np-highlight);
+			}
 
-footer { margin-top: 40px; font-size: 12px; color: var(--np-text-muted); border-top: 1px solid var(--np-border); padding-top: 16px; }
+			footer {
+				margin-top: 40px;
+				font-size: 12px;
+				color: var(--np-text-muted);
+				border-top: 1px solid var(--np-border);
+				padding-top: 16px;
+			}
 
-@media (max-width: 640px) {
-  .strip { grid-template-columns: repeat(2, 1fr); }
-  .task { grid-template-columns: 26px 38px 1fr; }
-  .waves { grid-template-columns: 84px 1fr; }
-}
-</style>
-</head>
-<body>
-<div class="fab-row">
-  <button class="fab" id="themeBtn" type="button" aria-label="Basculer le thème">◐ Thème</button>
-  <button class="fab export" id="exportBtn" type="button">Export ↗</button>
-</div>
+			@media (max-width: 640px) {
+				.strip {
+					grid-template-columns: repeat(2, 1fr);
+				}
+				.task {
+					grid-template-columns: 26px 38px 1fr;
+				}
+				.waves {
+					grid-template-columns: 84px 1fr;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="fab-row">
+			<button
+				class="fab"
+				id="themeBtn"
+				type="button"
+				aria-label="Basculer le thème"
+			>
+				◐ Thème
+			</button>
+			<button class="fab export" id="exportBtn" type="button">
+				Export ↗
+			</button>
+		</div>
 
-<div class="wrap">
-  <p class="eyebrow">agent-cockpit · roadmap V8</p>
-  <h1>Milestones restantes</h1>
-  <p class="lede">M1 (release <strong>v0.1.0</strong>) et M3 (<strong>#7</strong>, sidebar multi-session) sont livrés. Le reste <strong>n'est pas une file</strong>&nbsp;: après recheck des arêtes <code>needs</code>, <strong>M2 et M4 ne dépendent que de M1</strong> et sont <strong>démarrables en parallèle dès maintenant</strong> (2 PR concurrentes). M5 et M6 suivent en vague 2. Chaque milestone = une track <code>A</code> = une PR.</p>
-  <div class="meta-row">
-    <span>Effort global&nbsp;: <code>V8</code></span>
-    <span>Source&nbsp;: <code>docs/plans/agent-cockpit/plan.json</code></span>
-    <span>Snapshot&nbsp;: 2026-05-31</span>
-  </div>
+		<div class="wrap">
+			<p class="eyebrow">agent-cockpit · roadmap V8</p>
+			<h1>Milestones restantes</h1>
+			<p class="lede">
+				M1 (release <strong>v0.1.0</strong>) et M3 (<strong>#7</strong>,
+				sidebar multi-session) sont livrés. Le reste
+				<strong>n'est pas une file</strong>&nbsp;: après recheck des
+				arêtes <code>needs</code>,
+				<strong>M2 et M4 ne dépendent que de M1</strong> et sont
+				<strong>démarrables en parallèle dès maintenant</strong> (2 PR
+				concurrentes). M5 et M6 suivent en vague 2. Chaque milestone =
+				une track <code>A</code> = une PR.
+			</p>
+			<div class="meta-row">
+				<span>Effort global&nbsp;: <code>V8</code></span>
+				<span
+					>Source&nbsp;:
+					<code>docs/plans/agent-cockpit/plan.json</code></span
+				>
+				<span>Snapshot&nbsp;: 2026-05-31</span>
+			</div>
 
-  <!-- Summary strip -->
-  <div class="strip">
-    <div class="stat done">
-      <div class="n">2/6</div>
-      <div class="l">Milestones livrés — M1 (v0.1.0) · M3 (#7)</div>
-    </div>
-    <div class="stat accent">
-      <div class="n">4</div>
-      <div class="l">Milestones restants — 4 PR à venir</div>
-    </div>
-    <div class="stat accent">
-      <div class="n">13</div>
-      <div class="l">Tâches restantes (9 × I4 · 4 × I3)</div>
-    </div>
-    <div class="stat now">
-      <div class="n">2</div>
-      <div class="l">Démarrables en parallèle maintenant (M2 · M4)</div>
-    </div>
-  </div>
+			<!-- Summary strip -->
+			<div class="strip">
+				<div class="stat done">
+					<div class="n">2/6</div>
+					<div class="l">
+						Milestones livrés — M1 (v0.1.0) · M3 (#7)
+					</div>
+				</div>
+				<div class="stat accent">
+					<div class="n">4</div>
+					<div class="l">Milestones restants — 4 PR à venir</div>
+				</div>
+				<div class="stat accent">
+					<div class="n">13</div>
+					<div class="l">Tâches restantes (9 × I4 · 4 × I3)</div>
+				</div>
+				<div class="stat now">
+					<div class="n">2</div>
+					<div class="l">
+						Démarrables en parallèle maintenant (M2 · M4)
+					</div>
+				</div>
+			</div>
 
-  <!-- DAG -->
-  <div class="dag-wrap">
-    <p class="dag-title">DAG de dépendances — corrigé</p>
-    <p class="dag-sub">Arêtes dérivées du code réellement consommé, pas de l'ordre de valeur. M1 et M3 sont livrés&nbsp;; reste un chemin critique de <strong>2 milestones</strong> depuis maintenant.</p>
-    <svg viewBox="0 0 980 360" width="100%" height="360" role="img" aria-label="DAG : M1 et M3 livrés ; M2 et M4 démarrables en parallèle ; M2 débloque M5 ; M2 et M4 débloquent M6">
-      <defs>
-        <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
-          <path d="M0,0 L6,3 L0,6 Z" fill="var(--np-text-muted)"></path>
-        </marker>
-      </defs>
+			<!-- DAG -->
+			<div class="dag-wrap">
+				<p class="dag-title">DAG de dépendances — corrigé</p>
+				<p class="dag-sub">
+					Arêtes dérivées du code réellement consommé, pas de l'ordre
+					de valeur. M1 et M3 sont livrés&nbsp;; reste un chemin
+					critique de <strong>2 milestones</strong> depuis maintenant.
+				</p>
+				<svg
+					viewBox="0 0 980 360"
+					width="100%"
+					height="360"
+					role="img"
+					aria-label="DAG : M1 et M3 livrés ; M2 et M4 démarrables en parallèle ; M2 débloque M5 ; M2 et M4 débloquent M6"
+				>
+					<defs>
+						<marker
+							id="arrow"
+							markerWidth="9"
+							markerHeight="9"
+							refX="7"
+							refY="3"
+							orient="auto"
+						>
+							<path
+								d="M0,0 L6,3 L0,6 Z"
+								fill="var(--np-text-muted)"
+							></path>
+						</marker>
+					</defs>
 
-      <!-- wave column labels -->
-      <text x="360" y="22" text-anchor="middle" fill="var(--np-accent-hover)" font-size="12" font-weight="700" letter-spacing="1">VAGUE 1 — PARALLÈLE</text>
-      <text x="780" y="22" text-anchor="middle" fill="var(--np-text-muted)" font-size="12" font-weight="700" letter-spacing="1">VAGUE 2</text>
+					<!-- wave column labels -->
+					<text
+						x="360"
+						y="22"
+						text-anchor="middle"
+						fill="var(--np-accent-hover)"
+						font-size="12"
+						font-weight="700"
+						letter-spacing="1"
+					>
+						VAGUE 1 — PARALLÈLE
+					</text>
+					<text
+						x="780"
+						y="22"
+						text-anchor="middle"
+						fill="var(--np-text-muted)"
+						font-size="12"
+						font-weight="700"
+						letter-spacing="1"
+					>
+						VAGUE 2
+					</text>
 
-      <!-- edges (drawn first, under nodes) -->
-      <!-- M1 -> M2 / M3 / M4 -->
-      <path d="M126,180 C220,180 240,80 314,80" fill="none" stroke="var(--np-text-muted)" stroke-width="2" marker-end="url(#arrow)"></path>
-      <path d="M126,180 C220,180 240,180 314,180" fill="none" stroke="var(--np-text-muted)" stroke-width="2" marker-end="url(#arrow)"></path>
-      <path d="M126,180 C220,180 240,290 314,290" fill="none" stroke="var(--np-text-muted)" stroke-width="2" marker-end="url(#arrow)"></path>
-      <!-- M2 -> M5 -->
-      <path d="M406,80 C540,80 600,120 734,120" fill="none" stroke="var(--np-text-muted)" stroke-width="2" marker-end="url(#arrow)"></path>
-      <!-- M2 -> M6 -->
-      <path d="M406,80 C560,80 600,260 734,260" fill="none" stroke="var(--np-accent)" stroke-width="2" marker-end="url(#arrow)"></path>
-      <!-- M4 -> M6 -->
-      <path d="M406,290 C560,290 600,262 734,260" fill="none" stroke="var(--np-accent)" stroke-width="2" marker-end="url(#arrow)"></path>
+					<!-- edges (drawn first, under nodes) -->
+					<!-- M1 -> M2 / M3 / M4 -->
+					<path
+						d="M126,180 C220,180 240,80 314,80"
+						fill="none"
+						stroke="var(--np-text-muted)"
+						stroke-width="2"
+						marker-end="url(#arrow)"
+					></path>
+					<path
+						d="M126,180 C220,180 240,180 314,180"
+						fill="none"
+						stroke="var(--np-text-muted)"
+						stroke-width="2"
+						marker-end="url(#arrow)"
+					></path>
+					<path
+						d="M126,180 C220,180 240,290 314,290"
+						fill="none"
+						stroke="var(--np-text-muted)"
+						stroke-width="2"
+						marker-end="url(#arrow)"
+					></path>
+					<!-- M2 -> M5 -->
+					<path
+						d="M406,80 C540,80 600,120 734,120"
+						fill="none"
+						stroke="var(--np-text-muted)"
+						stroke-width="2"
+						marker-end="url(#arrow)"
+					></path>
+					<!-- M2 -> M6 -->
+					<path
+						d="M406,80 C560,80 600,260 734,260"
+						fill="none"
+						stroke="var(--np-accent)"
+						stroke-width="2"
+						marker-end="url(#arrow)"
+					></path>
+					<!-- M4 -> M6 -->
+					<path
+						d="M406,290 C560,290 600,262 734,260"
+						fill="none"
+						stroke="var(--np-accent)"
+						stroke-width="2"
+						marker-end="url(#arrow)"
+					></path>
 
-      <!-- M1 (done) -->
-      <g>
-        <circle cx="96" cy="180" r="30" fill="var(--np-success)"></circle>
-        <text x="96" y="186" text-anchor="middle" fill="#fff" font-weight="800" font-size="18">M1</text>
-        <text x="96" y="230" text-anchor="middle" fill="var(--np-text-muted)" font-size="11">livré ✓</text>
-      </g>
+					<!-- M1 (done) -->
+					<g>
+						<circle
+							cx="96"
+							cy="180"
+							r="30"
+							fill="var(--np-success)"
+						></circle>
+						<text
+							x="96"
+							y="186"
+							text-anchor="middle"
+							fill="#fff"
+							font-weight="800"
+							font-size="18"
+						>
+							M1
+						</text>
+						<text
+							x="96"
+							y="230"
+							text-anchor="middle"
+							fill="var(--np-text-muted)"
+							font-size="11"
+						>
+							livré ✓
+						</text>
+					</g>
 
-      <!-- Wave 1 : M2, M4 (filled = ready now) ; M3 done (green) -->
-      <g>
-        <circle cx="360" cy="80" r="30" fill="var(--np-accent)"></circle>
-        <text x="360" y="86" text-anchor="middle" fill="#fff" font-weight="800" font-size="18">M2</text>
-        <text x="360" y="130" text-anchor="middle" fill="var(--np-text-muted)" font-size="11">terminal natif</text>
-      </g>
-      <g>
-        <circle cx="360" cy="180" r="30" fill="var(--np-success)"></circle>
-        <text x="360" y="186" text-anchor="middle" fill="#fff" font-weight="800" font-size="18">M3</text>
-        <text x="360" y="230" text-anchor="middle" fill="var(--np-text-muted)" font-size="11">sidebar · livré ✓</text>
-      </g>
-      <g>
-        <circle cx="360" cy="290" r="30" fill="var(--np-accent)"></circle>
-        <text x="360" y="296" text-anchor="middle" fill="#fff" font-weight="800" font-size="18">M4</text>
-        <text x="360" y="340" text-anchor="middle" fill="var(--np-text-muted)" font-size="11">tasks SQLite</text>
-      </g>
+					<!-- Wave 1 : M2, M4 (filled = ready now) ; M3 done (green) -->
+					<g>
+						<circle
+							cx="360"
+							cy="80"
+							r="30"
+							fill="var(--np-accent)"
+						></circle>
+						<text
+							x="360"
+							y="86"
+							text-anchor="middle"
+							fill="#fff"
+							font-weight="800"
+							font-size="18"
+						>
+							M2
+						</text>
+						<text
+							x="360"
+							y="130"
+							text-anchor="middle"
+							fill="var(--np-text-muted)"
+							font-size="11"
+						>
+							terminal natif
+						</text>
+					</g>
+					<g>
+						<circle
+							cx="360"
+							cy="180"
+							r="30"
+							fill="var(--np-success)"
+						></circle>
+						<text
+							x="360"
+							y="186"
+							text-anchor="middle"
+							fill="#fff"
+							font-weight="800"
+							font-size="18"
+						>
+							M3
+						</text>
+						<text
+							x="360"
+							y="230"
+							text-anchor="middle"
+							fill="var(--np-text-muted)"
+							font-size="11"
+						>
+							sidebar · livré ✓
+						</text>
+					</g>
+					<g>
+						<circle
+							cx="360"
+							cy="290"
+							r="30"
+							fill="var(--np-accent)"
+						></circle>
+						<text
+							x="360"
+							y="296"
+							text-anchor="middle"
+							fill="#fff"
+							font-weight="800"
+							font-size="18"
+						>
+							M4
+						</text>
+						<text
+							x="360"
+							y="340"
+							text-anchor="middle"
+							fill="var(--np-text-muted)"
+							font-size="11"
+						>
+							tasks SQLite
+						</text>
+					</g>
 
-      <!-- Wave 2 : M5, M6 (outline = blocked until wave 1) -->
-      <g>
-        <circle cx="780" cy="120" r="30" fill="var(--np-bg)" stroke="var(--np-accent)" stroke-width="2"></circle>
-        <text x="780" y="126" text-anchor="middle" fill="var(--np-accent-hover)" font-weight="800" font-size="18">M5</text>
-        <text x="780" y="170" text-anchor="middle" fill="var(--np-text-muted)" font-size="11">scrollback · feuille</text>
-      </g>
-      <g>
-        <circle cx="780" cy="260" r="30" fill="var(--np-bg)" stroke="var(--np-accent)" stroke-width="2"></circle>
-        <text x="780" y="266" text-anchor="middle" fill="var(--np-accent-hover)" font-weight="800" font-size="18">M6</text>
-        <text x="780" y="310" text-anchor="middle" fill="var(--np-text-muted)" font-size="11">cockpit grid · capstone</text>
-      </g>
-    </svg>
-  </div>
+					<!-- Wave 2 : M5, M6 (outline = blocked until wave 1) -->
+					<g>
+						<circle
+							cx="780"
+							cy="120"
+							r="30"
+							fill="var(--np-bg)"
+							stroke="var(--np-accent)"
+							stroke-width="2"
+						></circle>
+						<text
+							x="780"
+							y="126"
+							text-anchor="middle"
+							fill="var(--np-accent-hover)"
+							font-weight="800"
+							font-size="18"
+						>
+							M5
+						</text>
+						<text
+							x="780"
+							y="170"
+							text-anchor="middle"
+							fill="var(--np-text-muted)"
+							font-size="11"
+						>
+							scrollback · feuille
+						</text>
+					</g>
+					<g>
+						<circle
+							cx="780"
+							cy="260"
+							r="30"
+							fill="var(--np-bg)"
+							stroke="var(--np-accent)"
+							stroke-width="2"
+						></circle>
+						<text
+							x="780"
+							y="266"
+							text-anchor="middle"
+							fill="var(--np-accent-hover)"
+							font-weight="800"
+							font-size="18"
+						>
+							M6
+						</text>
+						<text
+							x="780"
+							y="310"
+							text-anchor="middle"
+							fill="var(--np-text-muted)"
+							font-size="11"
+						>
+							cockpit grid · capstone
+						</text>
+					</g>
+				</svg>
+			</div>
 
-  <div class="dag-legend">
-    <span><span class="dot d-done"></span>livré (M1 · M3)</span>
-    <span><span class="dot d-now"></span>démarrable maintenant (vague 1)</span>
-    <span><span class="dot d-next"></span>bloqué jusqu'à la vague 1 (vague 2)</span>
-  </div>
+			<div class="dag-legend">
+				<span><span class="dot d-done"></span>livré (M1 · M3)</span>
+				<span
+					><span class="dot d-now"></span>démarrable maintenant (vague
+					1)</span
+				>
+				<span
+					><span class="dot d-next"></span>bloqué jusqu'à la vague 1
+					(vague 2)</span
+				>
+			</div>
 
-  <!-- Waves -->
-  <h2 class="sec-head">Vagues de parallélisme</h2>
-  <div class="waves">
-    <div class="wrow" style="display:contents">
-      <div class="wcell wlabel">Vague 1<small>dès M1 (livré)</small></div>
-      <div class="wcell wbody"><b>M2 ∥ M4</b> — 2 PR concurrentes, lançables tout de suite (M3 déjà livré en <b>#7</b>). M2 et M4 sont les deux branches du chemin critique vers M6.</div>
-    </div>
-    <div class="wrow" style="display:contents">
-      <div class="wcell wlabel">Vague 2<small>après vague 1</small></div>
-      <div class="wcell wbody"><b>M5</b> dès que <b>M2</b> est mergé · <b>M6</b> dès que <b>M2 + M4</b> sont mergés. M5 (scrollback) est une feuille&nbsp;; M6 est la convergence finale (grid).</div>
-    </div>
-  </div>
-  <p class="cp">Chemin critique&nbsp;: <code>M1 → M2 → M6</code> (ou <code>M1 → M4 → M6</code>) — 3 milestones de profondeur. Heads-up merge&nbsp;: M2 et M4 éditent tous deux <code>generate_handler!</code> de <code>lib.rs</code> → rebase entre les 2 PR, pas une dépendance.</p>
+			<!-- Waves -->
+			<h2 class="sec-head">Vagues de parallélisme</h2>
+			<div class="waves">
+				<div class="wrow" style="display: contents">
+					<div class="wcell wlabel">
+						Vague 1<small>dès M1 (livré)</small>
+					</div>
+					<div class="wcell wbody">
+						<b>M2 ∥ M4</b> — 2 PR concurrentes, lançables tout de
+						suite (M3 déjà livré en <b>#7</b>). M2 et M4 sont les
+						deux branches du chemin critique vers M6.
+					</div>
+				</div>
+				<div class="wrow" style="display: contents">
+					<div class="wcell wlabel">
+						Vague 2<small>après vague 1</small>
+					</div>
+					<div class="wcell wbody">
+						<b>M5</b> dès que <b>M2</b> est mergé · <b>M6</b> dès
+						que <b>M2 + M4</b> sont mergés. M5 (scrollback) est une
+						feuille&nbsp;; M6 est la convergence finale (grid).
+					</div>
+				</div>
+			</div>
+			<p class="cp">
+				Chemin critique&nbsp;: <code>M1 → M2 → M6</code> (ou
+				<code>M1 → M4 → M6</code>) — 3 milestones de profondeur.
+				Heads-up merge&nbsp;: M2 et M4 éditent tous deux
+				<code>generate_handler!</code> de <code>lib.rs</code> → rebase
+				entre les 2 PR, pas une dépendance.
+			</p>
 
-  <div class="legend">
-    <span>Taille de tâche&nbsp;:</span>
-    <span><span class="size i3">I3</span> petite, faible risque</span>
-    <span><span class="size i4">I4</span> standard, périmètre non-trivial</span>
-  </div>
+			<div class="legend">
+				<span>Taille de tâche&nbsp;:</span>
+				<span
+					><span class="size i3">I3</span> petite, faible risque</span
+				>
+				<span
+					><span class="size i4">I4</span> standard, périmètre
+					non-trivial</span
+				>
+			</div>
 
-  <h2 class="sec-head">4 milestones · 13 tâches</h2>
+			<h2 class="sec-head">4 milestones · 13 tâches</h2>
 
-  <!-- M2 -->
-  <section class="ms" id="m2">
-    <div class="ms-top">
-      <div class="ms-badge">M2</div>
-      <div class="ms-headcol">
-        <div class="ms-name">Terminal natif (libghostty)</div>
-        <p class="ms-demo">claude tourne dans une fenêtre&nbsp;: l'output s'affiche sur un canvas natif (libghostty), on tape au clavier et la commande s'exécute&nbsp;; ghostty-web est supprimé.</p>
-        <div class="ms-tags">
-          <span class="tag now">▶ démarrable maintenant</span>
-          <span class="tag wave">vague 1</span>
-          <span class="tag dep">↳ needs M1</span>
-          <span class="tag dec">D4</span><span class="tag dec">D5</span>
-        </div>
-      </div>
-    </div>
-    <div class="track">
-      <div class="track-head"><span>Track A</span><span class="pr">1 PR</span><span class="muted"><code>feat/output-canvas</code> · 3 tâches · 3×I4</span></div>
-      <div class="task"><span class="step">01</span><span class="size i4">I4</span><div><div class="t-title">Émettre des CellFrame depuis les bytes PTY</div><div class="t-when">Une session spawnée parse ses bytes PTY en Cells et émet un CellFrame par snapshot via IPC.</div></div></div>
-      <div class="task"><span class="step">02</span><span class="size i4">I4</span><div><div class="t-title">Dessiner l'output sur un canvas natif</div><div class="t-when">AgentRun rend l'output sur un &lt;canvas&gt; à partir des CellFrame&nbsp;; ghostty-web n'existe plus.</div></div></div>
-      <div class="task"><span class="step">03</span><span class="size i4">I4</span><div><div class="t-title">Taper au clavier dans le terminal</div><div class="t-when">Taper <code>ls↵</code> dans le pane exécute la commande et l'output revient.</div></div></div>
-    </div>
-  </section>
+			<!-- M2 -->
+			<section class="ms" id="m2">
+				<div class="ms-top">
+					<div class="ms-badge">M2</div>
+					<div class="ms-headcol">
+						<div class="ms-name">Terminal natif (libghostty)</div>
+						<p class="ms-demo">
+							claude tourne dans une fenêtre&nbsp;: l'output
+							s'affiche sur un canvas natif (libghostty), on tape
+							au clavier et la commande s'exécute&nbsp;;
+							ghostty-web est supprimé.
+						</p>
+						<div class="ms-tags">
+							<span class="tag now">▶ démarrable maintenant</span>
+							<span class="tag wave">vague 1</span>
+							<span class="tag dep">↳ needs M1</span>
+							<span class="tag dec">D4</span
+							><span class="tag dec">D5</span>
+						</div>
+					</div>
+				</div>
+				<div class="track">
+					<div class="track-head">
+						<span>Track A</span><span class="pr">1 PR</span
+						><span class="muted"
+							><code>feat/output-canvas</code> · 3 tâches ·
+							3×I4</span
+						>
+					</div>
+					<div class="task">
+						<span class="step">01</span
+						><span class="size i4">I4</span>
+						<div>
+							<div class="t-title">
+								Émettre des CellFrame depuis les bytes PTY
+							</div>
+							<div class="t-when">
+								Une session spawnée parse ses bytes PTY en Cells
+								et émet un CellFrame par snapshot via IPC.
+							</div>
+						</div>
+					</div>
+					<div class="task">
+						<span class="step">02</span
+						><span class="size i4">I4</span>
+						<div>
+							<div class="t-title">
+								Dessiner l'output sur un canvas natif
+							</div>
+							<div class="t-when">
+								AgentRun rend l'output sur un &lt;canvas&gt; à
+								partir des CellFrame&nbsp;; ghostty-web n'existe
+								plus.
+							</div>
+						</div>
+					</div>
+					<div class="task">
+						<span class="step">03</span
+						><span class="size i4">I4</span>
+						<div>
+							<div class="t-title">
+								Taper au clavier dans le terminal
+							</div>
+							<div class="t-when">
+								Taper <code>ls↵</code> dans le pane exécute la
+								commande et l'output revient.
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
 
-  <!-- M4 -->
-  <section class="ms" id="m4">
-    <div class="ms-top">
-      <div class="ms-badge">M4</div>
-      <div class="ms-headcol">
-        <div class="ms-name">Tasks en SQLite (zéro Linear)</div>
-        <p class="ms-demo">On crée, liste, change le statut et assigne des tâches en SQLite (zéro Linear)&nbsp;; la CI échoue si un import Linear apparaît.</p>
-        <div class="ms-tags">
-          <span class="tag now">▶ démarrable maintenant</span>
-          <span class="tag wave">vague 1</span>
-          <span class="tag dep">↳ needs M1</span>
-          <span class="tag dec">D10</span>
-        </div>
-      </div>
-    </div>
-    <div class="track">
-      <div class="track-head"><span>Track A</span><span class="pr">1 PR</span><span class="muted"><code>feat/task-crud</code> · 5 tâches · 1×I4 · 4×I3</span></div>
-      <div class="task"><span class="step">01</span><span class="size i3">I3</span><div><div class="t-title">Lister les tâches du repo actif</div><div class="t-when">TasksView affiche les tâches du repo actif via une commande tasks_list.</div></div></div>
-      <div class="task"><span class="step">02</span><span class="size i3">I3</span><div><div class="t-title">Créer une tâche en inline</div><div class="t-when">Un form inline crée une tâche qui apparaît dans la liste sans reload.</div></div></div>
-      <div class="task"><span class="step">03</span><span class="size i3">I3</span><div><div class="t-title">Changer le statut d'une tâche</div><div class="t-when">Modifier le statut d'une tâche persiste en SQLite et se reflète dans la liste.</div></div></div>
-      <div class="task"><span class="step">04</span><span class="size i4">I4</span><div><div class="t-title">Assigner une tâche à une session</div><div class="t-when">Assigner une tâche à une session vivante persiste et survit au reload. Sessions dérivées de <code>sessionsAtom</code>.</div></div></div>
-      <div class="task"><span class="step">05</span><span class="size i3">I3</span><div><div class="t-title">Bloquer les imports Linear en CI</div><div class="t-when">La CI échoue si un import Linear apparaît dans src/ ou src-tauri/src/.</div></div></div>
-    </div>
-  </section>
+			<!-- M4 -->
+			<section class="ms" id="m4">
+				<div class="ms-top">
+					<div class="ms-badge">M4</div>
+					<div class="ms-headcol">
+						<div class="ms-name">Tasks en SQLite (zéro Linear)</div>
+						<p class="ms-demo">
+							On crée, liste, change le statut et assigne des
+							tâches en SQLite (zéro Linear)&nbsp;; la CI échoue
+							si un import Linear apparaît.
+						</p>
+						<div class="ms-tags">
+							<span class="tag now">▶ démarrable maintenant</span>
+							<span class="tag wave">vague 1</span>
+							<span class="tag dep">↳ needs M1</span>
+							<span class="tag dec">D10</span>
+						</div>
+					</div>
+				</div>
+				<div class="track">
+					<div class="track-head">
+						<span>Track A</span><span class="pr">1 PR</span
+						><span class="muted"
+							><code>feat/task-crud</code> · 5 tâches · 1×I4 ·
+							4×I3</span
+						>
+					</div>
+					<div class="task">
+						<span class="step">01</span
+						><span class="size i3">I3</span>
+						<div>
+							<div class="t-title">
+								Lister les tâches du repo actif
+							</div>
+							<div class="t-when">
+								TasksView affiche les tâches du repo actif via
+								une commande tasks_list.
+							</div>
+						</div>
+					</div>
+					<div class="task">
+						<span class="step">02</span
+						><span class="size i3">I3</span>
+						<div>
+							<div class="t-title">Créer une tâche en inline</div>
+							<div class="t-when">
+								Un form inline crée une tâche qui apparaît dans
+								la liste sans reload.
+							</div>
+						</div>
+					</div>
+					<div class="task">
+						<span class="step">03</span
+						><span class="size i3">I3</span>
+						<div>
+							<div class="t-title">
+								Changer le statut d'une tâche
+							</div>
+							<div class="t-when">
+								Modifier le statut d'une tâche persiste en
+								SQLite et se reflète dans la liste.
+							</div>
+						</div>
+					</div>
+					<div class="task">
+						<span class="step">04</span
+						><span class="size i4">I4</span>
+						<div>
+							<div class="t-title">
+								Assigner une tâche à une session
+							</div>
+							<div class="t-when">
+								Assigner une tâche à une session vivante
+								persiste et survit au reload. Sessions dérivées
+								de <code>sessionsAtom</code>.
+							</div>
+						</div>
+					</div>
+					<div class="task">
+						<span class="step">05</span
+						><span class="size i3">I3</span>
+						<div>
+							<div class="t-title">
+								Bloquer les imports Linear en CI
+							</div>
+							<div class="t-when">
+								La CI échoue si un import Linear apparaît dans
+								src/ ou src-tauri/src/.
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
 
-  <!-- M5 -->
-  <section class="ms wave2" id="m5">
-    <div class="ms-top">
-      <div class="ms-badge">M5</div>
-      <div class="ms-headcol">
-        <div class="ms-name">Scrollback persistant</div>
-        <p class="ms-demo">Après un reload UI, l'historique de session réapparaît dans le terminal&nbsp;; stress test&nbsp;: 10MB de scrollback replay en &lt; 500ms.</p>
-        <div class="ms-tags">
-          <span class="tag wave">vague 2</span>
-          <span class="tag leaf">feuille</span>
-          <span class="tag dep">↳ needs M2</span>
-          <span class="tag dec">D6</span>
-        </div>
-      </div>
-    </div>
-    <div class="track">
-      <div class="track-head"><span>Track A</span><span class="pr">1 PR</span><span class="muted"><code>feat/session-persistence</code> · 2 tâches · 2×I4</span></div>
-      <div class="task"><span class="step">01</span><span class="size i4">I4</span><div><div class="t-title">Persister le scrollback en SQLite</div><div class="t-when">Chaque session écrit ses bytes PTY bruts append-only avec flush au seuil 256B/100ms.</div></div></div>
-      <div class="task"><span class="step">02</span><span class="size i4">I4</span><div><div class="t-title">Rejouer le scrollback au reload</div><div class="t-when">Après reload UI, l'historique réapparaît dans le pane avant le flux live (consomme TerminalPane de M2).</div></div></div>
-    </div>
-  </section>
+			<!-- M5 -->
+			<section class="ms wave2" id="m5">
+				<div class="ms-top">
+					<div class="ms-badge">M5</div>
+					<div class="ms-headcol">
+						<div class="ms-name">Scrollback persistant</div>
+						<p class="ms-demo">
+							Après un reload UI, l'historique de session
+							réapparaît dans le terminal&nbsp;; stress
+							test&nbsp;: 10MB de scrollback replay en &lt; 500ms.
+						</p>
+						<div class="ms-tags">
+							<span class="tag wave">vague 2</span>
+							<span class="tag leaf">feuille</span>
+							<span class="tag dep">↳ needs M2</span>
+							<span class="tag dec">D6</span>
+						</div>
+					</div>
+				</div>
+				<div class="track">
+					<div class="track-head">
+						<span>Track A</span><span class="pr">1 PR</span
+						><span class="muted"
+							><code>feat/session-persistence</code> · 2 tâches ·
+							2×I4</span
+						>
+					</div>
+					<div class="task">
+						<span class="step">01</span
+						><span class="size i4">I4</span>
+						<div>
+							<div class="t-title">
+								Persister le scrollback en SQLite
+							</div>
+							<div class="t-when">
+								Chaque session écrit ses bytes PTY bruts
+								append-only avec flush au seuil 256B/100ms.
+							</div>
+						</div>
+					</div>
+					<div class="task">
+						<span class="step">02</span
+						><span class="size i4">I4</span>
+						<div>
+							<div class="t-title">
+								Rejouer le scrollback au reload
+							</div>
+							<div class="t-when">
+								Après reload UI, l'historique réapparaît dans le
+								pane avant le flux live (consomme TerminalPane
+								de M2).
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
 
-  <!-- M6 -->
-  <section class="ms wave2" id="m6">
-    <div class="ms-top">
-      <div class="ms-badge">M6</div>
-      <div class="ms-headcol">
-        <div class="ms-name">Cockpit grid multi-agents</div>
-        <p class="ms-demo">2 tâches × 2 agents → grille peuplée de logs live&nbsp;; drag-drop d'assignation, désassignation en lâchant hors de la grille.</p>
-        <div class="ms-tags">
-          <span class="tag wave">vague 2 · capstone</span>
-          <span class="tag dep">↳ needs M2 + M4</span>
-          <span class="tag dec">D11</span>
-        </div>
-      </div>
-    </div>
-    <div class="track">
-      <div class="track-head"><span>Track A</span><span class="pr">1 PR</span><span class="muted"><code>feat/agent-grid</code> · 3 tâches · 3×I4</span></div>
-      <div class="task"><span class="step">01</span><span class="size i4">I4</span><div><div class="t-title">Renvoyer la matrice agents × tâches</div><div class="t-when">list_active_grid(repo_path) renvoie la matrice des sessions vivantes par tâche assignée (jointure des schémas de M4).</div></div></div>
-      <div class="task"><span class="step">02</span><span class="size i4">I4</span><div><div class="t-title">Afficher la grille de logs live</div><div class="t-when">Une ligne par agent, une colonne par tâche, chaque cellule assignée montrant les logs live (TerminalPane de M2).</div></div></div>
-      <div class="task"><span class="step">03</span><span class="size i4">I4</span><div><div class="t-title">Assigner par drag-drop dans la grille</div><div class="t-when">Drag-drop assigne une tâche à un agent&nbsp;; lâcher hors de la grille désassigne.</div></div></div>
-    </div>
-  </section>
+			<!-- M6 -->
+			<section class="ms wave2" id="m6">
+				<div class="ms-top">
+					<div class="ms-badge">M6</div>
+					<div class="ms-headcol">
+						<div class="ms-name">Cockpit grid multi-agents</div>
+						<p class="ms-demo">
+							2 tâches × 2 agents → grille peuplée de logs
+							live&nbsp;; drag-drop d'assignation, désassignation
+							en lâchant hors de la grille.
+						</p>
+						<div class="ms-tags">
+							<span class="tag wave">vague 2 · capstone</span>
+							<span class="tag dep">↳ needs M2 + M4</span>
+							<span class="tag dec">D11</span>
+						</div>
+					</div>
+				</div>
+				<div class="track">
+					<div class="track-head">
+						<span>Track A</span><span class="pr">1 PR</span
+						><span class="muted"
+							><code>feat/agent-grid</code> · 3 tâches ·
+							3×I4</span
+						>
+					</div>
+					<div class="task">
+						<span class="step">01</span
+						><span class="size i4">I4</span>
+						<div>
+							<div class="t-title">
+								Renvoyer la matrice agents × tâches
+							</div>
+							<div class="t-when">
+								list_active_grid(repo_path) renvoie la matrice
+								des sessions vivantes par tâche assignée
+								(jointure des schémas de M4).
+							</div>
+						</div>
+					</div>
+					<div class="task">
+						<span class="step">02</span
+						><span class="size i4">I4</span>
+						<div>
+							<div class="t-title">
+								Afficher la grille de logs live
+							</div>
+							<div class="t-when">
+								Une ligne par agent, une colonne par tâche,
+								chaque cellule assignée montrant les logs live
+								(TerminalPane de M2).
+							</div>
+						</div>
+					</div>
+					<div class="task">
+						<span class="step">03</span
+						><span class="size i4">I4</span>
+						<div>
+							<div class="t-title">
+								Assigner par drag-drop dans la grille
+							</div>
+							<div class="t-when">
+								Drag-drop assigne une tâche à un agent&nbsp;;
+								lâcher hors de la grille désassigne.
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
 
-  <div class="howto">
-    <h3>Pour shipper la suite</h3>
-    <ol>
-      <li><strong>Vague 1, en parallèle</strong> — <code>/track M2.A</code> et <code>/track M4.A</code> peuvent partir concurremment (agents en worktrees). M3 est déjà mergé (#7).</li>
-      <li><code>/next</code> — ship une tâche à la fois (commit + push de la précédente, validée, puis démarre la suivante).</li>
-      <li><code>/pr</code> — ouvre la PR une fois la dernière tâche de la track verte. Une track = une PR.</li>
-      <li><strong>Vague 2</strong> — <code>/track M5.A</code> dès M2 mergé&nbsp;; <code>/track M6.A</code> dès M2 + M4 mergés.</li>
-    </ol>
-  </div>
+			<div class="howto">
+				<h3>Pour shipper la suite</h3>
+				<ol>
+					<li>
+						<strong>Vague 1, en parallèle</strong> —
+						<code>/track M2.A</code> et
+						<code>/track M4.A</code> peuvent partir concurremment
+						(agents en worktrees). M3 est déjà mergé (#7).
+					</li>
+					<li>
+						<code>/next</code> — ship une tâche à la fois (commit +
+						push de la précédente, validée, puis démarre la
+						suivante).
+					</li>
+					<li>
+						<code>/pr</code> — ouvre la PR une fois la dernière
+						tâche de la track verte. Une track = une PR.
+					</li>
+					<li>
+						<strong>Vague 2</strong> — <code>/track M5.A</code> dès
+						M2 mergé&nbsp;; <code>/track M6.A</code> dès M2 + M4
+						mergés.
+					</li>
+				</ol>
+			</div>
 
-  <footer>
-    Généré à partir de <code>docs/plans/agent-cockpit/plan.json</code> — M1 (v0.1.0) et M3 (#7) livrés, snapshot 2026-05-31 — agent-cockpit · NextNode.
-  </footer>
-</div>
+			<footer>
+				Généré à partir de
+				<code>docs/plans/agent-cockpit/plan.json</code> — M1 (v0.1.0) et
+				M3 (#7) livrés, snapshot 2026-05-31 — agent-cockpit · NextNode.
+			</footer>
+		</div>
 
-<script>
-// Theme toggle
-document.getElementById('themeBtn').addEventListener('click', function () {
-  var cur = document.documentElement.getAttribute('data-theme');
-  var next = cur === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  try { localStorage.setItem('np-theme', next); } catch (e) {}
-  document.dispatchEvent(new CustomEvent('np:theme-change', { detail: { theme: next } }));
-});
+		<script>
+			// Theme toggle
+			document
+				.getElementById('themeBtn')
+				.addEventListener('click', function () {
+					var cur =
+						document.documentElement.getAttribute('data-theme')
+					var next = cur === 'dark' ? 'light' : 'dark'
+					document.documentElement.setAttribute('data-theme', next)
+					try {
+						localStorage.setItem('np-theme', next)
+					} catch (e) {}
+					document.dispatchEvent(
+						new CustomEvent('np:theme-change', {
+							detail: { theme: next },
+						}),
+					)
+				})
 
-// Export to markdown
-document.getElementById('exportBtn').addEventListener('click', function () {
-  var lines = [];
-  lines.push('# agent-cockpit — Milestones restantes\\n');
-  lines.push('Livres : M1 (v0.1.0) et M3 (#7, sidebar). Restent M2, M4, M5, M6.\\n');
-  lines.push('Vague 1 : M2 ∥ M4 (needs M1, demarrables maintenant). Vague 2 : M5 (needs M2), M6 (needs M2+M4).');
-  lines.push('Chemin critique : M1 -> M2 -> M6 (ou M1 -> M4 -> M6). Chaque milestone = 1 track A = 1 PR.\\n');
-  document.querySelectorAll('section.ms').forEach(function (s) {
-    var id = s.querySelector('.ms-badge').textContent.trim();
-    var name = s.querySelector('.ms-name').textContent.trim();
-    var demo = s.querySelector('.ms-demo').textContent.trim();
-    var dep = (s.querySelector('.tag.dep') || {}).textContent || '';
-    var meta = s.querySelector('.track-head .muted').textContent.trim();
-    lines.push('## ' + id + ' — ' + name + '  (' + dep.trim() + ')');
-    lines.push('_' + demo + '_');
-    lines.push('Track A · 1 PR · ' + meta);
-    s.querySelectorAll('.task').forEach(function (t) {
-      var step = t.querySelector('.step').textContent.trim();
-      var size = t.querySelector('.size').textContent.trim();
-      var title = t.querySelector('.t-title').textContent.trim();
-      var when = t.querySelector('.t-when').textContent.trim();
-      lines.push('- [ ] ' + step + ' (' + size + ') ' + title + ' — ' + when);
-    });
-    lines.push('');
-  });
-  navigator.clipboard.writeText(lines.join('\\n')).then(function () {
-    var b = document.getElementById('exportBtn');
-    var prev = b.textContent;
-    b.textContent = 'Copié ✓';
-    setTimeout(function () { b.textContent = prev; }, 1600);
-  });
-});
-</script>
-</body>
+			// Export to markdown
+			document
+				.getElementById('exportBtn')
+				.addEventListener('click', function () {
+					var lines = []
+					lines.push('# agent-cockpit — Milestones restantes\\n')
+					lines.push(
+						'Livres : M1 (v0.1.0) et M3 (#7, sidebar). Restent M2, M4, M5, M6.\\n',
+					)
+					lines.push(
+						'Vague 1 : M2 ∥ M4 (needs M1, demarrables maintenant). Vague 2 : M5 (needs M2), M6 (needs M2+M4).',
+					)
+					lines.push(
+						'Chemin critique : M1 -> M2 -> M6 (ou M1 -> M4 -> M6). Chaque milestone = 1 track A = 1 PR.\\n',
+					)
+					document
+						.querySelectorAll('section.ms')
+						.forEach(function (s) {
+							var id = s
+								.querySelector('.ms-badge')
+								.textContent.trim()
+							var name = s
+								.querySelector('.ms-name')
+								.textContent.trim()
+							var demo = s
+								.querySelector('.ms-demo')
+								.textContent.trim()
+							var dep =
+								(s.querySelector('.tag.dep') || {})
+									.textContent || ''
+							var meta = s
+								.querySelector('.track-head .muted')
+								.textContent.trim()
+							lines.push(
+								'## ' +
+									id +
+									' — ' +
+									name +
+									'  (' +
+									dep.trim() +
+									')',
+							)
+							lines.push('_' + demo + '_')
+							lines.push('Track A · 1 PR · ' + meta)
+							s.querySelectorAll('.task').forEach(function (t) {
+								var step = t
+									.querySelector('.step')
+									.textContent.trim()
+								var size = t
+									.querySelector('.size')
+									.textContent.trim()
+								var title = t
+									.querySelector('.t-title')
+									.textContent.trim()
+								var when = t
+									.querySelector('.t-when')
+									.textContent.trim()
+								lines.push(
+									'- [ ] ' +
+										step +
+										' (' +
+										size +
+										') ' +
+										title +
+										' — ' +
+										when,
+								)
+							})
+							lines.push('')
+						})
+					navigator.clipboard
+						.writeText(lines.join('\\n'))
+						.then(function () {
+							var b = document.getElementById('exportBtn')
+							var prev = b.textContent
+							b.textContent = 'Copié ✓'
+							setTimeout(function () {
+								b.textContent = prev
+							}, 1600)
+						})
+				})
+		</script>
+	</body>
 </html>

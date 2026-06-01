@@ -1,0 +1,165 @@
+{
+	"slug": "tasks-track-pivot",
+	"phase": "closed",
+	"round": 4,
+	"change_kind": "breaking-brownfield",
+	"in_scope": ["B1", "B2", "B3", "B4", "B5", "B6", "B7"],
+	"out_scope": ["B8", "B9"],
+	"branches": [
+		{
+			"id": "B1",
+			"theme": "model",
+			"title": "Définition de « tâche » (cœur du pivot)",
+			"description": "Le working-tree remplace le CRUD SQLite (D10) par un viewer read-only du track /next parsé depuis progress.md (track_read). Une tâche est-elle une ligne SQLite créée par l'user, un item read-only du /track, ou un hybride ?",
+			"matters": "C'est la décision racine : elle redéfinit le produit (cockpit de tâches user-created vs cockpit du backlog /next) et conditionne toutes les autres branches.",
+			"scope": "in"
+		},
+		{
+			"id": "B2",
+			"theme": "schema",
+			"title": "Sort des tables 0002_tasks / 0003_task_assignments + commande tasks_list",
+			"description": "Le pivot supprime (staged) les migrations 0002/0003 et renomme tasks_list → track_read (déjà commité en M4.A-01, b8fb5a7). On supprime définitivement le schéma SQLite tasks (greenfield) ou on le conserve pour un autre usage ?",
+			"matters": "Détermine le modèle de persistance restant et si M5/M6 peuvent encore s'appuyer sur des tables tasks.",
+			"scope": "in"
+		},
+		{
+			"id": "B3",
+			"theme": "track-source",
+			"title": "Portée et robustesse du parseur de track",
+			"description": "track_read lit le layout PLAT docs/plans/*/progress.md, mais /next écrit désormais le layout multi-track .tracks/M{M}.{track}/progress.md. Quel layout fait foi, et quels cas gérer (multi-track, repo sans plan, état vide, format) ?",
+			"matters": "Le parseur actuel ne trouverait pas les tracks sous .tracks/ : la vue afficherait toujours vide sur un repo piloté par le /next courant.",
+			"scope": "in"
+		},
+		{
+			"id": "B4",
+			"theme": "grid",
+			"title": "Refonte de M6 (cockpit grid) sur le nouveau modèle",
+			"description": "M6 (D11) : grille 1 colonne = 1 tâche, démo « 2 tâches × 2 agents », alimentée par list_active_grid qui joint agent_sessions × tasks × task_assignments. Si les tâches deviennent des items read-only du track, comment la grille et sa démo sont-elles reconstruites ?",
+			"matters": "La grille est la feature phare du produit (D16). Le pivot supprime les tables qu'elle joint : sans refonte, M6 n'a plus de modèle.",
+			"scope": "in"
+		},
+		{
+			"id": "B5",
+			"theme": "grid",
+			"title": "Persistance de l'assignation agent↔tâche sans task_assignments",
+			"description": "D10/D11 persistaient l'assignation dans task_assignments (PK task_id+session_id). Sans cette table, où vit le lien agent↔tâche : nouvelle table clé = identifier du track ([M4.A-02]), en mémoire seulement, ou autre ?",
+			"matters": "Le drag-drop d'assignation de la grille (M6) et sa survie au reload dépendent d'un modèle de persistance explicite.",
+			"scope": "in"
+		},
+		{
+			"id": "B6",
+			"theme": "lifecycle",
+			"title": "Édition du statut d'une tâche",
+			"description": "D10 avait tasks_update (backlog/todo/in_progress/done). Les items du /track portent déjà leur état via les cases progress.md ([ ]/[~]/[x]/⚠). L'app reste-t-elle read-only (statut piloté par /next) ou peut-elle muter le statut ?",
+			"matters": "Définit si la Tasks view est un tableau de bord en lecture ou un outil d'édition, et si elle écrit dans progress.md.",
+			"scope": "in"
+		},
+		{
+			"id": "B7",
+			"theme": "ci",
+			"title": "Guard CI « no Linear imports » (ex-M4.A-05)",
+			"description": "Le guard CI qui échoue si un import Linear apparaît dans src/ ou src-tauri/src/ (D1, Linear gelé en legacy) est orthogonal au pivot. On le conserve tel quel dans le nouveau périmètre ?",
+			"matters": "Indépendant du modèle tâche, mais c'était une tâche de M4 : il faut décider où il atterrit pour ne pas le perdre.",
+			"scope": "in"
+		},
+		{
+			"id": "B8",
+			"theme": "compat",
+			"title": "Migration des données tasks existantes",
+			"description": "Faut-il migrer / backfiller des données des tables 0002/0003 vers le nouveau modèle ?",
+			"matters": "Aucune donnée tasks n'a été livrée (feature jamais releasée hors branche). HARD RULE greenfield : pas de migration sauf demande explicite.",
+			"scope": "out"
+		},
+		{
+			"id": "B9",
+			"theme": "compat",
+			"title": "Couche de compat tasks_list ↔ track_read",
+			"description": "Faut-il garder tasks_list en parallèle de track_read, ou une couche d'adaptation entre l'ancien et le nouveau contrat IPC ?",
+			"matters": "HARD RULE greenfield : pas de fallback ni de double voie. On remplace, on ne conserve pas — sauf demande explicite.",
+			"scope": "out"
+		}
+	],
+	"round1": {
+		"q1_model": {
+			"choice": "c",
+			"note": "l'app lit notre /track et importe dans le sqlite de l'agent"
+		},
+		"q2_schema": {
+			"choice": "b",
+			"note": "on garde sqlite mais on refactor correctement si besoin"
+		},
+		"q3_layout": {
+			"choice": "b",
+			"note": "check le skill actuel avant de valider"
+		},
+		"q4_assign": { "choice": "b" },
+		"q5_grid": { "skip": true, "note": "pas compris, veut des schemas" },
+		"q6_status": {
+			"choice": "a",
+			"note": "editable pour taches user, readonly pour taches de thread"
+		},
+		"q7_ci": { "choice": "c", "decided": "drop the CI Linear guard" }
+	},
+	"verified": {
+		"track_layout": "Current /track + /next skills write docs/plans/<slug>/.tracks/M{M}.{track}/progress.md (multi-track, gitignored). This repo still has legacy flat docs/plans/agent-cockpit/progress.md. Parser must target .tracks/*/progress.md and import all tracks."
+	},
+	"round2": {
+		"r2_import": {
+			"choice": "b",
+			"note": "watch + SSE bidirectionnel (read file / write SQLite + SSE->file) ; vise multi-editor collaboratif"
+		},
+		"r2_schema": {
+			"choice": "a",
+			"decided": "single tasks table + origin + track_identifier (provisional, depends on SoT)"
+		},
+		"r2_grid": {
+			"choice": "c",
+			"decided": "DROP the tasks x agents grid -> simple list per task"
+		},
+		"r2_assign": {
+			"choice": "b",
+			"note": "task_assignments join table (provisional, depends on SoT)"
+		},
+		"r2_status": {
+			"choice": "a",
+			"note": "track tasks: name editable, else read-only ; user tasks: full CRUD"
+		},
+		"r2_layout": {
+			"skip": true,
+			"decided": "verified .tracks/*/progress.md is canonical regardless"
+		}
+	},
+	"round2_freeform": "Architecture skills(backlog/track/next on FS) vs SQLite is too complex; wants to SIMPLIFY. Constraints: (1) skills must work standalone outside the app; (2) in-app, app = master of history across projects/agents; (3) keep SQLite for collab, but open to ditching it for an advanced filesystem. Asked for a dedicated grilling round on this.",
+	"round3": {
+		"r3_sot": {
+			"choice": "a",
+			"decided": "files (plan.json + .tracks/*/progress.md) authoritative; SQLite = derived rebuildable index",
+			"note": "asks: could a GLOBAL shared SQLite serve both skills AND app, both pointing to same DB?"
+		},
+		"r3_sqlite_role": { "skip": true },
+		"r3_write": { "skip": true },
+		"r3_history": { "skip": true }
+	},
+	"round3_open": "User floats a shared global SQLite that BOTH skills and app write to. Decisive constraints to surface in R4: (1) skills live in separate mac-config repo, off-limits to this backlog per HARD RULE #7 -> 'make skills write SQLite' is not a deliverable here; (2) /next contract = review working-tree FILE diff before commit -> a binary DB kills git-reviewability the user's own workflow depends on; (3) skills are shared across ALL projects -> coupling them to this app's DB breaks standalone (G1). Verdict: technically possible but inverts the simplification; files+global-derived-index gets ~90% of the benefit.",
+	"round4": {
+		"r4_fork": {
+			"choice": "b",
+			"decided": "ONE shared global SQLite, schema=contract, skills+app are two independent clients"
+		},
+		"r4_loc": {
+			"choice": "a",
+			"decided": "global XDG ~/.local/share/agent-cockpit/cockpit.db, keyed repo_path, multi-project"
+		},
+		"r4_files": {
+			"choice": "a",
+			"decided": "DB-only: drop plan.json/progress.md entirely, no export"
+		},
+		"r4_concur": {
+			"choice": "a",
+			"decided": "WAL + busy_timeout, both clients write directly"
+		}
+	},
+	"phase_next": "closure",
+	"closure": {},
+	"freeform": ""
+}

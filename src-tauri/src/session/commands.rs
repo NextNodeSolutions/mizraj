@@ -7,6 +7,7 @@ use sqlx::SqlitePool;
 use tauri::async_runtime::Sender;
 use tauri::{AppHandle, Runtime};
 
+use crate::db::Db;
 use crate::session::error::SessionError;
 use crate::session::id::SessionId;
 use crate::session::key::KeyStroke;
@@ -79,6 +80,7 @@ async fn rollback_session_close(manager: &SessionManager, id: &SessionId, contex
 
 async fn session_create_inner<F>(
     manager: &SessionManager,
+    pool: &SqlitePool,
     binary: &str,
     cwd: String,
     sink_factory: F,
@@ -96,7 +98,7 @@ where
 
     // Insert BEFORE the git ref so rollback only undoes a DB row (cheap,
     // reversible) and a PTY, never a half-written ref.
-    if let Err(err) = insert_session_row(manager.pool(), &id, &cwd_path).await {
+    if let Err(err) = insert_session_row(pool, &id, &cwd_path).await {
         rollback_session_close(manager, &id, "after db insert error").await;
         return Err(err);
     }
@@ -106,7 +108,7 @@ where
     // and delete the row so the diff view never sees a half-wired session.
     if let Err(err) = register_session_ref(&cwd_path, id.as_str()) {
         rollback_session_close(manager, &id, "after session_ref registration error").await;
-        if let Err(del_err) = delete_session_row(manager.pool(), &id).await {
+        if let Err(del_err) = delete_session_row(pool, &id).await {
             tracing::warn!(
                 session_id = id.as_str(),
                 error = %del_err,
@@ -125,8 +127,10 @@ pub async fn session_create<R: Runtime>(
     cwd: String,
     app: AppHandle<R>,
     manager: tauri::State<'_, SessionManager>,
+    db: tauri::State<'_, Db>,
 ) -> Result<SessionId, SessionError> {
-    session_create_inner(&manager, &binary, cwd, move |id, pty_input| {
+    let pool = db.pool().await.map_err(SessionError::Database)?;
+    session_create_inner(&manager, &pool, &binary, cwd, move |id, pty_input| {
         vec![
             Arc::new(TauriEventSink::new(app.clone(), id.clone())) as Arc<dyn OutputSink>,
             Arc::new(TermSink::new(app, id.clone(), pty_input)) as Arc<dyn OutputSink>,
@@ -170,24 +174,12 @@ pub async fn session_close(
 
 #[cfg(test)]
 mod tests {
-    use sqlx::sqlite::SqlitePoolOptions;
     use tauri::async_runtime::block_on;
 
     use super::*;
 
     fn fresh_pool() -> sqlx::SqlitePool {
-        block_on(async {
-            let pool = SqlitePoolOptions::new()
-                .max_connections(1)
-                .connect("sqlite::memory:")
-                .await
-                .expect("connect in-memory sqlite");
-            sqlx::migrate!()
-                .run(&pool)
-                .await
-                .expect("apply migrations to in-memory sqlite");
-            pool
-        })
+        block_on(crate::db::connect_for_test())
     }
 
     async fn count_sessions(pool: &sqlx::SqlitePool) -> i64 {
@@ -206,9 +198,10 @@ mod tests {
     fn returns_binary_not_found_when_binary_missing() {
         let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool.clone());
+            let manager = SessionManager::new();
             let err = session_create_inner(
                 &manager,
+                &pool,
                 "nope-not-a-real-binary-xyz",
                 "/tmp".to_string(),
                 no_sinks,
@@ -266,12 +259,13 @@ mod tests {
         fn spawns_session_and_registers_session_ref() {
             let pool = fresh_pool();
             block_on(async {
-                let manager = SessionManager::new(pool);
+                let manager = SessionManager::new();
                 let dir = TempDir::new().expect("tempdir");
                 init_repo_with_commit(dir.path());
 
                 let id = session_create_inner(
                     &manager,
+                    &pool,
                     "sh",
                     dir.path().to_string_lossy().into_owned(),
                     no_sinks,
@@ -293,12 +287,13 @@ mod tests {
         fn rolls_back_spawn_when_cwd_is_not_a_git_repo() {
             let pool = fresh_pool();
             block_on(async {
-                let manager = SessionManager::new(pool.clone());
+                let manager = SessionManager::new();
                 let dir = TempDir::new().expect("tempdir");
                 fs::write(dir.path().join("not-a-repo"), b"").expect("write marker");
 
                 let err = session_create_inner(
                     &manager,
+                    &pool,
                     "sh",
                     dir.path().to_string_lossy().into_owned(),
                     no_sinks,
@@ -325,12 +320,12 @@ mod tests {
         fn inserts_running_row_into_agent_sessions() {
             let pool = fresh_pool();
             block_on(async {
-                let manager = SessionManager::new(pool.clone());
+                let manager = SessionManager::new();
                 let dir = TempDir::new().expect("tempdir");
                 init_repo_with_commit(dir.path());
                 let cwd = dir.path().to_string_lossy().into_owned();
 
-                let id = session_create_inner(&manager, "sh", cwd.clone(), no_sinks)
+                let id = session_create_inner(&manager, &pool, "sh", cwd.clone(), no_sinks)
                     .await
                     .expect("session_create should succeed");
 
