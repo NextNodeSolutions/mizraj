@@ -64,7 +64,9 @@ describe('DiffPanel snapshot', () => {
 
 	it('renders the split layout (default)', async () => {
 		await mount()
-		expect(container.innerHTML).toMatchInlineSnapshot(`"<div class="diff-panel"><div class="diff-panel__toolbar" role="toolbar" aria-label="Diff panel"><button type="button" class="diff-panel__layout-toggle" aria-pressed="false">Stacked view</button></div><div class="diff-panel__container"><div data-testid="file-diff-stub" data-file-name="foo.ts" data-diff-style="split"></div></div></div>"`)
+		expect(container.innerHTML).toMatchInlineSnapshot(
+			`"<div class="diff-panel"><div class="diff-panel__toolbar" role="toolbar" aria-label="Diff panel"><button type="button" class="diff-panel__layout-toggle" aria-pressed="false">Stacked view</button></div><div class="diff-panel__container"><div data-testid="file-diff-stub" data-file-name="foo.ts" data-diff-style="split"></div></div></div>"`,
+		)
 	})
 
 	it('renders the stacked layout after toggling', async () => {
@@ -76,6 +78,8 @@ describe('DiffPanel snapshot', () => {
 		await act(async () => {
 			toggle?.click()
 		})
-		expect(container.innerHTML).toMatchInlineSnapshot(`"<div class="diff-panel"><div class="diff-panel__toolbar" role="toolbar" aria-label="Diff panel"><button type="button" class="diff-panel__layout-toggle" aria-pressed="true">Split view</button></div><div class="diff-panel__container"><div data-testid="file-diff-stub" data-file-name="foo.ts" data-diff-style="unified"></div></div></div>"`)
+		expect(container.innerHTML).toMatchInlineSnapshot(
+			`"<div class="diff-panel"><div class="diff-panel__toolbar" role="toolbar" aria-label="Diff panel"><button type="button" class="diff-panel__layout-toggle" aria-pressed="true">Split view</button></div><div class="diff-panel__container"><div data-testid="file-diff-stub" data-file-name="foo.ts" data-diff-style="unified"></div></div></div>"`,
+		)
 	})
 })

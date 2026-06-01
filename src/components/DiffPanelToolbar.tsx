@@ -10,33 +10,27 @@ const DiffPanelToolbar = ({
 	layout,
 	onToggle,
 	onClose,
-}: Props): React.JSX.Element => {
-	return (
-		<div
-			className="diff-panel__toolbar"
-			role="toolbar"
-			aria-label="Diff panel"
+}: Props): React.JSX.Element => (
+	<div className="diff-panel__toolbar" role="toolbar" aria-label="Diff panel">
+		<button
+			type="button"
+			className="diff-panel__layout-toggle"
+			aria-pressed={layout === 'stacked'}
+			onClick={onToggle}
 		>
+			{layout === 'split' ? 'Stacked view' : 'Split view'}
+		</button>
+		{onClose && (
 			<button
 				type="button"
-				className="diff-panel__layout-toggle"
-				aria-pressed={layout === 'stacked'}
-				onClick={onToggle}
+				className="diff-panel__close"
+				aria-label="Hide diffs"
+				onClick={onClose}
 			>
-				{layout === 'split' ? 'Stacked view' : 'Split view'}
+				›
 			</button>
-			{onClose && (
-				<button
-					type="button"
-					className="diff-panel__close"
-					aria-label="Hide diffs"
-					onClick={onClose}
-				>
-					›
-				</button>
-			)}
-		</div>
-	)
-}
+		)}
+	</div>
+)
 
 export default DiffPanelToolbar

@@ -149,12 +149,15 @@ async fn tasks_overview_inner(pool: &SqlitePool) -> Result<Overview, sqlx::Error
         tasks_by_track.entry(key).or_default().push(task);
     }
 
-    let track_rows = sqlx::query("SELECT milestone_id, id, branch, position FROM tracks ORDER BY position, id")
-        .fetch_all(pool)
-        .await?;
-    let milestone_rows = sqlx::query("SELECT id, number, demo, skeleton, position FROM milestones ORDER BY position, number")
-        .fetch_all(pool)
-        .await?;
+    let track_rows =
+        sqlx::query("SELECT milestone_id, id, branch, position FROM tracks ORDER BY position, id")
+            .fetch_all(pool)
+            .await?;
+    let milestone_rows = sqlx::query(
+        "SELECT id, number, demo, skeleton, position FROM milestones ORDER BY position, number",
+    )
+    .fetch_all(pool)
+    .await?;
 
     // Bucket tracks under their milestone in one pass, preserving the global
     // (position, id) order — same grouping shape as slice_of/needs/tasks rather
@@ -377,7 +380,9 @@ mod tests {
         sqlx::query("INSERT INTO milestones (id, number, demo, skeleton, position) VALUES ('M2', 2, 'thicken it', 0, 1)")
             .execute(pool).await.expect("insert M2");
         sqlx::query("INSERT INTO milestone_needs (milestone_id, needs_id) VALUES ('M2', 'M1')")
-            .execute(pool).await.expect("insert needs edge");
+            .execute(pool)
+            .await
+            .expect("insert needs edge");
         sqlx::query("INSERT INTO tracks (milestone_id, id, branch, position) VALUES ('M1', 'A', 'feat/skeleton', 0)")
             .execute(pool).await.expect("insert track");
         sqlx::query(
@@ -433,7 +438,10 @@ mod tests {
             assert_eq!(created.description.as_deref(), Some("the readme"));
             assert_eq!(created.status, "backlog");
             assert_eq!(created.origin, "user");
-            assert_eq!(created.identifier, None, "a user task is flat — no identifier");
+            assert_eq!(
+                created.identifier, None,
+                "a user task is flat — no identifier"
+            );
             assert_eq!(created.milestone_id, None);
             assert_eq!(created.track_id, None);
             assert!(created.slice_of.is_empty());
@@ -442,7 +450,11 @@ mod tests {
             let overview = tasks_overview_inner(&pool)
                 .await
                 .expect("overview should succeed");
-            assert_eq!(overview.user_tasks, vec![created], "the created task is listed flat");
+            assert_eq!(
+                overview.user_tasks,
+                vec![created],
+                "the created task is listed flat"
+            );
             assert!(overview.milestones.is_empty(), "no plan ingested yet");
         });
     }
@@ -481,9 +493,10 @@ mod tests {
         block_on(async {
             insert_user_task(&pool, "a1", "old title", "backlog").await;
 
-            let updated = tasks_update_inner(&pool, "a1", "new title", Some("a fresh body"), "backlog")
-                .await
-                .expect("tasks_update should succeed");
+            let updated =
+                tasks_update_inner(&pool, "a1", "new title", Some("a fresh body"), "backlog")
+                    .await
+                    .expect("tasks_update should succeed");
             assert_eq!(updated.title, "new title");
             assert_eq!(updated.description.as_deref(), Some("a fresh body"));
         });
@@ -501,7 +514,10 @@ mod tests {
             let cleared = tasks_update_inner(&pool, "a1", "has body", None, "backlog")
                 .await
                 .expect("tasks_update should succeed");
-            assert_eq!(cleared.description, None, "an emptied description becomes NULL");
+            assert_eq!(
+                cleared.description, None,
+                "an emptied description becomes NULL"
+            );
         });
     }
 
