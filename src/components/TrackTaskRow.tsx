@@ -2,8 +2,8 @@ import { useState } from 'react'
 
 import type { Task } from '../lib/tasks'
 
+import TaskEditor from './TaskEditor'
 import { STATUS_CONFIG } from './taskStatusConfig'
-import TrackTaskNameEditor from './TrackTaskNameEditor'
 
 type TrackTaskRowProps = {
 	task: Task
@@ -28,8 +28,9 @@ const TrackTaskRow = ({
 				{STATUS_CONFIG[task.status].marker}
 			</span>
 			{editing ? (
-				<TrackTaskNameEditor
+				<TaskEditor
 					task={task}
+					nameOnly
 					onSaved={handleSaved}
 					onCancel={() => setEditing(false)}
 				/>

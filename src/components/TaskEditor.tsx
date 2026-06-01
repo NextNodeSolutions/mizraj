@@ -8,12 +8,14 @@ type TaskEditorProps = {
 	task: Task
 	onSaved: () => void
 	onCancel: () => void
+	nameOnly?: boolean
 }
 
 const TaskEditor = ({
 	task,
 	onSaved,
 	onCancel,
+	nameOnly = false,
 }: TaskEditorProps): React.JSX.Element => {
 	const [title, setTitle] = useState(task.title)
 	const [description, setDescription] = useState(task.description ?? '')
@@ -23,6 +25,20 @@ const TaskEditor = ({
 	const trimmedTitle = title.trim()
 	const canSave = trimmedTitle !== '' && !submitting
 
+	const titlePlaceholder = nameOnly ? 'Task name' : 'Task title'
+	const titleAriaLabel = nameOnly
+		? `Name for ${task.title}`
+		: `Title for ${task.title}`
+	const errorPrefix = nameOnly
+		? 'Could not rename task'
+		: 'Could not save task'
+
+	const deriveDescription = (): string | null => {
+		if (nameOnly) return task.description
+		const trimmedDescription = description.trim()
+		return trimmedDescription === '' ? null : trimmedDescription
+	}
+
 	const handleSubmit = async (
 		event: React.FormEvent<HTMLFormElement>,
 	): Promise<void> => {
@@ -30,13 +46,11 @@ const TaskEditor = ({
 		if (!canSave) return
 		setSubmitting(true)
 		setError(null)
-		const trimmedDescription = description.trim()
 		try {
 			await updateTask({
 				id: task.id,
 				title: trimmedTitle,
-				description:
-					trimmedDescription === '' ? null : trimmedDescription,
+				description: deriveDescription(),
 				status: task.status,
 			})
 			onSaved()
@@ -56,17 +70,19 @@ const TaskEditor = ({
 				type="text"
 				value={title}
 				onChange={event => setTitle(event.target.value)}
-				placeholder="Task title"
-				aria-label={`Title for ${task.title}`}
+				placeholder={titlePlaceholder}
+				aria-label={titleAriaLabel}
 			/>
-			<input
-				className="tasks-view__input"
-				type="text"
-				value={description}
-				onChange={event => setDescription(event.target.value)}
-				placeholder="Description (optional)"
-				aria-label={`Description for ${task.title}`}
-			/>
+			{!nameOnly && (
+				<input
+					className="tasks-view__input"
+					type="text"
+					value={description}
+					onChange={event => setDescription(event.target.value)}
+					placeholder="Description (optional)"
+					aria-label={`Description for ${task.title}`}
+				/>
+			)}
 			<div className="tasks-view__edit-actions">
 				<button
 					className="tasks-view__submit"
@@ -86,7 +102,7 @@ const TaskEditor = ({
 			</div>
 			{error !== null && (
 				<span className="tasks-view__item-error" role="alert">
-					Could not save task: {error}
+					{errorPrefix}: {error}
 				</span>
 			)}
 		</form>
