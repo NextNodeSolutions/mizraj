@@ -97,33 +97,37 @@ fn task_from_row(row: &SqliteRow) -> Result<Task, sqlx::Error> {
     })
 }
 
-/// `task_id` → its `slice_of` decision ids, read in one batched pass.
-async fn slice_of_map(pool: &SqlitePool) -> Result<HashMap<String, Vec<String>>, sqlx::Error> {
-    let rows = sqlx::query("SELECT task_id, decision_id FROM task_slice_of ORDER BY task_id, decision_id")
-        .fetch_all(pool)
-        .await?;
+/// Run a two-column `SELECT key, value … ORDER BY key, value` and fold the rows
+/// into a `key -> [value]` map in one batched pass. Shared by the `slice_of` and
+/// milestone-`needs` lookups so neither does an N+1 round-trip.
+async fn group_pairs(
+    pool: &SqlitePool,
+    sql: &str,
+) -> Result<HashMap<String, Vec<String>>, sqlx::Error> {
+    let rows = sqlx::query(sql).fetch_all(pool).await?;
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
     for row in &rows {
-        let task_id: String = row.try_get("task_id")?;
-        let decision_id: String = row.try_get("decision_id")?;
-        map.entry(task_id).or_default().push(decision_id);
+        let key: String = row.try_get(0)?;
+        let value: String = row.try_get(1)?;
+        map.entry(key).or_default().push(value);
     }
     Ok(map)
 }
 
 async fn tasks_overview_inner(pool: &SqlitePool) -> Result<Overview, sqlx::Error> {
-    let slice_of = slice_of_map(pool).await?;
-
-    // needs: milestone_id -> [needs_id]
-    let needs_rows = sqlx::query("SELECT milestone_id, needs_id FROM milestone_needs ORDER BY milestone_id, needs_id")
-        .fetch_all(pool)
-        .await?;
-    let mut needs: HashMap<String, Vec<String>> = HashMap::new();
-    for row in &needs_rows {
-        let milestone_id: String = row.try_get("milestone_id")?;
-        let needs_id: String = row.try_get("needs_id")?;
-        needs.entry(milestone_id).or_default().push(needs_id);
-    }
+    // task_id -> [decision_id] and milestone_id -> [needs_id], each a single
+    // batched read folded into a grouped map (no N+1). Both are drained by
+    // `remove` below since every key is consumed at most once.
+    let mut slice_of = group_pairs(
+        pool,
+        "SELECT task_id, decision_id FROM task_slice_of ORDER BY task_id, decision_id",
+    )
+    .await?;
+    let mut needs = group_pairs(
+        pool,
+        "SELECT milestone_id, needs_id FROM milestone_needs ORDER BY milestone_id, needs_id",
+    )
+    .await?;
 
     // track tasks, grouped by (milestone_id, track_id), each with its slice_of
     let track_task_rows = sqlx::query(&format!(
@@ -135,8 +139,8 @@ async fn tasks_overview_inner(pool: &SqlitePool) -> Result<Overview, sqlx::Error
     let mut tasks_by_track: HashMap<(String, String), Vec<Task>> = HashMap::new();
     for row in &track_task_rows {
         let mut task = task_from_row(row)?;
-        if let Some(decisions) = slice_of.get(&task.id) {
-            task.slice_of = decisions.clone();
+        if let Some(decisions) = slice_of.remove(&task.id) {
+            task.slice_of = decisions;
         }
         let key = (
             task.milestone_id.clone().unwrap_or_default(),
@@ -152,32 +156,45 @@ async fn tasks_overview_inner(pool: &SqlitePool) -> Result<Overview, sqlx::Error
         .fetch_all(pool)
         .await?;
 
+    // Bucket tracks under their milestone in one pass, preserving the global
+    // (position, id) order — same grouping shape as slice_of/needs/tasks rather
+    // than re-scanning every track per milestone.
+    let mut tracks_by_milestone: HashMap<String, Vec<(String, String)>> = HashMap::new();
+    for t in &track_rows {
+        let milestone_id: String = t.try_get("milestone_id")?;
+        let track_id: String = t.try_get("id")?;
+        let branch: String = t.try_get("branch")?;
+        tracks_by_milestone
+            .entry(milestone_id)
+            .or_default()
+            .push((track_id, branch));
+    }
+
     let mut milestones = Vec::with_capacity(milestone_rows.len());
     for m in &milestone_rows {
         let milestone_id: String = m.try_get("id")?;
         let skeleton: i64 = m.try_get("skeleton")?;
-        let mut tracks = Vec::new();
-        for t in &track_rows {
-            let track_milestone: String = t.try_get("milestone_id")?;
-            if track_milestone != milestone_id {
-                continue;
-            }
-            let track_id: String = t.try_get("id")?;
-            let tasks = tasks_by_track
-                .remove(&(milestone_id.clone(), track_id.clone()))
-                .unwrap_or_default();
-            tracks.push(TrackGroup {
-                id: track_id,
-                branch: t.try_get("branch")?,
-                tasks,
-            });
-        }
+        let tracks = tracks_by_milestone
+            .remove(&milestone_id)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(track_id, branch)| {
+                let tasks = tasks_by_track
+                    .remove(&(milestone_id.clone(), track_id.clone()))
+                    .unwrap_or_default();
+                TrackGroup {
+                    id: track_id,
+                    branch,
+                    tasks,
+                }
+            })
+            .collect();
         milestones.push(MilestoneGroup {
             id: milestone_id.clone(),
             number: m.try_get("number")?,
             demo: m.try_get("demo")?,
             skeleton: skeleton != 0,
-            needs: needs.get(&milestone_id).cloned().unwrap_or_default(),
+            needs: needs.remove(&milestone_id).unwrap_or_default(),
             tracks,
         });
     }
@@ -191,8 +208,8 @@ async fn tasks_overview_inner(pool: &SqlitePool) -> Result<Overview, sqlx::Error
     let mut user_tasks = Vec::with_capacity(user_rows.len());
     for row in &user_rows {
         let mut task = task_from_row(row)?;
-        if let Some(decisions) = slice_of.get(&task.id) {
-            task.slice_of = decisions.clone();
+        if let Some(decisions) = slice_of.remove(&task.id) {
+            task.slice_of = decisions;
         }
         user_tasks.push(task);
     }

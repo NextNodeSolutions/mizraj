@@ -25,8 +25,16 @@ pub fn progress_db_path(slug: &str) -> PathBuf {
 
 /// Derive a stable slug for `repo_path`: the last segment of the `origin` remote
 /// URL with any `.git` suffix stripped, falling back to the git work tree's
-/// directory name, and finally to the passed path's own name.
+/// directory name, and finally to the passed path's own name. Always lowercased
+/// so `Agent-Cockpit` and `agent-cockpit` resolve to the same
+/// `~/mizraj/<slug>/progress.db`, even on a case-sensitive filesystem.
 pub fn repo_slug(repo_path: &Path) -> String {
+    raw_repo_slug(repo_path).to_lowercase()
+}
+
+/// The slug before case-folding; [`repo_slug`] lowercases the result so every
+/// derivation path — remote URL, work tree, bare path — is canonicalized once.
+fn raw_repo_slug(repo_path: &Path) -> String {
     if let Ok(repo) = repo_open(repo_path) {
         if let Ok(Some(url)) = origin_url(&repo) {
             if let Some(slug) = slug_from_remote_url(&url) {
@@ -195,6 +203,15 @@ mod tests {
         std::fs::create_dir(&project).expect("create project dir");
 
         assert_eq!(repo_slug(&project), "lonely-project");
+    }
+
+    #[test]
+    fn repo_slug_lowercases_the_resolved_name() {
+        let tmp = tempdir().expect("tempdir");
+        let project = tmp.path().join("Agent-Cockpit");
+        std::fs::create_dir(&project).expect("create project dir");
+
+        assert_eq!(repo_slug(&project), "agent-cockpit");
     }
 
     #[test]
