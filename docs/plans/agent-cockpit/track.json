@@ -1,0 +1,65 @@
+{
+  "slug": "agent-cockpit",
+  "plan_path": "/Users/walid-mos/Development/nextnode/agent-cockpit/docs/plans/agent-cockpit/plan.json",
+  "milestone": {
+    "id": "M1",
+    "number": 1,
+    "demo": "L'app packagée v0.1.0 lance un agent, on peut le stopper, choisir le repo via un picker, et le diff s'ouvre seul en fin de run — release GitHub avec binaires.",
+    "skeleton": true
+  },
+  "track": {
+    "id": "A",
+    "tasks": [
+      {
+        "step": "01",
+        "identifier": "[M1.A-01]",
+        "title": "Revert la migration 0004_diff_comments",
+        "size": "I3",
+        "slice_of": ["D12"],
+        "done_when": "la table diff_comments n'existe plus, le guard CI compte 3 migrations et passe",
+        "description": "WHAT: supprimer la migration 0004_diff_comments et aligner le guard CI de comptage.\n\nWHY: D12 — le schéma doit refléter la décision V1 read-only (aucune feature de commentaires). À faire tôt avant que d'autres migrations s'empilent.\n\nWHERE: supprimer src-tauri/migrations/0004_diff_comments.sql ; mettre à jour .github/workflows/ci.yml (job phase-3-migration-audit : 'exactly 4' → 3, liste 0001-0003).\n\nDONE WHEN:\n- 0004_diff_comments.sql supprimé\n- guard CI assert 3 migrations (0001-0003) et passe vert\n- le DiffPanel fonctionne toujours (read-only, inchangé)",
+        "sink_id": null
+      },
+      {
+        "step": "02",
+        "identifier": "[M1.A-02]",
+        "title": "Stopper un run depuis l'UI",
+        "size": "I4",
+        "slice_of": ["D8"],
+        "done_when": "un bouton Stop tue le PTY de la session courante et la session passe à ended",
+        "description": "WHAT: exposer une commande session_close et la câbler à un bouton Stop dans la vue du run.\n\nWHY: D8 — le stop/kill est un bloquant v0.1. manager.session_close existe déjà (src-tauri/src/session/manager.rs:288) mais n'est pas exposé (invoke_handler n'enregistre que session_create/resize/label).\n\nWHERE: src-tauri/src/session/commands.rs (commande session_close, calquée sur session_resize) + src-tauri/src/lib.rs (generate_handler!) ; src/views/AgentRun.tsx (bouton Stop, invoke('session_close'), disabled si status === 'ended').\n\nDONE WHEN:\n- session_close(session_id) tue le PTY et nettoie le registry (test inclus)\n- clic sur Stop → invoke session_close, erreurs loguées\n- bouton disabled quand la session est ended",
+        "sink_id": null
+      },
+      {
+        "step": "03",
+        "identifier": "[M1.A-03]",
+        "title": "Choisir le repo via un project picker",
+        "size": "I4",
+        "slice_of": ["D8"],
+        "done_when": "un bouton ouvre un dialogue dossier, le chemin choisi devient le repo actif et persiste",
+        "description": "WHAT: bouton dans le header ouvrant un dialogue de sélection de dossier (tauri-plugin-dialog) et fixant le repo actif.\n\nWHY: D8 — le project picker est un bloquant v0.1. plugin-dialog est déjà enregistré (lib.rs) et settings.setLastProjectPath existe déjà (src/lib/settings.ts) ; useActiveProject consomme lastProjectPath.\n\nWHERE: nouveau src/components/ProjectPicker.tsx monté dans le header de src/App.tsx ; open({ directory: true }) de @tauri-apps/plugin-dialog ; settings.setLastProjectPath.\n\nDONE WHEN:\n- clic → dialogue dossier natif\n- chemin choisi passé à setLastProjectPath, reflété par useActiveProject (RunAgentButton apparaît)\n- annulation du dialogue = no-op",
+        "sink_id": null
+      },
+      {
+        "step": "04",
+        "identifier": "[M1.A-04]",
+        "title": "Ouvrir le diff automatiquement en fin de run",
+        "size": "I4",
+        "slice_of": ["D8"],
+        "done_when": "quand la session se termine, un event de fin remonte l'exit code et le DiffPanel s'ouvre seul",
+        "description": "WHAT: émettre un event de fin de session (avec exit code) quand le wait_task se résout, le consommer côté front et ouvrir le DiffPanel.\n\nWHY: D8 — auto-open du diff en fin de run. Aujourd'hui aucun event de fin n'est émis (le bridge n'écoute que agent:output) et endSessionAtom est mort. Tranche verticale unique : backend émission + bridge + UI.\n\nWHERE: src-tauri/src/session/manager.rs (autour du wait_task, manager.rs:220) + src-tauri/src/session/tauri_sink.rs (SessionEndPayload + constante d'event) ; src/state/sessions.ts (listen → endSessionAtom) ; src/views/AgentRun.tsx (ouvrir DiffPanel quand status === 'ended').\n\nDONE WHEN:\n- event de fin émis une fois à la terminaison, payload { session_id, exit_code }\n- bridge mappe vers endSessionAtom (status 'ended', exitCode)\n- fin de session → DiffPanel ouvert sans clic, réouverture/fermeture manuelle préservée",
+        "sink_id": null
+      },
+      {
+        "step": "05",
+        "identifier": "[M1.A-05]",
+        "title": "Taguer la release v0.1.0",
+        "size": "I3",
+        "slice_of": ["D7"],
+        "done_when": "tag v0.1.0 poussé, release.yml build les binaires, release GitHub publiée",
+        "description": "WHAT: rédiger les release notes et pousser le tag v0.1.0 pour déclencher la build des binaires.\n\nWHY: D7 — première release publique AGPL, capstone de M1 (après que les tâches 01-04 soient vertes). La version est déjà 0.1.0 partout (tauri.conf.json, package.json, Cargo.toml).\n\nWHERE: workflow natif .github/workflows/release.yml (tauri-action, déclenché sur tags v* — platform-native, rien à réécrire) ; release notes ; git tag v0.1.0.\n\nDONE WHEN:\n- release notes rédigées (sans promesse de support)\n- tag v0.1.0 poussé\n- release GitHub avec binaires macOS/Linux/Windows produite par release.yml",
+        "sink_id": null
+      }
+    ]
+  }
+}
