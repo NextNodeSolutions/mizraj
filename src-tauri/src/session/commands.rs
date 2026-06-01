@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use agent_cockpit_vcs::{create_session_ref, repo_open};
+use mizraj_vcs::{create_session_ref, repo_open};
 use sqlx::SqlitePool;
 use tauri::async_runtime::Sender;
 use tauri::{AppHandle, Runtime};
@@ -18,7 +18,7 @@ use crate::session::tauri_sink::TauriEventSink;
 use crate::session::term_sink::TermSink;
 
 fn session_ref_name(session_id: &str) -> String {
-    format!("refs/agent-cockpit/sessions/{session_id}")
+    format!("refs/mizraj/sessions/{session_id}")
 }
 
 fn register_session_ref(repo_path: &Path, session_id: &str) -> Result<(), SessionError> {
@@ -231,7 +231,7 @@ mod tests {
         use std::fs;
         use std::path::Path;
 
-        use agent_cockpit_vcs::git2::{Repository, RepositoryInitOptions, Signature};
+        use mizraj_vcs::git2::{Repository, RepositoryInitOptions, Signature};
         use tempfile::TempDir;
 
         use super::*;
@@ -277,7 +277,7 @@ mod tests {
                 assert!(manager.list_sessions().await.contains(&id));
 
                 let repo = repo_open(dir.path()).expect("repo_open");
-                let ref_name = format!("refs/agent-cockpit/sessions/{}", id.as_str());
+                let ref_name = format!("refs/mizraj/sessions/{}", id.as_str());
                 repo.find_reference(&ref_name)
                     .expect("session ref should exist after session_create");
             });
@@ -351,7 +351,7 @@ mod tests {
                 assert_eq!(row.2, cwd);
                 assert_eq!(
                     row.3,
-                    format!("refs/agent-cockpit/sessions/{}", id.as_str())
+                    format!("refs/mizraj/sessions/{}", id.as_str())
                 );
                 assert!(
                     row.4.contains('T') && row.4.ends_with('Z'),

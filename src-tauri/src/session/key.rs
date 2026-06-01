@@ -1,4 +1,4 @@
-use agent_cockpit_term::Mods;
+use mizraj_term::Mods;
 use serde::Deserialize;
 
 /// A single key press forwarded from the frontend.

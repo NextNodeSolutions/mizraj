@@ -1,5 +1,5 @@
-use tauri_app_lib::session::path;
-use tauri_app_lib::session::SessionError;
+use mizraj_lib::session::path;
+use mizraj_lib::session::SessionError;
 
 #[test]
 fn missing_binary_surfaces_binary_not_found() {

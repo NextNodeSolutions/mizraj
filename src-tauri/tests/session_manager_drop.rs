@@ -12,7 +12,7 @@ use nix::unistd::Pid;
 use tauri::async_runtime::block_on;
 use tempfile::TempDir;
 
-use tauri_app_lib::session::SessionManager;
+use mizraj_lib::session::SessionManager;
 
 fn pid_gone(pid: Pid) -> bool {
     matches!(kill(pid, None), Err(Errno::ESRCH))

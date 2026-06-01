@@ -2,7 +2,7 @@
 #
 # setup-libghostty.sh — build libghostty-vt from source for local dev.
 #
-# Why this exists: `crates/agent-cockpit-term-sys` links against
+# Why this exists: `crates/mizraj-term-sys` links against
 # libghostty-vt at build time via the LIBGHOSTTY_LIB_DIR env var. Upstream
 # ships no per-commit prebuilt dylib, so we build it from the exact pinned
 # ghostty commit (the same SHA our vendored headers track).
@@ -21,12 +21,12 @@ set -euo pipefail
 
 # --- Resolve repo paths ------------------------------------------------------
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TERM_SYS_DIR="$REPO_ROOT/crates/agent-cockpit-term-sys"
+TERM_SYS_DIR="$REPO_ROOT/crates/mizraj-term-sys"
 VERSION_FILE="$TERM_SYS_DIR/vendor/VERSION"
 
 # Build artifacts live OUTSIDE the repo (heavy, machine-specific); the final
 # dylib is copied INTO target/ (gitignored) where build.rs can find it.
-WORK_DIR="${LIBGHOSTTY_WORK_DIR:-$HOME/.cache/agent-cockpit/libghostty}"
+WORK_DIR="${LIBGHOSTTY_WORK_DIR:-$HOME/.cache/mizraj/libghostty}"
 INSTALL_DIR="$REPO_ROOT/target/libghostty"
 
 # Ghostty pins a strict Zig version in build.zig.zon. As of the pinned commit

@@ -6,7 +6,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use tauri_app_lib::session::pty::{self, PtySession};
+use mizraj_lib::session::pty::{self, PtySession};
 
 // The spawn API takes no argv beyond the binary path, so we drive `/bin/sh`
 // via master_writer to print 'y' and exit 0. This still exercises the full

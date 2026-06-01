@@ -1,70 +1,18 @@
-mod active_project;
-mod commands;
 mod db;
-pub mod diff_format;
-mod files;
+mod diff;
+mod interviews;
 mod logging;
+mod plans;
+mod project;
+mod tasks;
 pub mod session;
 pub mod worktree;
 
 use tauri::Manager;
 
-use crate::active_project::ActiveProject;
+use crate::project::ActiveProject;
 use crate::db::Db;
 use crate::session::SessionManager;
-
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
-#[tauri::command]
-fn log_from_frontend(
-    level: String,
-    message: String,
-    scope: Option<String>,
-    request_id: Option<String>,
-    details: Option<String>,
-) {
-    let scope = scope.as_deref().unwrap_or("frontend");
-    let request_id = request_id.as_deref().unwrap_or("");
-    let details = details.as_deref().unwrap_or("");
-
-    match level.as_str() {
-        "error" => tracing::error!(
-            target: "frontend",
-            scope,
-            request_id,
-            details,
-            "{}",
-            message
-        ),
-        "warn" => tracing::warn!(
-            target: "frontend",
-            scope,
-            request_id,
-            details,
-            "{}",
-            message
-        ),
-        "debug" => tracing::debug!(
-            target: "frontend",
-            scope,
-            request_id,
-            details,
-            "{}",
-            message
-        ),
-        _ => tracing::info!(
-            target: "frontend",
-            scope,
-            request_id,
-            details,
-            "{}",
-            message
-        ),
-    }
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -79,8 +27,8 @@ pub fn run() {
         .manage(ActiveProject::default())
         .manage(Db::default())
         .register_uri_scheme_protocol(
-            commands::plan_protocol::SCHEME,
-            commands::plan_protocol::handle_request,
+            plans::protocol::SCHEME,
+            plans::protocol::handle_request,
         )
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -97,17 +45,16 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            greet,
-            log_from_frontend,
-            files::read_interview_state,
-            commands::get_diff::get_diff,
-            commands::list_plans::list_plans,
-            commands::set_active_project::set_active_project,
-            commands::set_active_project::clear_active_project,
-            commands::tasks::tasks_overview,
-            commands::tasks::tasks_create,
-            commands::tasks::tasks_update,
-            commands::plan_protocol::resolve_plan,
+            logging::log_from_frontend,
+            interviews::read_interview_state,
+            diff::get_diff,
+            plans::list::list_plans,
+            project::set_active_project,
+            project::clear_active_project,
+            tasks::tasks_overview,
+            tasks::tasks_create,
+            tasks::tasks_update,
+            plans::protocol::resolve_plan,
             session::commands::session_create,
             session::commands::session_resize,
             session::commands::session_key,

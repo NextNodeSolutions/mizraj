@@ -1,0 +1,9 @@
+[package]
+name = "mizraj-term"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mizraj-term-sys = { path = "../mizraj-term-sys" }
+bitflags = "2"
+thiserror = "2"

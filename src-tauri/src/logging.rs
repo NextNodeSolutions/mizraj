@@ -10,7 +10,7 @@ use tracing_appender::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-const LOG_FILENAME_PREFIX: &str = "agent-cockpit";
+const LOG_FILENAME_PREFIX: &str = "mizraj";
 const LOG_FILENAME_SUFFIX: &str = "log";
 const MAX_LOG_FILES: usize = 14;
 const DEFAULT_LOG_FILTER: &str = "info";
@@ -54,11 +54,61 @@ fn init_logging<R: Runtime>(app: &AppHandle<R>) -> Result<WorkerGuard, Box<dyn s
 /// hooks (sql, store, updater, etc.) emit through an attached subscriber instead
 /// of being dropped by the default no-op dispatcher.
 pub fn plugin() -> TauriPlugin<Wry> {
-    PluginBuilder::new("agent-cockpit-logging")
+    PluginBuilder::new("mizraj-logging")
         .setup(|app, _api| {
             let guard = init_logging(app)?;
             app.manage(guard);
             Ok(())
         })
         .build()
+}
+
+/// Bridge a frontend log record into the backend `tracing` subscriber so the UI
+/// and the Rust core share one log stream and one rotating file.
+#[tauri::command]
+pub fn log_from_frontend(
+    level: String,
+    message: String,
+    scope: Option<String>,
+    request_id: Option<String>,
+    details: Option<String>,
+) {
+    let scope = scope.as_deref().unwrap_or("frontend");
+    let request_id = request_id.as_deref().unwrap_or("");
+    let details = details.as_deref().unwrap_or("");
+
+    match level.as_str() {
+        "error" => tracing::error!(
+            target: "frontend",
+            scope,
+            request_id,
+            details,
+            "{}",
+            message
+        ),
+        "warn" => tracing::warn!(
+            target: "frontend",
+            scope,
+            request_id,
+            details,
+            "{}",
+            message
+        ),
+        "debug" => tracing::debug!(
+            target: "frontend",
+            scope,
+            request_id,
+            details,
+            "{}",
+            message
+        ),
+        _ => tracing::info!(
+            target: "frontend",
+            scope,
+            request_id,
+            details,
+            "{}",
+            message
+        ),
+    }
 }

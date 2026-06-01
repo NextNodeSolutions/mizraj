@@ -24,7 +24,7 @@ mod tests {
         assert_eq!(
             derive_label(
                 "claude",
-                "/Users/walid/repos/agent-cockpit/feat-foundations"
+                "/Users/walid/repos/mizraj/feat-foundations"
             ),
             "claude @ feat-foundations"
         );
