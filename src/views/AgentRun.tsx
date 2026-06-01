@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useState } from 'react'
 
 import DiffPanel from '../components/DiffPanel'
-import GhosttyLog from '../components/GhosttyLog'
+import TerminalPane from '../components/TerminalPane'
 import { describeError } from '../errors'
 import { useSession } from '../lib/useSession'
 import { logger } from '../logger'
@@ -47,7 +47,7 @@ const AgentRun = ({ sessionId }: Props): React.JSX.Element => {
 				Stop
 			</button>
 			<div className="agent-run__log">
-				<GhosttyLog sessionId={sessionId} />
+				<TerminalPane sessionId={sessionId} />
 			</div>
 			{!diffOpen && (
 				<button
@@ -63,10 +63,7 @@ const AgentRun = ({ sessionId }: Props): React.JSX.Element => {
 				data-open={diffOpen}
 				aria-hidden={!diffOpen}
 			>
-				<DiffPanel
-					sessionId={sessionId}
-					onClose={() => setDiffOpen(false)}
-				/>
+				<DiffPanel onClose={() => setDiffOpen(false)} />
 			</aside>
 		</div>
 	)

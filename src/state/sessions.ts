@@ -35,6 +35,8 @@ export const AGENT_OUTPUT_EVENT = 'agent:output'
 
 export const AGENT_END_EVENT = 'agent:end'
 
+export const AGENT_CELLS_EVENT = 'agent:cells'
+
 type SessionsMap = Readonly<Record<string, SessionState>>
 
 export const sessionsAtom = atom<SessionsMap>({})
@@ -81,6 +83,32 @@ export const endSessionAtom = atom(
 			...sessions,
 			[sessionId]: { ...existing, status: 'ended', exitCode },
 		})
+	},
+)
+
+// Which session currently owns the keyboard. Decoupled from DOM focus on
+// purpose: the terminal is the app's centre of gravity, so keystrokes flow to
+// the active pane without a click-to-focus step. With a single pane it's just
+// that pane; once Ghostty-style splits land, focus-follows-mouse keeps exactly
+// one pane active so the keystroke is never broadcast to every terminal.
+export const activeSessionIdAtom = atom<string | null>(null)
+
+// A pane claims the keyboard when it mounts or the pointer enters it.
+export const claimActiveSessionAtom = atom(
+	null,
+	(_get, set, sessionId: string) => {
+		set(activeSessionIdAtom, sessionId)
+	},
+)
+
+// A pane releases the keyboard on unmount — but only if it's still the active
+// one, so a sibling pane that already claimed focus isn't wrongly cleared.
+export const releaseActiveSessionAtom = atom(
+	null,
+	(get, set, sessionId: string) => {
+		if (get(activeSessionIdAtom) === sessionId) {
+			set(activeSessionIdAtom, null)
+		}
 	},
 )
 

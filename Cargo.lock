@@ -4673,6 +4673,7 @@ dependencies = [
 name = "tauri-app"
 version = "0.1.0"
 dependencies = [
+ "agent-cockpit-term",
  "agent-cockpit-vcs",
  "html-escape",
  "nix 0.29.0",

@@ -25,6 +25,7 @@ tsconfig.tsbuildinfo
 .vscode/*
 !.vscode/extensions.json
 .idea
+.claude/
 .DS_Store
 *.suo
 *.ntvs*
@@ -38,3 +39,6 @@ __pycache__/
 
 # Rust
 /target/
+
+# Claude Code local state
+.claude/

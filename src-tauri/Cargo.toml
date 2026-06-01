@@ -40,6 +40,7 @@ ulid = "1"
 nix = { version = "0.29", default-features = false, features = ["signal"] }
 tokio = { version = "1", default-features = false, features = ["time"] }
 agent-cockpit-vcs = { path = "../crates/agent-cockpit-vcs" }
+agent-cockpit-term = { path = "../crates/agent-cockpit-term" }
 
 [dev-dependencies]
 tempfile = "3"

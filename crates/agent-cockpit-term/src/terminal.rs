@@ -1,8 +1,9 @@
 use std::ptr::{self, NonNull};
 
 use agent_cockpit_term_sys::{
-    ghostty_terminal_free, ghostty_terminal_new, ghostty_terminal_vt_write,
-    GhosttyResult_GHOSTTY_SUCCESS, GhosttyTerminal, GhosttyTerminalImpl, GhosttyTerminalOptions,
+    ghostty_terminal_free, ghostty_terminal_new, ghostty_terminal_resize,
+    ghostty_terminal_vt_write, GhosttyResult_GHOSTTY_SUCCESS, GhosttyTerminal, GhosttyTerminalImpl,
+    GhosttyTerminalOptions,
 };
 
 use crate::{Result, TermError};
@@ -57,6 +58,33 @@ impl Terminal {
         self.cols
     }
 
+    /// Resize the grid to `rows` x `cols`, reflowing the primary screen when
+    /// wraparound is enabled. Must be kept in lockstep with the PTY size: the
+    /// child reflows its output to the PTY's columns, so this emulator has to
+    /// parse those bytes at the same width or the grid scatters.
+    ///
+    /// Cell pixel dimensions are passed as 0 — they only feed image protocols
+    /// and mode-2048 size reports, which this VT-only render path does not use.
+    pub fn resize(&mut self, rows: u16, cols: u16) -> Result<()> {
+        if rows == 0 || cols == 0 {
+            return Err(TermError::Resize(format!(
+                "rows and cols must be non-zero (got rows={rows}, cols={cols})"
+            )));
+        }
+        // SAFETY: `self.handle` is a live handle from `ghostty_terminal_new`
+        // (Drop hasn't run, guaranteed by `&mut self`). `cols`/`rows` are
+        // non-zero as the header requires; the two pixel args are plain u32.
+        let result = unsafe { ghostty_terminal_resize(self.handle.as_ptr(), cols, rows, 0, 0) };
+        if result != GhosttyResult_GHOSTTY_SUCCESS {
+            return Err(TermError::Resize(format!(
+                "ghostty_terminal_resize returned result code {result}"
+            )));
+        }
+        self.rows = rows;
+        self.cols = cols;
+        Ok(())
+    }
+
     /// Feed VT bytes; infallible per libghostty (Result kept for API symmetry).
     pub fn feed(&mut self, data: &[u8]) -> Result<()> {
         if data.is_empty() {
@@ -84,5 +112,34 @@ impl Drop for Terminal {
         // has not been freed before (Drop runs at most once), and is not
         // observed after this call (the Terminal is being destroyed).
         unsafe { ghostty_terminal_free(self.handle.as_ptr()) };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resize_updates_reported_dimensions() {
+        let mut terminal = Terminal::new(24, 80).expect("new 24x80 terminal");
+
+        terminal.resize(40, 120).expect("resize to 40x120");
+
+        assert_eq!(terminal.rows(), 40);
+        assert_eq!(terminal.cols(), 120);
+    }
+
+    #[test]
+    fn resize_to_zero_dimension_is_rejected() {
+        let mut terminal = Terminal::new(24, 80).expect("new 24x80 terminal");
+
+        let err = terminal
+            .resize(0, 80)
+            .expect_err("zero rows must be rejected");
+
+        assert!(matches!(err, TermError::Resize(_)));
+        // The failed resize must not corrupt the live dimensions.
+        assert_eq!(terminal.rows(), 24);
+        assert_eq!(terminal.cols(), 80);
     }
 }
