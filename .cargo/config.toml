@@ -1,0 +1,32 @@
+# Point agent-cockpit-term-sys's build.rs at the locally-built libghostty-vt
+# dylib so `cargo build` / `pnpm dev` link without anyone exporting
+# LIBGHOSTTY_LIB_DIR by hand. The dylib is produced by
+# `scripts/setup-libghostty.sh` into target/libghostty/ (gitignored).
+#
+# `relative = true` resolves the value against the parent directory of this
+# .cargo folder (the repo root), so this works regardless of where cargo is
+# invoked from. This is a dev convenience; the packaged build bundles the dylib
+# into the .app (see docs/notes/2026-05-31-libghostty-bundling-track-scope.md).
+[env]
+LIBGHOSTTY_LIB_DIR = { value = "target/libghostty", relative = true }
+
+# Embed a runtime search path so the final binary finds libghostty.dylib at
+# launch. agent-cockpit-term-sys links it as `@rpath/libghostty.dylib`, but a
+# `cargo:rustc-link-arg=-rpath` emitted from a -sys build script does NOT
+# propagate to the dependent binary — so the rpath must be set here, where it
+# applies to the final link. The dylib lives at <repo>/target/libghostty and the
+# binary at <repo>/target/<profile>/, so `@executable_path/../libghostty`
+# resolves to it for both `cargo run` and `pnpm dev`. The packaged .app will
+# bundle the dylib under Frameworks/ with its own rpath (bundling track).
+#
+# The second rpath is for `cargo test`: test binaries live one level deeper, in
+# <repo>/target/<profile>/deps/, so `@executable_path/../../libghostty` resolves
+# to the same <repo>/target/libghostty. Without it the test loader can't find
+# the dylib and every FFI-touching test aborts at launch.
+[target.'cfg(target_os = "macos")']
+rustflags = [
+    "-C",
+    "link-arg=-Wl,-rpath,@executable_path/../libghostty",
+    "-C",
+    "link-arg=-Wl,-rpath,@executable_path/../../libghostty",
+]
