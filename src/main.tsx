@@ -1,13 +1,13 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 
-import App from './App'
-import ErrorBoundary from './components/ErrorBoundary'
-import { describeError } from './errors'
-import { startTerminalInputRouter } from './lib/terminalInput'
-import { runUpdaterCheck } from './lib/updater'
-import { logger } from './logger'
-import { startAgentEventsBridge } from './state/sessions'
+import App from '@/app/App'
+import ErrorBoundary from '@/app/ErrorBoundary'
+import { startAgentEventsBridge } from '@/features/sessions/sessions'
+import { startTerminalInputRouter } from '@/features/sessions/terminalInput'
+import { describeError } from '@/shared/errors'
+import { logger } from '@/shared/logger'
+import { runUpdaterCheck } from '@/shared/updater'
 
 window.addEventListener('error', event => {
 	const { stack } = describeError(event.error)
