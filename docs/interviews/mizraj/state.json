@@ -1,5 +1,5 @@
 {
-	"slug": "agent-cockpit",
+	"slug": "mizraj",
 	"topic": "Tauri-based dev workflow cockpit — successor to the rp zsh function",
 	"change_kind": "greenfield",
 	"phase": "sealed",
@@ -15,7 +15,7 @@
 		"drive",
 		"integration"
 	],
-	"promoted_to": "docs/plans/2026-05-15-agent-cockpit.html",
+	"promoted_to": "docs/plans/2026-05-15-mizraj.html",
 	"promotion_date": "2026-05-15",
 	"out_of_scope_branches": [
 		"multi-device-sync",
@@ -26,8 +26,8 @@
 	"open_questions": [
 		"adiffi V2 — needs its own discovery before V2 starts",
 		"Linear transition for in-flight projects (operational, non-blocking)",
-		"Final project name (currently agent-cockpit) — to settle before cargo new",
+		"Final project name (currently mizraj) — to settle before cargo new",
 		"Distribution format V1 (GitHub Releases only, or brew tap / nix flake from day 1)"
 	],
-	"next_actions": "User to run the bootstrap checklist (10 steps) from docs/plans/2026-05-15-agent-cockpit.html; can pass the 'Copy as backlog prompt' output into /backlog to generate Linear issues if desired."
+	"next_actions": "User to run the bootstrap checklist (10 steps) from docs/plans/2026-05-15-mizraj.html; can pass the 'Copy as backlog prompt' output into /backlog to generate Linear issues if desired."
 }

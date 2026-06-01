@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Roadmap Agent Cockpit · Closure · Interview</title>
+		<title>Roadmap Mizraj · Closure · Interview</title>
 		<script>
 			;(function () {
 				try {
@@ -533,7 +533,7 @@
 		</button>
 		<div class="layout">
 			<nav class="side">
-				<div class="brand">Agent Cockpit</div>
+				<div class="brand">Mizraj</div>
 				<div class="sub">Roadmap · Closure</div>
 				<div id="sidenav"></div>
 				<div class="progress-wrap">
@@ -553,7 +553,7 @@
 				<div class="eyebrow">
 					Interview · Closure · prêt pour /backlog
 				</div>
-				<h1>Agent Cockpit — plan de la suite</h1>
+				<h1>Mizraj — plan de la suite</h1>
 				<p class="lede">
 					12 décisions scellées sur les 6 champs (Fact · Mechanism ·
 					Edge · Rejected · Order · Verification). Chaque champ est
@@ -634,7 +634,7 @@
 						<div class="rc"><span class="sev low">low</span></div>
 						<div class="rc">
 							Note README + ADR « Linear = legacy, source de
-							vérité = docs/plans/agent-cockpit.plan.json ».
+							vérité = docs/plans/mizraj.plan.json ».
 						</div>
 					</div>
 				</div>
@@ -644,9 +644,8 @@
 					<div class="steps">
 						<div class="step">
 							Lancer <code>/backlog</code> sur cette closure →
-							générer
-							<code>docs/plans/agent-cockpit.plan.json</code> en y
-							extrayant le scope Linear encore valide (D3).
+							générer <code>docs/plans/mizraj.plan.json</code> en
+							y extrayant le scope Linear encore valide (D3).
 						</div>
 						<div class="step">
 							<code>/track M1</code> → shipper le polish P3
@@ -699,13 +698,13 @@
 					title: 'Pilote canonique : plan.json',
 					fact: "plan.json piloté par /backlog→/track→/next est la source de vérité canonique du développement. Linear n'est plus source de vérité : lu une seule fois pour amorcer plan.json, puis gelé en legacy (aucun re-push, aucun miroir live).",
 					mechanism:
-						"/backlog génère docs/plans/agent-cockpit.plan.json (milestones→tracks→tasks) depuis le réel + le scope extrait de Linear ; /track sélectionne un track, /next shippe tâche par tâche en une PR par track. Linear reste consultable mais aucune commande n'y écrit.",
+						"/backlog génère docs/plans/mizraj.plan.json (milestones→tracks→tasks) depuis le réel + le scope extrait de Linear ; /track sélectionne un track, /next shippe tâche par tâche en une PR par track. Linear reste consultable mais aucune commande n'y écrit.",
 					edge: "Touche : le process de pilotage et le fichier plan.json. Ne touche pas : le code applicatif, ni l'historique des issues Linear (laissées telles quelles).",
 					rejected:
 						'Linear canonique (a re-divergé faute de discipline write-once) ; plans HTML seuls (aucun suivi de tâches structuré).',
 					order: "Bloque l'émission du plan.json et les décisions D2/D3. Aucune dépendance amont.",
 					verification:
-						"docs/plans/agent-cockpit.plan.json existe et /track le lit ; aucune écriture Linear émise après l'import initial.",
+						"docs/plans/mizraj.plan.json existe et /track le lit ; aucune écriture Linear émise après l'import initial.",
 				},
 
 				{
@@ -742,9 +741,9 @@
 					id: 'D4',
 					theme: 'terminal',
 					title: 'Terminal natif libghostty→canvas (retrait de ghostty-web)',
-					fact: 'Le terminal passe au pipeline natif libghostty→canvas ; ghostty-web est retiré. La crate agent-cockpit-term (déjà construite : feed→cells via libghostty-vt) est câblée au front.',
+					fact: 'Le terminal passe au pipeline natif libghostty→canvas ; ghostty-web est retiré. La crate mizraj-term (déjà construite : feed→cells via libghostty-vt) est câblée au front.',
 					mechanism:
-						'src-tauri dépend de agent-cockpit-term ; un thread de rendu par session parse les bytes PTY en Cells (Terminal::feed + RenderState::snapshot), sérialise en CellFrame, pousse au front via IPC Tauri ; un composant React <TerminalPane> dessine la grille sur <canvas>. GhosttyLog.tsx + la dépendance ghostty-web sont supprimés.',
+						'src-tauri dépend de mizraj-term ; un thread de rendu par session parse les bytes PTY en Cells (Terminal::feed + RenderState::snapshot), sérialise en CellFrame, pousse au front via IPC Tauri ; un composant React <TerminalPane> dessine la grille sur <canvas>. GhosttyLog.tsx + la dépendance ghostty-web sont supprimés.',
 					edge: 'Touche : le rendu terminal backend+front et le transport IPC. Ne touche pas : le spawn PTY / SessionManager (inchangés — le rendu est un nouveau OutputSink).',
 					rejected:
 						"ghostty-web seul (dépendance au rythme de release Coder + bundle WASM ~400KB + ne scale pas pour la grille multi-cellules) ; web maintenant / natif plus tard pour la grille (repousse le câblage d'un natif déjà à ~40%).",

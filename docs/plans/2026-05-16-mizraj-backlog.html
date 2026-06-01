@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width,initial-scale=1" />
-		<title>Agent Cockpit — Backlog V1 (106 tâches)</title>
+		<title>Mizraj — Backlog V1 (106 tâches)</title>
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
@@ -846,7 +846,7 @@
 				<div class="sidebar-brand">
 					<div class="brand-mark">AC</div>
 					<div class="brand-text">
-						<div class="brand-title">Agent Cockpit</div>
+						<div class="brand-title">Mizraj</div>
 						<div class="brand-sub">Backlog · V1</div>
 					</div>
 				</div>
@@ -900,14 +900,12 @@
 					<div class="rail-label">Links</div>
 					<a
 						class="rail-link rail-ext"
-						href="https://linear.app/nextnode/project/agent-cockpit-009971b6403c"
+						href="https://linear.app/nextnode/project/mizraj-009971b6403c"
 						target="_blank"
 						rel="noopener"
 						>Linear project →</a
 					>
-					<a
-						class="rail-link rail-ext"
-						href="2026-05-15-agent-cockpit.html"
+					<a class="rail-link rail-ext" href="2026-05-15-mizraj.html"
 						>← Source plan</a
 					>
 				</div>
@@ -928,18 +926,18 @@
 						<div class="eyebrow">
 							Backlog · greenfield · pushed to Linear (SAS team)
 						</div>
-						<h1>Agent Cockpit — 106 tâches prêtes à exploser</h1>
+						<h1>Mizraj — 106 tâches prêtes à exploser</h1>
 						<p class="lede">
 							Backlog généré à partir des 20 décisions de
 							l'interview de closure (<a
-								href="2026-05-15-agent-cockpit.html"
-								><code>2026-05-15-agent-cockpit.html</code></a
+								href="2026-05-15-mizraj.html"
+								><code>2026-05-15-mizraj.html</code></a
 							>), poussé tel quel dans le projet Linear
 							<a
-								href="https://linear.app/nextnode/project/agent-cockpit-009971b6403c"
+								href="https://linear.app/nextnode/project/mizraj-009971b6403c"
 								target="_blank"
 								rel="noopener"
-								><code>Agent Cockpit</code></a
+								><code>Mizraj</code></a
 							>
 							(équipe SAS). Cette page sert de plan de vol avant
 							implémentation — scan, ajustement, validation.
@@ -1097,15 +1095,11 @@
 				<footer class="page-footer">
 					<div>
 						<strong>Source</strong> · <code>tasks.json</code> @
-						<code
-							>/tmp/claude/backlog-agent-cockpit-20260516-182106/</code
-						>
+						<code>/tmp/claude/backlog-mizraj-20260516-182106/</code>
 					</div>
 					<div>
 						<strong>Bundle</strong> ·
-						<code
-							>docs/interviews/agent-cockpit/backlog-bundle.json</code
-						>
+						<code>docs/interviews/mizraj/backlog-bundle.json</code>
 					</div>
 					<div>
 						<strong>Worker</strong> ·
@@ -1124,8 +1118,8 @@
 						"tasks": [
 							{
 								"step": "01",
-								"title": "Init public repo NextNodeSolutions/agent-cockpit",
-								"description": "**WHAT**: Create the public GitHub repo `NextNodeSolutions/agent-cockpit` with default branch `main` and a one-line description matching the plan.\n\n**WHY**: D2 — code source public dès le premier commit ; tranché AVANT le premier commit (pivot post-publication = coûteux).\n\n**WHERE**: github.com/NextNodeSolutions/agent-cockpit (repo creation via `gh repo create`).\n\n**DONE WHEN**:\n- `gh repo view NextNodeSolutions/agent-cockpit --json visibility -q .visibility` returns `PUBLIC`\n- Default branch is `main`\n- Description set: \"Tauri 2 desktop app for managing AI coding agents\"\n\n_Decision refs_: D2",
+								"title": "Init public repo NextNodeSolutions/mizraj",
+								"description": "**WHAT**: Create the public GitHub repo `NextNodeSolutions/mizraj` with default branch `main` and a one-line description matching the plan.\n\n**WHY**: D2 — code source public dès le premier commit ; tranché AVANT le premier commit (pivot post-publication = coûteux).\n\n**WHERE**: github.com/NextNodeSolutions/mizraj (repo creation via `gh repo create`).\n\n**DONE WHEN**:\n- `gh repo view NextNodeSolutions/mizraj --json visibility -q .visibility` returns `PUBLIC`\n- Default branch is `main`\n- Description set: \"Tauri 2 desktop app for managing AI coding agents\"\n\n_Decision refs_: D2",
 								"decision_refs": ["D2"],
 								"priority": 2
 							},
@@ -1139,7 +1133,7 @@
 							{
 								"step": "03",
 								"title": "Write minimal README with plan link and license badge",
-								"description": "**WHAT**: Single-page README with sections `What`, `Status`, `Plan`, `License`, and a license badge.\n\n**WHY**: D2 — README minimal qui pointe vers `docs/plans/2026-05-15-agent-cockpit.html`.\n\n**WHERE**: `./README.md`\n\n**DONE WHEN**:\n- Contains `[License: AGPL-3.0-only](LICENSE)` badge\n- Links `docs/plans/2026-05-15-agent-cockpit.html`\n- One-paragraph pitch and a \"no support promise\" line\n\n_Decision refs_: D2",
+								"description": "**WHAT**: Single-page README with sections `What`, `Status`, `Plan`, `License`, and a license badge.\n\n**WHY**: D2 — README minimal qui pointe vers `docs/plans/2026-05-15-mizraj.html`.\n\n**WHERE**: `./README.md`\n\n**DONE WHEN**:\n- Contains `[License: AGPL-3.0-only](LICENSE)` badge\n- Links `docs/plans/2026-05-15-mizraj.html`\n- One-paragraph pitch and a \"no support promise\" line\n\n_Decision refs_: D2",
 								"decision_refs": ["D2"]
 							},
 							{
@@ -1151,7 +1145,7 @@
 							{
 								"step": "05",
 								"title": "Scaffold Tauri 2 app with create-tauri-app react-ts template",
-								"description": "**WHAT**: Run `cargo create-tauri-app . --template react-ts` to bootstrap the project skeleton.\n\n**WHY**: D3 — runtime Tauri 2.x ; D4 — React 19 + Vite + TypeScript scaffold.\n\n**WHERE**: `./src-tauri/`, `./src/`, `./package.json`, `./Cargo.toml`, `./vite.config.ts`\n\n**DONE WHEN**:\n- `cargo run` (or `pnpm tauri dev`) launches a Tauri window\n- `pnpm dev` starts Vite + Tauri concurrently\n- React entry renders an \"Agent Cockpit\" placeholder\n\n_Decision refs_: D3, D4",
+								"description": "**WHAT**: Run `cargo create-tauri-app . --template react-ts` to bootstrap the project skeleton.\n\n**WHY**: D3 — runtime Tauri 2.x ; D4 — React 19 + Vite + TypeScript scaffold.\n\n**WHERE**: `./src-tauri/`, `./src/`, `./package.json`, `./Cargo.toml`, `./vite.config.ts`\n\n**DONE WHEN**:\n- `cargo run` (or `pnpm tauri dev`) launches a Tauri window\n- `pnpm dev` starts Vite + Tauri concurrently\n- React entry renders an \"Mizraj\" placeholder\n\n_Decision refs_: D3, D4",
 								"decision_refs": ["D3", "D4"],
 								"priority": 2
 							},
@@ -1176,7 +1170,7 @@
 							{
 								"step": "09",
 								"title": "Enable tauri-plugin-sql with SQLite driver",
-								"description": "**WHAT**: Add `tauri-plugin-sql` with the `sqlite` feature.\n\n**WHY**: D3 — plugin SQLite ; D5 — backend de persistance SQLite.\n\n**WHERE**: `src-tauri/Cargo.toml`, `src-tauri/src/lib.rs`\n\n**DONE WHEN**:\n- `tauri-plugin-sql = { version = \"2\", features = [\"sqlite\"] }`\n- Plugin registered ; DB URL targets `sqlite:agent-cockpit.db` under app-data-dir\n\n_Decision refs_: D3, D5",
+								"description": "**WHAT**: Add `tauri-plugin-sql` with the `sqlite` feature.\n\n**WHY**: D3 — plugin SQLite ; D5 — backend de persistance SQLite.\n\n**WHERE**: `src-tauri/Cargo.toml`, `src-tauri/src/lib.rs`\n\n**DONE WHEN**:\n- `tauri-plugin-sql = { version = \"2\", features = [\"sqlite\"] }`\n- Plugin registered ; DB URL targets `sqlite:mizraj.db` under app-data-dir\n\n_Decision refs_: D3, D5",
 								"decision_refs": ["D3", "D5"]
 							},
 							{
@@ -1206,7 +1200,7 @@
 							{
 								"step": "14",
 								"title": "Set Tauri app identity (bundle id, product name, window)",
-								"description": "**WHAT**: Set bundle identifier, product name, default window title and sizes.\n\n**WHY**: Plumbing — every desktop app needs unique identity ; window title and bundle id are not in any architectural Decision.\n\n**WHERE**: `src-tauri/tauri.conf.json`\n\n**DONE WHEN**:\n- `identifier`: `fr.nextnode.agent-cockpit`\n- `productName`: `Agent Cockpit`\n- Default window: title `Agent Cockpit`, size 1280×800, minSize 1024×720\n\n_Plumbing: greenfield desktop app identity._",
+								"description": "**WHAT**: Set bundle identifier, product name, default window title and sizes.\n\n**WHY**: Plumbing — every desktop app needs unique identity ; window title and bundle id are not in any architectural Decision.\n\n**WHERE**: `src-tauri/tauri.conf.json`\n\n**DONE WHEN**:\n- `identifier`: `fr.nextnode.mizraj`\n- `productName`: `Mizraj`\n- Default window: title `Mizraj`, size 1280×800, minSize 1024×720\n\n_Plumbing: greenfield desktop app identity._",
 								"decision_refs": [],
 								"theme": "plumbing"
 							},
@@ -1220,7 +1214,7 @@
 							{
 								"step": "16",
 								"title": "Bootstrap Rust backend logging (tracing + tracing-subscriber)",
-								"description": "**WHAT**: Set up `tracing` + `tracing-subscriber` with env filter and daily file rotation.\n\n**WHY**: Plumbing — structured logs for diagnosing agent spawn / git issues.\n\n**WHERE**: `src-tauri/Cargo.toml`, `src-tauri/src/logging.rs`, `src-tauri/src/lib.rs`\n\n**DONE WHEN**:\n- `tracing` and `tracing-subscriber` in Cargo.toml\n- `init_logging()` called in Tauri `setup` hook\n- `RUST_LOG=debug` toggles verbosity\n- Logs written to `<app-data-dir>/logs/agent-cockpit.log` with daily rotation\n\n_Plumbing: backend structured logging._",
+								"description": "**WHAT**: Set up `tracing` + `tracing-subscriber` with env filter and daily file rotation.\n\n**WHY**: Plumbing — structured logs for diagnosing agent spawn / git issues.\n\n**WHERE**: `src-tauri/Cargo.toml`, `src-tauri/src/logging.rs`, `src-tauri/src/lib.rs`\n\n**DONE WHEN**:\n- `tracing` and `tracing-subscriber` in Cargo.toml\n- `init_logging()` called in Tauri `setup` hook\n- `RUST_LOG=debug` toggles verbosity\n- Logs written to `<app-data-dir>/logs/mizraj.log` with daily rotation\n\n_Plumbing: backend structured logging._",
 								"decision_refs": [],
 								"theme": "plumbing"
 							},
@@ -1287,8 +1281,8 @@
 							},
 							{
 								"step": "02",
-								"title": "Open SQLite at <app-data-dir>/agent-cockpit.db",
-								"description": "**WHAT**: Open the SQLite DB at `<app-data-dir>/agent-cockpit.db` using Tauri's `path::app_data_dir()`.\n\n**WHY**: D5 — DB à `<app-data-dir>/agent-cockpit.db`.\n\n**WHERE**: `src-tauri/src/db/mod.rs`\n\n**DONE WHEN**:\n- macOS: `~/Library/Application Support/fr.nextnode.agent-cockpit/agent-cockpit.db` is created on first run\n- Directory created if missing\n- Logged at INFO level on first creation\n\n_Decision refs_: D5",
+								"title": "Open SQLite at <app-data-dir>/mizraj.db",
+								"description": "**WHAT**: Open the SQLite DB at `<app-data-dir>/mizraj.db` using Tauri's `path::app_data_dir()`.\n\n**WHY**: D5 — DB à `<app-data-dir>/mizraj.db`.\n\n**WHERE**: `src-tauri/src/db/mod.rs`\n\n**DONE WHEN**:\n- macOS: `~/Library/Application Support/fr.nextnode.mizraj/mizraj.db` is created on first run\n- Directory created if missing\n- Logged at INFO level on first creation\n\n_Decision refs_: D5",
 								"decision_refs": ["D5"]
 							},
 							{
@@ -1323,98 +1317,98 @@
 							},
 							{
 								"step": "08",
-								"title": "Add git2 and create agent-cockpit-vcs workspace member",
-								"description": "**WHAT**: Convert root to a Cargo workspace ; add `crates/agent-cockpit-vcs/` with `git2 = \"0.19\"`.\n\n**WHY**: D6 — crate `agent-cockpit-vcs` wrappe libgit2.\n\n**WHERE**: `./Cargo.toml` (workspace), `crates/agent-cockpit-vcs/Cargo.toml`\n\n**DONE WHEN**:\n- Root `Cargo.toml` declares `[workspace] members = [\"src-tauri\", \"crates/*\"]`\n- `cargo build -p agent-cockpit-vcs` succeeds\n\n_Decision refs_: D6",
+								"title": "Add git2 and create mizraj-vcs workspace member",
+								"description": "**WHAT**: Convert root to a Cargo workspace ; add `crates/mizraj-vcs/` with `git2 = \"0.19\"`.\n\n**WHY**: D6 — crate `mizraj-vcs` wrappe libgit2.\n\n**WHERE**: `./Cargo.toml` (workspace), `crates/mizraj-vcs/Cargo.toml`\n\n**DONE WHEN**:\n- Root `Cargo.toml` declares `[workspace] members = [\"src-tauri\", \"crates/*\"]`\n- `cargo build -p mizraj-vcs` succeeds\n\n_Decision refs_: D6",
 								"decision_refs": ["D6"]
 							},
 							{
 								"step": "09",
 								"title": "Implement vcs::repo_open",
-								"description": "**WHAT**: `pub fn repo_open(path: &Path) -> Result<Repository>` wrapping `git2::Repository::open`.\n\n**WHY**: D6 — `repo_open` wrapper.\n\n**WHERE**: `crates/agent-cockpit-vcs/src/lib.rs`\n\n**DONE WHEN**:\n- Returns `Repository` ; errors mapped to a local `VcsError`\n- Unit test on fixture `tests/fixtures/sample-repo/`\n\n_Decision refs_: D6",
+								"description": "**WHAT**: `pub fn repo_open(path: &Path) -> Result<Repository>` wrapping `git2::Repository::open`.\n\n**WHY**: D6 — `repo_open` wrapper.\n\n**WHERE**: `crates/mizraj-vcs/src/lib.rs`\n\n**DONE WHEN**:\n- Returns `Repository` ; errors mapped to a local `VcsError`\n- Unit test on fixture `tests/fixtures/sample-repo/`\n\n_Decision refs_: D6",
 								"decision_refs": ["D6"]
 							},
 							{
 								"step": "10",
 								"title": "Implement vcs::current_branch",
-								"description": "**WHAT**: `pub fn current_branch(repo: &Repository) -> Result<String>` returning the HEAD branch name.\n\n**WHY**: D6 — `current_branch` wrapper.\n\n**WHERE**: `crates/agent-cockpit-vcs/src/branch.rs`\n\n**DONE WHEN**:\n- Returns branch name (or `\"DETACHED\"` if detached HEAD)\n- Test passes on fixture repo\n\n_Decision refs_: D6",
+								"description": "**WHAT**: `pub fn current_branch(repo: &Repository) -> Result<String>` returning the HEAD branch name.\n\n**WHY**: D6 — `current_branch` wrapper.\n\n**WHERE**: `crates/mizraj-vcs/src/branch.rs`\n\n**DONE WHEN**:\n- Returns branch name (or `\"DETACHED\"` if detached HEAD)\n- Test passes on fixture repo\n\n_Decision refs_: D6",
 								"decision_refs": ["D6"]
 							},
 							{
 								"step": "11",
 								"title": "Implement vcs::diff_session (ref..HEAD)",
-								"description": "**WHAT**: `pub fn diff_session(repo: &Repository, session_id: &str) -> Result<Diff>` computing `refs/agent-cockpit/sessions/<id>..HEAD`.\n\n**WHY**: D6 — `diff_session` wrapper ; D10 — vue `session-scoped`.\n\n**WHERE**: `crates/agent-cockpit-vcs/src/diff.rs`\n\n**DONE WHEN**:\n- Returns `git2::Diff` between the session ref and HEAD\n- Test creates a temp repo, makes a commit, asserts hunk count\n\n_Decision refs_: D6, D10",
+								"description": "**WHAT**: `pub fn diff_session(repo: &Repository, session_id: &str) -> Result<Diff>` computing `refs/mizraj/sessions/<id>..HEAD`.\n\n**WHY**: D6 — `diff_session` wrapper ; D10 — vue `session-scoped`.\n\n**WHERE**: `crates/mizraj-vcs/src/diff.rs`\n\n**DONE WHEN**:\n- Returns `git2::Diff` between the session ref and HEAD\n- Test creates a temp repo, makes a commit, asserts hunk count\n\n_Decision refs_: D6, D10",
 								"decision_refs": ["D6", "D10"]
 							},
 							{
 								"step": "12",
 								"title": "Implement vcs::diff_working_tree (no args)",
-								"description": "**WHAT**: `pub fn diff_working_tree(repo: &Repository) -> Result<Diff>` (unstaged + untracked).\n\n**WHY**: D6 — `diff_working_tree` wrapper ; D10 — vue `working-tree`.\n\n**WHERE**: `crates/agent-cockpit-vcs/src/diff.rs`\n\n**DONE WHEN**:\n- Returns the equivalent of `git diff` with no args\n- Test modifies a file in fixture, asserts the diff hunks match\n\n_Decision refs_: D6, D10",
+								"description": "**WHAT**: `pub fn diff_working_tree(repo: &Repository) -> Result<Diff>` (unstaged + untracked).\n\n**WHY**: D6 — `diff_working_tree` wrapper ; D10 — vue `working-tree`.\n\n**WHERE**: `crates/mizraj-vcs/src/diff.rs`\n\n**DONE WHEN**:\n- Returns the equivalent of `git diff` with no args\n- Test modifies a file in fixture, asserts the diff hunks match\n\n_Decision refs_: D6, D10",
 								"decision_refs": ["D6", "D10"]
 							},
 							{
 								"step": "13",
 								"title": "Implement vcs::diff_head_base (base..HEAD)",
-								"description": "**WHAT**: `pub fn diff_head_base(repo: &Repository, base: &str) -> Result<Diff>` computing `<base>..HEAD`.\n\n**WHY**: D6 — `diff_head_base` wrapper ; D10 — vue `HEAD-vs-base`.\n\n**WHERE**: `crates/agent-cockpit-vcs/src/diff.rs`\n\n**DONE WHEN**:\n- Returns `Diff` between the base ref and HEAD\n- Test on fixture with a feature branch and commits\n\n_Decision refs_: D6, D10",
+								"description": "**WHAT**: `pub fn diff_head_base(repo: &Repository, base: &str) -> Result<Diff>` computing `<base>..HEAD`.\n\n**WHY**: D6 — `diff_head_base` wrapper ; D10 — vue `HEAD-vs-base`.\n\n**WHERE**: `crates/mizraj-vcs/src/diff.rs`\n\n**DONE WHEN**:\n- Returns `Diff` between the base ref and HEAD\n- Test on fixture with a feature branch and commits\n\n_Decision refs_: D6, D10",
 								"decision_refs": ["D6", "D10"]
 							},
 							{
 								"step": "14",
 								"title": "Implement vcs::worktree_list",
-								"description": "**WHAT**: `pub fn worktree_list(repo: &Repository) -> Result<Vec<WorktreeInfo>>`.\n\n**WHY**: D6 — `worktree_list` wrapper (used by cockpit and cleanup flows).\n\n**WHERE**: `crates/agent-cockpit-vcs/src/worktree.rs`\n\n**DONE WHEN**:\n- Returns list of all worktrees attached to the repo\n- Each entry has `name`, `path`, `branch`, `locked` fields\n\n_Decision refs_: D6",
+								"description": "**WHAT**: `pub fn worktree_list(repo: &Repository) -> Result<Vec<WorktreeInfo>>`.\n\n**WHY**: D6 — `worktree_list` wrapper (used by cockpit and cleanup flows).\n\n**WHERE**: `crates/mizraj-vcs/src/worktree.rs`\n\n**DONE WHEN**:\n- Returns list of all worktrees attached to the repo\n- Each entry has `name`, `path`, `branch`, `locked` fields\n\n_Decision refs_: D6",
 								"decision_refs": ["D6"]
 							},
 							{
 								"step": "15",
 								"title": "Write VCS integration tests on a fixture repo",
-								"description": "**WHAT**: Set up `crates/agent-cockpit-vcs/tests/fixtures/sample-repo/` with a seed script ; run all 5 diff/worktree functions end-to-end.\n\n**WHY**: D6 — `tests sur repo fixture tests/fixtures/sample-repo/`.\n\n**WHERE**: `crates/agent-cockpit-vcs/tests/integration.rs`, `tests/fixtures/sample-repo/setup.sh`\n\n**DONE WHEN**:\n- `cargo test -p agent-cockpit-vcs` runs end-to-end\n- Fixture seeded fresh per run (no stale state)\n- `cargo doc --open` shows the public VCS API\n\n_Decision refs_: D6",
+								"description": "**WHAT**: Set up `crates/mizraj-vcs/tests/fixtures/sample-repo/` with a seed script ; run all 5 diff/worktree functions end-to-end.\n\n**WHY**: D6 — `tests sur repo fixture tests/fixtures/sample-repo/`.\n\n**WHERE**: `crates/mizraj-vcs/tests/integration.rs`, `tests/fixtures/sample-repo/setup.sh`\n\n**DONE WHEN**:\n- `cargo test -p mizraj-vcs` runs end-to-end\n- Fixture seeded fresh per run (no stale state)\n- `cargo doc --open` shows the public VCS API\n\n_Decision refs_: D6",
 								"decision_refs": ["D6"]
 							},
 							{
 								"step": "16",
-								"title": "Create agent-cockpit-agent crate and declare AgentRuntime trait",
-								"description": "**WHAT**: Create `crates/agent-cockpit-agent/` with a `pub trait AgentRuntime` skeleton + `Handle` type stub.\n\n**WHY**: D7 — interface définie comme trait Rust dès V1.\n\n**WHERE**: `crates/agent-cockpit-agent/src/runtime.rs`\n\n**DONE WHEN**:\n- Crate compiles, exports the trait with 4 method signatures (spawn, send, on_output, resume)\n- `cargo doc -p agent-cockpit-agent` shows the trait\n\n_Decision refs_: D7",
+								"title": "Create mizraj-agent crate and declare AgentRuntime trait",
+								"description": "**WHAT**: Create `crates/mizraj-agent/` with a `pub trait AgentRuntime` skeleton + `Handle` type stub.\n\n**WHY**: D7 — interface définie comme trait Rust dès V1.\n\n**WHERE**: `crates/mizraj-agent/src/runtime.rs`\n\n**DONE WHEN**:\n- Crate compiles, exports the trait with 4 method signatures (spawn, send, on_output, resume)\n- `cargo doc -p mizraj-agent` shows the trait\n\n_Decision refs_: D7",
 								"decision_refs": ["D7"]
 							},
 							{
 								"step": "17",
 								"title": "Implement AgentRuntime::spawn signature with Handle type",
-								"description": "**WHAT**: `fn spawn(&self, cwd: &Path) -> Result<Handle>` where `Handle` wraps a child PID + stdio channels.\n\n**WHY**: D7 — méthode `spawn(cwd) -> Handle`.\n\n**WHERE**: `crates/agent-cockpit-agent/src/runtime.rs`, `handle.rs`\n\n**DONE WHEN**:\n- `Handle` exposes `pid()`, `stdin_tx`, `stdout_rx`, `stderr_rx` accessors\n- Documented with a usage example in the rustdoc\n\n_Decision refs_: D7",
+								"description": "**WHAT**: `fn spawn(&self, cwd: &Path) -> Result<Handle>` where `Handle` wraps a child PID + stdio channels.\n\n**WHY**: D7 — méthode `spawn(cwd) -> Handle`.\n\n**WHERE**: `crates/mizraj-agent/src/runtime.rs`, `handle.rs`\n\n**DONE WHEN**:\n- `Handle` exposes `pid()`, `stdin_tx`, `stdout_rx`, `stderr_rx` accessors\n- Documented with a usage example in the rustdoc\n\n_Decision refs_: D7",
 								"decision_refs": ["D7"]
 							},
 							{
 								"step": "18",
 								"title": "Implement AgentRuntime::send for stdin write",
-								"description": "**WHAT**: `fn send(&self, handle: &Handle, text: &str) -> Result<()>`.\n\n**WHY**: D7 — méthode `send(&Handle, text)`.\n\n**WHERE**: `crates/agent-cockpit-agent/src/runtime.rs`\n\n**DONE WHEN**:\n- Pushes bytes into the handle's stdin channel\n- Returns a clear error if the process is dead\n\n_Decision refs_: D7",
+								"description": "**WHAT**: `fn send(&self, handle: &Handle, text: &str) -> Result<()>`.\n\n**WHY**: D7 — méthode `send(&Handle, text)`.\n\n**WHERE**: `crates/mizraj-agent/src/runtime.rs`\n\n**DONE WHEN**:\n- Pushes bytes into the handle's stdin channel\n- Returns a clear error if the process is dead\n\n_Decision refs_: D7",
 								"decision_refs": ["D7"]
 							},
 							{
 								"step": "19",
 								"title": "Implement AgentRuntime::on_output subscription",
-								"description": "**WHAT**: `fn on_output(&self, handle: &Handle, cb: Box<dyn Fn(OutputChunk) + Send + Sync>) -> Subscription`.\n\n**WHY**: D7 — méthode `on_output(cb)` pour stream stdout/stderr.\n\n**WHERE**: `crates/agent-cockpit-agent/src/runtime.rs`\n\n**DONE WHEN**:\n- Callback fires per stdout/stderr line with `kind=stdout|stderr` and bytes\n- Dropping the `Subscription` unregisters the callback\n\n_Decision refs_: D7",
+								"description": "**WHAT**: `fn on_output(&self, handle: &Handle, cb: Box<dyn Fn(OutputChunk) + Send + Sync>) -> Subscription`.\n\n**WHY**: D7 — méthode `on_output(cb)` pour stream stdout/stderr.\n\n**WHERE**: `crates/mizraj-agent/src/runtime.rs`\n\n**DONE WHEN**:\n- Callback fires per stdout/stderr line with `kind=stdout|stderr` and bytes\n- Dropping the `Subscription` unregisters the callback\n\n_Decision refs_: D7",
 								"decision_refs": ["D7"]
 							},
 							{
 								"step": "20",
 								"title": "Implement AgentRuntime::resume reattach to existing session",
-								"description": "**WHAT**: `fn resume(&self, session_id: &str) -> Result<Handle>` reattaches to a previously persisted session.\n\n**WHY**: D7 — méthode `resume(id)`.\n\n**WHERE**: `crates/agent-cockpit-agent/src/runtime.rs`\n\n**DONE WHEN**:\n- Looks up the session via the `agent_sessions` table\n- Returns `Handle` if the process is still alive ; errors clearly if dead\n\n_Decision refs_: D7",
+								"description": "**WHAT**: `fn resume(&self, session_id: &str) -> Result<Handle>` reattaches to a previously persisted session.\n\n**WHY**: D7 — méthode `resume(id)`.\n\n**WHERE**: `crates/mizraj-agent/src/runtime.rs`\n\n**DONE WHEN**:\n- Looks up the session via the `agent_sessions` table\n- Returns `Handle` if the process is still alive ; errors clearly if dead\n\n_Decision refs_: D7",
 								"decision_refs": ["D7"]
 							},
 							{
 								"step": "21",
 								"title": "Implement ClaudeCodeRuntime via tauri-plugin-shell",
-								"description": "**WHAT**: `struct ClaudeCodeRuntime` ; `spawn()` invokes the `claude-code` binary via the shell plugin and captures stdio.\n\n**WHY**: D7 — seule implémentation V1 (interface prête pour opencode/codex/gemini-cli plus tard).\n\n**WHERE**: `crates/agent-cockpit-agent/src/claude_code.rs`\n\n**DONE WHEN**:\n- `ClaudeCodeRuntime::new()` constructor exists\n- `spawn(cwd)` returns a `Handle` wired to a real `claude-code` process (mockable for tests)\n\n_Decision refs_: D7",
+								"description": "**WHAT**: `struct ClaudeCodeRuntime` ; `spawn()` invokes the `claude-code` binary via the shell plugin and captures stdio.\n\n**WHY**: D7 — seule implémentation V1 (interface prête pour opencode/codex/gemini-cli plus tard).\n\n**WHERE**: `crates/mizraj-agent/src/claude_code.rs`\n\n**DONE WHEN**:\n- `ClaudeCodeRuntime::new()` constructor exists\n- `spawn(cwd)` returns a `Handle` wired to a real `claude-code` process (mockable for tests)\n\n_Decision refs_: D7",
 								"decision_refs": ["D7"]
 							},
 							{
 								"step": "22",
 								"title": "Capture stdout/stderr lines from ClaudeCodeRuntime",
-								"description": "**WHAT**: Background tasks read child stdout and stderr line-by-line and forward them into the handle's channels.\n\n**WHY**: D7 — capture stdio ; D13 V1 — subprocess capture pour `<AgentLog>`.\n\n**WHERE**: `crates/agent-cockpit-agent/src/claude_code.rs`\n\n**DONE WHEN**:\n- Lines forwarded with their `kind` tag\n- Backpressure handled via a bounded channel of 1024 entries\n\n_Decision refs_: D7, D13",
+								"description": "**WHAT**: Background tasks read child stdout and stderr line-by-line and forward them into the handle's channels.\n\n**WHY**: D7 — capture stdio ; D13 V1 — subprocess capture pour `<AgentLog>`.\n\n**WHERE**: `crates/mizraj-agent/src/claude_code.rs`\n\n**DONE WHEN**:\n- Lines forwarded with their `kind` tag\n- Backpressure handled via a bounded channel of 1024 entries\n\n_Decision refs_: D7, D13",
 								"decision_refs": ["D7", "D13"]
 							},
 							{
 								"step": "23",
 								"title": "Integration test: ClaudeCodeRuntime spawns a mock binary writing hello",
-								"description": "**WHAT**: Test fixture: `tests/bin/mock-agent.sh` prints `hello` and exits ; the runtime spawns it and asserts the output.\n\n**WHY**: D7 verification — `ClaudeCodeRuntime passes integration tests (spawn binaire mock écrivant \"hello\")`.\n\n**WHERE**: `crates/agent-cockpit-agent/tests/integration.rs`, `tests/bin/mock-agent.sh`\n\n**DONE WHEN**:\n- `cargo test -p agent-cockpit-agent` passes\n- Test asserts that the received line equals `hello`\n\n_Decision refs_: D7",
+								"description": "**WHAT**: Test fixture: `tests/bin/mock-agent.sh` prints `hello` and exits ; the runtime spawns it and asserts the output.\n\n**WHY**: D7 verification — `ClaudeCodeRuntime passes integration tests (spawn binaire mock écrivant \"hello\")`.\n\n**WHERE**: `crates/mizraj-agent/tests/integration.rs`, `tests/bin/mock-agent.sh`\n\n**DONE WHEN**:\n- `cargo test -p mizraj-agent` passes\n- Test asserts that the received line equals `hello`\n\n_Decision refs_: D7",
 								"decision_refs": ["D7"]
 							}
 						]
@@ -1431,8 +1425,8 @@
 							},
 							{
 								"step": "02",
-								"title": "Implement vcs::create_session_ref (refs/agent-cockpit/sessions/<id>)",
-								"description": "**WHAT**: `pub fn create_session_ref(repo: &Repository, session_id: &str) -> Result<Oid>` pointing the ref at the current HEAD commit.\n\n**WHY**: D1 — commit-snapshot Git créé au start ; D10 — ref de session créée AVANT `agent.spawn`.\n\n**WHERE**: `crates/agent-cockpit-vcs/src/session_ref.rs`\n\n**DONE WHEN**:\n- Creates `refs/agent-cockpit/sessions/<id>` pointing at HEAD\n- `git for-each-ref refs/agent-cockpit/sessions/` shows the ref\n- Idempotent (no-op if already exists with the same target)\n\n_Decision refs_: D1, D10",
+								"title": "Implement vcs::create_session_ref (refs/mizraj/sessions/<id>)",
+								"description": "**WHAT**: `pub fn create_session_ref(repo: &Repository, session_id: &str) -> Result<Oid>` pointing the ref at the current HEAD commit.\n\n**WHY**: D1 — commit-snapshot Git créé au start ; D10 — ref de session créée AVANT `agent.spawn`.\n\n**WHERE**: `crates/mizraj-vcs/src/session_ref.rs`\n\n**DONE WHEN**:\n- Creates `refs/mizraj/sessions/<id>` pointing at HEAD\n- `git for-each-ref refs/mizraj/sessions/` shows the ref\n- Idempotent (no-op if already exists with the same target)\n\n_Decision refs_: D1, D10",
 								"decision_refs": ["D1", "D10"]
 							},
 							{
@@ -1686,7 +1680,7 @@
 							{
 								"step": "12",
 								"title": "DEMO open plan.html in app, click Submit, verify submission.json written",
-								"description": "**WHAT**: E2E test: load a fixture interview → open it in `<PlanPanel>` → click the in-page Submit button → assert that `submission.json` appears on disk at the expected path.\n\n**WHY**: D18 verification chain — `Ouvrir docs/interviews/<slug>/plan.html dans Agent Cockpit → page rendue correctement → bouton Submit fonctionne → submission.json écrit à côté`.\n\n**WHERE**: `e2e/plan-submit.spec.ts`\n\n**DONE WHEN**:\n- E2E passes locally and in CI\n- Asserts the full chain: page rendered, Submit button clickable, JSON file written to the expected path with the expected content\n\n_Decision refs_: D18",
+								"description": "**WHAT**: E2E test: load a fixture interview → open it in `<PlanPanel>` → click the in-page Submit button → assert that `submission.json` appears on disk at the expected path.\n\n**WHY**: D18 verification chain — `Ouvrir docs/interviews/<slug>/plan.html dans Mizraj → page rendue correctement → bouton Submit fonctionne → submission.json écrit à côté`.\n\n**WHERE**: `e2e/plan-submit.spec.ts`\n\n**DONE WHEN**:\n- E2E passes locally and in CI\n- Asserts the full chain: page rendered, Submit button clickable, JSON file written to the expected path with the expected content\n\n_Decision refs_: D18",
 								"decision_refs": ["D18"],
 								"theme": "demo-path"
 							},
@@ -1760,7 +1754,7 @@
 							{
 								"step": "10",
 								"title": "CI guard: no cmux integration in code",
-								"description": "**WHAT**: Extend the CI grep step to also fail on `grep -ri 'cmux' src/ src-tauri/src/ Cargo.toml package.json`.\n\n**WHY**: D19 — V1-V2 coexist with cmux but no code-level integration ; defends the boundary.\n\n**WHERE**: `.github/workflows/ci.yml`\n\n**DONE WHEN**:\n- Workflow fails on any `cmux` reference in source\n- ADR mentions the exception path for V3 (when Agent Cockpit absorbs the terminal natively)\n\n_Decision refs_: D19",
+								"description": "**WHAT**: Extend the CI grep step to also fail on `grep -ri 'cmux' src/ src-tauri/src/ Cargo.toml package.json`.\n\n**WHY**: D19 — V1-V2 coexist with cmux but no code-level integration ; defends the boundary.\n\n**WHERE**: `.github/workflows/ci.yml`\n\n**DONE WHEN**:\n- Workflow fails on any `cmux` reference in source\n- ADR mentions the exception path for V3 (when Mizraj absorbs the terminal natively)\n\n_Decision refs_: D19",
 								"decision_refs": ["D19"]
 							},
 							{
@@ -1826,7 +1820,7 @@
 					{
 						"id": "D1",
 						"theme": "foundation",
-						"fact_preview": "La V1 d'Agent Cockpit ship un seul agent dans un worktree et la review native du diff produit. Pas de multi-agent, pas de viz branching, pas de cockpit tâches en V1.",
+						"fact_preview": "La V1 d'Mizraj ship un seul agent dans un worktree et la review native du diff produit. Pas de multi-agent, pas de viz branching, pas de cockpit tâches en V1.",
 						"atoms_count": 5,
 						"mvp_tasks": 9,
 						"vnext_tasks": 0
@@ -1938,7 +1932,7 @@
 					{
 						"id": "D15",
 						"theme": "tasks",
-						"fact_preview": "Agent Cockpit ne lit ni n'écrit Linear. Aucune intégration, jamais.",
+						"fact_preview": "Mizraj ne lit ni n'écrit Linear. Aucune intégration, jamais.",
 						"atoms_count": 2,
 						"mvp_tasks": 2,
 						"vnext_tasks": 0
@@ -1970,7 +1964,7 @@
 					{
 						"id": "D19",
 						"theme": "integration",
-						"fact_preview": "V1-V2, Agent Cockpit coexiste avec cmux (cmux = terminal multi-pane Ghostty, Agent Cockpit = diff/plans/tasks). V3+, Agent Cockpit absorbe le terminal natif via libghostty.",
+						"fact_preview": "V1-V2, Mizraj coexiste avec cmux (cmux = terminal multi-pane Ghostty, Mizraj = diff/plans/tasks). V3+, Mizraj absorbe le terminal natif via libghostty.",
 						"atoms_count": 0,
 						"mvp_tasks": 1,
 						"vnext_tasks": 0
@@ -1978,7 +1972,7 @@
 					{
 						"id": "D20",
 						"theme": "integration",
-						"fact_preview": "Agent Cockpit lit les artefacts produits par les skills Claude Code (interview, backlog, plan-html, project-docs) sans réimplémenter leur logique.",
+						"fact_preview": "Mizraj lit les artefacts produits par les skills Claude Code (interview, backlog, plan-html, project-docs) sans réimplémenter leur logique.",
 						"atoms_count": 3,
 						"mvp_tasks": 3,
 						"vnext_tasks": 0

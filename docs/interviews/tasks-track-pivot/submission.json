@@ -1,12 +1,12 @@
 {
 	"decisions": {
 		"D1": {
-			"fact": "Une unique base SQLite globale, à `~/.local/share/agent-cockpit/cockpit.db` (clé `repo_path`, multi-projets), est la source de vérité unique des tâches et de l'historique. Les skills (mac-config) et l'app (agent-cockpit) sont deux clients indépendants conformes au même schéma-contrat. DB-only : aucun fichier plan.json/progress.md.",
+			"fact": "Une unique base SQLite globale, à `~/.local/share/mizraj/cockpit.db` (clé `repo_path`, multi-projets), est la source de vérité unique des tâches et de l'historique. Les skills (mac-config) et l'app (mizraj) sont deux clients indépendants conformes au même schéma-contrat. DB-only : aucun fichier plan.json/progress.md.",
 			"mechanism": "SQLite au chemin XDG, `journal_mode=WAL` + `busy_timeout`, transactions courtes. Chaque client ouvre la base directement (aucun app-serveur intermédiaire). Le schéma est un contrat versionné, partagé entre les deux repos.",
 			"edge": "Touche le substrat de persistance (app + skills) et le chemin de la base. Ne touche pas la logique PTY/terminal au-delà de son stockage. Ne conserve AUCUN fichier backlog (pas d'export).",
 			"rejected": "Fichiers autoritaires + index dérivé (intermédiaire jetable → contraire à la règle greenfield) ; SQLite app-only + sync bidirectionnel fichiers↔DB (la réconciliation = la complexité à supprimer) ; DB serveur libSQL/Turso (service réseau, skills hors-ligne cassés — reporté pour la collab temps réel).",
 			"order": "Le schéma-contrat doit être conçu EN PREMIER : c'est la dépendance commune à l'app-client et à la réécriture des skills. Bloque tout le reste.",
-			"verification": "`~/.local/share/agent-cockpit/cockpit.db` existe, WAL activé ; l'app lit/écrit des tâches ; un helper skill lit/écrit la même base ; aucun plan.json/progress.md n'est produit."
+			"verification": "`~/.local/share/mizraj/cockpit.db` existe, WAL activé ; l'app lit/écrit des tâches ; un helper skill lit/écrit la même base ; aucun plan.json/progress.md n'est produit."
 		},
 		"D2": {
 			"fact": "Une table `tasks` unique avec colonne `origin` ('track'|'user') porte les deux types de tâches. `agent_sessions` et l'assignation agent↔tâche vivent dans la même base globale.",
@@ -25,7 +25,7 @@
 			"verification": "La vue liste les tâches de la base ; créer/éditer une tâche user persiste sans reload ; éditer le nom d'une tâche track persiste ; le statut d'une tâche track n'est pas modifiable dans l'app."
 		},
 		"D4": {
-			"fact": "`/backlog`, `/track`, `/next` sont réécrits pour être clients de cockpit.db au lieu d'écrire plan.json/progress.md. C'est un projet distinct dans le repo mac-config, hors du backlog agent-cockpit, coordonné uniquement via le schéma-contrat.",
+			"fact": "`/backlog`, `/track`, `/next` sont réécrits pour être clients de cockpit.db au lieu d'écrire plan.json/progress.md. C'est un projet distinct dans le repo mac-config, hors du backlog mizraj, coordonné uniquement via le schéma-contrat.",
 			"mechanism": "Helpers (python sqlite3) dans les skills ouvrant cockpit.db : /backlog insère les tâches (origin='track'), /track les sélectionne, /next met à jour statut + commit. WAL + busy_timeout côté skill aussi. Plus aucun plan.json/progress.md écrit.",
 			"edge": "Touche le repo mac-config (les skills). Ne touche pas le code de l'app. Coordination uniquement par le schéma versionné.",
 			"rejected": "Garder les skills file-based + import fichiers→DB (re-crée la double-représentation) ; faire de l'app un proxy d'écriture obligatoire (casse le standalone des skills).",
@@ -58,12 +58,12 @@
 			{
 				"id": "D1",
 				"theme": "archi",
-				"fact": "Une unique base SQLite globale, à `~/.local/share/agent-cockpit/cockpit.db` (clé `repo_path`, multi-projets), est la source de vérité unique des tâches et de l'historique. Les skills (mac-config) et l'app (agent-cockpit) sont deux clients indépendants conformes au même schéma-contrat. DB-only : aucun fichier plan.json/progress.md.",
+				"fact": "Une unique base SQLite globale, à `~/.local/share/mizraj/cockpit.db` (clé `repo_path`, multi-projets), est la source de vérité unique des tâches et de l'historique. Les skills (mac-config) et l'app (mizraj) sont deux clients indépendants conformes au même schéma-contrat. DB-only : aucun fichier plan.json/progress.md.",
 				"mechanism": "SQLite au chemin XDG, `journal_mode=WAL` + `busy_timeout`, transactions courtes. Chaque client ouvre la base directement (aucun app-serveur intermédiaire). Le schéma est un contrat versionné, partagé entre les deux repos.",
 				"edge": "Touche le substrat de persistance (app + skills) et le chemin de la base. Ne touche pas la logique PTY/terminal au-delà de son stockage. Ne conserve AUCUN fichier backlog (pas d'export).",
 				"rejected": "Fichiers autoritaires + index dérivé (intermédiaire jetable → contraire à la règle greenfield) ; SQLite app-only + sync bidirectionnel fichiers↔DB (la réconciliation = la complexité à supprimer) ; DB serveur libSQL/Turso (service réseau, skills hors-ligne cassés — reporté pour la collab temps réel).",
 				"order": "Le schéma-contrat doit être conçu EN PREMIER : c'est la dépendance commune à l'app-client et à la réécriture des skills. Bloque tout le reste.",
-				"verification": "`~/.local/share/agent-cockpit/cockpit.db` existe, WAL activé ; l'app lit/écrit des tâches ; un helper skill lit/écrit la même base ; aucun plan.json/progress.md n'est produit."
+				"verification": "`~/.local/share/mizraj/cockpit.db` existe, WAL activé ; l'app lit/écrit des tâches ; un helper skill lit/écrit la même base ; aucun plan.json/progress.md n'est produit."
 			},
 			{
 				"id": "D2",
@@ -88,7 +88,7 @@
 			{
 				"id": "D4",
 				"theme": "app",
-				"fact": "`/backlog`, `/track`, `/next` sont réécrits pour être clients de cockpit.db au lieu d'écrire plan.json/progress.md. C'est un projet distinct dans le repo mac-config, hors du backlog agent-cockpit, coordonné uniquement via le schéma-contrat.",
+				"fact": "`/backlog`, `/track`, `/next` sont réécrits pour être clients de cockpit.db au lieu d'écrire plan.json/progress.md. C'est un projet distinct dans le repo mac-config, hors du backlog mizraj, coordonné uniquement via le schéma-contrat.",
 				"mechanism": "Helpers (python sqlite3) dans les skills ouvrant cockpit.db : /backlog insère les tâches (origin='track'), /track les sélectionne, /next met à jour statut + commit. WAL + busy_timeout côté skill aussi. Plus aucun plan.json/progress.md écrit.",
 				"edge": "Touche le repo mac-config (les skills). Ne touche pas le code de l'app. Coordination uniquement par le schéma versionné.",
 				"rejected": "Garder les skills file-based + import fichiers→DB (re-crée la double-représentation) ; faire de l'app un proxy d'écriture obligatoire (casse le standalone des skills).",
@@ -107,7 +107,7 @@
 			}
 		],
 		"open_facts": {
-			"db_path": "~/.local/share/agent-cockpit/cockpit.db",
+			"db_path": "~/.local/share/mizraj/cockpit.db",
 			"db_keyed_by": "repo_path",
 			"concurrency": "WAL + busy_timeout",
 			"files": "DB-only — no plan.json/progress.md",

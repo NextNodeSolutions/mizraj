@@ -4,14 +4,14 @@
 - **Amended**: 2026-05-31 — corrected the justification for picking `libghostty-vt` over the full `ghostty.h` surface (see _Amendment_ below). The decision is unchanged; only a factually wrong supporting argument was replaced.
 - **Linear**: SAS-392 — `[P1-01] Spike: validate libghostty C ABI stability (OQ3)`
 - **Decision refs**: D2 (interview `embedded-terminal-pty`, 2026-05-22)
-- **Scope**: gates the bindgen strategy for `crates/agent-cockpit-term-sys`
+- **Scope**: gates the bindgen strategy for `crates/mizraj-term-sys`
 
 ## Context
 
 D2 of the embedded-terminal-pty interview committed to a two-crate Rust binding for libghostty:
 
-- `crates/agent-cockpit-term-sys` — `bindgen` over libghostty C headers, links the dynamic library, all `unsafe` confined here.
-- `crates/agent-cockpit-term` — safe wrapper exposing `Terminal::feed(bytes) -> Cells`.
+- `crates/mizraj-term-sys` — `bindgen` over libghostty C headers, links the dynamic library, all `unsafe` confined here.
+- `crates/mizraj-term` — safe wrapper exposing `Terminal::feed(bytes) -> Cells`.
 
 D2 explicitly flagged a pre-implementation spike (OQ3): does libghostty expose a stable C ABI we can bindgen against directly, or do we have to write our own thin Zig→C wrapper inside the ghostty source tree?
 
@@ -78,7 +78,7 @@ In short: the **runtime behavior** is battle-tested (Ghostty is the rendering en
 
 **`stable-abi`** — upstream headers suffice. No Zig→C wrapper of our own.
 
-Bind directly against `include/ghostty/vt.h` (and its included subheaders under `include/ghostty/vt/`) from `crates/agent-cockpit-term-sys/build.rs` using `bindgen`. Link against `libghostty-vt.{dylib,so,dll}` produced by upstream `zig build -Demit-lib-vt`.
+Bind directly against `include/ghostty/vt.h` (and its included subheaders under `include/ghostty/vt/`) from `crates/mizraj-term-sys/build.rs` using `bindgen`. Link against `libghostty-vt.{dylib,so,dll}` produced by upstream `zig build -Demit-lib-vt`.
 
 ### Why this is the right call, not wrapper-required
 
@@ -101,7 +101,7 @@ The full `ghostty.h` GPU surface is **embeddable in Tauri** (confirmed 2026-05-3
 - Renderer architecture (cells → `<canvas>`) — D1.
 - PTY plumbing — D3.
 - Session lifecycle and SQLite scrollback — D4, D7, D8.
-- Exact pinned `libghostty-vt` version + checksum — to be filed alongside SAS-378 (`[P1-02] Create agent-cockpit-term-sys crate skeleton`) when we pick the first release tag and wire the CI checksum.
+- Exact pinned `libghostty-vt` version + checksum — to be filed alongside SAS-378 (`[P1-02] Create mizraj-term-sys crate skeleton`) when we pick the first release tag and wire the CI checksum.
 - Distribution of the prebuilt `libghostty-vt` binary on macOS / Linux — SAS-377, SAS-376.
 
 ## References

@@ -1085,7 +1085,7 @@
 					<li class="file">
 						src-tauri/Cargo.toml
 						<span class="action edit">EDIT</span
-						><span class="note">dépendance agent-cockpit-term</span>
+						><span class="note">dépendance mizraj-term</span>
 					</li>
 					<li class="file">
 						.github/workflows/ci.yml
@@ -1272,7 +1272,7 @@ impl OutputSink for TermSink {
 				<div class="body">
 					<p class="why">
 						Les types de
-						<code>agent-cockpit-term</code> (<code>Cell</code>,
+						<code>mizraj-term</code> (<code>Cell</code>,
 						<code>Color</code>) n'ont pas de derive serde — d'où ces
 						types miroir sérialisables à la frontière Tauri.
 						<code>attrs</code> voyage en bits bruts (1 octet) plutôt
@@ -1383,8 +1383,8 @@ pub struct CellFrame {
 			<div class="oq">
 				<h3>⚠️ La CI ne teste plus du tout <code>tauri-app</code></h3>
 				<p>
-					Ajouter <code>agent-cockpit-term</code> en dépendance fait
-					que le binaire de test de <code>tauri-app</code> doit linker
+					Ajouter <code>mizraj-term</code> en dépendance fait que le
+					binaire de test de <code>tauri-app</code> doit linker
 					libghostty — absent en CI. La parade a été
 					<code>--exclude tauri-app</code> sur
 					<code>cargo test</code>. Conséquence :
@@ -1429,7 +1429,7 @@ pub struct CellFrame {
 				<ul class="clean">
 					<li>
 						<strong>Reuse</strong> : pas de duplication — les types
-						wire sont nécessaires (agent-cockpit-term n'est pas
+						wire sont nécessaires (mizraj-term n'est pas
 						serde-aware), DEFAULT_ROWS/COLS sont partagés via
 						pty.rs.
 					</li>
@@ -1451,7 +1451,7 @@ pub struct CellFrame {
 			</div>
 
 			<p class="muted" style="margin-top: 32px; font-size: 12px">
-				Généré le 2026-05-30 · agent-cockpit · branche
+				Généré le 2026-05-30 · mizraj · branche
 				walid-mos/feat-libghostty
 			</p>
 		</div>

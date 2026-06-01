@@ -1,8 +1,8 @@
-# M1.A — agent-cockpit
+# M1.A — mizraj
 
 Started: 2026-05-29T17:27:53Z
-Plan: /Users/walid-mos/Development/nextnode/agent-cockpit/docs/plans/agent-cockpit/plan.json
-Slug: agent-cockpit
+Plan: /Users/walid-mos/Development/nextnode/mizraj/docs/plans/mizraj/plan.json
+Slug: mizraj
 Milestone: M1 — L'app packagée v0.1.0 lance un agent, on peut le stopper, choisir le repo via un picker, et le diff s'ouvre seul en fin de run — release GitHub avec binaires.
 
 ## Helpers
@@ -13,7 +13,7 @@ Milestone: M1 — L'app packagée v0.1.0 lance un agent, on peut le stopper, cho
   `python3 ~/.stow_repository/claude/.claude/skills/next/set_state.py <sink_id> started`
 - Commit format used at validation time: `<type>(<scope>): <imperative title>`;
   if the task has a `sink_id`, the body ends with `Closes <sink_id>`. The commit
-  is created at the START of the *next* `/next` run, never at the end of the
+  is created at the START of the _next_ `/next` run, never at the end of the
   current one — so you review the working-tree diff first.
 - This track = ONE PR. When the last task is shipped, open it with `/pr`.
 

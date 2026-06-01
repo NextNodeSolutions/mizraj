@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width,initial-scale=1" />
-		<title>Interview · Closure — Agent Cockpit</title>
+		<title>Interview · Closure — Mizraj</title>
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
@@ -946,7 +946,7 @@
 						<span class="sep">·</span> 4 rounds completed
 						<span class="sep">·</span> 20 decisions
 					</div>
-					<h1>Agent Cockpit — plan d'implémentation V1 diff-first</h1>
+					<h1>Mizraj — plan d'implémentation V1 diff-first</h1>
 					<p class="lead">
 						20 décisions actées en 4 rounds de grilling.
 						<strong>V1 ship slice :</strong> spawn un agent dans un
@@ -965,7 +965,7 @@
 					<div class="summary-strip">
 						<div class="cell">
 							<div class="label">Slug</div>
-							<div class="val">agent-cockpit</div>
+							<div class="val">mizraj</div>
 						</div>
 						<div class="cell">
 							<div class="label">Change kind</div>
@@ -1056,7 +1056,7 @@
 						</div>
 
 						<div class="cell txt">
-							Le nom <em>agent-cockpit</em> peut ne pas convenir —
+							Le nom <em>mizraj</em> peut ne pas convenir —
 							décision pas explicitement actée.
 						</div>
 						<div class="cell"><span class="sev low">low</span></div>
@@ -1092,8 +1092,7 @@
 					</div>
 					<div class="oq">
 						<div class="oq-title">
-							Transition Linear → Agent Cockpit pour projets en
-							cours
+							Transition Linear → Mizraj pour projets en cours
 						</div>
 						<div class="oq-desc">
 							Hard-cut acté pour les nouveaux projets, mais que
@@ -1109,7 +1108,7 @@
 					<div class="oq">
 						<div class="oq-title">Nom définitif du projet</div>
 						<div class="oq-desc">
-							<code>agent-cockpit</code> est le nom de travail. À
+							<code>mizraj</code> est le nom de travail. À
 							confirmer ou ajuster (<em>cockpit</em>,
 							<em>nextnode-cockpit</em>, <em>pilot</em>,
 							<em>helm</em>…) avant <code>cargo new</code>.
@@ -1166,15 +1165,15 @@
 							<input type="checkbox" />
 							<span
 								>Push repo public
-								<code>NextNodeSolutions/agent-cockpit</code> (ou
-								nom final) avec README minimal pointant vers ce
+								<code>NextNodeSolutions/mizraj</code> (ou nom
+								final) avec README minimal pointant vers ce
 								plan</span
 							>
 						</li>
 						<li>
 							<input type="checkbox" />
 							<span
-								>Crate <code>agent-cockpit-vcs</code> : wrap
+								>Crate <code>mizraj-vcs</code> : wrap
 								<code>git2</code> avec les 3 fonctions diff
 								(session / working / head-base)</span
 							>
@@ -1182,7 +1181,7 @@
 						<li>
 							<input type="checkbox" />
 							<span
-								>Crate <code>agent-cockpit-agent</code> :
+								>Crate <code>mizraj-agent</code> :
 								<code>trait AgentRuntime</code> +
 								<code>ClaudeCodeRuntime</code> via
 								<code>tauri-plugin-shell</code></span
@@ -1241,7 +1240,7 @@
 					<label for="freeform-input">Note libre globale</label>
 					<textarea
 						id="freeform-input"
-						placeholder="Ex : 'super, je commence dimanche' · 'on garde agent-cockpit comme nom' · 'tu peux générer le backlog Linear de la V1 maintenant ?'…"
+						placeholder="Ex : 'super, je commence dimanche' · 'on garde mizraj comme nom' · 'tu peux générer le backlog Linear de la V1 maintenant ?'…"
 					></textarea>
 				</div>
 			</main>
@@ -1268,9 +1267,9 @@
 					id: 'mvp-scope',
 					title: 'MVP scope = diff-first',
 					choice: 'diff-first',
-					fact: "La V1 d'Agent Cockpit ship un seul agent dans un worktree et la review native du diff produit. Pas de multi-agent, pas de viz branching, pas de cockpit tâches en V1.",
+					fact: "La V1 d'Mizraj ship un seul agent dans un worktree et la review native du diff produit. Pas de multi-agent, pas de viz branching, pas de cockpit tâches en V1.",
 					mechanism:
-						'Slice V1 = (a) bouton "Run agent" qui spawn Claude Code via <code>wt new &lt;session-id&gt;</code> dans un worktree fresh, (b) commit-snapshot Git créé au start (<code>refs/agent-cockpit/sessions/&lt;id&gt;</code>), (c) capture stdout en stream, (d) ouverture auto du panel diff sur 3 vues switchables à la fin du run.',
+						'Slice V1 = (a) bouton "Run agent" qui spawn Claude Code via <code>wt new &lt;session-id&gt;</code> dans un worktree fresh, (b) commit-snapshot Git créé au start (<code>refs/mizraj/sessions/&lt;id&gt;</code>), (c) capture stdout en stream, (d) ouverture auto du panel diff sur 3 vues switchables à la fin du run.',
 					edge: 'Touche : flow agent + panel diff. Ne touche pas : tâches / Linear / branching-viz / multi-agent / plans-html-affichage (V2+).',
 					rejected:
 						"<strong>terminal-plan-first</strong> (port natif rp+ghostty d'abord, retarde la feature affichée comme prio) ; <strong>all-pillars-light</strong> (toutes briques fines, aucune complète — projet V12 qui ne ship jamais).",
@@ -1304,7 +1303,7 @@
 					choice: 'oss-day-1 / agpl-v3',
 					fact: 'Le code source est public sous AGPL-3.0-only dès le premier commit, hébergé sur <code>NextNodeSolutions/&lt;repo&gt;</code>.',
 					mechanism:
-						'Repo public sur GitHub org NextNodeSolutions, <code>LICENSE</code> = AGPL-3.0-only verbatim, README minimal qui pointe vers <code>docs/plans/2026-05-15-agent-cockpit.html</code>. Releases binaires GitHub à chaque tag SemVer, sans promesse de support.',
+						'Repo public sur GitHub org NextNodeSolutions, <code>LICENSE</code> = AGPL-3.0-only verbatim, README minimal qui pointe vers <code>docs/plans/2026-05-15-mizraj.html</code>. Releases binaires GitHub à chaque tag SemVer, sans promesse de support.',
 					edge: 'Touche : visibilité publique, contributions externes possibles. Ne touche pas : doc utilisateur exhaustive, CHANGELOG curated, support team.',
 					rejected:
 						'<strong>PolyForm Noncommercial</strong> (plus restrictif mais user a préféré AGPL — copyleft fort, commercial OK avec share-alike) ; <strong>BSL</strong> (time-bomb 4 ans complexe) ; <strong>Elastic v2</strong> (anti-SaaS très spécifique) ; <strong>closed-source</strong> (perd la visibilité agence).',
@@ -1369,7 +1368,7 @@
 					choice: 'hybrid',
 					fact: "État stocké en hybride : fichiers (HTML+JSON) pour les plans interview, SQLite pour tâches / sessions d'agents / commentaires futurs.",
 					mechanism:
-						'<code>docs/interviews/&lt;slug&gt;/plan.html</code> + <code>state.json</code> + <code>submission.json</code> (statu quo /interview). SQLite DB à <code>&lt;app-data-dir&gt;/agent-cockpit.db</code>, migrations <code>sqlx</code> côté Rust. Tables initiales : <code>agent_sessions</code>, <code>tasks</code>, <code>task_assignments</code>, <code>diff_comments</code> (inerte V1).',
+						'<code>docs/interviews/&lt;slug&gt;/plan.html</code> + <code>state.json</code> + <code>submission.json</code> (statu quo /interview). SQLite DB à <code>&lt;app-data-dir&gt;/mizraj.db</code>, migrations <code>sqlx</code> côté Rust. Tables initiales : <code>agent_sessions</code>, <code>tasks</code>, <code>task_assignments</code>, <code>diff_comments</code> (inerte V1).',
 					edge: 'Touche : 2 backends de persistance. Ne touche pas : sync cloud, chiffrement (single-user solo).',
 					rejected:
 						'<strong>Pure fichiers JSON</strong> (perf dégradée sur grosses listes, queries pénibles) ; <strong>SQLite pour tout</strong> (perd la diff-abilité git des plans).',
@@ -1400,7 +1399,7 @@
 					choice: 'git-libgit2',
 					fact: 'Toutes les opérations VCS passent par libgit2 via le crate Rust <code>git2</code>. Pas de support jj/Sapling natif.',
 					mechanism:
-						'<code>cargo add git2</code>. Crate <code>agent-cockpit-vcs</code> qui wrappe : <code>repo_open</code>, <code>current_branch</code>, <code>diff_session</code>, <code>diff_working_tree</code>, <code>diff_head_base</code>, <code>worktree_list</code>. Aucun shell-out git sauf pour <code>wt</code>.',
+						'<code>cargo add git2</code>. Crate <code>mizraj-vcs</code> qui wrappe : <code>repo_open</code>, <code>current_branch</code>, <code>diff_session</code>, <code>diff_working_tree</code>, <code>diff_head_base</code>, <code>worktree_list</code>. Aucun shell-out git sauf pour <code>wt</code>.',
 					edge: 'Touche : reading-only git V1, write (commit/branch) en V2+. Ne touche pas : jj/Sapling (pas de moteur, pas de viz spécifique V2).',
 					rejected:
 						'<strong>jj/Sapling engine</strong> (migration repos clients lourde, no-go) ; <strong>git + opt jj</strong> (double-chemin = complexité).',
@@ -1419,7 +1418,7 @@
 					choice: 'pluggable-v1',
 					fact: 'Interface agent définie comme trait Rust <code>AgentRuntime</code> dès V1, avec une seule implémentation <code>ClaudeCodeRuntime</code>.',
 					mechanism:
-						'<code>crates/agent-cockpit-agent/src/runtime.rs</code> définit : <code>trait AgentRuntime { fn spawn(cwd) → Handle ; fn send(&Handle, text) ; fn on_output(cb) ; fn resume(id) ; }</code>. <code>ClaudeCodeRuntime</code> via <code>tauri-plugin-shell</code> + capture stdout/stderr.',
+						'<code>crates/mizraj-agent/src/runtime.rs</code> définit : <code>trait AgentRuntime { fn spawn(cwd) → Handle ; fn send(&Handle, text) ; fn on_output(cb) ; fn resume(id) ; }</code>. <code>ClaudeCodeRuntime</code> via <code>tauri-plugin-shell</code> + capture stdout/stderr.',
 					edge: 'Touche : tous les call-sites de spawn/send. Ne touche pas : opencode, codex, gemini-cli (interface prête, impl en attente).',
 					rejected:
 						"<strong>Hardcoded Claude Code</strong> (YAGNI tactique mais user a choisi l'abstraction) ; <strong>config-driven shell libre</strong> (perd session resume, diff scoping).",
@@ -1510,13 +1509,13 @@
 					choice: 'all-three-views',
 					fact: 'Le panel diff V1 expose 3 vues switchables via un selector dans la toolbar : <strong>session-scoped</strong>, <strong>working-tree</strong>, <strong>HEAD-vs-base</strong>. Une 4e vue "adiffi" (historique prompt-par-prompt) est prévue V2+.',
 					mechanism:
-						'Au start de session, <code>ClaudeCodeRuntime::spawn</code> crée la ref Git <code>refs/agent-cockpit/sessions/&lt;id&gt;</code> pointant sur HEAD. Trois fonctions diff exposent les vues : <code>diff_session(session)</code> = <code>&lt;ref&gt;..HEAD</code> ; <code>diff_working_tree(repo)</code> = <code>git diff</code> no-args ; <code>diff_head_base(base="main")</code> = <code>&lt;base&gt;..HEAD</code>. Selector React stocke la vue active dans <code>useState</code>.',
+						'Au start de session, <code>ClaudeCodeRuntime::spawn</code> crée la ref Git <code>refs/mizraj/sessions/&lt;id&gt;</code> pointant sur HEAD. Trois fonctions diff exposent les vues : <code>diff_session(session)</code> = <code>&lt;ref&gt;..HEAD</code> ; <code>diff_working_tree(repo)</code> = <code>git diff</code> no-args ; <code>diff_head_base(base="main")</code> = <code>&lt;base&gt;..HEAD</code>. Selector React stocke la vue active dans <code>useState</code>.',
 					edge: 'Touche : <code>git2</code> (3 appels distincts) + composant <code>&lt;DiffPanel&gt;</code> React. Ne touche pas : adiffi (V2, branche discovery à créer).',
 					rejected:
 						"<strong>Worktree-only seul</strong> (pas d'attribution agent — user explicit contre) ; <strong>session-only seul</strong> (perd la vue PR-like) ; <strong>HEAD-vs-base seul</strong> (mélange agent+manuel).",
 					order: 'Après vcs-engine + isolation-strategy + agent-runtime. Ref de session créée AVANT <code>agent.spawn</code>.',
 					verification:
-						'Run agent → <code>git for-each-ref</code> montre <code>refs/agent-cockpit/sessions/&lt;id&gt;</code> ; panel diff a 3 onglets ; switch produit du contenu distinct sur un repo modifié.',
+						'Run agent → <code>git for-each-ref</code> montre <code>refs/mizraj/sessions/&lt;id&gt;</code> ; panel diff a 3 onglets ; switch produit du contenu distinct sur un repo modifié.',
 					diagram: {
 						type: 'kinds',
 						cards: [
@@ -1602,13 +1601,13 @@
 					choice: 'subprocess-v1-libghostty-v2',
 					fact: "V1 n'embarque aucun émulateur terminal (subprocess + log component). V2 embarquera <strong>libghostty natif via FFI Rust→C</strong> (saute la voie ghostty-web WASM intermédiaire).",
 					mechanism:
-						'V1 : <code>tauri-plugin-shell</code> spawn <code>claude-code --print …</code>, capture stdout/stderr, composant React <code>&lt;AgentLog&gt;</code> avec parser ANSI minimal. V2 (post-MVP) : crate <code>agent-cockpit-term</code> wrappe <code>libghostty-vt</code> C library via <code>bindgen</code> ; webview reçoit frames pré-rendues par IPC.',
+						'V1 : <code>tauri-plugin-shell</code> spawn <code>claude-code --print …</code>, capture stdout/stderr, composant React <code>&lt;AgentLog&gt;</code> avec parser ANSI minimal. V2 (post-MVP) : crate <code>mizraj-term</code> wrappe <code>libghostty-vt</code> C library via <code>bindgen</code> ; webview reçoit frames pré-rendues par IPC.',
 					edge: 'V1 : zéro Zig/FFI. V2 : breaking changes libghostty à suivre (comme cmux).',
 					rejected:
 						'<strong>Subprocess V1 + ghostty-web WASM V2</strong> (intermédiaire inutile si cible = libghostty natif) ; <strong>xterm.js classique V1</strong> (vrai terminal mais MVP n\'en a pas besoin) ; <strong>libghostty FFI dès V1</strong> (risque API instable, hors scope MVP) ; <strong>jamais de terminal natif</strong> (incompatible "coexister puis converger" cmux).',
 					order: 'V2 → après V1 shippée. Convergence cmux V3+ implique libghostty natif.',
 					verification:
-						'V1 : run agent → <code>&lt;AgentLog&gt;</code> affiche stdout temps réel avec ANSI ; aucune dép Zig/C dans <code>Cargo.toml</code>. V2 (futur) : terminal interactif full TTY dans Agent Cockpit, parité visuelle cmux.',
+						'V1 : run agent → <code>&lt;AgentLog&gt;</code> affiche stdout temps réel avec ANSI ; aucune dép Zig/C dans <code>Cargo.toml</code>. V2 (futur) : terminal interactif full TTY dans Mizraj, parité visuelle cmux.',
 					diagram: {
 						type: 'timeline',
 						tags: [
@@ -1652,13 +1651,13 @@
 					id: 'linear-coexistence',
 					title: 'Hard-cut total Linear',
 					choice: 'hard-cut',
-					fact: "Agent Cockpit ne lit ni n'écrit Linear. Aucune intégration, jamais.",
+					fact: "Mizraj ne lit ni n'écrit Linear. Aucune intégration, jamais.",
 					mechanism:
-						"Aucun code Linear dans le repo. Skill <code>nextnode-linear</code> reste utilisable en parallèle dans Claude Code pour d'autres workflows mais ne touche pas la DB Agent Cockpit. Skill <code>/backlog</code> plus utilisé pour les projets gérés par Agent Cockpit.",
+						"Aucun code Linear dans le repo. Skill <code>nextnode-linear</code> reste utilisable en parallèle dans Claude Code pour d'autres workflows mais ne touche pas la DB Mizraj. Skill <code>/backlog</code> plus utilisé pour les projets gérés par Mizraj.",
 					edge: "Touche : ton workflow personnel (transition perso à gérer). Ne touche pas : le code de l'app (aucune dép Linear).",
 					rejected:
 						"<strong>Read-only mirror</strong> (l'app affiche Linear sans éditer — confusion source-of-truth) ; <strong>sync deux sens</strong> (couplage GraphQL fragile).",
-					order: 'Hard-cut au switch — pas progressif. Une fois Agent Cockpit utilisé pour un projet, Linear plus consulté pour celui-ci.',
+					order: 'Hard-cut au switch — pas progressif. Une fois Mizraj utilisé pour un projet, Linear plus consulté pour celui-ci.',
 					verification:
 						'<code>grep -ri linear src/</code> → aucune occurrence ; <code>Cargo.toml</code> + <code>package.json</code> → aucune dépendance Linear.',
 					diagram: {
@@ -1670,7 +1669,7 @@
 							{ arrow: true },
 							{
 								class: 'accent sm',
-								label: 'Agent Cockpit · SQLite',
+								label: 'Mizraj · SQLite',
 							},
 						],
 						caption: 'tasks · sortie Linear',
@@ -1728,7 +1727,7 @@
 						"<strong>Re-render depuis JSON</strong> (perd la richesse HTML + besoin d'un schéma versionné) ; <strong>hybride webview+chrome overlay</strong> (complexité UX inutile).",
 					order: 'Après frontend-stack + state-storage. Première feature post-MVP.',
 					verification:
-						'Ouvrir <code>docs/interviews/&lt;slug&gt;/plan.html</code> dans Agent Cockpit → page rendue correctement, bouton Submit fonctionne, <code>submission.json</code> écrit à côté.',
+						'Ouvrir <code>docs/interviews/&lt;slug&gt;/plan.html</code> dans Mizraj → page rendue correctement, bouton Submit fonctionne, <code>submission.json</code> écrit à côté.',
 					diagram: null,
 				},
 
@@ -1739,15 +1738,15 @@
 					id: 'cmux-overlap',
 					title: 'Coexister V1-V2, converger V3+',
 					choice: 'coexist-then-eat',
-					fact: 'V1-V2, Agent Cockpit coexiste avec cmux (cmux = terminal multi-pane Ghostty, Agent Cockpit = diff/plans/tasks). V3+, Agent Cockpit absorbe le terminal natif via libghostty.',
+					fact: 'V1-V2, Mizraj coexiste avec cmux (cmux = terminal multi-pane Ghostty, Mizraj = diff/plans/tasks). V3+, Mizraj absorbe le terminal natif via libghostty.',
 					mechanism:
-						"Aucune intégration code-level avec cmux V1-V2 (deux apps séparées sur le bureau). En V3+, Agent Cockpit a <code>&lt;GhosttyPane&gt;</code> natif et l'utilisateur peut désinstaller cmux.",
-					edge: 'Touche : ton workflow (2 fenêtres en V1-V2). Ne touche pas : code cmux (jamais), API cmux (socket cmux pourrait être utilisé V2 pour piloter cmux depuis Agent Cockpit mais hors V1).',
+						"Aucune intégration code-level avec cmux V1-V2 (deux apps séparées sur le bureau). En V3+, Mizraj a <code>&lt;GhosttyPane&gt;</code> natif et l'utilisateur peut désinstaller cmux.",
+					edge: 'Touche : ton workflow (2 fenêtres en V1-V2). Ne touche pas : code cmux (jamais), API cmux (socket cmux pourrait être utilisé V2 pour piloter cmux depuis Mizraj mais hors V1).',
 					rejected:
 						"<strong>Remplacer cmux V1</strong> (gros chantier qui retarde le MVP) ; <strong>toujours coexister</strong> (perd la convergence) ; <strong>forker cmux</strong> (Swift/Obj-C, t'éloigne de Rust/Tauri).",
 					order: 'V1-V2 = parallèle sans conflit. V3 = re-évaluer.',
 					verification:
-						'V1 : Agent Cockpit lancé pendant cmux tourne sans conflit. V3 (futur) : Agent Cockpit a terminal natif ET cmux peut être désinstallé sans perdre le workflow.',
+						'V1 : Mizraj lancé pendant cmux tourne sans conflit. V3 (futur) : Mizraj a terminal natif ET cmux peut être désinstallé sans perdre le workflow.',
 					diagram: {
 						type: 'timeline',
 						tags: [
@@ -1767,7 +1766,7 @@
 					id: 'skills-relationship',
 					title: 'App lit les outputs des skills',
 					choice: 'app-reads-skills',
-					fact: 'Agent Cockpit lit les artefacts produits par les skills Claude Code (interview, backlog, plan-html, project-docs) sans réimplémenter leur logique.',
+					fact: 'Mizraj lit les artefacts produits par les skills Claude Code (interview, backlog, plan-html, project-docs) sans réimplémenter leur logique.',
 					mechanism:
 						"L'app monitore <code>docs/interviews/</code>, <code>docs/plans/</code>, et la DB SQLite (tasks créées hors /backlog). Les skills continuent d'écrire ces artefacts via Claude Code comme aujourd'hui. Le contrat fichier (<code>plan.html</code>, <code>state.json</code>, <code>submission.json</code>) reste celui de project-docs.",
 					edge: 'Touche : contrat fichier project-docs (à maintenir stable). Ne touche pas : logique métier des skills (reste dans Claude Code).',
@@ -1775,7 +1774,7 @@
 						"<strong>App subsume skills</strong> (re-implémenter /interview en Rust = chantier énorme + perd l'évolution skills) ; <strong>app orchestre skills</strong> (spawn CC en background — couplage CLI fragile).",
 					order: "Statu quo. Aucune dépendance amont — c'est déjà le modèle <code>rp</code>.",
 					verification:
-						"Faire tourner /interview dans Claude Code → l'artefact apparaît dans Agent Cockpit sans action explicite.",
+						"Faire tourner /interview dans Claude Code → l'artefact apparaît dans Mizraj sans action explicite.",
 					diagram: {
 						type: 'flow',
 						nodes: [
@@ -1788,7 +1787,7 @@
 							{ arrow: true },
 							{
 								class: 'accent sm',
-								label: 'Agent Cockpit (lecteur)',
+								label: 'Mizraj (lecteur)',
 							},
 						],
 						caption: "skills · flux d'artefacts",
@@ -2061,7 +2060,7 @@
 					schema_version: '1',
 					source: {
 						kind: 'interview',
-						slug: 'agent-cockpit',
+						slug: 'mizraj',
 						change_kind: 'greenfield',
 					},
 					target: {
@@ -2101,7 +2100,7 @@
 						plan_rendering: 'webview-iframe-host-html',
 						cmux_strategy: 'coexist-v1v2-converge-v3',
 						skills_strategy: 'app-reads-skill-outputs',
-						project_name_unresolved: 'agent-cockpit (working name)',
+						project_name_unresolved: 'mizraj (working name)',
 						distribution_format_v1_pending:
 							'github-releases-only or brew/nix',
 					},
@@ -2120,7 +2119,7 @@
 				})
 				if (!res.ok) throw new Error('submit failed')
 				document.body.innerHTML =
-					'<main style="padding:4rem;font-family:DM Sans,sans-serif;max-width:600px;margin:0 auto;"><h1 style="font-family:Plus Jakarta Sans;font-weight:800">✓ Plan scellé</h1><p style="color:#4B5366">Retourne dans Claude. Si tu as laissé des notes d\'afterthought, il les traitera une par une. Sinon : promotion vers <code>docs/plans/2026-05-15-agent-cockpit.html</code>.</p></main>'
+					'<main style="padding:4rem;font-family:DM Sans,sans-serif;max-width:600px;margin:0 auto;"><h1 style="font-family:Plus Jakarta Sans;font-weight:800">✓ Plan scellé</h1><p style="color:#4B5366">Retourne dans Claude. Si tu as laissé des notes d\'afterthought, il les traitera une par une. Sinon : promotion vers <code>docs/plans/2026-05-15-mizraj.html</code>.</p></main>'
 			}
 
 			document

@@ -1,8 +1,8 @@
 {
-	"slug": "agent-cockpit-roadmap",
+	"slug": "mizraj-roadmap",
 	"change_kind": "additive-brownfield",
 	"phase": "sealed",
-	"status": "closure approved — plan promoted to docs/plans/2026-05-29-agent-cockpit-roadmap.html, backlog-bundle.json emitted (12 decisions)",
+	"status": "closure approved — plan promoted to docs/plans/2026-05-29-mizraj-roadmap.html, backlog-bundle.json emitted (12 decisions)",
 	"round_2": {
 		"q_term_scope": "both — output+input in same milestone (M2)",
 		"q_scrollback": "ownmilestone — dedicated milestone M5 after live terminal",
@@ -48,7 +48,7 @@
 			"choice": "reimport"
 		},
 		"b3_terminal": {
-			"fact": "Le terminal passe au pipeline NATIF libghostty→canvas. ghostty-web est retiré. La crate agent-cockpit-term existante (cells, render_state) est câblée : PTY → cells → Channel<CellFrame> → canvas React TerminalPane. Le plan embedded-terminal P4–P7 est réactivé (pas obsolète).",
+			"fact": "Le terminal passe au pipeline NATIF libghostty→canvas. ghostty-web est retiré. La crate mizraj-term existante (cells, render_state) est câblée : PTY → cells → Channel<CellFrame> → canvas React TerminalPane. Le plan embedded-terminal P4–P7 est réactivé (pas obsolète).",
 			"choice": "native"
 		},
 		"b6_release": {

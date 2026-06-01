@@ -1,8 +1,8 @@
 {
 	"decisions": {
 		"mvp-scope": {
-			"fact": "La V1 d'Agent Cockpit ship un seul agent dans un worktree et la review native du diff produit. Pas de multi-agent, pas de viz branching, pas de cockpit tâches en V1.",
-			"mechanism": "Slice V1 = (a) bouton \"Run agent\" qui spawn Claude Code via wt new <session-id> dans un worktree fresh, (b) commit-snapshot Git créé au start (ref refs/agent-cockpit/sessions/<id>), (c) capture stdout en stream, (d) ouverture auto du panel diff sur 3 vues switchables à la fin du run.",
+			"fact": "La V1 d'Mizraj ship un seul agent dans un worktree et la review native du diff produit. Pas de multi-agent, pas de viz branching, pas de cockpit tâches en V1.",
+			"mechanism": "Slice V1 = (a) bouton \"Run agent\" qui spawn Claude Code via wt new <session-id> dans un worktree fresh, (b) commit-snapshot Git créé au start (ref refs/mizraj/sessions/<id>), (c) capture stdout en stream, (d) ouverture auto du panel diff sur 3 vues switchables à la fin du run.",
 			"edge": "Touche : flow agent + panel diff. Ne touche pas : tâches/Linear/branching-viz/multi-agent/plans-html-affichage (V2+).",
 			"rejected": "terminal-plan-first (port natif rp+ghostty d'abord, retarde la feature affichée comme prio) ; all-pillars-light (toutes briques fines, aucune complète — projet V12 qui ne ship jamais).",
 			"order": "Bloque tout — épine dorsale. Aucune dépendance amont sauf le bootstrap projet (cargo new, vite scaffold, LICENSE).",
@@ -34,15 +34,15 @@
 		},
 		"state-storage": {
 			"fact": "État stocké en hybride : fichiers (HTML+JSON) pour les plans interview, SQLite pour tâches / sessions d'agents / commentaires futurs.",
-			"mechanism": "docs/interviews/<slug>/plan.html + state.json + submission.json (statu quo /interview). SQLite DB à <app-data-dir>/agent-cockpit.db, migrations sqlx côté Rust. Tables initiales : agent_sessions, tasks, task_assignments, diff_comments (inerte V1).",
+			"mechanism": "docs/interviews/<slug>/plan.html + state.json + submission.json (statu quo /interview). SQLite DB à <app-data-dir>/mizraj.db, migrations sqlx côté Rust. Tables initiales : agent_sessions, tasks, task_assignments, diff_comments (inerte V1).",
 			"edge": "Touche : 2 backends de persistance. Ne touche pas : sync cloud, chiffrement (single-user solo).",
 			"rejected": "Pure fichiers JSON (perf dégradée sur grosses listes, queries pénibles) ; SQLite pour tout (perd la diff-abilité git des plans).",
 			"order": "Schéma SQLite à définir avant les features tasks/sessions ; in-repo files contract = statu quo.",
-			"verification": "sqlite3 <app-data-dir>/agent-cockpit.db \".schema\" montre les 4 tables ; lire docs/interviews/<slug>/state.json continue de marcher."
+			"verification": "sqlite3 <app-data-dir>/mizraj.db \".schema\" montre les 4 tables ; lire docs/interviews/<slug>/state.json continue de marcher."
 		},
 		"vcs-engine": {
 			"fact": "Toutes les opérations VCS passent par libgit2 via le crate Rust git2. Pas de support jj/Sapling natif.",
-			"mechanism": "cargo add git2. Crate agent-cockpit-vcs qui wrappe : repo_open, current_branch, diff_session, diff_working_tree, diff_head_base, worktree_list. Aucun shell-out git sauf pour wt.",
+			"mechanism": "cargo add git2. Crate mizraj-vcs qui wrappe : repo_open, current_branch, diff_session, diff_working_tree, diff_head_base, worktree_list. Aucun shell-out git sauf pour wt.",
 			"edge": "Touche : reading-only git V1, write (commit/branch) en V2+. Ne touche pas : jj/Sapling (pas de moteur, pas de viz spécifique V2).",
 			"rejected": "jj/Sapling engine (migration repos clients lourde, no-go) ; git + opt jj (double-chemin = complexité).",
 			"order": "Bloque tout ce qui touche git (diff-source, isolation-strategy).",
@@ -50,7 +50,7 @@
 		},
 		"agent-runtime": {
 			"fact": "Interface agent définie comme trait Rust AgentRuntime dès V1, avec une seule implémentation ClaudeCodeRuntime.",
-			"mechanism": "crates/agent-cockpit-agent/src/runtime.rs définit : trait AgentRuntime { fn spawn(cwd) → Handle ; fn send(&Handle, text) ; fn on_output(cb) ; fn resume(id) ; }. ClaudeCodeRuntime via tauri-plugin-shell + capture stdout/stderr.",
+			"mechanism": "crates/mizraj-agent/src/runtime.rs définit : trait AgentRuntime { fn spawn(cwd) → Handle ; fn send(&Handle, text) ; fn on_output(cb) ; fn resume(id) ; }. ClaudeCodeRuntime via tauri-plugin-shell + capture stdout/stderr.",
 			"edge": "Touche : tous les call-sites de spawn/send. Ne touche pas : opencode, codex, gemini-cli (interface prête, impl en attente).",
 			"rejected": "Hardcoded Claude Code (YAGNI tactique mais user a choisi l'abstraction) ; config-driven shell libre (perd session resume, diff scoping).",
 			"order": "Après tauri-version + frontend-stack. Avant le premier \"Run agent\".",
@@ -74,11 +74,11 @@
 		},
 		"diff-source": {
 			"fact": "Le panel diff V1 expose 3 vues switchables via un selector dans la toolbar : session-scoped, working-tree, HEAD-vs-base. Une 4e vue \"adiffi\" (historique prompt-par-prompt) est prévue V2+.",
-			"mechanism": "Au start de session, ClaudeCodeRuntime::spawn crée la ref Git refs/agent-cockpit/sessions/<id> pointant sur HEAD. Trois fonctions diff exposent les vues : diff_session(session) = <ref>..HEAD ; diff_working_tree(repo) = git diff no-args ; diff_head_base(base=\"main\") = <base>..HEAD. Selector React stocke la vue active dans useState.",
+			"mechanism": "Au start de session, ClaudeCodeRuntime::spawn crée la ref Git refs/mizraj/sessions/<id> pointant sur HEAD. Trois fonctions diff exposent les vues : diff_session(session) = <ref>..HEAD ; diff_working_tree(repo) = git diff no-args ; diff_head_base(base=\"main\") = <base>..HEAD. Selector React stocke la vue active dans useState.",
 			"edge": "Touche : git2 (3 appels distincts) + composant DiffPanel React. Ne touche pas : adiffi (V2, branche discovery à créer).",
 			"rejected": "Worktree-only seul (pas d'attribution agent — user explicit contre) ; session-only seul (perd la vue PR-like) ; HEAD-vs-base seul (mélange agent+manuel).",
 			"order": "Après vcs-engine + isolation-strategy + agent-runtime. Ref de session créée AVANT agent.spawn.",
-			"verification": "Run agent → git for-each-ref montre refs/agent-cockpit/sessions/<id> ; panel diff a 3 onglets ; switch produit du contenu distinct sur un repo modifié."
+			"verification": "Run agent → git for-each-ref montre refs/mizraj/sessions/<id> ; panel diff a 3 onglets ; switch produit du contenu distinct sur un repo modifié."
 		},
 		"diff-renderer": {
 			"fact": "Le rendu visuel des diffs utilise @pierre/diffs/react v1.1.x+, sous Apache 2.0.",
@@ -98,11 +98,11 @@
 		},
 		"ghostty-binding": {
 			"fact": "V1 n'embarque aucun émulateur terminal (subprocess + log component). V2 embarquera libghostty natif via FFI Rust→C (saute la voie ghostty-web WASM intermédiaire).",
-			"mechanism": "V1 : tauri-plugin-shell spawn claude-code --print …, capture stdout/stderr, composant React <AgentLog> avec parser ANSI minimal. V2 (post-MVP) : crate agent-cockpit-term wrappe libghostty-vt C library via bindgen ; webview reçoit frames pré-rendues par IPC.",
+			"mechanism": "V1 : tauri-plugin-shell spawn claude-code --print …, capture stdout/stderr, composant React <AgentLog> avec parser ANSI minimal. V2 (post-MVP) : crate mizraj-term wrappe libghostty-vt C library via bindgen ; webview reçoit frames pré-rendues par IPC.",
 			"edge": "V1 : zéro Zig/FFI. V2 : breaking changes libghostty à suivre (comme cmux).",
 			"rejected": "Subprocess V1 + ghostty-web WASM V2 (intermédiaire inutile si cible = libghostty natif) ; xterm.js classique V1 (vrai terminal mais MVP n'en a pas besoin) ; libghostty FFI dès V1 (risque API instable, hors scope MVP) ; jamais de terminal natif (incompatible \"coexister puis converger\" cmux).",
 			"order": "V2 → après V1 shippée. Convergence cmux V3+ implique libghostty natif.",
-			"verification": "V1 : run agent → <AgentLog> affiche stdout temps réel avec ANSI ; aucune dép Zig/C dans Cargo.toml. V2 (futur) : terminal interactif full TTY dans Agent Cockpit, parité visuelle cmux."
+			"verification": "V1 : run agent → <AgentLog> affiche stdout temps réel avec ANSI ; aucune dép Zig/C dans Cargo.toml. V2 (futur) : terminal interactif full TTY dans Mizraj, parité visuelle cmux."
 		},
 		"task-store": {
 			"fact": "Tâches persistées exclusivement en SQLite, dans la DB que agent_sessions. Pas de tasks.json in-repo.",
@@ -113,11 +113,11 @@
 			"verification": "sqlite3 ... \".schema tasks\" montre la table ; CRUD via Tauri commands fonctionne (test unitaire)."
 		},
 		"linear-coexistence": {
-			"fact": "Agent Cockpit ne lit ni n'écrit Linear. Aucune intégration, jamais.",
-			"mechanism": "Aucun code Linear dans le repo. Skill nextnode-linear reste utilisable en parallèle dans Claude Code pour d'autres workflows mais ne touche pas la DB Agent Cockpit. Skill /backlog plus utilisé pour les projets gérés par Agent Cockpit.",
+			"fact": "Mizraj ne lit ni n'écrit Linear. Aucune intégration, jamais.",
+			"mechanism": "Aucun code Linear dans le repo. Skill nextnode-linear reste utilisable en parallèle dans Claude Code pour d'autres workflows mais ne touche pas la DB Mizraj. Skill /backlog plus utilisé pour les projets gérés par Mizraj.",
 			"edge": "Touche : ton workflow personnel (transition perso à gérer). Ne touche pas : le code de l'app (aucune dép Linear).",
 			"rejected": "Read-only mirror (l'app affiche Linear sans éditer — confusion source-of-truth) ; sync deux sens (couplage GraphQL fragile).",
-			"order": "Hard-cut au switch — pas progressif. Une fois Agent Cockpit utilisé pour un projet, Linear plus consulté pour celui-ci.",
+			"order": "Hard-cut au switch — pas progressif. Une fois Mizraj utilisé pour un projet, Linear plus consulté pour celui-ci.",
 			"verification": "grep -ri linear src/ → aucune occurrence ; Cargo.toml + package.json → aucune dépendance Linear."
 		},
 		"parallel-view": {
@@ -142,23 +142,23 @@
 			"edge": "Touche : iframe sandboxing + bridge submit. Ne touche pas : génération des plans (reste 100% côté skills + plan-html).",
 			"rejected": "Re-render depuis JSON (perd la richesse HTML + besoin d'un schéma versionné) ; hybride webview+chrome overlay (complexité UX inutile).",
 			"order": "Après frontend-stack + state-storage. Première feature post-MVP.",
-			"verification": "Ouvrir docs/interviews/<slug>/plan.html dans Agent Cockpit → page rendue correctement, bouton Submit fonctionne, submission.json écrit à côté."
+			"verification": "Ouvrir docs/interviews/<slug>/plan.html dans Mizraj → page rendue correctement, bouton Submit fonctionne, submission.json écrit à côté."
 		},
 		"cmux-overlap": {
-			"fact": "V1-V2, Agent Cockpit coexiste avec cmux (cmux = terminal multi-pane Ghostty, Agent Cockpit = diff/plans/tasks). V3+, Agent Cockpit absorbe le terminal natif via libghostty.",
-			"mechanism": "Aucune intégration code-level avec cmux V1-V2 (deux apps séparées sur le bureau). En V3+, Agent Cockpit a <GhosttyPane> natif et l'utilisateur peut désinstaller cmux.",
-			"edge": "Touche : ton workflow (2 fenêtres en V1-V2). Ne touche pas : code cmux (jamais), API cmux (socket cmux pourrait être utilisé V2 pour piloter cmux depuis Agent Cockpit mais hors V1).",
+			"fact": "V1-V2, Mizraj coexiste avec cmux (cmux = terminal multi-pane Ghostty, Mizraj = diff/plans/tasks). V3+, Mizraj absorbe le terminal natif via libghostty.",
+			"mechanism": "Aucune intégration code-level avec cmux V1-V2 (deux apps séparées sur le bureau). En V3+, Mizraj a <GhosttyPane> natif et l'utilisateur peut désinstaller cmux.",
+			"edge": "Touche : ton workflow (2 fenêtres en V1-V2). Ne touche pas : code cmux (jamais), API cmux (socket cmux pourrait être utilisé V2 pour piloter cmux depuis Mizraj mais hors V1).",
 			"rejected": "Remplacer cmux V1 (gros chantier qui retarde le MVP) ; toujours coexister (perd la convergence) ; forker cmux (Swift/Obj-C, t'éloigne de Rust/Tauri).",
 			"order": "V1-V2 = parallèle sans conflit. V3 = re-évaluer.",
-			"verification": "V1 : Agent Cockpit lancé pendant cmux tourne sans conflit. V3 (futur) : Agent Cockpit a terminal natif ET cmux peut être désinstallé sans perdre le workflow."
+			"verification": "V1 : Mizraj lancé pendant cmux tourne sans conflit. V3 (futur) : Mizraj a terminal natif ET cmux peut être désinstallé sans perdre le workflow."
 		},
 		"skills-relationship": {
-			"fact": "Agent Cockpit lit les artefacts produits par les skills Claude Code (interview, backlog, plan-html, project-docs) sans réimplémenter leur logique.",
+			"fact": "Mizraj lit les artefacts produits par les skills Claude Code (interview, backlog, plan-html, project-docs) sans réimplémenter leur logique.",
 			"mechanism": "L'app monitore docs/interviews/, docs/plans/, et la DB SQLite (tasks créées hors /backlog). Les skills continuent d'écrire ces artefacts via Claude Code comme aujourd'hui. Le contrat fichier (plan.html, state.json, submission.json) reste celui de project-docs.",
 			"edge": "Touche : contrat fichier project-docs (à maintenir stable). Ne touche pas : logique métier des skills (reste dans Claude Code).",
 			"rejected": "App subsume skills (re-implémenter /interview en Rust = chantier énorme + perd l'évolution skills) ; app orchestre skills (spawn CC en background — couplage CLI fragile).",
 			"order": "Statu quo. Aucune dépendance amont — c'est déjà le modèle rp.",
-			"verification": "Faire tourner /interview dans Claude Code → l'artefact apparaît dans Agent Cockpit sans action explicite."
+			"verification": "Faire tourner /interview dans Claude Code → l'artefact apparaît dans Mizraj sans action explicite."
 		}
 	},
 	"comments": [],

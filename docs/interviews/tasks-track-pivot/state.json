@@ -101,7 +101,7 @@
 		"q7_ci": { "choice": "c", "decided": "drop the CI Linear guard" }
 	},
 	"verified": {
-		"track_layout": "Current /track + /next skills write docs/plans/<slug>/.tracks/M{M}.{track}/progress.md (multi-track, gitignored). This repo still has legacy flat docs/plans/agent-cockpit/progress.md. Parser must target .tracks/*/progress.md and import all tracks."
+		"track_layout": "Current /track + /next skills write docs/plans/<slug>/.tracks/M{M}.{track}/progress.md (multi-track, gitignored). This repo still has legacy flat docs/plans/mizraj/progress.md. Parser must target .tracks/*/progress.md and import all tracks."
 	},
 	"round2": {
 		"r2_import": {
@@ -148,7 +148,7 @@
 		},
 		"r4_loc": {
 			"choice": "a",
-			"decided": "global XDG ~/.local/share/agent-cockpit/cockpit.db, keyed repo_path, multi-project"
+			"decided": "global XDG ~/.local/share/mizraj/cockpit.db, keyed repo_path, multi-project"
 		},
 		"r4_files": {
 			"choice": "a",
