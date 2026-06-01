@@ -3,19 +3,20 @@ import { TASK_STATUSES } from '../lib/tasks'
 
 import TaskGroup from './TaskGroup'
 
-type TaskListProps = {
+type UserTaskListProps = {
 	tasks: ReadonlyArray<Task>
 	onChanged: () => void
 }
 
-const TaskList = ({ tasks, onChanged }: TaskListProps): React.JSX.Element => {
+const UserTaskList = ({
+	tasks,
+	onChanged,
+}: UserTaskListProps): React.JSX.Element => {
 	if (tasks.length === 0) {
-		return (
-			<p className="tasks-view__empty">No tasks for this project yet.</p>
-		)
+		return <p className="tasks-view__empty">No user tasks yet.</p>
 	}
 	return (
-		<>
+		<div className="tasks-view__user-tasks" aria-label="User tasks">
 			{TASK_STATUSES.map(status => {
 				const group = tasks.filter(task => task.status === status)
 				return group.length === 0 ? null : (
@@ -27,8 +28,8 @@ const TaskList = ({ tasks, onChanged }: TaskListProps): React.JSX.Element => {
 					/>
 				)
 			})}
-		</>
+		</div>
 	)
 }
 
-export default TaskList
+export default UserTaskList

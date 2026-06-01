@@ -3,37 +3,79 @@ import { invoke } from '@tauri-apps/api/core'
 import type { RepoResource, ResourceState } from './repoResource'
 import { useRepoResource } from './repoResource'
 
-export const TASK_STATUSES = ['backlog', 'in_progress', 'done'] as const
+export const TASK_STATUSES = [
+	'backlog',
+	'in_progress',
+	'done',
+	'blocked',
+] as const
 export type TaskStatus = (typeof TASK_STATUSES)[number]
 
 export type TaskOrigin = 'user' | 'track'
 
 export type Task = {
 	id: string
+	identifier: string | null
+	origin: TaskOrigin
+	milestoneId: string | null
+	trackId: string | null
+	step: string | null
 	title: string
 	description: string | null
+	doneWhen: string | null
+	size: string | null
+	sliceOf: ReadonlyArray<string>
+	sinkId: string | null
+	position: number
 	status: TaskStatus
-	origin: TaskOrigin
+	blockedReason: string | null
+	commitSha: string | null
 	createdAt: string
 }
 
-export type TasksState = ResourceState<ReadonlyArray<Task>>
+export type TrackGroup = {
+	id: string
+	branch: string
+	tasks: ReadonlyArray<Task>
+}
 
-const fetchTasks = (repoPath: string): Promise<ReadonlyArray<Task>> =>
-	invoke<ReadonlyArray<Task>>('tasks_list', { repoPath })
+export type MilestoneGroup = {
+	id: string
+	number: number
+	demo: string
+	skeleton: boolean
+	needs: ReadonlyArray<string>
+	tracks: ReadonlyArray<TrackGroup>
+}
+
+export type Overview = {
+	milestones: ReadonlyArray<MilestoneGroup>
+	userTasks: ReadonlyArray<Task>
+}
+
+export type OverviewState = ResourceState<Overview>
 
 /**
- * Create a `user`-origin task in `repoPath` and return the persisted row. The
- * backend rejects a blank title and stores a blank description as `NULL`.
+ * Read the active project's grouped task tree plus its flat user tasks. The
+ * backend resolves the active project itself, so this takes no arguments — a
+ * nullary fetcher is assignable where {@link useRepoResource} expects its
+ * `(repoPath: string) => Promise<T>` signature, so the keyed `repoPath` still
+ * re-triggers the fetch on project switch without this function reading it.
+ */
+const fetchOverview = (): Promise<Overview> =>
+	invoke<Overview>('tasks_overview')
+
+/**
+ * Create a `user`-origin task in the active project and return the persisted
+ * row. The backend rejects a blank title and stores a blank description as
+ * `NULL`.
  */
 export const createTask = (
-	repoPath: string,
 	title: string,
 	description: string,
 ): Promise<Task> => {
 	const trimmed = description.trim()
 	return invoke<Task>('tasks_create', {
-		repoPath,
 		title,
 		description: trimmed === '' ? null : trimmed,
 	})
@@ -54,7 +96,10 @@ export const updateTask = (input: {
 	status: string
 }): Promise<Task> => invoke<Task>('tasks_update', input)
 
-export const useTasks = (
-	repoPath: string | null,
-): RepoResource<ReadonlyArray<Task>> =>
-	useRepoResource(repoPath, fetchTasks, 'tasks-view', 'useTasks: tasks_list')
+export const useTasks = (repoPath: string | null): RepoResource<Overview> =>
+	useRepoResource(
+		repoPath,
+		fetchOverview,
+		'tasks-view',
+		'useTasks: tasks_overview',
+	)

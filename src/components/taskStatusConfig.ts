@@ -7,4 +7,5 @@ export const STATUS_CONFIG: Record<
 	backlog: { label: 'Backlog', marker: '○' },
 	in_progress: { label: 'In progress', marker: '◐' },
 	done: { label: 'Done', marker: '✓' },
+	blocked: { label: 'Blocked', marker: '⊘' },
 }

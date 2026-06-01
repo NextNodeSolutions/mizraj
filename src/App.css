@@ -541,6 +541,116 @@
 	color: var(--color-danger, var(--ctp-red));
 }
 
+.tasks-view__item--blocked .tasks-view__marker {
+	color: var(--color-danger, var(--ctp-red));
+}
+
+.tasks-view__row-head {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+}
+
+.tasks-view__identifier {
+	font-size: 0.75rem;
+	font-family: var(--font-mono, monospace);
+	color: var(--color-text-muted);
+}
+
+.tasks-view__size {
+	flex: 0 0 auto;
+	padding: 0.05rem 0.35rem;
+	border-radius: 999px;
+	background: var(--color-surface);
+	font-size: 0.65rem;
+	letter-spacing: 0.04em;
+	color: var(--color-text-muted);
+}
+
+.tasks-view__blocked-reason {
+	font-size: 0.8rem;
+	color: var(--color-danger, var(--ctp-red));
+}
+
+.tasks-view__user-tasks {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+
+.tasks-tree {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+
+.tasks-tree__milestone {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+}
+
+.tasks-tree__milestone-header {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.tasks-tree__milestone-id {
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: var(--color-text);
+}
+
+.tasks-tree__milestone-demo {
+	font-size: 0.85rem;
+	color: var(--color-text-muted);
+}
+
+.tasks-tree__badge {
+	flex: 0 0 auto;
+	padding: 0.05rem 0.4rem;
+	border-radius: 999px;
+	background: var(--color-surface);
+	font-size: 0.65rem;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--color-text-muted);
+}
+
+.tasks-tree__needs {
+	font-size: 0.7rem;
+	color: var(--color-text-muted);
+}
+
+.tasks-tree__track {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+	padding-left: 0.75rem;
+	border-left: 2px solid var(--color-border-subtle);
+}
+
+.tasks-tree__track-header {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+}
+
+.tasks-tree__track-id {
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: var(--color-text);
+}
+
+.tasks-tree__track-branch {
+	font-size: 0.75rem;
+	font-family: var(--font-mono, monospace);
+	color: var(--color-text-muted);
+}
+
 .agent-run {
 	display: flex;
 	gap: 1rem;

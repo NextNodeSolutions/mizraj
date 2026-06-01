@@ -13,7 +13,6 @@ type ItemProps = {
 
 const TaskItem = ({ task, onChanged }: ItemProps): React.JSX.Element => {
 	const [editing, setEditing] = useState(false)
-	const isEditable = task.origin === 'user'
 	const hasDescription = task.description !== null && task.description !== ''
 
 	const handleSaved = (): void => {
@@ -21,44 +20,45 @@ const TaskItem = ({ task, onChanged }: ItemProps): React.JSX.Element => {
 		onChanged()
 	}
 
-	return (
-		<li className={`tasks-view__item tasks-view__item--${task.status}`}>
-			<span className="tasks-view__marker" aria-hidden="true">
-				{STATUS_CONFIG[task.status].marker}
-			</span>
-			{editing ? (
+	if (editing) {
+		return (
+			<li className={`tasks-view__item tasks-view__item--${task.status}`}>
+				<span className="tasks-view__marker" aria-hidden="true">
+					{STATUS_CONFIG[task.status].marker}
+				</span>
 				<TaskEditor
 					task={task}
 					onSaved={handleSaved}
 					onCancel={() => setEditing(false)}
 				/>
-			) : (
-				<>
-					<div className="tasks-view__body">
-						<span className="tasks-view__title">{task.title}</span>
-						{hasDescription && (
-							<span className="tasks-view__description">
-								{task.description}
-							</span>
-						)}
-					</div>
-					{isEditable ? (
-						<div className="tasks-view__controls">
-							<button
-								className="tasks-view__edit-toggle"
-								type="button"
-								onClick={() => setEditing(true)}
-								aria-label={`Edit ${task.title}`}
-							>
-								Edit
-							</button>
-							<StatusSelect task={task} onChanged={onChanged} />
-						</div>
-					) : (
-						<span className="tasks-view__origin">track</span>
-					)}
-				</>
-			)}
+			</li>
+		)
+	}
+
+	return (
+		<li className={`tasks-view__item tasks-view__item--${task.status}`}>
+			<span className="tasks-view__marker" aria-hidden="true">
+				{STATUS_CONFIG[task.status].marker}
+			</span>
+			<div className="tasks-view__body">
+				<span className="tasks-view__title">{task.title}</span>
+				{hasDescription && (
+					<span className="tasks-view__description">
+						{task.description}
+					</span>
+				)}
+			</div>
+			<div className="tasks-view__controls">
+				<button
+					className="tasks-view__edit-toggle"
+					type="button"
+					onClick={() => setEditing(true)}
+					aria-label={`Edit ${task.title}`}
+				>
+					Edit
+				</button>
+				<StatusSelect task={task} onChanged={onChanged} />
+			</div>
 		</li>
 	)
 }

@@ -11,9 +11,7 @@ const TasksView = ({ repoPath }: Props): React.JSX.Element => {
 	return (
 		<section className="tasks-view" aria-label="Tasks">
 			<h2 className="tasks-view__title-bar">Tasks</h2>
-			{repoPath !== null && (
-				<TaskCreateForm repoPath={repoPath} onCreated={refetch} />
-			)}
+			{repoPath !== null && <TaskCreateForm onCreated={refetch} />}
 			<TasksBody state={state} onChanged={refetch} />
 		</section>
 	)

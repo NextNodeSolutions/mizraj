@@ -1,9 +1,9 @@
-import type { TasksState } from '../lib/tasks'
+import type { OverviewState } from '../lib/tasks'
 
-import TaskList from './TaskList'
+import TasksContent from './TasksContent'
 
 type TasksBodyProps = {
-	state: TasksState
+	state: OverviewState
 	onChanged: () => void
 }
 
@@ -28,7 +28,7 @@ const TasksBody = ({ state, onChanged }: TasksBodyProps): React.JSX.Element => {
 			</p>
 		)
 	}
-	return <TaskList tasks={state.data} onChanged={onChanged} />
+	return <TasksContent overview={state.data} onChanged={onChanged} />
 }
 
 export default TasksBody

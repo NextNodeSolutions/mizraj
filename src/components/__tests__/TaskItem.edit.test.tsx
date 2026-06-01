@@ -14,19 +14,21 @@ import TaskItem from '../TaskItem'
 
 const USER_TASK: Task = {
 	id: 'task-1',
+	identifier: null,
+	origin: 'user',
+	milestoneId: null,
+	trackId: null,
+	step: null,
 	title: 'Original title',
 	description: 'Original description',
+	doneWhen: null,
+	size: null,
+	sliceOf: [],
+	sinkId: null,
+	position: 0,
 	status: 'backlog',
-	origin: 'user',
-	createdAt: '2026-01-01T00:00:00Z',
-}
-
-const TRACK_TASK: Task = {
-	id: 'track-1',
-	title: 'Tracked step',
-	description: null,
-	status: 'in_progress',
-	origin: 'track',
+	blockedReason: null,
+	commitSha: null,
 	createdAt: '2026-01-01T00:00:00Z',
 }
 
@@ -114,17 +116,19 @@ describe('TaskItem inline editing', () => {
 		expect(onChanged).toHaveBeenCalledTimes(1)
 	})
 
-	it('renders no edit affordance for a track task', async () => {
+	it('exposes both edit and status affordances for a user task', async () => {
 		const onChanged = vi.fn()
 
 		await act(async () => {
-			root.render(<TaskItem task={TRACK_TASK} onChanged={onChanged} />)
+			root.render(<TaskItem task={USER_TASK} onChanged={onChanged} />)
 		})
 
-		expect(container.querySelector('.tasks-view__edit-toggle')).toBeNull()
 		expect(
-			container.querySelector('.tasks-view__origin')?.textContent,
-		).toBe('track')
+			container.querySelector('.tasks-view__edit-toggle'),
+		).not.toBeNull()
+		expect(
+			container.querySelector('.tasks-view__status-select'),
+		).not.toBeNull()
 		expect(invokeMock).not.toHaveBeenCalled()
 	})
 })
