@@ -447,6 +447,37 @@
 	color: var(--color-text-muted);
 }
 
+.tasks-view__status {
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.2rem;
+}
+
+.tasks-view__status-select {
+	flex: 0 0 auto;
+	align-self: flex-start;
+	padding: 0.2rem 0.4rem;
+	font-size: 0.75rem;
+	border-radius: 6px;
+	border: 1px solid var(--color-border-subtle);
+	background: var(--color-surface);
+	color: var(--color-text);
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.tasks-view__status-select:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.tasks-view__item-error {
+	font-size: 0.75rem;
+	color: var(--color-danger, var(--ctp-red));
+}
+
 .tasks-view__empty {
 	margin: 0;
 	padding: 0.25rem 0.5rem;

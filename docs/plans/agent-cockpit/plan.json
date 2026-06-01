@@ -301,6 +301,56 @@
 					]
 				}
 			]
+		},
+		{
+			"id": "M9",
+			"demo": "Les types et les bindings des commandes Tauri sont générés depuis le Rust (tauri-specta) : le front appelle des fonctions typées de bout en bout, sans type mirroré à la main ni générique invoke<T> non vérifié, et statut/origine remontent en union littérale.",
+			"skeleton": false,
+			"needs": ["M1", "M4"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/typed-tauri-bindings",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Générer les bindings TS des commandes tasks depuis le Rust",
+							"size": "I4",
+							"slice_of": ["D3"],
+							"done_when": "un bindings.ts généré par tauri-specta expose les commandes tasks typées, consommées par le front sans type Task mirroré ni invoke<T>",
+							"description": "WHAT: introduire specta + tauri-specta, dériver specta::Type sur le struct Task et annoter les commandes tasks (tasks_list, tasks_create, tasks_update), construire le Builder tauri-specta et exporter src/lib/bindings.ts ; câbler StatusSelect/TaskCreateForm/useTasks sur les commandes générées et retirer le type Task + les génériques invoke<T> mirrorés de src/lib/tasks.ts.\n\nWHY: walking skeleton du codegen Rust→TS sur un seul groupe de commandes, pour prouver le flux de bout en bout avant de l'étendre. Aujourd'hui invoke<Task>('tasks_list') est une assertion non vérifiée et Task/TaskStatus/TaskOrigin sont des copies manuelles du struct Rust (drift silencieux).\n\nWHERE: src-tauri/Cargo.toml (deps specta, tauri-specta, specta-typescript) ; src-tauri/src/commands/tasks.rs (derive specta::Type sur Task, annotations sur les commandes) ; src-tauri/src/lib.rs (Builder tauri-specta + export bindings en dev) ; src/lib/bindings.ts (généré) ; src/lib/tasks.ts + src/components/{StatusSelect,TaskCreateForm}.tsx (consommer les bindings).\n\nDONE WHEN:\n- bindings.ts généré depuis le Rust, types tasks dérivés du struct\n- les call sites tasks passent par les bindings typés (plus d'invoke<Task>)\n- type-check/lint/tests verts, aucun type Task écrit à la main",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Modéliser statut et origine en enums Rust",
+							"size": "I3",
+							"slice_of": ["D3"],
+							"done_when": "TaskStatus/TaskOrigin sont des enums Rust ; les bindings générés remontent des unions littérales et une valeur hors-enum est rejetée",
+							"description": "WHAT: remplacer les String status/origin du struct Task par des enums Rust (enum TaskStatus { Backlog, InProgress, Done } + enum TaskOrigin { User, Track }, serde rename_all snake_case, derive specta::Type) ; remplacer le garde is_valid_status (contains sur slice) par le parsing de l'enum.\n\nWHY: « narrow + valide côté back » — l'enum est le narrowing autoritaire et fait remonter une union littérale 'backlog'|'in_progress'|'done' côté TS via les bindings, au lieu d'un string plat. Prérequis pour que le front récupère la donnée propre déjà typée.\n\nWHERE: src-tauri/src/commands/tasks.rs (enums + struct Task + mapping des rows SQLite vers les enums) ; le bindings.ts régénéré porte les unions.\n\nDONE WHEN:\n- Task.status/origin générés en unions littérales côté TS\n- une valeur hors-enum est rejetée (test)\n- la contrainte CHECK SQL reste le backstop",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Migrer le reste des commandes sur les bindings générés",
+							"size": "I4",
+							"slice_of": ["D3"],
+							"done_when": "toutes les commandes Tauri passent par les bindings tauri-specta ; aucun invoke<T> mirroré ne subsiste",
+							"description": "WHAT: dériver specta::Type + annoter les commandes restantes (sessions, plans, get_diff, set_active_project, etc.), les ajouter au Builder, migrer leurs call sites front vers les bindings générés et supprimer les types mirrorés + génériques invoke<T> restants.\n\nWHY: source unique de vérité (Rust) sur toute la surface de commandes, drift attrapé au build.\n\nWHERE: src-tauri/src/**/commands.rs + src/session/commands.rs (annotations specta) ; src-tauri/src/lib.rs (Builder complet) ; tous les call sites front invoke<...> → bindings.\n\nDONE WHEN:\n- toutes les commandes migrées exposées via bindings.ts\n- plus aucun générique invoke<...> mirroré pour les commandes migrées\n- type-check/lint/tests verts",
+							"sink_id": null
+						},
+						{
+							"step": "04",
+							"title": "Garde anti-drift des bindings en CI",
+							"size": "I3",
+							"slice_of": ["D3"],
+							"done_when": "un job CI régénère les bindings et échoue si le bindings.ts commité est obsolète",
+							"description": "WHAT: étape CI qui régénère bindings.ts depuis le Rust et fait échouer le build si un git diff apparaît (bindings obsolètes).\n\nWHY: garantir la synchro Rust↔TS automatiquement — un changement de struct/commande non régénéré casse la CI au lieu de drifter en silence.\n\nWHERE: .github/workflows/ci.yml (étape de régénération + git diff --exit-code sur src/lib/bindings.ts).\n\nDONE WHEN:\n- la CI régénère les bindings et diff\n- un struct modifié sans régénération fait échouer la CI\n- vert quand les bindings sont à jour",
+							"sink_id": null
+						}
+					]
+				}
+			]
 		}
 	]
 }

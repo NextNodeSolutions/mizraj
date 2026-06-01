@@ -67,6 +67,15 @@ fn normalize_title(raw: &str) -> Option<&str> {
     (!trimmed.is_empty()).then_some(trimmed)
 }
 
+/// The status vocabulary enforced by the schema's CHECK constraint. Mirrored
+/// here so an out-of-enum status is rejected with a clear message before the
+/// database round-trip, rather than surfacing as an opaque constraint failure.
+const TASK_STATUSES: [&str; 3] = ["backlog", "in_progress", "done"];
+
+fn is_valid_status(status: &str) -> bool {
+    TASK_STATUSES.contains(&status)
+}
+
 async fn tasks_create_inner(
     pool: &SqlitePool,
     repo_path: &str,
@@ -117,6 +126,50 @@ pub async fn tasks_create(
         .filter(|value| !value.is_empty());
 
     tasks_create_inner(pool.inner(), &repo_path, title, description)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+async fn tasks_update_inner(
+    pool: &SqlitePool,
+    id: &str,
+    status: &str,
+) -> Result<Task, sqlx::Error> {
+    // `RETURNING` hands back the updated row so the caller never re-reads; a
+    // non-existent id matches no row and surfaces as `RowNotFound`.
+    let (id, title, description, status, origin, created_at): TaskRow = sqlx::query_as(
+        "UPDATE tasks SET status = ? WHERE id = ? \
+         RETURNING id, title, description, status, origin, created_at",
+    )
+    .bind(status)
+    .bind(id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(Task {
+        id,
+        title,
+        description,
+        status,
+        origin,
+        created_at,
+    })
+}
+
+/// Update the status of an existing task, returning the persisted row. Rejects
+/// a status outside the enforced enum before touching the database; an unknown
+/// id surfaces as an error.
+#[tauri::command]
+pub async fn tasks_update(
+    id: String,
+    status: String,
+    pool: tauri::State<'_, SqlitePool>,
+) -> Result<Task, String> {
+    if !is_valid_status(&status) {
+        return Err(format!("unknown status: {status}"));
+    }
+
+    tasks_update_inner(pool.inner(), &id, &status)
         .await
         .map_err(|err| err.to_string())
 }
@@ -251,6 +304,44 @@ mod tests {
                 .await
                 .expect("tasks_list should succeed");
             assert!(other.is_empty(), "a task created in /repo/a is invisible to /repo/b");
+        });
+    }
+
+    #[test]
+    fn is_valid_status_accepts_the_enum_and_rejects_others() {
+        assert!(is_valid_status("backlog"));
+        assert!(is_valid_status("in_progress"));
+        assert!(is_valid_status("done"));
+        assert!(!is_valid_status("todo"));
+        assert!(!is_valid_status(""));
+        assert!(!is_valid_status("Done"));
+    }
+
+    #[test]
+    fn tasks_update_changes_status_and_is_reflected_in_the_list() {
+        let pool = fresh_pool();
+        block_on(async {
+            insert_task(&pool, "a1", "ship it", "backlog", "user", "/repo/a").await;
+
+            let updated = tasks_update_inner(&pool, "a1", "in_progress")
+                .await
+                .expect("tasks_update should succeed");
+            assert_eq!(updated.status, "in_progress");
+
+            let listed = tasks_list_inner(&pool, "/repo/a")
+                .await
+                .expect("tasks_list should succeed");
+            assert_eq!(listed.len(), 1);
+            assert_eq!(listed[0].status, "in_progress", "the list reflects the new status");
+        });
+    }
+
+    #[test]
+    fn tasks_update_errors_for_an_unknown_id() {
+        let pool = fresh_pool();
+        block_on(async {
+            let result = tasks_update_inner(&pool, "missing", "done").await;
+            assert!(result.is_err(), "updating a non-existent task is an error");
         });
     }
 

@@ -39,6 +39,16 @@ export const createTask = (
 	})
 }
 
+/**
+ * Move an existing task to `status` and return the persisted row. `status` is
+ * the raw `<select>` value; the backend is the authoritative validator and
+ * rejects a status outside {@link TASK_STATUSES}.
+ */
+export const updateTaskStatus = (
+	id: string,
+	status: string,
+): Promise<Task> => invoke<Task>('tasks_update', { id, status })
+
 export const useTasks = (
 	repoPath: string | null,
 ): RepoResource<ReadonlyArray<Task>> =>
