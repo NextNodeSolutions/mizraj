@@ -1,60 +1,214 @@
-use sqlx::SqlitePool;
+use std::collections::HashMap;
+
+use sqlx::sqlite::SqliteRow;
+use sqlx::{Row, SqlitePool};
 use ulid::Ulid;
 
-/// A task row from the shared cockpit database, scoped to one repository.
+use crate::db::Db;
+
+/// A task row from the active project's progress database.
 ///
-/// `status` is one of `backlog`, `in_progress`, `done` and `origin` one of
-/// `user`, `track` — both enforced by the schema. `repo_path` is the filter
-/// key and is not serialized (the caller already knows which repo it asked
-/// for). `created_at` is an ISO-8601 UTC string produced by SQLite.
+/// Both user-authored tasks (origin `user`, flat — `identifier`/`milestoneId`/
+/// `trackId`/`step` all `None`) and track-derived tasks (origin `track`) live in
+/// the same table; `origin` discriminates. `status` is one of `backlog`,
+/// `in_progress`, `done`, `blocked` and `origin` one of `user`, `track` — both
+/// enforced by the schema. `sliceOf` is assembled from the `task_slice_of`
+/// junction. `createdAt` is an ISO-8601 UTC string produced by SQLite.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
     pub id: String,
+    pub identifier: Option<String>,
+    pub origin: String,
+    pub milestone_id: Option<String>,
+    pub track_id: Option<String>,
+    pub step: Option<String>,
     pub title: String,
     pub description: Option<String>,
+    pub done_when: Option<String>,
+    pub size: Option<String>,
+    pub slice_of: Vec<String>,
+    pub sink_id: Option<String>,
+    pub position: i64,
     pub status: String,
-    pub origin: String,
+    pub blocked_reason: Option<String>,
+    pub commit_sha: Option<String>,
     pub created_at: String,
 }
 
-/// Row tuple as selected from `tasks`, mapped into [`Task`]. A tuple keeps us on
-/// `sqlx`'s built-in `FromRow` (no derive-macro feature dependency), matching
-/// the query style used elsewhere in the crate.
-type TaskRow = (String, String, Option<String>, String, String, String);
-
-async fn tasks_list_inner(pool: &SqlitePool, repo_path: &str) -> Result<Vec<Task>, sqlx::Error> {
-    let rows: Vec<TaskRow> = sqlx::query_as(
-        "SELECT id, title, description, status, origin, created_at \
-         FROM tasks WHERE repo_path = ? ORDER BY created_at DESC, id DESC",
-    )
-    .bind(repo_path)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows
-        .into_iter()
-        .map(
-            |(id, title, description, status, origin, created_at)| Task {
-                id,
-                title,
-                description,
-                status,
-                origin,
-                created_at,
-            },
-        )
-        .collect())
+/// A track and its ordered tasks, nested under a milestone in the overview.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackGroup {
+    pub id: String,
+    pub branch: String,
+    pub tasks: Vec<Task>,
 }
 
-/// List every task of `repo_path` from the shared cockpit database, newest
-/// first. Returns an empty vec when the repo has no tasks yet.
+/// A milestone with its `needs` edges and ordered tracks.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MilestoneGroup {
+    pub id: String,
+    pub number: i64,
+    pub demo: String,
+    pub skeleton: bool,
+    pub needs: Vec<String>,
+    pub tracks: Vec<TrackGroup>,
+}
+
+/// The full task view of a project: the structural milestone→track→task tree
+/// plus the flat list of user-authored tasks.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Overview {
+    pub milestones: Vec<MilestoneGroup>,
+    pub user_tasks: Vec<Task>,
+}
+
+/// The `tasks` columns selected (and RETURNED) everywhere, in one place so the
+/// read path and the write path map identical row shapes.
+const TASK_COLUMNS: &str = "id, identifier, origin, milestone_id, track_id, step, \
+     title, description, done_when, size, sink_id, position, status, \
+     blocked_reason, commit_sha, created_at";
+
+/// Map a `tasks` row (selecting [`TASK_COLUMNS`]) into a [`Task`]. `slice_of`
+/// starts empty — it is merged in by the caller from the `task_slice_of`
+/// junction, so a single batched read covers every task instead of N+1 queries.
+fn task_from_row(row: &SqliteRow) -> Result<Task, sqlx::Error> {
+    Ok(Task {
+        id: row.try_get("id")?,
+        identifier: row.try_get("identifier")?,
+        origin: row.try_get("origin")?,
+        milestone_id: row.try_get("milestone_id")?,
+        track_id: row.try_get("track_id")?,
+        step: row.try_get("step")?,
+        title: row.try_get("title")?,
+        description: row.try_get("description")?,
+        done_when: row.try_get("done_when")?,
+        size: row.try_get("size")?,
+        slice_of: Vec::new(),
+        sink_id: row.try_get("sink_id")?,
+        position: row.try_get("position")?,
+        status: row.try_get("status")?,
+        blocked_reason: row.try_get("blocked_reason")?,
+        commit_sha: row.try_get("commit_sha")?,
+        created_at: row.try_get("created_at")?,
+    })
+}
+
+/// `task_id` → its `slice_of` decision ids, read in one batched pass.
+async fn slice_of_map(pool: &SqlitePool) -> Result<HashMap<String, Vec<String>>, sqlx::Error> {
+    let rows = sqlx::query("SELECT task_id, decision_id FROM task_slice_of ORDER BY task_id, decision_id")
+        .fetch_all(pool)
+        .await?;
+    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+    for row in &rows {
+        let task_id: String = row.try_get("task_id")?;
+        let decision_id: String = row.try_get("decision_id")?;
+        map.entry(task_id).or_default().push(decision_id);
+    }
+    Ok(map)
+}
+
+async fn tasks_overview_inner(pool: &SqlitePool) -> Result<Overview, sqlx::Error> {
+    let slice_of = slice_of_map(pool).await?;
+
+    // needs: milestone_id -> [needs_id]
+    let needs_rows = sqlx::query("SELECT milestone_id, needs_id FROM milestone_needs ORDER BY milestone_id, needs_id")
+        .fetch_all(pool)
+        .await?;
+    let mut needs: HashMap<String, Vec<String>> = HashMap::new();
+    for row in &needs_rows {
+        let milestone_id: String = row.try_get("milestone_id")?;
+        let needs_id: String = row.try_get("needs_id")?;
+        needs.entry(milestone_id).or_default().push(needs_id);
+    }
+
+    // track tasks, grouped by (milestone_id, track_id), each with its slice_of
+    let track_task_rows = sqlx::query(&format!(
+        "SELECT {TASK_COLUMNS} FROM tasks WHERE origin = 'track' \
+         ORDER BY milestone_id, track_id, position, step"
+    ))
+    .fetch_all(pool)
+    .await?;
+    let mut tasks_by_track: HashMap<(String, String), Vec<Task>> = HashMap::new();
+    for row in &track_task_rows {
+        let mut task = task_from_row(row)?;
+        if let Some(decisions) = slice_of.get(&task.id) {
+            task.slice_of = decisions.clone();
+        }
+        let key = (
+            task.milestone_id.clone().unwrap_or_default(),
+            task.track_id.clone().unwrap_or_default(),
+        );
+        tasks_by_track.entry(key).or_default().push(task);
+    }
+
+    let track_rows = sqlx::query("SELECT milestone_id, id, branch, position FROM tracks ORDER BY position, id")
+        .fetch_all(pool)
+        .await?;
+    let milestone_rows = sqlx::query("SELECT id, number, demo, skeleton, position FROM milestones ORDER BY position, number")
+        .fetch_all(pool)
+        .await?;
+
+    let mut milestones = Vec::with_capacity(milestone_rows.len());
+    for m in &milestone_rows {
+        let milestone_id: String = m.try_get("id")?;
+        let skeleton: i64 = m.try_get("skeleton")?;
+        let mut tracks = Vec::new();
+        for t in &track_rows {
+            let track_milestone: String = t.try_get("milestone_id")?;
+            if track_milestone != milestone_id {
+                continue;
+            }
+            let track_id: String = t.try_get("id")?;
+            let tasks = tasks_by_track
+                .remove(&(milestone_id.clone(), track_id.clone()))
+                .unwrap_or_default();
+            tracks.push(TrackGroup {
+                id: track_id,
+                branch: t.try_get("branch")?,
+                tasks,
+            });
+        }
+        milestones.push(MilestoneGroup {
+            id: milestone_id.clone(),
+            number: m.try_get("number")?,
+            demo: m.try_get("demo")?,
+            skeleton: skeleton != 0,
+            needs: needs.get(&milestone_id).cloned().unwrap_or_default(),
+            tracks,
+        });
+    }
+
+    let user_rows = sqlx::query(&format!(
+        "SELECT {TASK_COLUMNS} FROM tasks WHERE origin = 'user' \
+         ORDER BY created_at DESC, id DESC"
+    ))
+    .fetch_all(pool)
+    .await?;
+    let mut user_tasks = Vec::with_capacity(user_rows.len());
+    for row in &user_rows {
+        let mut task = task_from_row(row)?;
+        if let Some(decisions) = slice_of.get(&task.id) {
+            task.slice_of = decisions.clone();
+        }
+        user_tasks.push(task);
+    }
+
+    Ok(Overview {
+        milestones,
+        user_tasks,
+    })
+}
+
+/// The structural milestone→track→task tree plus the flat user tasks of the
+/// active project. Returns empty collections when the project has no tasks yet.
 #[tauri::command]
-pub async fn tasks_list(
-    repo_path: String,
-    pool: tauri::State<'_, SqlitePool>,
-) -> Result<Vec<Task>, String> {
-    tasks_list_inner(pool.inner(), &repo_path)
+pub async fn tasks_overview(db: tauri::State<'_, Db>) -> Result<Overview, String> {
+    let pool = db.pool().await?;
+    tasks_overview_inner(&pool)
         .await
         .map_err(|err| err.to_string())
 }
@@ -77,7 +231,7 @@ fn normalize_description(raw: Option<&str>) -> Option<&str> {
 /// The status vocabulary enforced by the schema's CHECK constraint. Mirrored
 /// here so an out-of-enum status is rejected with a clear message before the
 /// database round-trip, rather than surfacing as an opaque constraint failure.
-const TASK_STATUSES: [&str; 3] = ["backlog", "in_progress", "done"];
+const TASK_STATUSES: [&str; 4] = ["backlog", "in_progress", "done", "blocked"];
 
 fn is_valid_status(status: &str) -> bool {
     TASK_STATUSES.contains(&status)
@@ -85,51 +239,43 @@ fn is_valid_status(status: &str) -> bool {
 
 async fn tasks_create_inner(
     pool: &SqlitePool,
-    repo_path: &str,
     title: &str,
     description: Option<&str>,
 ) -> Result<Task, sqlx::Error> {
     let id = Ulid::new().to_string();
 
-    // `created_at` is stamped by SQLite (UTC, millisecond ISO-8601) and
-    // `status`/`origin` carry the defaults for an app-authored task; `RETURNING`
-    // hands the freshly inserted row straight back so the caller never re-reads.
-    let (id, title, description, status, origin, created_at): TaskRow = sqlx::query_as(
-        "INSERT INTO tasks (id, title, description, status, origin, repo_path, created_at) \
-         VALUES (?, ?, ?, 'backlog', 'user', ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
-         RETURNING id, title, description, status, origin, created_at",
-    )
+    // A user task is flat: only id/title/description are supplied; origin is
+    // 'user', status defaults to 'backlog', the structural columns stay NULL,
+    // and `created_at` is stamped by SQLite (UTC, millisecond ISO-8601).
+    // `RETURNING` hands the freshly inserted row straight back.
+    let row = sqlx::query(&format!(
+        "INSERT INTO tasks (id, origin, title, description, created_at) \
+         VALUES (?, 'user', ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
+         RETURNING {TASK_COLUMNS}"
+    ))
     .bind(&id)
     .bind(title)
     .bind(description)
-    .bind(repo_path)
     .fetch_one(pool)
     .await?;
 
-    Ok(Task {
-        id,
-        title,
-        description,
-        status,
-        origin,
-        created_at,
-    })
+    task_from_row(&row)
 }
 
-/// Create a `user`-origin task in `repo_path` with a `backlog` status, returning
-/// the persisted row. Rejects a blank title; a blank description is stored as
+/// Create a flat `user`-origin task with a `backlog` status, returning the
+/// persisted row. Rejects a blank title; a blank description is stored as
 /// `NULL`.
 #[tauri::command]
 pub async fn tasks_create(
-    repo_path: String,
     title: String,
     description: Option<String>,
-    pool: tauri::State<'_, SqlitePool>,
+    db: tauri::State<'_, Db>,
 ) -> Result<Task, String> {
     let title = normalize_title(&title).ok_or_else(|| "title must not be empty".to_string())?;
     let description = normalize_description(description.as_deref());
 
-    tasks_create_inner(pool.inner(), &repo_path, title, description)
+    let pool = db.pool().await?;
+    tasks_create_inner(&pool, title, description)
         .await
         .map_err(|err| err.to_string())
 }
@@ -143,10 +289,10 @@ async fn tasks_update_inner(
 ) -> Result<Task, sqlx::Error> {
     // `RETURNING` hands back the updated row so the caller never re-reads; a
     // non-existent id matches no row and surfaces as `RowNotFound`.
-    let (id, title, description, status, origin, created_at): TaskRow = sqlx::query_as(
+    let row = sqlx::query(&format!(
         "UPDATE tasks SET title = ?, description = ?, status = ? WHERE id = ? \
-         RETURNING id, title, description, status, origin, created_at",
-    )
+         RETURNING {TASK_COLUMNS}"
+    ))
     .bind(title)
     .bind(description)
     .bind(status)
@@ -154,14 +300,7 @@ async fn tasks_update_inner(
     .fetch_one(pool)
     .await?;
 
-    Ok(Task {
-        id,
-        title,
-        description,
-        status,
-        origin,
-        created_at,
-    })
+    task_from_row(&row)
 }
 
 /// Update the editable fields of a task — title, description, status — and
@@ -175,7 +314,7 @@ pub async fn tasks_update(
     title: String,
     description: Option<String>,
     status: String,
-    pool: tauri::State<'_, SqlitePool>,
+    db: tauri::State<'_, Db>,
 ) -> Result<Task, String> {
     let title = normalize_title(&title).ok_or_else(|| "title must not be empty".to_string())?;
     let description = normalize_description(description.as_deref());
@@ -184,86 +323,58 @@ pub async fn tasks_update(
         return Err(format!("unknown status: {status}"));
     }
 
-    tasks_update_inner(pool.inner(), &id, title, description, &status)
+    let pool = db.pool().await?;
+    tasks_update_inner(&pool, &id, title, description, &status)
         .await
         .map_err(|err| err.to_string())
 }
 
 #[cfg(test)]
 mod tests {
-    use sqlx::sqlite::SqlitePoolOptions;
     use tauri::async_runtime::block_on;
 
     use super::*;
 
     fn fresh_pool() -> SqlitePool {
-        block_on(async {
-            let pool = SqlitePoolOptions::new()
-                .max_connections(1)
-                .connect("sqlite::memory:")
-                .await
-                .expect("connect in-memory sqlite");
-            sqlx::migrate!()
-                .run(&pool)
-                .await
-                .expect("apply migrations to in-memory sqlite");
-            pool
-        })
+        block_on(crate::db::connect_for_test())
     }
 
-    async fn insert_task(
-        pool: &SqlitePool,
-        id: &str,
-        title: &str,
-        status: &str,
-        origin: &str,
-        repo_path: &str,
-    ) {
+    async fn insert_user_task(pool: &SqlitePool, id: &str, title: &str, status: &str) {
         sqlx::query(
-            "INSERT INTO tasks (id, title, description, status, origin, repo_path, created_at) \
-             VALUES (?, ?, NULL, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+            "INSERT INTO tasks (id, origin, title, status, created_at) \
+             VALUES (?, 'user', ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
         )
         .bind(id)
         .bind(title)
         .bind(status)
-        .bind(origin)
-        .bind(repo_path)
         .execute(pool)
         .await
-        .expect("insert task row");
+        .expect("insert user task row");
     }
 
-    #[test]
-    fn tasks_list_returns_only_rows_of_the_given_repo() {
-        let pool = fresh_pool();
-        block_on(async {
-            insert_task(&pool, "a1", "repo-a one", "backlog", "user", "/repo/a").await;
-            insert_task(&pool, "a2", "repo-a two", "in_progress", "track", "/repo/a").await;
-            insert_task(&pool, "b1", "repo-b one", "done", "user", "/repo/b").await;
-
-            let tasks = tasks_list_inner(&pool, "/repo/a")
+    /// Seed a two-milestone plan with one track, one track task, its slice_of,
+    /// and a `needs` edge — enough to exercise the grouped overview.
+    async fn seed_plan(pool: &SqlitePool) {
+        sqlx::query("INSERT INTO milestones (id, number, demo, skeleton, position) VALUES ('M1', 1, 'walking skeleton', 1, 0)")
+            .execute(pool).await.expect("insert M1");
+        sqlx::query("INSERT INTO milestones (id, number, demo, skeleton, position) VALUES ('M2', 2, 'thicken it', 0, 1)")
+            .execute(pool).await.expect("insert M2");
+        sqlx::query("INSERT INTO milestone_needs (milestone_id, needs_id) VALUES ('M2', 'M1')")
+            .execute(pool).await.expect("insert needs edge");
+        sqlx::query("INSERT INTO tracks (milestone_id, id, branch, position) VALUES ('M1', 'A', 'feat/skeleton', 0)")
+            .execute(pool).await.expect("insert track");
+        sqlx::query(
+            "INSERT INTO tasks (id, identifier, origin, milestone_id, track_id, step, title, size, position, status, created_at) \
+             VALUES ('M1.A-01', '[M1.A-01]', 'track', 'M1', 'A', '01', 'Spawn process', 'I4', 0, 'backlog', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+        )
+        .execute(pool).await.expect("insert track task");
+        for decision in ["D2", "D3"] {
+            sqlx::query("INSERT INTO task_slice_of (task_id, decision_id) VALUES ('M1.A-01', ?)")
+                .bind(decision)
+                .execute(pool)
                 .await
-                .expect("tasks_list should succeed");
-
-            let ids: Vec<&str> = tasks.iter().map(|t| t.id.as_str()).collect();
-            assert_eq!(ids.len(), 2, "only repo-a tasks are returned");
-            assert!(ids.contains(&"a1") && ids.contains(&"a2"));
-            assert!(!ids.contains(&"b1"), "repo-b task must be filtered out");
-        });
-    }
-
-    #[test]
-    fn tasks_list_is_empty_for_a_repo_without_tasks() {
-        let pool = fresh_pool();
-        block_on(async {
-            insert_task(&pool, "b1", "repo-b one", "backlog", "user", "/repo/b").await;
-
-            let tasks = tasks_list_inner(&pool, "/repo/unknown")
-                .await
-                .expect("tasks_list should succeed");
-
-            assert!(tasks.is_empty());
-        });
+                .expect("insert slice_of");
+        }
     }
 
     #[test]
@@ -283,10 +394,21 @@ mod tests {
     }
 
     #[test]
-    fn tasks_create_persists_a_user_backlog_task() {
+    fn is_valid_status_accepts_the_enum_and_rejects_others() {
+        assert!(is_valid_status("backlog"));
+        assert!(is_valid_status("in_progress"));
+        assert!(is_valid_status("done"));
+        assert!(is_valid_status("blocked"));
+        assert!(!is_valid_status("todo"));
+        assert!(!is_valid_status(""));
+        assert!(!is_valid_status("Done"));
+    }
+
+    #[test]
+    fn tasks_create_persists_a_flat_user_backlog_task() {
         let pool = fresh_pool();
         block_on(async {
-            let created = tasks_create_inner(&pool, "/repo/a", "write docs", Some("the readme"))
+            let created = tasks_create_inner(&pool, "write docs", Some("the readme"))
                 .await
                 .expect("tasks_create should succeed");
 
@@ -294,12 +416,17 @@ mod tests {
             assert_eq!(created.description.as_deref(), Some("the readme"));
             assert_eq!(created.status, "backlog");
             assert_eq!(created.origin, "user");
+            assert_eq!(created.identifier, None, "a user task is flat — no identifier");
+            assert_eq!(created.milestone_id, None);
+            assert_eq!(created.track_id, None);
+            assert!(created.slice_of.is_empty());
             assert!(!created.created_at.is_empty());
 
-            let listed = tasks_list_inner(&pool, "/repo/a")
+            let overview = tasks_overview_inner(&pool)
                 .await
-                .expect("tasks_list should succeed");
-            assert_eq!(listed, vec![created], "the created task is listed for its repo");
+                .expect("overview should succeed");
+            assert_eq!(overview.user_tasks, vec![created], "the created task is listed flat");
+            assert!(overview.milestones.is_empty(), "no plan ingested yet");
         });
     }
 
@@ -307,77 +434,41 @@ mod tests {
     fn tasks_create_stores_a_missing_description_as_null() {
         let pool = fresh_pool();
         block_on(async {
-            let created = tasks_create_inner(&pool, "/repo/a", "no body", None)
+            let created = tasks_create_inner(&pool, "no body", None)
                 .await
                 .expect("tasks_create should succeed");
-
             assert_eq!(created.description, None);
         });
     }
 
     #[test]
-    fn tasks_create_does_not_leak_into_other_repos() {
+    fn tasks_update_changes_status_and_is_reflected() {
         let pool = fresh_pool();
         block_on(async {
-            tasks_create_inner(&pool, "/repo/a", "mine", None)
-                .await
-                .expect("tasks_create should succeed");
-
-            let other = tasks_list_inner(&pool, "/repo/b")
-                .await
-                .expect("tasks_list should succeed");
-            assert!(other.is_empty(), "a task created in /repo/a is invisible to /repo/b");
-        });
-    }
-
-    #[test]
-    fn is_valid_status_accepts_the_enum_and_rejects_others() {
-        assert!(is_valid_status("backlog"));
-        assert!(is_valid_status("in_progress"));
-        assert!(is_valid_status("done"));
-        assert!(!is_valid_status("todo"));
-        assert!(!is_valid_status(""));
-        assert!(!is_valid_status("Done"));
-    }
-
-    #[test]
-    fn tasks_update_changes_status_and_is_reflected_in_the_list() {
-        let pool = fresh_pool();
-        block_on(async {
-            insert_task(&pool, "a1", "ship it", "backlog", "user", "/repo/a").await;
+            insert_user_task(&pool, "a1", "ship it", "backlog").await;
 
             let updated = tasks_update_inner(&pool, "a1", "ship it", None, "in_progress")
                 .await
                 .expect("tasks_update should succeed");
             assert_eq!(updated.status, "in_progress");
 
-            let listed = tasks_list_inner(&pool, "/repo/a")
-                .await
-                .expect("tasks_list should succeed");
-            assert_eq!(listed.len(), 1);
-            assert_eq!(listed[0].status, "in_progress", "the list reflects the new status");
+            let overview = tasks_overview_inner(&pool).await.expect("overview");
+            assert_eq!(overview.user_tasks.len(), 1);
+            assert_eq!(overview.user_tasks[0].status, "in_progress");
         });
     }
 
     #[test]
-    fn tasks_update_changes_title_and_description_and_is_reflected_in_the_list() {
+    fn tasks_update_changes_title_and_description() {
         let pool = fresh_pool();
         block_on(async {
-            insert_task(&pool, "a1", "old title", "backlog", "user", "/repo/a").await;
+            insert_user_task(&pool, "a1", "old title", "backlog").await;
 
-            let updated =
-                tasks_update_inner(&pool, "a1", "new title", Some("a fresh body"), "backlog")
-                    .await
-                    .expect("tasks_update should succeed");
+            let updated = tasks_update_inner(&pool, "a1", "new title", Some("a fresh body"), "backlog")
+                .await
+                .expect("tasks_update should succeed");
             assert_eq!(updated.title, "new title");
             assert_eq!(updated.description.as_deref(), Some("a fresh body"));
-
-            let listed = tasks_list_inner(&pool, "/repo/a")
-                .await
-                .expect("tasks_list should succeed");
-            assert_eq!(listed.len(), 1);
-            assert_eq!(listed[0].title, "new title", "the list reflects the new title");
-            assert_eq!(listed[0].description.as_deref(), Some("a fresh body"));
         });
     }
 
@@ -385,7 +476,7 @@ mod tests {
     fn tasks_update_clears_a_blanked_description_to_null() {
         let pool = fresh_pool();
         block_on(async {
-            insert_task(&pool, "a1", "has body", "backlog", "user", "/repo/a").await;
+            insert_user_task(&pool, "a1", "has body", "backlog").await;
             tasks_update_inner(&pool, "a1", "has body", Some("body"), "backlog")
                 .await
                 .expect("seed a description");
@@ -407,19 +498,68 @@ mod tests {
     }
 
     #[test]
-    fn tasks_list_serializes_fields_as_camel_case() {
+    fn overview_groups_milestones_tracks_and_tasks() {
         let pool = fresh_pool();
         block_on(async {
-            insert_task(&pool, "a1", "only", "backlog", "user", "/repo/a").await;
+            seed_plan(&pool).await;
+            insert_user_task(&pool, "u1", "user task", "backlog").await;
 
-            let tasks = tasks_list_inner(&pool, "/repo/a")
-                .await
-                .expect("tasks_list should succeed");
-            let json = serde_json::to_string(&tasks[0]).expect("serialize task");
+            let overview = tasks_overview_inner(&pool).await.expect("overview");
 
-            assert!(json.contains("\"createdAt\""), "created_at -> createdAt");
-            assert!(!json.contains("repo_path"), "repo_path is not serialized");
-            assert!(json.contains("\"origin\":\"user\""));
+            // Milestones in order, with the needs DAG.
+            assert_eq!(overview.milestones.len(), 2);
+            let m1 = &overview.milestones[0];
+            let m2 = &overview.milestones[1];
+            assert_eq!(m1.id, "M1");
+            assert!(m1.skeleton, "M1 is the walking skeleton");
+            assert!(m1.needs.is_empty());
+            assert_eq!(m2.id, "M2");
+            assert!(!m2.skeleton);
+            assert_eq!(m2.needs, vec!["M1".to_string()]);
+
+            // Track + its task, with the derived identifier and slice_of.
+            assert_eq!(m1.tracks.len(), 1);
+            let track = &m1.tracks[0];
+            assert_eq!(track.id, "A");
+            assert_eq!(track.branch, "feat/skeleton");
+            assert_eq!(track.tasks.len(), 1);
+            let task = &track.tasks[0];
+            assert_eq!(task.origin, "track");
+            assert_eq!(task.identifier.as_deref(), Some("[M1.A-01]"));
+            assert_eq!(task.step.as_deref(), Some("01"));
+            assert_eq!(task.size.as_deref(), Some("I4"));
+            assert_eq!(task.slice_of, vec!["D2".to_string(), "D3".to_string()]);
+
+            // User tasks stay flat, outside the tree.
+            assert_eq!(overview.user_tasks.len(), 1);
+            assert_eq!(overview.user_tasks[0].title, "user task");
+            assert_eq!(overview.user_tasks[0].identifier, None);
+        });
+    }
+
+    #[test]
+    fn task_serializes_fields_as_camel_case_without_repo_path() {
+        let pool = fresh_pool();
+        block_on(async {
+            seed_plan(&pool).await;
+            let overview = tasks_overview_inner(&pool).await.expect("overview");
+            let task = &overview.milestones[0].tracks[0].tasks[0];
+            let json = serde_json::to_string(task).expect("serialize task");
+
+            for field in [
+                "\"identifier\"",
+                "\"milestoneId\"",
+                "\"trackId\"",
+                "\"doneWhen\"",
+                "\"sliceOf\"",
+                "\"blockedReason\"",
+                "\"commitSha\"",
+                "\"createdAt\"",
+            ] {
+                assert!(json.contains(field), "expected {field} in {json}");
+            }
+            assert!(!json.contains("repo_path"), "repo_path must not exist");
+            assert!(!json.contains("repoPath"), "repoPath must not exist");
         });
     }
 }

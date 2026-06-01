@@ -7,33 +7,11 @@ mod logging;
 pub mod session;
 pub mod worktree;
 
-use std::path::PathBuf;
-
 use tauri::Manager;
 
 use crate::active_project::ActiveProject;
+use crate::db::Db;
 use crate::session::SessionManager;
-
-/// Resolve the shared cockpit database path:
-/// `$XDG_DATA_HOME/agent-cockpit/cockpit.db`, falling back to
-/// `$HOME/.local/share/agent-cockpit/cockpit.db`.
-///
-/// This XDG path is the contract shared with the planning skills, which write
-/// task rows into the same file out-of-band. It is resolved explicitly rather
-/// than via Tauri's OS-specific `app_data_dir` (which resolves to
-/// `~/Library/Application Support` on macOS and would break that contract). Per
-/// the XDG spec a relative `XDG_DATA_HOME` is ignored.
-fn shared_db_path() -> PathBuf {
-    let data_home = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .filter(|path| path.is_absolute())
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join(".local")
-                .join("share")
-        });
-    data_home.join("agent-cockpit").join("cockpit.db")
-}
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -99,6 +77,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(ActiveProject::default())
+        .manage(Db::default())
         .register_uri_scheme_protocol(
             commands::plan_protocol::SCHEME,
             commands::plan_protocol::handle_request,
@@ -108,18 +87,10 @@ pub fn run() {
             if let Some(path) = session::path::capture_login_shell_path() {
                 std::env::set_var("PATH", path);
             }
-            let db_path = shared_db_path();
-            let pool = tauri::async_runtime::block_on(db::init_db(&db_path)).map_err(|err| {
-                tracing::error!(
-                    path = %db_path.display(),
-                    error = %err,
-                    "init_db failed during Tauri setup",
-                );
-                err
-            })?;
-            let session_manager = SessionManager::new(pool.clone());
-            app.manage(pool);
-            app.manage(session_manager);
+            // No database is opened here: the progress.db is per-project, so it
+            // is resolved and opened lazily when a project becomes active (see
+            // `set_active_project`). Until then the `Db` state holds no pool.
+            app.manage(SessionManager::new());
             #[cfg(all(desktop, not(debug_assertions)))]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
@@ -133,7 +104,7 @@ pub fn run() {
             commands::list_plans::list_plans,
             commands::set_active_project::set_active_project,
             commands::set_active_project::clear_active_project,
-            commands::tasks::tasks_list,
+            commands::tasks::tasks_overview,
             commands::tasks::tasks_create,
             commands::tasks::tasks_update,
             commands::plan_protocol::resolve_plan,

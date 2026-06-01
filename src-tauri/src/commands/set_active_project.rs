@@ -1,20 +1,35 @@
 use std::path::PathBuf;
 
 use crate::active_project::ActiveProject;
+use crate::db::{self, Db};
 
 #[tauri::command]
-pub fn set_active_project(
+pub async fn set_active_project(
     repo_path: String,
     active_project: tauri::State<'_, ActiveProject>,
+    db: tauri::State<'_, Db>,
 ) -> Result<(), String> {
     let canonical = validate_repo_path(&repo_path)?;
+    // Resolve and open the project's own progress.db before flipping the active
+    // project, so a failed open leaves the previous selection intact.
+    let slug = db::repo_slug(&canonical);
+    let db_path = db::progress_db_path(&slug);
+    let pool = db::open(&db_path)
+        .await
+        .map_err(|err| format!("open {}: {err}", db_path.display()))?;
+    db.set(pool).await;
     active_project.set(canonical);
     Ok(())
 }
 
 #[tauri::command]
-pub fn clear_active_project(active_project: tauri::State<'_, ActiveProject>) {
+pub async fn clear_active_project(
+    active_project: tauri::State<'_, ActiveProject>,
+    db: tauri::State<'_, Db>,
+) -> Result<(), String> {
+    db.clear().await;
     active_project.clear();
+    Ok(())
 }
 
 fn validate_repo_path(repo_path: &str) -> Result<PathBuf, String> {

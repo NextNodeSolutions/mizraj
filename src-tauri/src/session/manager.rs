@@ -7,7 +7,6 @@ use std::time::Duration;
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
 use portable_pty::PtySize;
-use sqlx::sqlite::SqlitePool;
 use tauri::async_runtime::{channel, spawn, spawn_blocking, Mutex, Receiver, RwLock};
 use tokio::time::timeout;
 
@@ -97,9 +96,10 @@ async fn pty_write_loop(mut writer: Box<dyn Write + Send>, mut rx: Receiver<Vec<
 
 /// Central registry of live agent sessions (D4).
 ///
-/// Holds the keyed `SessionHandle` map behind an `Arc<RwLock<..>>` and a clone
-/// of the sqlx pool so spawn/close paths (added in later steps) can persist
-/// rows in `agent_sessions` without re-resolving the pool.
+/// Holds the keyed `SessionHandle` map behind an `Arc<RwLock<..>>`. Persistence
+/// of `agent_sessions` rows is the caller's job: the session commands resolve
+/// the active project's per-project pool from the `Db` state and pass it in, so
+/// the manager owns no database handle of its own.
 ///
 /// Locking discipline: read/write critical sections MUST be short and MUST NOT
 /// span `await` points. The reader/writer/wait tasks attached to each
@@ -107,19 +107,19 @@ async fn pty_write_loop(mut writer: Box<dyn Write + Send>, mut rx: Receiver<Vec<
 /// do would deadlock app shutdown.
 pub struct SessionManager {
     state: Arc<RwLock<HashMap<SessionId, SessionHandle>>>,
-    pool: SqlitePool,
+}
+
+impl Default for SessionManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SessionManager {
-    pub fn new(pool: SqlitePool) -> Self {
+    pub fn new() -> Self {
         Self {
             state: Arc::new(RwLock::new(HashMap::new())),
-            pool,
         }
-    }
-
-    pub fn pool(&self) -> &SqlitePool {
-        &self.pool
     }
 
     pub async fn list_sessions(&self) -> Vec<SessionId> {
@@ -412,7 +412,6 @@ mod tests {
     use std::sync::Mutex as StdMutex;
 
     use portable_pty::{Child, ChildKiller, ExitStatus};
-    use sqlx::sqlite::SqlitePoolOptions;
     use tauri::async_runtime::block_on;
 
     use super::*;
@@ -467,19 +466,9 @@ mod tests {
         ))
     }
 
-    fn fresh_pool() -> SqlitePool {
-        block_on(async {
-            SqlitePoolOptions::new()
-                .max_connections(1)
-                .connect("sqlite::memory:")
-                .await
-                .expect("connect in-memory sqlite")
-        })
-    }
-
     #[test]
     fn new_starts_with_no_sessions() {
-        let manager = SessionManager::new(fresh_pool());
+        let manager = SessionManager::new();
         let ids = block_on(manager.list_sessions());
         assert!(ids.is_empty());
     }
@@ -487,9 +476,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn create_session_registers_id_in_map() {
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
             let env: HashMap<String, String> = HashMap::new();
 
             let id = manager
@@ -507,9 +495,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn create_session_produces_distinct_ids() {
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
             let env: HashMap<String, String> = HashMap::new();
 
             let id1 = manager
@@ -538,9 +525,8 @@ mod tests {
     fn create_session_wait_task_resolves_to_exit_status_zero_for_true() {
         use std::time::{Duration, Instant};
 
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
             let env: HashMap<String, String> = HashMap::new();
 
             let id = manager
@@ -590,9 +576,8 @@ mod tests {
             }
         }
 
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
             let calls = Arc::new(StdMutex::new(Vec::<u32>::new()));
             let calls_for_sink = Arc::clone(&calls);
 
@@ -635,9 +620,8 @@ mod tests {
         use std::ffi::OsString;
         use std::os::unix::ffi::OsStringExt;
 
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
             let bad = PathBuf::from(OsString::from_vec(vec![0xff, 0xfe, 0xfd]));
             let err = manager
                 .create_session(bad, PathBuf::from("/tmp"), HashMap::new(), |_| Vec::new())
@@ -755,9 +739,8 @@ mod tests {
 
     #[test]
     fn send_input_returns_not_found_for_unknown_session() {
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
             let id = SessionId::new();
             let err = manager
                 .send_input(&id, b"data".to_vec())
@@ -772,9 +755,8 @@ mod tests {
 
     #[test]
     fn send_input_returns_input_closed_when_receiver_dropped() {
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
 
             let (tx, rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
             drop(rx); // simulate writer task having exited
@@ -829,9 +811,8 @@ mod tests {
 
     #[test]
     fn attach_sink_returns_not_found_for_unknown_id() {
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
             let id = SessionId::new();
             let sink: Arc<dyn OutputSink> = Arc::new(VecSink::new());
             let err = manager
@@ -847,9 +828,8 @@ mod tests {
 
     #[test]
     fn attach_sink_receives_subsequent_pty_chunks() {
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
 
             let (writer_tx, _writer_rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
             let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> = Arc::new(RwLock::new(Vec::new()));
@@ -888,9 +868,8 @@ mod tests {
 
     #[test]
     fn session_close_returns_not_found_for_unknown_id() {
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
             let id = SessionId::new();
             let err = manager
                 .session_close(&id)
@@ -905,9 +884,8 @@ mod tests {
 
     #[test]
     fn resize_session_returns_not_found_for_unknown_id() {
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
             let id = SessionId::new();
             let err = manager
                 .resize_session(&id, 120, 40)
@@ -922,8 +900,7 @@ mod tests {
 
     #[test]
     fn drop_with_empty_registry_does_not_panic() {
-        let pool = fresh_pool();
-        let manager = SessionManager::new(pool);
+        let manager = SessionManager::new();
         drop(manager);
     }
 
@@ -951,9 +928,8 @@ mod tests {
         let mut child1 = child1;
         let mut child2 = child2;
 
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
 
             for pid in [pid1_raw, pid2_raw] {
                 let (writer_tx, _writer_rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
@@ -1020,9 +996,8 @@ mod tests {
         fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755))
             .expect("chmod +x trap script");
 
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
             let env: HashMap<String, String> = HashMap::new();
 
             let id = manager
@@ -1078,9 +1053,8 @@ mod tests {
         // cwd + env), so this test stands in for `sleep 60` with `/bin/sh`:
         // a long-running process attached to the PTY that idles waiting on
         // stdin and terminates cleanly on SIGTERM.
-        let pool = fresh_pool();
         block_on(async {
-            let manager = SessionManager::new(pool);
+            let manager = SessionManager::new();
             let env: HashMap<String, String> = HashMap::new();
 
             let id = manager
