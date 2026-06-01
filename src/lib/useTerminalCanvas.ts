@@ -3,7 +3,7 @@ import { listen } from '@tauri-apps/api/event'
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 
-import { describeError } from '../errors'
+import { describeError, isSessionError } from '../errors'
 import { logger } from '../logger'
 import { AGENT_CELLS_EVENT } from '../state/sessions'
 
@@ -27,6 +27,17 @@ const propagateResize = (
 ): void => {
 	invoke('session_resize', { sessionId, cols, rows }).catch(
 		(error: unknown) => {
+			if (isSessionError(error) && error.kind === 'not_found') {
+				logger.debug(
+					'useTerminalCanvas: session_resize skipped, session gone (expected during teardown)',
+					{
+						scope: 'terminal-pane',
+						details: { sessionId, cols, rows },
+					},
+				)
+				return
+			}
+
 			const { message, stack } = describeError(error)
 			logger.warn(
 				`useTerminalCanvas: session_resize failed: ${message}`,
