@@ -35,6 +35,8 @@ export const AGENT_OUTPUT_EVENT = 'agent:output'
 
 export const AGENT_END_EVENT = 'agent:end'
 
+export const AGENT_CELLS_EVENT = 'agent:cells'
+
 type SessionsMap = Readonly<Record<string, SessionState>>
 
 export const sessionsAtom = atom<SessionsMap>({})

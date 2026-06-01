@@ -14,6 +14,15 @@ use crate::session::sink::OutputSink;
 /// `session_id` rides in the [`CellFrame`] payload, mirroring `agent:output`.
 pub const AGENT_CELLS_EVENT: &str = "agent:cells";
 
+/// A unit of work for the render thread: either VT bytes to parse or a resize
+/// to apply. Both travel the same channel so the render thread processes them
+/// in send order — and `resize_session` enqueues the resize BEFORE resizing the
+/// PTY, so the child's reflowed bytes always arrive after the matching resize.
+enum RenderInput {
+    Bytes(Vec<u8>),
+    Resize { rows: u16, cols: u16 },
+}
+
 /// `OutputSink` that turns raw PTY bytes into rendered grid snapshots.
 ///
 /// The libghostty `Terminal`/`RenderState` are `!Send` (they hold raw FFI
@@ -24,13 +33,13 @@ pub const AGENT_CELLS_EVENT: &str = "agent:cells";
 /// dropped (the channel disconnects on session close).
 pub struct TermSink {
     // `mpsc::Sender` is `Send` but not `Sync`; `OutputSink` requires both, so
-    // guard it with a `Mutex`. The lock is held only for the byte handoff.
-    tx: Mutex<Sender<Vec<u8>>>,
+    // guard it with a `Mutex`. The lock is held only for the handoff.
+    tx: Mutex<Sender<RenderInput>>,
 }
 
 impl TermSink {
     pub fn new<R: Runtime>(app: AppHandle<R>, session_id: SessionId) -> Self {
-        let (tx, rx) = mpsc::channel::<Vec<u8>>();
+        let (tx, rx) = mpsc::channel::<RenderInput>();
         thread::spawn(move || render_loop(app, session_id, rx));
         Self { tx: Mutex::new(tx) }
     }
@@ -41,14 +50,23 @@ impl OutputSink for TermSink {
         // Non-blocking handoff. A disconnected channel (render thread gone after
         // an init failure) simply drops the bytes — output is best-effort here.
         if let Ok(tx) = self.tx.lock() {
-            let _ = tx.send(bytes.to_vec());
+            let _ = tx.send(RenderInput::Bytes(bytes.to_vec()));
+        }
+    }
+
+    fn resize(&self, rows: u16, cols: u16) {
+        // Keep the render-side terminal in lockstep with the PTY. Same
+        // best-effort handoff as `write`; a dropped resize is corrected by the
+        // next one (the frontend re-sends on every grid change).
+        if let Ok(tx) = self.tx.lock() {
+            let _ = tx.send(RenderInput::Resize { rows, cols });
         }
     }
 }
 
 /// Own the terminal + render state, drain the byte channel, and emit a frame
 /// per dirty snapshot until the channel disconnects.
-fn render_loop<R: Runtime>(app: AppHandle<R>, session_id: SessionId, rx: Receiver<Vec<u8>>) {
+fn render_loop<R: Runtime>(app: AppHandle<R>, session_id: SessionId, rx: Receiver<RenderInput>) {
     let sid = session_id.as_str();
 
     let mut terminal = match Terminal::new(DEFAULT_ROWS, DEFAULT_COLS) {
@@ -66,12 +84,14 @@ fn render_loop<R: Runtime>(app: AppHandle<R>, session_id: SessionId, rx: Receive
         }
     };
 
-    // Block for the next chunk, then drain whatever else already arrived so one
-    // frame covers the whole burst instead of one frame per chunk.
-    while let Ok(chunk) = rx.recv() {
-        feed(&mut terminal, &chunk, sid);
+    // Block for the next input, then drain whatever else already arrived so one
+    // frame covers the whole burst instead of one frame per chunk. A resize in
+    // the burst reflows the grid, which RenderState reports as dirty just like
+    // new bytes do — so the unified path below emits the reflowed frame too.
+    while let Ok(input) = rx.recv() {
+        apply(&mut terminal, input, sid);
         while let Ok(more) = rx.try_recv() {
-            feed(&mut terminal, &more, sid);
+            apply(&mut terminal, more, sid);
         }
 
         let dirty = match render_state.update(&mut terminal) {
@@ -104,9 +124,18 @@ fn render_loop<R: Runtime>(app: AppHandle<R>, session_id: SessionId, rx: Receive
     }
 }
 
-fn feed(terminal: &mut Terminal, bytes: &[u8], session_id: &str) {
-    if let Err(err) = terminal.feed(bytes) {
-        tracing::warn!(session_id, error = %err, "terminal feed failed");
+fn apply(terminal: &mut Terminal, input: RenderInput, session_id: &str) {
+    match input {
+        RenderInput::Bytes(bytes) => {
+            if let Err(err) = terminal.feed(&bytes) {
+                tracing::warn!(session_id, error = %err, "terminal feed failed");
+            }
+        }
+        RenderInput::Resize { rows, cols } => {
+            if let Err(err) = terminal.resize(rows, cols) {
+                tracing::warn!(session_id, error = %err, "terminal resize failed");
+            }
+        }
     }
 }
 

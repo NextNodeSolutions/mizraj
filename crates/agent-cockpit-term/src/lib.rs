@@ -16,4 +16,6 @@ pub enum TermError {
     Init(String),
     #[error("feed bytes failed: {0}")]
     Feed(String),
+    #[error("resize failed: {0}")]
+    Resize(String),
 }

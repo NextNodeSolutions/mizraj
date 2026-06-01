@@ -269,6 +269,12 @@ impl SessionManager {
     /// Propagate a frontend resize to the kernel via TIOCSWINSZ. The child
     /// receives SIGWINCH and reflows its output (e.g. claude redraws its
     /// TUI at the new dimensions). Returns `NotFound` for unknown sessions.
+    ///
+    /// Sinks are resized FIRST, then the PTY. The PTY resize is what triggers
+    /// the child's SIGWINCH reflow; if the render-side terminal emulator (the
+    /// `TermSink`) were still at the old width when those reflowed bytes
+    /// arrived, the grid would scatter. Resizing sinks first guarantees the
+    /// emulator matches the geometry the child is about to draw into.
     pub async fn resize_session(
         &self,
         id: &SessionId,
@@ -279,6 +285,7 @@ impl SessionManager {
         let handle = state
             .get(id)
             .ok_or_else(|| SessionError::NotFound(id.to_string()))?;
+        dispatch_to_sinks(handle.sinks(), |sink| sink.resize(rows, cols)).await;
         handle.resize(PtySize {
             rows,
             cols,

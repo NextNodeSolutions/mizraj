@@ -10,6 +10,13 @@
 pub trait OutputSink: Send + Sync {
     fn write(&self, bytes: &[u8]);
 
+    /// Called when the frontend resizes the pane, BEFORE the PTY is resized,
+    /// so a render-side terminal emulator can match the geometry the child is
+    /// about to reflow into. `rows`/`cols` are the new grid dimensions. Same
+    /// ~1ms budget as [`write`]. Default no-op: byte-only sinks (the raw
+    /// `agent:output` sink, scrollback, tests) carry no grid and ignore it.
+    fn resize(&self, _rows: u16, _cols: u16) {}
+
     /// Called exactly once when the session's child process terminates,
     /// carrying the observed exit code (D8: auto-open the diff at end of run).
     ///
