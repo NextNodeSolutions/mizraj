@@ -67,6 +67,13 @@ fn normalize_title(raw: &str) -> Option<&str> {
     (!trimmed.is_empty()).then_some(trimmed)
 }
 
+/// Trim a user-supplied description, collapsing a blank one to `None` so it is
+/// stored as SQL `NULL`. Unlike a title, an empty description is valid — it just
+/// means "no body". Shared by create and update so both normalize identically.
+fn normalize_description(raw: Option<&str>) -> Option<&str> {
+    raw.map(str::trim).filter(|value| !value.is_empty())
+}
+
 /// The status vocabulary enforced by the schema's CHECK constraint. Mirrored
 /// here so an out-of-enum status is rejected with a clear message before the
 /// database round-trip, rather than surfacing as an opaque constraint failure.
@@ -120,10 +127,7 @@ pub async fn tasks_create(
     pool: tauri::State<'_, SqlitePool>,
 ) -> Result<Task, String> {
     let title = normalize_title(&title).ok_or_else(|| "title must not be empty".to_string())?;
-    let description = description
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
+    let description = normalize_description(description.as_deref());
 
     tasks_create_inner(pool.inner(), &repo_path, title, description)
         .await
@@ -133,14 +137,18 @@ pub async fn tasks_create(
 async fn tasks_update_inner(
     pool: &SqlitePool,
     id: &str,
+    title: &str,
+    description: Option<&str>,
     status: &str,
 ) -> Result<Task, sqlx::Error> {
     // `RETURNING` hands back the updated row so the caller never re-reads; a
     // non-existent id matches no row and surfaces as `RowNotFound`.
     let (id, title, description, status, origin, created_at): TaskRow = sqlx::query_as(
-        "UPDATE tasks SET status = ? WHERE id = ? \
+        "UPDATE tasks SET title = ?, description = ?, status = ? WHERE id = ? \
          RETURNING id, title, description, status, origin, created_at",
     )
+    .bind(title)
+    .bind(description)
     .bind(status)
     .bind(id)
     .fetch_one(pool)
@@ -156,20 +164,27 @@ async fn tasks_update_inner(
     })
 }
 
-/// Update the status of an existing task, returning the persisted row. Rejects
-/// a status outside the enforced enum before touching the database; an unknown
-/// id surfaces as an error.
+/// Update the editable fields of a task — title, description, status — and
+/// return the persisted row. Callers send the task's full editable state, so a
+/// content edit never clobbers a status change and vice versa. Rejects a blank
+/// title and a status outside the enforced enum before touching the database; a
+/// blank description is stored as `NULL` and an unknown id surfaces as an error.
 #[tauri::command]
 pub async fn tasks_update(
     id: String,
+    title: String,
+    description: Option<String>,
     status: String,
     pool: tauri::State<'_, SqlitePool>,
 ) -> Result<Task, String> {
+    let title = normalize_title(&title).ok_or_else(|| "title must not be empty".to_string())?;
+    let description = normalize_description(description.as_deref());
+
     if !is_valid_status(&status) {
         return Err(format!("unknown status: {status}"));
     }
 
-    tasks_update_inner(pool.inner(), &id, &status)
+    tasks_update_inner(pool.inner(), &id, title, description, &status)
         .await
         .map_err(|err| err.to_string())
 }
@@ -260,6 +275,14 @@ mod tests {
     }
 
     #[test]
+    fn normalize_description_trims_and_nulls_blank() {
+        assert_eq!(normalize_description(Some("  hi  ")), Some("hi"));
+        assert_eq!(normalize_description(Some("")), None);
+        assert_eq!(normalize_description(Some("   \t ")), None);
+        assert_eq!(normalize_description(None), None);
+    }
+
+    #[test]
     fn tasks_create_persists_a_user_backlog_task() {
         let pool = fresh_pool();
         block_on(async {
@@ -323,7 +346,7 @@ mod tests {
         block_on(async {
             insert_task(&pool, "a1", "ship it", "backlog", "user", "/repo/a").await;
 
-            let updated = tasks_update_inner(&pool, "a1", "in_progress")
+            let updated = tasks_update_inner(&pool, "a1", "ship it", None, "in_progress")
                 .await
                 .expect("tasks_update should succeed");
             assert_eq!(updated.status, "in_progress");
@@ -337,10 +360,48 @@ mod tests {
     }
 
     #[test]
+    fn tasks_update_changes_title_and_description_and_is_reflected_in_the_list() {
+        let pool = fresh_pool();
+        block_on(async {
+            insert_task(&pool, "a1", "old title", "backlog", "user", "/repo/a").await;
+
+            let updated =
+                tasks_update_inner(&pool, "a1", "new title", Some("a fresh body"), "backlog")
+                    .await
+                    .expect("tasks_update should succeed");
+            assert_eq!(updated.title, "new title");
+            assert_eq!(updated.description.as_deref(), Some("a fresh body"));
+
+            let listed = tasks_list_inner(&pool, "/repo/a")
+                .await
+                .expect("tasks_list should succeed");
+            assert_eq!(listed.len(), 1);
+            assert_eq!(listed[0].title, "new title", "the list reflects the new title");
+            assert_eq!(listed[0].description.as_deref(), Some("a fresh body"));
+        });
+    }
+
+    #[test]
+    fn tasks_update_clears_a_blanked_description_to_null() {
+        let pool = fresh_pool();
+        block_on(async {
+            insert_task(&pool, "a1", "has body", "backlog", "user", "/repo/a").await;
+            tasks_update_inner(&pool, "a1", "has body", Some("body"), "backlog")
+                .await
+                .expect("seed a description");
+
+            let cleared = tasks_update_inner(&pool, "a1", "has body", None, "backlog")
+                .await
+                .expect("tasks_update should succeed");
+            assert_eq!(cleared.description, None, "an emptied description becomes NULL");
+        });
+    }
+
+    #[test]
     fn tasks_update_errors_for_an_unknown_id() {
         let pool = fresh_pool();
         block_on(async {
-            let result = tasks_update_inner(&pool, "missing", "done").await;
+            let result = tasks_update_inner(&pool, "missing", "ghost", None, "done").await;
             assert!(result.is_err(), "updating a non-existent task is an error");
         });
     }

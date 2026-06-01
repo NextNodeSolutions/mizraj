@@ -40,14 +40,19 @@ export const createTask = (
 }
 
 /**
- * Move an existing task to `status` and return the persisted row. `status` is
- * the raw `<select>` value; the backend is the authoritative validator and
- * rejects a status outside {@link TASK_STATUSES}.
+ * Persist the editable fields of a task — title, description, status — and
+ * return the updated row. Callers send the task's full editable state, so a
+ * status change never clobbers an in-flight content edit and vice versa.
+ * `status` is the raw value and `description` may be blank; the backend is the
+ * authoritative validator — it rejects a blank title, stores a blank
+ * description as `NULL`, and rejects a status outside {@link TASK_STATUSES}.
  */
-export const updateTaskStatus = (
-	id: string,
-	status: string,
-): Promise<Task> => invoke<Task>('tasks_update', { id, status })
+export const updateTask = (input: {
+	id: string
+	title: string
+	description: string | null
+	status: string
+}): Promise<Task> => invoke<Task>('tasks_update', input)
 
 export const useTasks = (
 	repoPath: string | null,

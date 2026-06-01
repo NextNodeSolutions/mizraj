@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 import { describeError } from '../errors'
 import type { Task } from '../lib/tasks'
-import { TASK_STATUSES, updateTaskStatus } from '../lib/tasks'
+import { TASK_STATUSES, updateTask } from '../lib/tasks'
 
 import { STATUS_CONFIG } from './taskStatusConfig'
 
@@ -23,7 +23,12 @@ const StatusSelect = ({
 		setUpdating(true)
 		setError(null)
 		try {
-			await updateTaskStatus(task.id, value)
+			await updateTask({
+				id: task.id,
+				title: task.title,
+				description: task.description,
+				status: value,
+			})
 			// On success the list refetches and this row regroups under the new
 			// status, remounting fresh — so we only clear `updating` on error.
 			onChanged()
