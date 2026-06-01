@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.0](https://github.com/NextNodeSolutions/agent-cockpit/compare/v0.1.0...v0.2.0) (2026-06-01)
+
+
+### Features
+
+* **sidebar:** navigate live sessions with active highlight and count ([#7](https://github.com/NextNodeSolutions/agent-cockpit/issues/7)) ([2017c32](https://github.com/NextNodeSolutions/agent-cockpit/commit/2017c3213a8698b38b6eb724ecbce1ad46cb384c))
+* **tasks:** per-project SQLite task tree with inline editing ([#10](https://github.com/NextNodeSolutions/agent-cockpit/issues/10)) ([60c704d](https://github.com/NextNodeSolutions/agent-cockpit/commit/60c704d62d6cf5beddd9a7c52b6e5c65700332ca))
+* **terminal:** native libghostty rendering with keyboard input ([#9](https://github.com/NextNodeSolutions/agent-cockpit/issues/9)) ([cccffb0](https://github.com/NextNodeSolutions/agent-cockpit/commit/cccffb06c75ab15bd7b041be11402b11586883d9))
+
+
+### Bug Fixes
+
+* **errors:** format serialized SessionError rejections instead of [object Object] ([36f5f88](https://github.com/NextNodeSolutions/agent-cockpit/commit/36f5f88fb9aa1066a66094763b834d83a430f530))
+* **term-sys:** re-run build script when libghostty appears ([84a4736](https://github.com/NextNodeSolutions/agent-cockpit/commit/84a47366d1fd77b9e6e5e33f8fa9faf3c8fd0d09))
+
 ## 0.1.0 (2026-05-30)
 
 ### Features
