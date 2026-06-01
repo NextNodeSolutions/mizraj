@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { describeError } from './errors'
+import { startTerminalInputRouter } from './lib/terminalInput'
 import { runUpdaterCheck } from './lib/updater'
 import { logger } from './logger'
 import { startAgentEventsBridge } from './state/sessions'
@@ -37,6 +38,7 @@ if (!rootElement) {
 logger.info('Frontend bootstrapping')
 
 startAgentEventsBridge()
+startTerminalInputRouter()
 
 type ReactErrorInfo = { componentStack?: string | null }
 

@@ -4,14 +4,17 @@ use std::sync::Arc;
 
 use agent_cockpit_vcs::{create_session_ref, repo_open};
 use sqlx::SqlitePool;
+use tauri::async_runtime::Sender;
 use tauri::{AppHandle, Runtime};
 
 use crate::session::error::SessionError;
 use crate::session::id::SessionId;
+use crate::session::key::KeyStroke;
 use crate::session::manager::SessionManager;
 use crate::session::path;
 use crate::session::sink::OutputSink;
 use crate::session::tauri_sink::TauriEventSink;
+use crate::session::term_sink::TermSink;
 
 fn session_ref_name(session_id: &str) -> String {
     format!("refs/agent-cockpit/sessions/{session_id}")
@@ -81,7 +84,7 @@ async fn session_create_inner<F>(
     sink_factory: F,
 ) -> Result<SessionId, SessionError>
 where
-    F: FnOnce(&SessionId) -> Vec<Arc<dyn OutputSink>>,
+    F: FnOnce(&SessionId, Sender<Vec<u8>>) -> Vec<Arc<dyn OutputSink>>,
 {
     let binary_path = path::resolve(binary)?;
     let cwd_path = PathBuf::from(cwd);
@@ -123,8 +126,11 @@ pub async fn session_create<R: Runtime>(
     app: AppHandle<R>,
     manager: tauri::State<'_, SessionManager>,
 ) -> Result<SessionId, SessionError> {
-    session_create_inner(&manager, &binary, cwd, move |id| {
-        vec![Arc::new(TauriEventSink::new(app, id.clone())) as Arc<dyn OutputSink>]
+    session_create_inner(&manager, &binary, cwd, move |id, pty_input| {
+        vec![
+            Arc::new(TauriEventSink::new(app.clone(), id.clone())) as Arc<dyn OutputSink>,
+            Arc::new(TermSink::new(app, id.clone(), pty_input)) as Arc<dyn OutputSink>,
+        ]
     })
     .await
 }
@@ -137,6 +143,21 @@ pub async fn session_resize(
     manager: tauri::State<'_, SessionManager>,
 ) -> Result<(), SessionError> {
     manager.resize_session(&session_id, cols, rows).await
+}
+
+/// VT-encode a key press and write it to the session's PTY. The frontend sends
+/// the raw `KeyboardEvent` fields (a [`KeyStroke`]); the backend encodes them
+/// with libghostty against the session's live terminal modes, so arrows, Ctrl
+/// combos and friends match what the running child expects. The key round-trips
+/// to the child and its echo flows back through the normal sink path. Returns
+/// `NotFound` for unknown sessions.
+#[tauri::command]
+pub async fn session_key(
+    session_id: SessionId,
+    stroke: KeyStroke,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.send_key(&session_id, stroke).await
 }
 
 #[tauri::command]
@@ -177,7 +198,7 @@ mod tests {
         count
     }
 
-    fn no_sinks(_: &SessionId) -> Vec<Arc<dyn OutputSink>> {
+    fn no_sinks(_: &SessionId, _: Sender<Vec<u8>>) -> Vec<Arc<dyn OutputSink>> {
         Vec::new()
     }
 

@@ -59,6 +59,22 @@ pub struct RenderState {
     row_cells: NonNull<GhosttyRenderStateRowCellsImpl>,
 }
 
+/// Build the `void* out` argument every `ghostty_*_get` call expects: a pointer
+/// to the caller's destination slot, which the C side writes the value THROUGH.
+/// It must be the ADDRESS of the slot, never the slot's own value.
+///
+/// This is the whole footgun. For a handle output the slot is itself a pointer
+/// (`NonNull<Impl>` == `Impl*`), so `out` must be `Impl**` — passing the bare
+/// handle (`handle.as_ptr()`) drops one level of indirection and libghostty
+/// returns GHOSTTY_INVALID_VALUE (-2). Taking `&mut T` makes that mistake
+/// unrepresentable: every caller hands over a slot and the helper takes its
+/// address, so scalar outs (`&mut cols`) and handle outs (`&mut self.row_iter`)
+/// go through the identical path. Mirrors the official c-vt-render example:
+/// `render_state_get(state, X, &out)`.
+fn out_ptr<T>(slot: &mut T) -> *mut c_void {
+    (slot as *mut T).cast::<c_void>()
+}
+
 impl RenderState {
     pub fn new() -> Result<Self> {
         let mut raw_state: GhosttyRenderState = ptr::null_mut();
@@ -175,12 +191,12 @@ impl RenderState {
     /// Returns `(rows, cols)` of the current render state viewport.
     pub fn dimensions(&self) -> Result<(u16, u16)> {
         let mut cols: u16 = 0;
-        // SAFETY: handle is live; COLS expects a `uint16_t*` output.
+        // SAFETY: handle is live; COLS writes a `uint16_t` into `cols`.
         let r = unsafe {
             ghostty_render_state_get(
                 self.handle.as_ptr(),
                 GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLS,
-                (&mut cols as *mut u16).cast::<c_void>(),
+                out_ptr(&mut cols),
             )
         };
         if r != GhosttyResult_GHOSTTY_SUCCESS {
@@ -189,12 +205,12 @@ impl RenderState {
             )));
         }
         let mut rows: u16 = 0;
-        // SAFETY: handle is live; ROWS expects a `uint16_t*` output.
+        // SAFETY: handle is live; ROWS writes a `uint16_t` into `rows`.
         let r = unsafe {
             ghostty_render_state_get(
                 self.handle.as_ptr(),
                 GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_ROWS,
-                (&mut rows as *mut u16).cast::<c_void>(),
+                out_ptr(&mut rows),
             )
         };
         if r != GhosttyResult_GHOSTTY_SUCCESS {
@@ -213,14 +229,14 @@ impl RenderState {
         let (rows, cols) = self.dimensions()?;
         let mut data: Vec<Cell> = Vec::with_capacity((rows as usize) * (cols as usize));
 
-        // SAFETY: handle is live; ROW_ITERATOR populates the pre-allocated
-        // row_iter struct (the pointer's pointee state changes; the pointer
-        // itself does not). Same contract for the cells handle below.
+        // SAFETY: handle is live. ROW_ITERATOR writes a row-iterator handle, so
+        // the out slot is our handle field and `out_ptr` passes its address
+        // (the `Impl**` the C side requires; see `out_ptr`).
         let r = unsafe {
             ghostty_render_state_get(
                 self.handle.as_ptr(),
                 GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_ROW_ITERATOR,
-                self.row_iter.as_ptr().cast::<c_void>(),
+                out_ptr(&mut self.row_iter),
             )
         };
         if r != GhosttyResult_GHOSTTY_SUCCESS {
@@ -234,13 +250,15 @@ impl RenderState {
         while unsafe { ghostty_render_state_row_iterator_next(self.row_iter.as_ptr()) } {
             row_count += 1;
 
-            // SAFETY: row_iter positioned on a valid row by the next() above;
-            // ROW_DATA_CELLS populates the pre-allocated row_cells struct.
+            // SAFETY: row_iter positioned on a valid row by the next() above.
+            // ROW_DATA_CELLS writes a row-cells handle, so the out slot is our
+            // handle field and `out_ptr` passes its address (same indirection
+            // rule as ROW_ITERATOR above; see `out_ptr`).
             let r = unsafe {
                 ghostty_render_state_row_get(
                     self.row_iter.as_ptr(),
                     GhosttyRenderStateRowData_GHOSTTY_RENDER_STATE_ROW_DATA_CELLS,
-                    self.row_cells.as_ptr().cast::<c_void>(),
+                    out_ptr(&mut self.row_cells),
                 )
             };
             if r != GhosttyResult_GHOSTTY_SUCCESS {
@@ -291,7 +309,7 @@ impl RenderState {
             ghostty_render_state_get(
                 self.handle.as_ptr(),
                 GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_DIRTY,
-                (&mut value as *mut u32).cast::<c_void>(),
+                out_ptr(&mut value),
             )
         };
         if r != GhosttyResult_GHOSTTY_SUCCESS {
@@ -406,7 +424,7 @@ fn read_style(cells: GhosttyRenderStateRowCells) -> Result<(Color, Color, Attrs)
         ghostty_render_state_row_cells_get(
             cells,
             GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_STYLE,
-            (&mut style as *mut GhosttyStyle).cast::<c_void>(),
+            out_ptr(&mut style),
         )
     };
     if r != GhosttyResult_GHOSTTY_SUCCESS {

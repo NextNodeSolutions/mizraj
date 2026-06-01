@@ -54,7 +54,7 @@ fn drop_kills_sleep_child_within_5s() {
     block_on(async {
         let env: HashMap<String, String> = HashMap::new();
         manager
-            .create_session(script_path.clone(), PathBuf::from("/tmp"), env, |_| {
+            .create_session(script_path.clone(), PathBuf::from("/tmp"), env, |_, _| {
                 Vec::new()
             })
             .await

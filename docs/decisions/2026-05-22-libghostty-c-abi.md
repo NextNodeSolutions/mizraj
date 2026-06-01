@@ -1,6 +1,7 @@
 # ADR — libghostty C ABI strategy (OQ3 spike)
 
 - **Date**: 2026-05-22
+- **Amended**: 2026-05-31 — corrected the justification for picking `libghostty-vt` over the full `ghostty.h` surface (see _Amendment_ below). The decision is unchanged; only a factually wrong supporting argument was replaced.
 - **Linear**: SAS-392 — `[P1-01] Spike: validate libghostty C ABI stability (OQ3)`
 - **Decision refs**: D2 (interview `embedded-terminal-pty`, 2026-05-22)
 - **Scope**: gates the bindgen strategy for `crates/agent-cockpit-term-sys`
@@ -27,7 +28,7 @@ Ghostty exposes **two distinct C surfaces**, intentionally separated upstream:
 1. **`include/ghostty.h`** — full _app_ embedding API.
     - Surface: `ghostty_app_*`, `ghostty_surface_*` (GPU-rendered surface), `ghostty_config_*`, `ghostty_inspector_*`, mouse / IME / clipboard / splits.
     - Header comment: _"The only consumer of this API is the macOS app, but the API is built to be more general purpose."_
-    - **Rejected for us**: includes a native GPU surface — D1 explicitly ruled out the WGPU/native-overlay path because it breaks the Tauri single-webview model.
+    - **Not rejected because impossible — rejected because it's the wrong tradeoff for us.** Embedding the GPU surface in Tauri _is_ technically feasible (Tauri 2 exposes `WebviewWindow::ns_view`/`ns_window()`, and you can `addSubview:` a native layer-backed view over the webview — that is essentially how cmux embeds full libghostty). We decline it for three reasons that survive that correction: see _Why vt and not the full surface_ below.
 
 2. **`include/ghostty/vt.h`** + `include/ghostty/vt/*.h` — dedicated `libghostty-vt` C API.
     - Build target: `libghostty-vt.{dylib,so,dll}`, gated by `emit_lib_vt = true` in `src/build/Config.zig` (and a top-level CMake `zig_build_lib_vt` target).
@@ -85,7 +86,15 @@ Bind directly against `include/ghostty/vt.h` (and its included subheaders under 
 2. **Wrapper-required does not solve the stability concern.** Upstream "may change without warning" affects both the C ABI _and_ the underlying Zig `Terminal` type. A custom wrapper would still break on Zig-side changes — we'd just move the breakage from `bindgen` regeneration to manually patching Zig.
 3. **D2's edge case is the right mitigation.** D2 already commits to: dynamic linking, version pinned exactly in Cargo workspace, checksum verified in CI. That captures the "API may move" risk cleanly: a `libghostty-vt` upgrade is a deliberate, reviewable diff (regenerated bindings + any safe-wrapper adjustments), not an ambient liability.
 4. **The header surface explicitly anticipates ABI evolution.** Sized structs with `size_t` first field, opaque `GhosttyTerminal` handle, function-pointer option setters via `ghostty_terminal_set(...)` — these are exactly the patterns one uses to _grow_ an ABI without breaking old callers. ghostty-org is investing in compat, even without a public SLA yet.
-5. **The full `ghostty.h` is a red herring.** D2's risk framing assumed there might only be the app-embedding API. There isn't — `libghostty-vt` is a separate, deliberately-scoped library that exists precisely so non-Ghostty consumers can embed the VT engine without the GPU surface. We are exactly the target audience.
+5. **`libghostty-vt` is purpose-built for non-Ghostty embedders.** It's a separate, deliberately-scoped library that exposes the VT engine without the GPU surface — non-Ghostty consumers are its explicit target audience. We are exactly that audience.
+
+### Why vt and not the full surface
+
+The full `ghostty.h` GPU surface is **embeddable in Tauri** (confirmed 2026-05-31 against current Tauri 2 docs: `WebviewWindow::ns_view` returns the `NSWindow` content view, over which a native layer-backed view can be added — the cmux approach). So the choice is a tradeoff, not a feasibility wall. We pick `libghostty-vt` because:
+
+1. **Cross-platform.** vt depends only on libc and ships for macOS, Linux, Windows, and WASM. The GPU surface would mean macOS-only `unsafe` AppKit/Metal glue driven from Rust, with Linux/Windows left entirely unsolved — against the project's cross-platform intent.
+2. **UI compositing.** Our renderer paints cells into a `<canvas>` that is a normal DOM element (D1/D4), so the DiffPanel, menus, and HTML plan overlays composite over the terminal for free. A native GPU subview sits _above_ the webview in the z-order, making those overlays fight the compositor.
+3. **Effort + ownership.** vt lets us own rendering in TypeScript we already wrote (`src/lib/terminalRenderer.ts`); the GPU path adds a per-OS native-view integration layer we'd have to maintain. The win (GPU-accelerated glyph rendering) is not worth that surface for our workload.
 
 ### Out of scope for this ADR (handled elsewhere)
 
@@ -104,3 +113,9 @@ Bind directly against `include/ghostty/vt.h` (and its included subheaders under 
 - `src/terminal/c/AGENTS.md` — <https://github.com/ghostty-org/ghostty/blob/main/src/terminal/c/AGENTS.md>
 - D2 interview decision — `docs/interviews/embedded-terminal-pty/submission.json`
 - Plan — `docs/plans/2026-05-22-embedded-terminal-pty.html`
+
+## Amendment — 2026-05-31
+
+The original ADR justified rejecting the full `ghostty.h` GPU surface by claiming it "breaks the Tauri single-webview model" and was therefore effectively unavailable. That claim is **wrong**: Tauri 2 exposes `WebviewWindow::ns_view` (and `ns_window()`), and a native layer-backed view can be added over the content view — which is how cmux embeds full libghostty. The earlier framing was checked against current Tauri 2 documentation and corrected.
+
+**The decision (bind `libghostty-vt`, render to `<canvas>`) does not change.** What changed is the _reasoning_: vt is chosen as a deliberate tradeoff — cross-platform reach, trivial UI compositing of the canvas with the rest of the web UI, and lower per-OS maintenance — not because the GPU surface is impossible. The relevant edits are the second bullet under _What ghostty actually ships_ and the new _Why vt and not the full surface_ section.

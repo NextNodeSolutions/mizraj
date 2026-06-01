@@ -6,6 +6,12 @@ use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize}
 
 use crate::session::error::SessionError;
 
+/// Initial PTY grid dimensions. The frontend re-syncs the real size via
+/// `session_resize` once the terminal pane has measured itself, but the child
+/// and the render-side terminal emulator must agree on a starting geometry.
+pub(crate) const DEFAULT_ROWS: u16 = 24;
+pub(crate) const DEFAULT_COLS: u16 = 80;
+
 pub struct PtySession {
     /// Kept alive so `resize_session` can call `MasterPty::resize` after spawn.
     /// Reader/writer are derived from this master but do NOT keep it alive on
@@ -34,8 +40,8 @@ pub fn spawn(
     let pty_system = native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
-            rows: 24,
-            cols: 80,
+            rows: DEFAULT_ROWS,
+            cols: DEFAULT_COLS,
             pixel_width: 0,
             pixel_height: 0,
         })
