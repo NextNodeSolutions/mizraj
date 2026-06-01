@@ -135,21 +135,21 @@
 		},
 		{
 			"id": "M4",
-			"demo": "Créer une tâche dans la base partagée cockpit.db (chemin XDG, clé repo_path) et la voir listée par statut — sans relancer l'app.",
+			"demo": "Créer une tâche dans la db par-projet ~/mizraj/<slug>/progress.db (une db sqlite par projet, pas de base globale) et la voir listée par statut — sans relancer l'app.",
 			"skeleton": false,
 			"needs": ["M1"],
 			"tracks": [
 				{
 					"id": "A",
-					"branch": "feat/shared-db-tasks",
+					"branch": "feat/per-project-db-tasks",
 					"tasks": [
 						{
 							"step": "01",
-							"title": "Lister les tâches du repo actif depuis la base partagée",
+							"title": "Lister les tâches du projet actif depuis la db par-projet",
 							"size": "I4",
 							"slice_of": ["D1", "D2", "D3"],
-							"done_when": "la base ouvre à ~/.local/share/agent-cockpit/cockpit.db et TasksView liste les tâches du repo actif via tasks_list",
-							"description": "WHAT: relocaliser la base SQLite vers le chemin partagé ~/.local/share/agent-cockpit/cockpit.db (XDG, contrat commun skills/app) + migration créant tasks(id, title, description, status, origin, repo_path, created_at) et schema_meta(version) + commande tasks_list(repo_path) + TasksView qui liste par statut (état vide compris).\n\nWHY: D1 (une base globale partagée à contrat, WAL/busy_timeout déjà en place, DB-only) + D2 (schéma tasks+origin + table meta de version du contrat) + D3 (app cliente lectrice). Remplace le viewer track_read du working-tree, désormais obsolète — le supprimer.\n\nWHERE: src-tauri/src/lib.rs (résoudre ~/.local/share/agent-cockpit/cockpit.db au lieu de app_data_dir().join('agent-cockpit.db') — les sessions existantes suivent le pool ; greenfield, pas de migration des données) ; nouvelle migration src-tauri/migrations/0002_tasks.sql (+ schema_meta) ; src-tauri/src/commands/tasks.rs (tasks_list, remplace track_read) + lib.rs (generate_handler!) ; src/views/TasksView.tsx + src/lib/tasks.ts (invoke tasks_list, retire useTrack/track_read).\n\nDONE WHEN:\n- la base ouvre à cockpit.db (XDG), WAL actif\n- tasks_list filtre par repo_path (test sur pool in-memory)\n- TasksView liste les tâches groupées par statut, état vide lisible",
+							"done_when": "la db par-projet ouvre à ~/mizraj/<slug>/progress.db et TasksView liste les tâches du projet actif via tasks_list",
+							"description": "WHAT: ouvrir la base SQLite par-projet ~/mizraj/<slug>/progress.db (slug = dernier segment de git remote origin ; une db par projet, pas de base globale) + schéma créant tasks(id, title, description, status, origin, created_at) et schema_meta(version) + commande tasks_list + TasksView qui liste par statut (état vide compris).\n\nWHY: D1 (une db par projet à contrat, WAL/busy_timeout, DB-only — zéro contention inter-projets) + D2 (schéma tasks+origin + table meta de version du contrat) + D3 (app cliente lectrice). Remplace le viewer track_read du working-tree, désormais obsolète — le supprimer.\n\nWHERE: src-tauri/src/lib.rs (résoudre ~/mizraj/<slug>/progress.db depuis le projet actif) ; schéma tasks + schema_meta ; src-tauri/src/commands/tasks.rs (tasks_list) + lib.rs (generate_handler) ; src/views/TasksView.tsx + src/lib/tasks.ts (invoke tasks_list, retire useTrack/track_read).\n\nDONE WHEN:\n- la db ouvre à ~/mizraj/<slug>/progress.db, WAL actif\n- tasks_list liste les tâches du projet (test sur pool in-memory)\n- TasksView liste les tâches groupées par statut, état vide lisible",
 							"sink_id": null
 						},
 						{
@@ -158,7 +158,7 @@
 							"size": "I3",
 							"slice_of": ["D2", "D3"],
 							"done_when": "un form inline crée une tâche origin='user' qui apparaît dans la liste sans reload",
-							"description": "WHAT: commande tasks_create (origin='user', status défaut 'backlog', created_at SQLite) + formulaire de création inline dans TasksView.\n\nWHY: D3 — création de tâches user dans l'app, à côté des tâches d'origine 'track' (écrites par les skills, hors-repo). Dépend de la liste (01).\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_create) + lib.rs ; src/views/TasksView.tsx (form titre/description → invoke('tasks_create')).\n\nDONE WHEN:\n- saisie titre (+ description optionnelle) → tasks_create persiste avec origin='user'\n- la nouvelle tâche apparaît sans reload\n- titre vide rejeté",
+							"description": "WHAT: commande tasks_create (origin='user', status défaut 'backlog', created_at SQLite) + formulaire de création inline dans TasksView.\n\nWHY: D3 — création de tâches user dans l'app, à côté des tâches d'origine 'track' (écrites par les skills, co-clients de la db). Dépend de la liste (01).\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_create) + lib.rs ; src/views/TasksView.tsx (form titre/description vers invoke tasks_create).\n\nDONE WHEN:\n- saisie titre (+ description optionnelle) cree une tâche origin='user'\n- la nouvelle tâche apparaît sans reload\n- titre vide rejeté",
 							"sink_id": null
 						}
 					]
@@ -167,39 +167,48 @@
 		},
 		{
 			"id": "M5",
-			"demo": "Une tâche user est entièrement éditable (statut, titre, description) ; une tâche d'origine track est en lecture seule, sauf son nom.",
+			"demo": "L'app lit et écrit la db par-projet ~/mizraj/<slug>/progress.db (tables milestones/tracks/tasks, schéma DDL idempotent partagé avec les skills, sans migration checksummée) : elle affiche la hiérarchie milestones→tracks→tasks, une tâche user y est entièrement éditable (statut, titre, description), une tâche d'origine track est en lecture seule sauf son nom.",
 			"skeleton": false,
 			"needs": ["M4"],
 			"tracks": [
 				{
 					"id": "A",
-					"branch": "feat/task-edit-by-origin",
+					"branch": "feat/per-project-progress-db",
 					"tasks": [
 						{
 							"step": "01",
-							"title": "Changer le statut d'une tâche user",
-							"size": "I3",
+							"title": "Re-fonder le store des tâches en db par-projet",
+							"size": "I6",
 							"slice_of": ["D3"],
-							"done_when": "modifier le statut d'une tâche user persiste et se reflète dans la liste sans reload",
-							"description": "WHAT: commande tasks_update (statut) + sélecteur de statut dans TasksView pour les tâches user.\n\nWHY: D3 — cycle de vie des tâches user (backlog/todo/in_progress/done). Dépend de la liste/CRUD (M4).\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_update) + lib.rs ; src/views/TasksView.tsx (sélecteur de statut).\n\nDONE WHEN:\n- tasks_update modifie le statut (test inclus)\n- changement reflété sans reload\n- statut hors enum rejeté",
+							"done_when": "l'app ouvre/crée ~/mizraj/<slug>/progress.db du projet actif via un schéma DDL idempotent (milestones/tracks/tasks/schema_meta) ; plus aucune db globale ni migration sqlx checksummée pour les tâches",
+							"description": "WHAT: remplacer la db globale cockpit.db par une db PAR PROJET ~/mizraj/<slug>/progress.db (slug = dernier segment de `git remote get-url origin` sans .git, fallback nom du dossier racine git, résolu depuis le projet actif). Définir un schéma DDL IDEMPOTENT canonique (progress.schema.sql : CREATE TABLE IF NOT EXISTS milestones, tracks, tasks, schema_meta) appliqué à l'ouverture par le premier client ; retirer sqlx::migrate! et les migrations checksummées pour ce store.\n\nWHY: source de vérité unique par projet, partagée avec les skills de planification (co-clients, aucun ne 'need' l'autre — le premier ouvreur crée). Per-projet = zéro contention inter-projets (sqlite est mono-écrivain par fichier) et pas de drift de migration checksummée — la cause du crash. Abandon greenfield de la db globale.\n\nWHERE: src-tauri/src/lib.rs (remplacer shared_db_path par la résolution per-slug) ; src-tauri/src/db/mod.rs (init idempotent au lieu de migrate!) ; src-tauri/src/commands/tasks.rs ; nouveau progress.schema.sql ; suppression des migrations sqlx du store tâches.\n\nDONE WHEN:\n- l'app résout ~/mizraj/<slug>/progress.db depuis le projet actif (slug via git remote)\n- schéma idempotent appliqué + schema_meta.version vérifié à l'ouverture\n- plus de db globale ni de migration sqlx checksummée pour les tâches\n- tests verts",
 							"sink_id": null
 						},
 						{
 							"step": "02",
-							"title": "Éditer titre et description d'une tâche user",
-							"size": "I3",
+							"title": "Afficher la hiérarchie milestones→tracks→tasks depuis progress.db",
+							"size": "I4",
 							"slice_of": ["D3"],
-							"done_when": "éditer le titre/description d'une tâche user persiste et se reflète sans reload",
-							"description": "WHAT: étendre tasks_update aux champs titre/description + édition inline dans TasksView, restreinte aux tâches origin='user'.\n\nWHY: D3 — CRUD complet sur les tâches user.\n\nWHERE: src-tauri/src/commands/tasks.rs (tasks_update champs) ; src/views/TasksView.tsx (édition inline titre/description).\n\nDONE WHEN:\n- l'édition titre/description persiste (test)\n- reflétée sans reload\n- édition restreinte à origin='user'",
+							"done_when": "l'app lit progress.db et affiche les milestones→tracks→tasks du projet, groupés et ordonnés, avec marqueur de statut et identifier",
+							"description": "WHAT: tables milestones/tracks/tasks dans le schéma + commandes Rust lisant la structure groupée + UI React affichant milestones→tracks→tasks (marqueur de statut, identifier M{n}.{track}-{step}, état bloqué).\n\nWHY: la db porte désormais toute la structure du plan, pas seulement une liste plate ; l'app est la vue de lecture de ce que les skills ingèrent.\n\nWHERE: progress.schema.sql (milestones/tracks/tasks) ; src-tauri/src/commands/tasks.rs (lecture groupée) ; src/views/TasksView.tsx + src/components/Task*.tsx (rendu hiérarchique, via react-implementer).\n\nDONE WHEN:\n- progress.db modélise milestones/tracks/tasks (ordre + état)\n- l'app affiche la hiérarchie groupée et ordonnée\n- statut/blocage/identifier visibles\n- tests verts",
 							"sink_id": null
 						},
 						{
 							"step": "03",
-							"title": "Restreindre les tâches track en lecture seule sauf le nom",
+							"title": "Éditer une tâche user (statut, titre, description) sur progress.db",
+							"size": "I4",
+							"slice_of": ["D3"],
+							"done_when": "créer et éditer (statut, titre, description) une tâche user persiste dans progress.db et se reflète sans reload",
+							"description": "WHAT: re-câbler create/update des tâches user sur progress.db en réutilisant les composants déjà écrits contre l'ancien store (StatusSelect, TaskEditor, TaskCreateForm) ; une tâche user = origin='user', plate (sans track).\n\nWHY: D3 — CRUD complet des tâches user, désormais sur la db per-projet. Le travail UI des anciens M5.A-01 (statut) et M5.A-02 (titre/description) est réutilisé, re-câblé sur le nouveau schéma.\n\nWHERE: src-tauri/src/commands/tasks.rs (create/update user contre progress.db) ; src/components/{StatusSelect,TaskEditor,TaskCreateForm}.tsx + src/lib/tasks.ts (via react-implementer).\n\nDONE WHEN:\n- créer une tâche user (origin='user') persiste dans progress.db\n- éditer statut/titre/description persiste et se reflète sans reload\n- tests verts",
+							"sink_id": null
+						},
+						{
+							"step": "04",
+							"title": "Tâches track en lecture seule sauf le nom",
 							"size": "I3",
 							"slice_of": ["D3"],
-							"done_when": "une tâche origin='track' n'autorise que l'édition du nom ; statut et description verrouillés, badge d'origine visible",
-							"description": "WHAT: gating des droits d'édition par origine — origin='track' : seul le titre (nom) est éditable, statut/description verrouillés ; badge d'origine dans la liste. Insérer une tâche origin='track' de fixture pour la démo.\n\nWHY: D3 — droits selon l'origine ; le statut des tâches track est piloté par les skills (D4, chantier mac-config hors-repo), l'app ne le mute pas.\n\nWHERE: src/views/TasksView.tsx (gating par origin, badge) ; fixture/seed d'une tâche origin='track' (test ou insert dev).\n\nDONE WHEN:\n- une tâche origin='track' n'autorise que l'édition du nom\n- statut et description non éditables pour origin='track'\n- badge d'origine visible (track vs user)",
+							"done_when": "une tâche origin='track' n'autorise que l'édition du nom ; statut et description verrouillés ; structure milestone/track visible",
+							"description": "WHAT: gating par origine — origin='track' : seul le titre (nom) est éditable, statut/description verrouillés ; la structure milestone/track et un badge d'origine sont visibles. Le statut des tâches track est piloté par les skills (hors-repo, via progress.db), l'app ne le mute pas.\n\nWHY: D3 — droits selon l'origine ; les tâches track proviennent des skills.\n\nWHERE: src/components/Task*.tsx (gating par origin, badge, structure, via react-implementer).\n\nDONE WHEN:\n- une tâche track n'autorise que l'édition du nom\n- statut et description non éditables pour origin='track'\n- structure/badge d'origine visibles\n- tests verts",
 							"sink_id": null
 						}
 					]
