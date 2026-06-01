@@ -5,7 +5,7 @@
 	"packages": {
 		".": {
 			"release-type": "node",
-			"package-name": "agent-cockpit",
+			"package-name": "mizraj",
 			"changelog-path": "CHANGELOG.md",
 			"extra-files": [
 				{
