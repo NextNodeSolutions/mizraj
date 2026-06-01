@@ -15,12 +15,24 @@ pub fn diff_session<'repo>(repo: &'repo Repository, session_id: &str) -> Result<
     Ok(diff)
 }
 
+/// Diff every uncommitted change against `HEAD`: staged, unstaged, and
+/// untracked. We diff the HEAD tree to the working directory *through the
+/// index* (`diff_tree_to_workdir_with_index`) rather than index-to-workdir so
+/// that staged changes (`git add`) stay visible — an agent that stages its
+/// edits must still show them. On an unborn branch (no commits yet) there is no
+/// HEAD tree, so we pass `None` and the whole working tree reads as additions.
 pub fn diff_working_tree(repo: &Repository) -> Result<Diff<'_>> {
     let mut opts = DiffOptions::new();
     opts.include_untracked(true);
     opts.recurse_untracked_dirs(true);
 
-    let diff = repo.diff_index_to_workdir(None, Some(&mut opts))?;
+    let head_tree = match repo.head() {
+        Ok(head) => Some(head.peel_to_tree()?),
+        Err(err) if err.code() == git2::ErrorCode::UnbornBranch => None,
+        Err(err) => return Err(err.into()),
+    };
+
+    let diff = repo.diff_tree_to_workdir_with_index(head_tree.as_ref(), Some(&mut opts))?;
     Ok(diff)
 }
 
@@ -131,18 +143,7 @@ mod tests {
         assert_eq!(inner.code(), git2::ErrorCode::NotFound);
     }
 
-    #[test]
-    fn returns_unstaged_and_untracked_changes() {
-        let dir = tempfile::tempdir().expect("create tempdir");
-        let repo = init_repo(dir.path());
-        commit_file(&repo, "a.txt", "v1\n", "init");
-
-        let workdir = repo.workdir().expect("workdir");
-        fs::write(workdir.join("a.txt"), "v2\n").expect("write modified");
-        fs::write(workdir.join("b.txt"), "new\n").expect("write untracked");
-
-        let diff = diff_working_tree(&repo).expect("diff_working_tree");
-
+    fn diff_paths(diff: &Diff<'_>) -> Vec<String> {
         let mut paths: Vec<String> = diff
             .deltas()
             .map(|d| {
@@ -154,22 +155,38 @@ mod tests {
             })
             .collect();
         paths.sort();
-        assert_eq!(paths, vec!["a.txt".to_string(), "b.txt".to_string()]);
+        paths
+    }
 
-        let mut hunk_count = 0usize;
-        diff.foreach(
-            &mut |_, _| true,
-            None,
-            Some(&mut |_, _| {
-                hunk_count += 1;
-                true
-            }),
-            None,
-        )
-        .expect("foreach diff");
-        assert!(
-            hunk_count >= 1,
-            "expected at least one hunk, got {hunk_count}"
+    #[test]
+    fn returns_staged_unstaged_and_untracked_changes() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+        commit_file(&repo, "a.txt", "v1\n", "init");
+
+        let workdir = repo.workdir().expect("workdir");
+        // Unstaged edit to a tracked file.
+        fs::write(workdir.join("a.txt"), "v2\n").expect("write unstaged");
+        // Staged new file: written AND added to the index, but not committed.
+        fs::write(workdir.join("staged.txt"), "staged\n").expect("write staged");
+        let mut index = repo.index().expect("index");
+        index
+            .add_path(Path::new("staged.txt"))
+            .expect("stage staged.txt");
+        index.write().expect("write index");
+        // Untracked file: never added to the index.
+        fs::write(workdir.join("untracked.txt"), "untracked\n").expect("write untracked");
+
+        let diff = diff_working_tree(&repo).expect("diff_working_tree");
+
+        // The staged file is the whole point: index-to-workdir would hide it.
+        assert_eq!(
+            diff_paths(&diff),
+            vec![
+                "a.txt".to_string(),
+                "staged.txt".to_string(),
+                "untracked.txt".to_string(),
+            ]
         );
     }
 
@@ -181,6 +198,18 @@ mod tests {
 
         let diff = diff_working_tree(&repo).expect("diff_working_tree");
         assert_eq!(diff.deltas().count(), 0);
+    }
+
+    #[test]
+    fn returns_working_tree_changes_on_unborn_branch() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let repo = init_repo(dir.path());
+        // No commit yet: HEAD is unborn. A file in the working tree must still
+        // surface as an addition rather than erroring on the missing HEAD tree.
+        fs::write(dir.path().join("fresh.txt"), "hello\n").expect("write file");
+
+        let diff = diff_working_tree(&repo).expect("diff_working_tree");
+        assert_eq!(diff_paths(&diff), vec!["fresh.txt".to_string()]);
     }
 
     #[test]
