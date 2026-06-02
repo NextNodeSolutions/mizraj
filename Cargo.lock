@@ -9,31 +9,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
-name = "agent-cockpit-term"
-version = "0.1.0"
-dependencies = [
- "agent-cockpit-term-sys",
- "bitflags 2.11.1",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "agent-cockpit-term-sys"
-version = "0.1.0"
-dependencies = [
- "bindgen",
-]
-
-[[package]]
-name = "agent-cockpit-vcs"
-version = "0.1.0"
-dependencies = [
- "git2",
- "tempfile",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "aho-corasick"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2498,6 +2473,62 @@ dependencies = [
 ]
 
 [[package]]
+name = "mizraj"
+version = "0.1.0"
+dependencies = [
+ "html-escape",
+ "mizraj-term",
+ "mizraj-vcs",
+ "nix 0.29.0",
+ "portable-pty",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-opener",
+ "tauri-plugin-process",
+ "tauri-plugin-shell",
+ "tauri-plugin-store",
+ "tauri-plugin-updater",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "ulid",
+ "which",
+]
+
+[[package]]
+name = "mizraj-term"
+version = "0.1.0"
+dependencies = [
+ "bitflags 2.11.1",
+ "mizraj-term-sys",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "mizraj-term-sys"
+version = "0.1.0"
+dependencies = [
+ "bindgen",
+]
+
+[[package]]
+name = "mizraj-vcs"
+version = "0.1.0"
+dependencies = [
+ "git2",
+ "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "muda"
 version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4667,37 +4698,6 @@ dependencies = [
  "webview2-com",
  "window-vibrancy",
  "windows",
-]
-
-[[package]]
-name = "tauri-app"
-version = "0.1.0"
-dependencies = [
- "agent-cockpit-term",
- "agent-cockpit-vcs",
- "html-escape",
- "nix 0.29.0",
- "portable-pty",
- "serde",
- "serde_json",
- "sqlx",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-opener",
- "tauri-plugin-process",
- "tauri-plugin-shell",
- "tauri-plugin-store",
- "tauri-plugin-updater",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
- "ulid",
- "which",
 ]
 
 [[package]]

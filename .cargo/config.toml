@@ -1,4 +1,4 @@
-# Point agent-cockpit-term-sys's build.rs at the locally-built libghostty-vt
+# Point mizraj-term-sys's build.rs at the locally-built libghostty-vt
 # dylib so `cargo build` / `pnpm dev` link without anyone exporting
 # LIBGHOSTTY_LIB_DIR by hand. The dylib is produced by
 # `scripts/setup-libghostty.sh` into target/libghostty/ (gitignored).
@@ -11,7 +11,7 @@
 LIBGHOSTTY_LIB_DIR = { value = "target/libghostty", relative = true }
 
 # Embed a runtime search path so the final binary finds libghostty.dylib at
-# launch. agent-cockpit-term-sys links it as `@rpath/libghostty.dylib`, but a
+# launch. mizraj-term-sys links it as `@rpath/libghostty.dylib`, but a
 # `cargo:rustc-link-arg=-rpath` emitted from a -sys build script does NOT
 # propagate to the dependent binary — so the rpath must be set here, where it
 # applies to the final link. The dylib lives at <repo>/target/libghostty and the

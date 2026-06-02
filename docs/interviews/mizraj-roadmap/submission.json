@@ -1,0 +1,102 @@
+{
+	"decisions": {
+		"D1": {
+			"fact": "plan.json piloté par /backlog→/track→/next est la source de vérité canonique du développement. Linear n'est plus source de vérité : lu une seule fois pour amorcer plan.json, puis gelé en legacy (aucun re-push, aucun miroir live).",
+			"mechanism": "/backlog génère docs/plans/mizraj.plan.json (milestones→tracks→tasks) depuis le réel + le scope extrait de Linear ; /track sélectionne un track, /next shippe tâche par tâche en une PR par track. Linear reste consultable mais aucune commande n'y écrit.",
+			"edge": "Touche : le process de pilotage et le fichier plan.json. Ne touche pas : le code applicatif, ni l'historique des issues Linear (laissées telles quelles).",
+			"rejected": "Linear canonique (a re-divergé faute de discipline write-once) ; plans HTML seuls (aucun suivi de tâches structuré).",
+			"order": "Bloque l'émission du plan.json et les décisions D2/D3. Aucune dépendance amont.",
+			"verification": "docs/plans/mizraj.plan.json existe et /track le lit ; aucune écriture Linear émise après l'import initial."
+		},
+		"D2": {
+			"fact": "La numérotation P{N} des deux interviews est abandonnée ; tout est ré-séquencé dans le schéma milestone+track de /backlog (M1.A, M1.B…).",
+			"mechanism": "Le plan.json structure le reste du dev en milestones (M1…M6), chacun découpé en tracks (1 track = 1 PR) de tâches I3/I4. Les anciens préfixes P2–P7 ne sont plus utilisés.",
+			"edge": "Touche : la nomenclature des tâches à venir. Ne touche pas : les titres des issues Linear déjà créées (legacy, non renommées).",
+			"rejected": "Garder P{N} namespacé par lignée (maintient deux systèmes en parallèle) ; une seule liste P{N} re-séquencée (gros rencommage sans bénéfice vs milestones).",
+			"order": "Après D1 (pilote plan.json). Avant le run /backlog.",
+			"verification": "Le plan.json ne contient que des ids milestone/track (Mx.Y) ; aucun préfixe « P{N}- » dans les nouvelles tâches."
+		},
+		"D3": {
+			"fact": "On ne répare pas le board Linear existant. On extrait une seule fois le scope encore valide des 96 issues vers le plan.json, puis Linear est gelé en legacy.",
+			"mechanism": "Lecture des issues non-Canceled, tri en trois seaux (déjà livré / encore pertinent / obsolète post-pivot ghostty-web), report du « encore pertinent » dans le plan.json via /backlog. Aucune mutation API (pas de mark Done / cancel).",
+			"edge": "Touche : le contenu initial du plan.json. Ne touche pas : l'état des issues Linear (laissées en place).",
+			"rejected": "Réconciliation ciblée API (effort sur un board qu'on abandonne) ; ré-import dans un Linear propre (re-couple au sink qu'on quitte) ; ignorer purement (perd le scope encore utile).",
+			"order": "Après D1/D2. Première étape concrète du run /backlog.",
+			"verification": "Le plan.json couvre les tâches survivantes ; un diff manuel issues-Linear ↔ plan.json montre que rien d'encore-pertinent n'a été perdu."
+		},
+		"D4": {
+			"fact": "Le terminal passe au pipeline natif libghostty→canvas ; ghostty-web est retiré. La crate mizraj-term (déjà construite : feed→cells via libghostty-vt) est câblée au front.",
+			"mechanism": "src-tauri dépend de mizraj-term ; un thread de rendu par session parse les bytes PTY en Cells (Terminal::feed + RenderState::snapshot), sérialise en CellFrame, pousse au front via IPC Tauri ; un composant React <TerminalPane> dessine la grille sur <canvas>. GhosttyLog.tsx + la dépendance ghostty-web sont supprimés.",
+			"edge": "Touche : le rendu terminal backend+front et le transport IPC. Ne touche pas : le spawn PTY / SessionManager (inchangés — le rendu est un nouveau OutputSink).",
+			"rejected": "ghostty-web seul (dépendance au rythme de release Coder + bundle WASM ~400KB + ne scale pas pour la grille multi-cellules) ; web maintenant / natif plus tard pour la grille (repousse le câblage d'un natif déjà à ~40%).",
+			"order": "Jalon M2, premier après la release v0.1. Dépend de la crate term (déjà mergée) et du backend sessions (déjà mergé).",
+			"verification": "claude tourne dans une fenêtre, l'output s'affiche via canvas (pas ghostty-web) ; `grep ghostty-web package.json` ne retourne rien."
+		},
+		"D5": {
+			"fact": "Le premier jalon terminal natif (M2) embarque l'input clavier en même temps que l'output — vrai terminal interactif, pas un log read-only.",
+			"mechanism": "Messages bidirectionnels par session : Output(CellFrame) descend vers le canvas, Input(bytes) remonte. Commande session_write(session_id, bytes) → SessionManager::send_input (déjà implémenté) → PTY master. <TerminalPane> capture les keydown, encode en bytes (touche → séquence VT) et invoke session_write.",
+			"edge": "Touche : la commande d'entrée + la capture clavier front. Ne touche pas : le multi-pane ni les raccourcis globaux (jalon navigation).",
+			"rejected": "Output d'abord, input ensuite (deux passes pour un terminal de toute façon inutile en read-only ; le canal bidirectionnel est conçu d'un bloc).",
+			"order": "Dans M2, avec D4. Dépend de send_input (déjà présent) et du canvas (D4).",
+			"verification": "On tape `ls\\n` dans le pane, la commande s'exécute et l'output revient ; bench latence keystroke p99 < 30ms."
+		},
+		"D6": {
+			"fact": "Le scrollback persistant est un jalon dédié (M5), après le terminal vivant (M2) et la navigation (M3).",
+			"mechanism": "Migration 0005_session_scrollback (table + FK + PRAGMA foreign_keys=ON) ; un ScrollbackSink (OutputSink) écrit les raw PTY bytes append-only avec seuil 256B/100ms ; au reload de l'UI, replay via Terminal::feed_all des bytes stockés avant abonnement au flux live.",
+			"edge": "Touche : persistance + replay du scrollback. Ne touche pas : le resume cross-app-quit (V1.5, daemon séparé — hors scope).",
+			"rejected": "Bundlé au jalon terminal (alourdit M2 et retarde la démo) ; déféré V1.5 (le reload perd le scrollback trop longtemps).",
+			"order": "M5, après M2 et M3. Indépendant de M4 (Tasks).",
+			"verification": "Stress test : 10MB de scrollback replay en < 500ms ; après un reload UI, l'historique de session réapparaît."
+		},
+		"D7": {
+			"fact": "La première release publique AGPL (binaires GitHub par tag SemVer) est v0.1.0, taguée juste après le polish P3 must-have et AVANT le jalon terminal natif (M2).",
+			"mechanism": "tauri-action build les binaires sur le tag v0.1.0 ; release GitHub publique sans promesse de support ; périmètre = un agent dans un worktree + review diff 3 vues + les 3 must-have de D8.",
+			"edge": "Touche : packaging, tag, release notes. Ne touche pas : le terminal natif (post-release) ni les piliers Tasks/grid.",
+			"rejected": "Maintenant en l'état (expose le stop/kill manquant et des états cassés) ; attendre le pilier Tasks (release trop lointaine).",
+			"order": "Après le polish P3 (D8), avant M2.",
+			"verification": "Tag v0.1.0 + release GitHub avec binaires ; l'app packagée lance un agent et affiche le diff."
+		},
+		"D8": {
+			"fact": "Les bloquants v0.1 sont : stop/kill agent UI, project picker, auto-open du diff en fin de run. Déférés (non bloquants) : états empty/loading/error, démo e2e, bindings specta, CI guards.",
+			"mechanism": "Le jalon M1 = 3 tâches qui gate la release — (1) bouton stop/kill → session_close ; (2) UX project picker (ouvrir un repo via plugin-dialog) ; (3) auto-open du DiffPanel sur l'event de fin de session. Les déférés partent dans des tracks ultérieurs, hors-gate.",
+			"edge": "Touche : 3 features UI pré-release. Ne touche pas : la robustesse exhaustive (états limites assumés déférés).",
+			"rejected": "Inclure états + e2e + specta + CI guards dans le gate (retarde la release sans bénéfice utilisateur immédiat).",
+			"order": "Jalon M1, avant D7 (release). Premier track post-interview.",
+			"verification": "Les 3 features marchent dans un build de démo ; release taguée seulement une fois les 3 vertes."
+		},
+		"D9": {
+			"fact": "Le jalon navigation (M3) se limite à une sidebar de sessions. Pas de Cmd+1..9, pas de command palette Cmd+K (écartés du scope proche).",
+			"mechanism": "Sidebar React listant les sessions vivantes (hook useSessions), switch au clic, état activeSessionId via React context, header « N sessions actives ». Pas de cmdk, pas de bindings clavier d'index.",
+			"edge": "Touche : la navigation souris entre sessions. Ne touche pas : raccourcis clavier et palette (écartés, ré-ouvrables si friction).",
+			"rejected": "Cmd+1..9 + Cmd+↑↓ + palette Cmd+K (over-engineering tant que la sidebar couvre le besoin ; ré-introductibles plus tard).",
+			"order": "M3, après M2 (besoin de plusieurs sessions vivantes). Pré-requis UX de la grille (M6).",
+			"verification": "2+ sessions ouvertes apparaissent dans la sidebar ; un clic switche le pane actif."
+		},
+		"D10": {
+			"fact": "Le pilier Tasks (SQLite, zéro Linear) est le jalon M4, après le terminal (M2) et la navigation (M3).",
+			"mechanism": "Commandes Tauri tasks_list / tasks_create / tasks_update / tasks_assign sur les tables existantes (0002_tasks, 0003_task_assignments) ; TasksView React + form de création inline ; assignation tâche↔session. CI guard « no Linear imports ».",
+			"edge": "Touche : le CRUD tâches + la vue. Ne touche pas : la grille (M6, qui consomme les tâches comme colonnes).",
+			"rejected": "Tasks avant la navigation (la nav est plus proche du terminal déjà fait) ; foncer sur la grille (qui a besoin de Tasks comme dépendance).",
+			"order": "M4, après M3. Schéma DB déjà présent. Bloque M6 (grid).",
+			"verification": "Créer / lister / assigner une tâche persiste en SQLite ; la CI échoue si un import Linear apparaît."
+		},
+		"D11": {
+			"fact": "Le cockpit grid multi-agents (vision D16 d'origine) est le dernier jalon M6, après terminal, navigation, Tasks et scrollback.",
+			"mechanism": "CockpitGrid en CSS Grid (1 ligne = 1 agent, 1 colonne = 1 tâche), CockpitCell embarquant un <TerminalPane>, drag-drop d'assignation, désassignation en lâchant hors de la grille. Commande list_active_grid(repo_path).",
+			"edge": "Touche : le board multi-agents. Ne touche pas : les piliers déjà livrés (réutilise TerminalPane + Tasks tels quels).",
+			"rejected": "Grille tôt avec un Tasks minimal inline (re-fait Tasks deux fois) ; un ordre indépendant des dépendances (la grille dépend de tout le reste).",
+			"order": "M6, dernier. Dépend de M2 (TerminalPane), M3 (multi-session) et M4 (Tasks).",
+			"verification": "2 tâches × 2 agents → grille peuplée de logs live (démo D16)."
+		},
+		"D12": {
+			"fact": "La migration 0004_diff_comments est revertée pour aligner le schéma sur la décision V1 read-only (D9/D12 d'origine). Aucune feature de commentaires dans la roadmap.",
+			"mechanism": "Supprimer 0004_diff_comments.sql (ou, si déjà appliquée sur une vraie DB, ajouter une migration de DROP propre) ; mettre à jour le CI guard « phase 3 keeps N migrations » avec le nouveau compte.",
+			"edge": "Touche : le schéma SQLite (table diff_comments). Ne touche pas : le DiffPanel (déjà strictement read-only).",
+			"rejected": "Laisser la table dormante (un schéma en avance contredit une décision figée) ; construire les commentaires (rouvre un scope explicitement écarté).",
+			"order": "Indépendant, faisable tôt (hygiène de schéma). Avant que d'autres migrations s'empilent par-dessus.",
+			"verification": "La table diff_comments n'existe plus ; le guard CI compte le bon nombre de migrations ; le DiffPanel fonctionne toujours."
+		}
+	},
+	"comments": [],
+	"approval_mode": "approved"
+}

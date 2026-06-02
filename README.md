@@ -1,4 +1,4 @@
-# agent-cockpit
+# mizraj
 
 [![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg)](LICENSE)
 
@@ -12,7 +12,7 @@ Pre-alpha. Public for transparency; no support, no guarantees, no SLA. Issues an
 
 ## Plan
 
-See [`docs/plans/2026-05-15-agent-cockpit.html`](docs/plans/2026-05-15-agent-cockpit.html) for the current build plan.
+See [`docs/plans/2026-05-15-mizraj.html`](docs/plans/2026-05-15-mizraj.html) for the current build plan.
 
 ## License
 

@@ -23,7 +23,7 @@ The frontend cannot see those modes — they live in the libghostty `Terminal`, 
 by the render thread and is `!Send`. So the frontend encoder could only guess, and guessed
 wrong for any app that touched a mode. Meanwhile libghostty already ships a complete,
 mode-aware key encoder (`ghostty_key_encoder_*` + `ghostty_key_event_*`), already vendored and
-bound in `agent-cockpit-term-sys`. Maintaining a second, weaker encoder in JS violated the
+bound in `mizraj-term-sys`. Maintaining a second, weaker encoder in JS violated the
 platform-native rule.
 
 ## Decision
@@ -42,7 +42,7 @@ keydown → useTerminalCanvas: KeyStroke DTO { code, text, ctrl, alt, shift }
         → non-empty bytes → writer_tx.try_send → pty_write_loop → PTY → child
 ```
 
-- `crates/agent-cockpit-term/src/key.rs` — safe `KeyEncoder`/`Mods` wrapper over the FFI,
+- `crates/mizraj-term/src/key.rs` — safe `KeyEncoder`/`Mods` wrapper over the FFI,
   same NonNull + SAFETY + Drop template as `render_state.rs`. `encode` calls
   `ghostty_key_encoder_setopt_from_terminal` **before every keystroke** (modes change between
   presses), builds a fresh `GhosttyKeyEvent`, and returns the bytes (empty for lone
@@ -87,6 +87,6 @@ feeding `ESC [ ? 1 h` to a real `Terminal`, then encoding `ArrowUp`, yields `ESC
 
 ## References
 
-- `crates/agent-cockpit-term-sys/vendor/include/ghostty/vt/key/encoder.h`, `key/event.h`
-- `crates/agent-cockpit-term/src/key.rs`, `src-tauri/src/session/term_sink.rs`
+- `crates/mizraj-term-sys/vendor/include/ghostty/vt/key/encoder.h`, `key/event.h`
+- `crates/mizraj-term/src/key.rs`, `src-tauri/src/session/term_sink.rs`
 - C-ABI ADR — `docs/decisions/2026-05-22-libghostty-c-abi.md`

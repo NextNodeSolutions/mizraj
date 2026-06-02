@@ -11,7 +11,7 @@ import type { TestServer } from './test-server'
 const FIXTURE_HTML = fileURLToPath(
 	new URL('./fixtures/plan.html', import.meta.url),
 )
-const SLUG = 'agent-cockpit'
+const SLUG = 'mizraj'
 
 type Ctx = {
 	server: TestServer
@@ -21,7 +21,7 @@ type Ctx = {
 const ctx: Partial<Ctx> = {}
 
 test.beforeAll(async () => {
-	const projectRoot = await mkdtemp(join(tmpdir(), 'agent-cockpit-e2e-'))
+	const projectRoot = await mkdtemp(join(tmpdir(), 'mizraj-e2e-'))
 	const server = await startTestServer({
 		projectRoot,
 		fixtureHtmlPath: FIXTURE_HTML,

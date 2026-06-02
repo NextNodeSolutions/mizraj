@@ -3,7 +3,11 @@
 	"compilerOptions": {
 		"jsx": "react-jsx",
 		"allowImportingTsExtensions": true,
-		"useDefineForClassFields": true
+		"useDefineForClassFields": true,
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["src/*"]
+		}
 	},
 	"include": ["src"],
 	"exclude": ["node_modules", "dist", "src-tauri", "vitest.config.ts"],

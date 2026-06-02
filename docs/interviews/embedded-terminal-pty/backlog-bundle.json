@@ -6,7 +6,7 @@
 		"change_kind": "additive-brownfield"
 	},
 	"target": {
-		"linear_project_hint": "Agent Cockpit",
+		"linear_project_hint": "Mizraj",
 		"linear_team_hint": "SAS",
 		"repo_path_hint": ""
 	},
@@ -15,21 +15,21 @@
 			"id": "D1",
 			"theme": "embedding",
 			"fact": "V1 affiche libghostty-vt en crate Rust côté backend ; les cells décodées sont streamées via IPC vers un renderer canvas React dans la webview Tauri unique.",
-			"mechanism": "Crate <code>agent-cockpit-term</code> (cf. D2) expose <code>Terminal::feed(bytes) -> Cells</code>. Côté frontend, composant <code>&lt;TerminalPane sessionId&gt;</code> ouvre un Tauri Channel&lt;CellFrame&gt; et rend les cells via <code>&lt;canvas&gt;</code> (renderer custom 2D ou xterm.js avec backend custom recevant les cells pré-parsed).",
+			"mechanism": "Crate <code>mizraj-term</code> (cf. D2) expose <code>Terminal::feed(bytes) -> Cells</code>. Côté frontend, composant <code>&lt;TerminalPane sessionId&gt;</code> ouvre un Tauri Channel&lt;CellFrame&gt; et rend les cells via <code>&lt;canvas&gt;</code> (renderer custom 2D ou xterm.js avec backend custom recevant les cells pré-parsed).",
 			"edge": "Utilise la webview Tauri unique — pas de child window WGPU, pas de surface GPU native. Rendu correct mais ne match pas la perf de ghostty natif. Acceptable pour cockpit dev.",
 			"rejected": "<strong>(b) WGPU native overlay</strong> — casse le modèle Tauri single-webview, clipping/z-index avec UI React infaisable proprement. <strong>(c) xterm.js JS-only</strong> — perd le bénéfice du parser VT libghostty (seule raison d'aller cmux-like).",
-			"order": "Après D2 (agent-cockpit-term crate). Parallèle à D5/D6 (IPC channels).",
+			"order": "Après D2 (mizraj-term crate). Parallèle à D5/D6 (IPC channels).",
 			"verification": "Lancer claude dans une pane → output ANSI complet (couleurs, cursor moves, alternate buffer) s'affiche correctement. Stress test : <code>cat /dev/urandom | hexdump | head -10000</code> rend sans drop frame perceptible (60fps p95)."
 		},
 		{
 			"id": "D2",
 			"theme": "embedding",
-			"fact": "Le binding Rust ↔ libghostty (C/Zig) passe par un crate intermédiaire <code>agent-cockpit-term</code> (sys + safe wrapper) qu'on maintient dans le workspace.",
-			"mechanism": "Nouveau membre <code>crates/agent-cockpit-term/</code> + sub-crate <code>crates/agent-cockpit-term-sys/</code> avec <code>bindgen</code> sur les headers C de libghostty et <code>build.rs</code> qui link la <code>.dylib/.so/.dll</code>. Le parent crate expose une API safe (struct <code>Terminal</code>, <code>Cells</code>, méthode <code>feed()</code>) ; tous les <code>unsafe</code> sont confinés au sys-crate.",
+			"fact": "Le binding Rust ↔ libghostty (C/Zig) passe par un crate intermédiaire <code>mizraj-term</code> (sys + safe wrapper) qu'on maintient dans le workspace.",
+			"mechanism": "Nouveau membre <code>crates/mizraj-term/</code> + sub-crate <code>crates/mizraj-term-sys/</code> avec <code>bindgen</code> sur les headers C de libghostty et <code>build.rs</code> qui link la <code>.dylib/.so/.dll</code>. Le parent crate expose une API safe (struct <code>Terminal</code>, <code>Cells</code>, méthode <code>feed()</code>) ; tous les <code>unsafe</code> sont confinés au sys-crate.",
 			"edge": "V1 link libghostty en dynamic library, version pinnée exactement dans Cargo.toml + checksum vérifié en CI. Pas de static link initial, pas de build-from-source de Zig dans le CI day-1.",
 			"rejected": "<strong>(a) bindgen direct dans tauri-app</strong> — chaque breaking change libghostty patché dans N call-sites, pas de surface stable interne. <strong>(c) fork vendor du Zig</strong> — merge upstream à vie, on porte les bugs ghostty soi-même.",
 			"order": "Préalable à D1 (render pipeline). Spike pré-implémentation : déterminer si libghostty expose un C ABI stable ou si on doit écrire un thin C wrapper du côté Zig (cf. OQ3).",
-			"verification": "<code>cargo build -p agent-cockpit-term</code> réussit avec libghostty.dylib disponible. <code>cargo doc -p agent-cockpit-term</code> montre la surface safe (<code>Terminal</code>, <code>feed</code>, <code>cells</code>, …). Test : alimenter un <code>Terminal</code> avec une séquence ANSI connue → assert sur le cell grid attendu."
+			"verification": "<code>cargo build -p mizraj-term</code> réussit avec libghostty.dylib disponible. <code>cargo doc -p mizraj-term</code> montre la surface safe (<code>Terminal</code>, <code>feed</code>, <code>cells</code>, …). Test : alimenter un <code>Terminal</code> avec une séquence ANSI connue → assert sur le cell grid attendu."
 		},
 		{
 			"id": "D3",
@@ -39,7 +39,7 @@
 			"edge": "Windows = conpty automatique (gratuit avec portable-pty). PTY size figée au spawn pour V1 (resize viendra avec multi-pane post-V1). Pas de feature 're-openpty' / detach.",
 			"rejected": "<strong>(b) tokio-pty-process</strong> — moins maintenu, dernière release ~2 ans. <strong>(c) nix raw + openpty manuel</strong> — Windows à porter soi-même, pas de bénéfice net.",
 			"order": "Indépendant. Préalable à D4 (process holder).",
-			"verification": "Test d'intégration <code>crates/agent-cockpit-session/tests/pty.rs</code> : <code>spawn(\"echo\", \".\", {\"X\":\"y\"})</code> → master_reader lit la string <code>\"y\"</code>, child exit avec status 0 en &lt; 1s."
+			"verification": "Test d'intégration <code>crates/mizraj-session/tests/pty.rs</code> : <code>spawn(\"echo\", \".\", {\"X\":\"y\"})</code> → master_reader lit la string <code>\"y\"</code>, child exit avec status 0 en &lt; 1s."
 		},
 		{
 			"id": "D4",
@@ -99,17 +99,17 @@
 			"edge": "V1 explicitement n'inclut pas : splits/panes multiples (post-V1), daemon (V1.5), resume cross-quit (V1.5), agent profiles partagés (post-V1 si demande), bundling claude (jamais).",
 			"rejected": "<strong>(a) single agent / single pane / no resume</strong> — ne mérite pas \"cockpit\". <strong>(c) full cmux parity dès V1</strong> — V12 jamais shippé.",
 			"order": "Méta-décision qui gate D4, D7, D8, D11.",
-			"verification": "Build du DMG/AppImage inclut 1 seul binaire (<code>tauri-app</code>), aucun <code>agent-cockpit-daemon</code>. Lancer 3 sessions en parallèle marche. Sidebar montre les 3. Reload UI les conserve."
+			"verification": "Build du DMG/AppImage inclut 1 seul binaire (<code>tauri-app</code>), aucun <code>mizraj-daemon</code>. Lancer 3 sessions en parallèle marche. Sidebar montre les 3. Reload UI les conserve."
 		},
 		{
 			"id": "D10",
 			"theme": "scope-v1",
 			"fact": "Resume cross-app-quit n'est pas en V1. V1.5 ajoutera un daemon séparé pour le supporter.",
-			"mechanism": "Aucun code daemon en V1. Roadmap V1.5 : extraire <code>SessionManager</code> dans un binaire <code>agent-cockpit-sessiond</code>, IPC via unix socket avec l'UI Tauri ; le daemon garde les PTYs vivants après UI close ; UI s'attache à un daemon existant au démarrage.",
+			"mechanism": "Aucun code daemon en V1. Roadmap V1.5 : extraire <code>SessionManager</code> dans un binaire <code>mizraj-sessiond</code>, IPC via unix socket avec l'UI Tauri ; le daemon garde les PTYs vivants après UI close ; UI s'attache à un daemon existant au démarrage.",
 			"edge": "V1 = sessions meurent avec l'app (par D4). L'utilisateur accepte explicitement l'UX \"quit app = perds le travail en cours\".",
 			"rejected": "<strong>(b) revisiter pty-owner = daemon dès V1</strong> — invalide D4 et coût +1 binaire à signer/updater. <strong>(c) jamais</strong> — incohérent avec l'ambition cockpit moyen-terme.",
 			"order": "Après V1 entière. Chantier V1.5 indépendant.",
-			"verification": "V1 : pas de binaire daemon dans le bundle (verif via <code>tar tvf agent-cockpit-V1.dmg</code>). Quit app + relaunch → sidebar vide, aucune session restaurée."
+			"verification": "V1 : pas de binaire daemon dans le bundle (verif via <code>tar tvf mizraj-V1.dmg</code>). Quit app + relaunch → sidebar vide, aucune session restaurée."
 		},
 		{
 			"id": "D11",
@@ -158,7 +158,7 @@
 		"libghostty_c_abi_check": "pre-D2 spike required (OQ3)",
 		"v15_followup": "daemon for cross-app-quit resume",
 		"macos_path_workaround": "startup must exec /bin/zsh -lc echo $PATH to inherit user shell PATH (R4)",
-		"sealed_plan_override": "docs/plans/2026-05-15-agent-cockpit.html — ghostty-binding V1-subprocess decision overridden by this plan"
+		"sealed_plan_override": "docs/plans/2026-05-15-mizraj.html — ghostty-binding V1-subprocess decision overridden by this plan"
 	},
 	"freeform": ""
 }

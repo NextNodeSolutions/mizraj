@@ -1,8 +1,8 @@
 {
 	"$schema": "https://schema.tauri.app/config/2",
-	"productName": "Agent Cockpit",
+	"productName": "Mizraj",
 	"version": "0.1.0",
-	"identifier": "fr.nextnode.agent-cockpit",
+	"identifier": "fr.nextnode.mizraj",
 	"build": {
 		"beforeDevCommand": "vite",
 		"devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
 	"app": {
 		"windows": [
 			{
-				"title": "Agent Cockpit",
+				"title": "Mizraj",
 				"width": 1280,
 				"height": 800,
 				"minWidth": 1024,
@@ -39,7 +39,7 @@
 		"updater": {
 			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVEM0Y1NDAzQ0U0MTE4MDkKUldRSkdFSE9BMVEvWFVRenlxdDhxK3NCWlJkTnVaZ1NESTRZN0dkaXA1MWFzakV1a0FxK2J5OEYK",
 			"endpoints": [
-				"https://github.com/NextNodeSolutions/agent-cockpit/releases/latest/download/latest.json"
+				"https://github.com/NextNodeSolutions/mizraj/releases/latest/download/latest.json"
 			]
 		}
 	}

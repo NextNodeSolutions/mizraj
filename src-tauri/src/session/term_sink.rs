@@ -2,7 +2,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Mutex;
 use std::thread;
 
-use agent_cockpit_term::{Dirty, KeyEncoder, RenderState, Terminal};
+use mizraj_term::{Dirty, KeyEncoder, RenderState, Terminal};
 use tauri::async_runtime::Sender as PtyInputSender;
 use tauri::{AppHandle, Emitter, Runtime};
 

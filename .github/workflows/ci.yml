@@ -71,8 +71,8 @@ jobs:
               run: |
                   cargo clippy \
                       --workspace \
-                      --exclude agent-cockpit-term \
-                      --exclude agent-cockpit-term-sys \
+                      --exclude mizraj-term \
+                      --exclude mizraj-term-sys \
                       --all-targets \
                       -- -D warnings
 
@@ -82,8 +82,8 @@ jobs:
             - name: cargo clippy (term wrappers, lib only)
               run: |
                   cargo clippy \
-                      -p agent-cockpit-term-sys \
-                      -p agent-cockpit-term \
+                      -p mizraj-term-sys \
+                      -p mizraj-term \
                       --lib \
                       -- -D warnings
 
@@ -91,9 +91,9 @@ jobs:
               run: |
                   cargo test \
                       --workspace \
-                      --exclude agent-cockpit-term \
-                      --exclude agent-cockpit-term-sys \
-                      --exclude tauri-app
+                      --exclude mizraj-term \
+                      --exclude mizraj-term-sys \
+                      --exclude mizraj
 
     verify-libghostty:
         runs-on: ubuntu-latest
@@ -102,11 +102,11 @@ jobs:
             - uses: actions/checkout@v4
 
             - name: Verify vendored headers match CHECKSUMS
-              working-directory: crates/agent-cockpit-term-sys/vendor
+              working-directory: crates/mizraj-term-sys/vendor
               run: sha256sum -c CHECKSUMS
 
             - name: Verify CHECKSUMS lists every vendored header
-              working-directory: crates/agent-cockpit-term-sys/vendor
+              working-directory: crates/mizraj-term-sys/vendor
               run: |
                   set -euo pipefail
                   listed=$(awk '{print $2}' CHECKSUMS | sort)
@@ -114,7 +114,7 @@ jobs:
                   diff <(printf '%s\n' "$listed") <(printf '%s\n' "$actual")
 
             - name: Verify VERSION matches upstream
-              working-directory: crates/agent-cockpit-term-sys/vendor
+              working-directory: crates/mizraj-term-sys/vendor
               run: |
                   set -euo pipefail
                   version=$(tr -d '[:space:]' < VERSION)

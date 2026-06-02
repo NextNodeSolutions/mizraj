@@ -1,4 +1,4 @@
-use agent_cockpit_term::{Cell, Cells, Color};
+use mizraj_term::{Cell, Cells, Color};
 use serde::Serialize;
 
 /// Wire representation of a single cell color (D4).
@@ -25,7 +25,7 @@ impl From<Color> for WireColor {
 
 /// Wire representation of one terminal cell (D4).
 ///
-/// `attrs` carries the raw bits of [`agent_cockpit_term::Attrs`] verbatim so the
+/// `attrs` carries the raw bits of [`mizraj_term::Attrs`] verbatim so the
 /// frontend mirrors a single bit layout instead of decoding six booleans per
 /// cell: `BOLD = 1 << 0`, `ITALIC = 1 << 1`, `UNDERLINE = 1 << 2`,
 /// `REVERSE = 1 << 3`, `DIM = 1 << 4`, `STRIKE = 1 << 5`.
@@ -75,7 +75,7 @@ impl CellFrame {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_cockpit_term::Attrs;
+    use mizraj_term::Attrs;
 
     #[test]
     fn from_cells_preserves_dimensions_glyphs_colors_and_attrs() {
@@ -168,7 +168,7 @@ mod tests {
     /// `Terminal` snapshots into the `CellFrame` we expect.
     #[test]
     fn byte_sequence_through_terminal_produces_expected_frame() {
-        use agent_cockpit_term::{RenderState, Terminal};
+        use mizraj_term::{RenderState, Terminal};
 
         let mut term = Terminal::new(4, 10).expect("terminal");
         term.feed(b"Hi").expect("feed");

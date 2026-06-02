@@ -15,7 +15,7 @@ pas l'état final.
 
 ## Modèle retenu (confirmé via doc Cargo, context7)
 
-- `agent-cockpit-term-sys` est un paquet `-sys` canonique : il lie la lib native et expose
+- `mizraj-term-sys` est un paquet `-sys` canonique : il lie la lib native et expose
   les symboles bruts, sans abstraction.
 - Modèle « system library » (la lib vit hors cargo, `build.rs` la _trouve_ via
   `LIBGHOSTTY_LIB_DIR`) — **pas** le modèle « vendored build-at-compile » : un build
@@ -35,7 +35,7 @@ pas l'état final.
       que `build.rs` linke `-lghostty` / cherche `libghostty.dylib`. Le script dev gère ça par
       copie + `install_name_tool -id`. La track doit décider : soit garder ce renommage, soit
       aligner `build.rs` sur `ghostty-vt`. **Choisir une seule voie, pas un hybride.**
-- [ ] **`links = "ghostty"` dans `crates/agent-cockpit-term-sys/Cargo.toml`** — actuellement
+- [ ] **`links = "ghostty"` dans `crates/mizraj-term-sys/Cargo.toml`** — actuellement
       ABSENT. La doc Cargo recommande la clé `links` pour un `-sys` : empêche les doublons de
       symboles et permet de passer des métadonnées entre build scripts. Petite dette à combler.
 - [ ] **Signing / notarization macOS**: un dylib embarqué doit être signé avec l'app

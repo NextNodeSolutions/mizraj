@@ -706,9 +706,7 @@
 			Theme
 		</button>
 		<main class="wrap">
-			<div class="eyebrow">
-				Walkthrough · agent-cockpit · feat/foundations
-			</div>
+			<div class="eyebrow">Walkthrough · mizraj · feat/foundations</div>
 			<h1>term-sys : scaffolding bindgen pour libghostty-vt</h1>
 			<p class="lede">
 				Décortique chaque ligne de la tâche P1-03 — le pont Rust ↔ C qui
@@ -760,7 +758,7 @@
 						<span class="meta">build-deps transitives bindgen</span>
 					</li>
 					<li class="dir">
-						crates/agent-cockpit-term-sys/
+						crates/mizraj-term-sys/
 						<ul>
 							<li class="file">
 								Cargo.toml <span class="action edit">EDIT</span>
@@ -836,10 +834,10 @@
 					</p>
 					<p>
 						<strong>2) Le crate haut-niveau</strong>
-						(<code>agent-cockpit-term</code>, viendra ensuite)
-						wrappe les appels du <code>-sys</code> dans une API Rust
-						sûre. Aucun <code>unsafe</code> n'est autorisé dans
-						cette couche — l'unsafety est confinée par contrat.
+						(<code>mizraj-term</code>, viendra ensuite) wrappe les
+						appels du <code>-sys</code> dans une API Rust sûre.
+						Aucun <code>unsafe</code> n'est autorisé dans cette
+						couche — l'unsafety est confinée par contrat.
 					</p>
 				</div>
 				<div>
@@ -873,18 +871,15 @@
 				l'inclusion du fichier généré au build.
 			</p>
 
-			<div
-				class="diff"
-				data-file="crates/agent-cockpit-term-sys/src/lib.rs"
-			>
+			<div class="diff" data-file="crates/mizraj-term-sys/src/lib.rs">
 				@@ -1,11 +1,15 @@ -//! Raw FFI bindings to libghostty. +//! Raw
 				FFI bindings to libghostty-vt. //! //! This `-sys` crate
 				confines every `unsafe` block and every `extern "C"` //!
 				declaration touching libghostty. Higher-level crates (notably
-				//! `agent-cockpit-term`) wrap this surface into a safe API and
-				must not //! contain any `unsafe` of their own. See `README.md`
-				for the rule. +//! +//! The contents below are generated at
-				build time by `bindgen` from the +//! vendored C headers under
+				//! `mizraj-term`) wrap this surface into a safe API and must
+				not //! contain any `unsafe` of their own. See `README.md` for
+				the rule. +//! +//! The contents below are generated at build
+				time by `bindgen` from the +//! vendored C headers under
 				`vendor/include/ghostty/`. Override the header +//! root via the
 				`LIBGHOSTTY_INCLUDE_DIR` env var (see `build.rs`). +
 				+#![allow(non_upper_case_globals, non_camel_case_types,
@@ -959,7 +954,7 @@
 					<figure class="code-block">
 						<figcaption class="code-block__head">
 							<span class="code-block__file"
-								>crates/agent-cockpit-term-sys/Cargo.toml</span
+								>crates/mizraj-term-sys/Cargo.toml</span
 							>
 							<span class="code-block__lang">TOML</span>
 							<button
@@ -1188,7 +1183,7 @@ bindings.write_to_file(&amp;out_path)
 					<figure class="code-block">
 						<figcaption class="code-block__head">
 							<span class="code-block__file"
-								>crates/agent-cockpit-term-sys/src/lib.rs</span
+								>crates/mizraj-term-sys/src/lib.rs</span
 							>
 							<span class="code-block__lang">Rust</span>
 							<button
@@ -1203,7 +1198,7 @@ bindings.write_to_file(&amp;out_path)
 //!
 //! This `-sys` crate confines every `unsafe` block and every `extern "C"`
 //! declaration touching libghostty. Higher-level crates (notably
-//! `agent-cockpit-term`) wrap this surface into a safe API and must not
+//! `mizraj-term`) wrap this surface into a safe API and must not
 //! contain any `unsafe` of their own. See `README.md` for the rule.
 //!
 //! The contents below are generated at build time by `bindgen` from the
@@ -1449,8 +1444,8 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 				<li>
 					<input type="checkbox" /><span
 						><strong>P1-05</strong> — crate
-						<code>agent-cockpit-term</code>: wrapper safe au-dessus
-						du <code>-sys</code>, premier appel à
+						<code>mizraj-term</code>: wrapper safe au-dessus du
+						<code>-sys</code>, premier appel à
 						<code>ghostty_*</code> dans un test d'intégration.</span
 					><span class="meta">safe API</span>
 				</li>
@@ -1575,7 +1570,7 @@ Clean, safe, idiomatic. Matches the canonical bindgen tutorial pattern (OUT_DIR 
 
 ## Next steps
 - P1-04: link libghostty-vt (rustc-link-lib).
-- P1-05: build the safe wrapper crate \`agent-cockpit-term\`.
+- P1-05: build the safe wrapper crate \`mizraj-term\`.
 - P1-06: workspace version pin + CI checksum on vendored headers (SAS-382).
 `
 					try {
