@@ -1,7 +1,5 @@
-const FONT_SIZE_PX = 13
-const LINE_HEIGHT_RATIO = 1.2
-const FONT_FAMILY =
-	'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace'
+import type { ResolvedFont } from './ghosttyConfig'
+
 const UNDERLINE_OFFSET_PX = 2
 const UNDERLINE_THICKNESS_PX = 1
 const STRIKE_CENTER_RATIO = 0.5
@@ -92,9 +90,18 @@ export type CellFramePayload = {
 // The two colors a cell's `Color::Default` resolves to. Passed in by the caller
 // rather than hardcoded so the `--terminal-bg`/`--terminal-fg` CSS variables stay
 // the single source of truth (see useTerminalCanvas).
-export type TerminalTheme = {
+export type TerminalColors = {
 	background: string
 	foreground: string
+}
+
+// Everything the renderer needs that comes from outside the cell stream, grouped
+// by concern so later parity milestones bolt on without re-plumbing every
+// signature: M0.5 fills `colors` (CSS vars, unchanged) + `font` (resolved from
+// the Ghostty config); M1 adds the palette, M3 adds cursor state.
+export type TerminalConfig = {
+	colors: TerminalColors
+	font: ResolvedFont
 }
 
 type CellMetrics = {
@@ -131,27 +138,37 @@ const resolveColor = (color: WireColor, fallback: string): string => {
 	return XTERM_PALETTE[color.idx] ?? fallback
 }
 
-const fontFor = (attrs: CellAttrs): string => {
+const fontFor = (attrs: CellAttrs, font: ResolvedFont): string => {
 	const weight = attrs.bold ? 'bold' : 'normal'
 	const style = attrs.italic ? 'italic' : 'normal'
-	return `${style} ${weight} ${FONT_SIZE_PX}px ${FONT_FAMILY}`
+	return `${style} ${weight} ${font.sizePx}px ${font.familyCss}`
 }
 
-// `attrs` is a backend u8, so there are only 256 possible decodings and 256
-// possible fonts. Precompute both once at module load and index by the raw byte
-// in the per-cell hot path, instead of allocating a fresh attrs object and font
-// string for every cell of every frame (tens of thousands per second during a
-// heavy TUI redraw).
+// `attrs` is a backend u8, so there are only 256 possible decodings. Decode them
+// once at module load and index by the raw byte in the per-cell hot path,
+// instead of allocating a fresh attrs object for every cell of every frame (tens
+// of thousands per second during a heavy TUI redraw).
 const ATTR_TABLE: readonly CellAttrs[] = Array.from(
 	{ length: 256 },
 	(_, bits) => decodeAttrs(bits),
 )
-const FONT_TABLE: readonly string[] = ATTR_TABLE.map(fontFor)
 
-export const measureCell = (context: CanvasRenderingContext2D): CellMetrics => {
-	context.font = `normal normal ${FONT_SIZE_PX}px ${FONT_FAMILY}`
+// Each font yields 256 possible CSS font strings (one per attrs byte). Building
+// them per cell per frame would allocate in the hottest path, so the table is
+// precomputed once per font and indexed by the raw attrs byte while drawing.
+// The font is fixed for the lifetime of a startRendering call (it changes only
+// on session/appearance change, which tears down the whole closure), so the
+// caller builds this once there and threads it in alongside the metrics.
+export const buildFontTable = (font: ResolvedFont): readonly string[] =>
+	ATTR_TABLE.map(attrs => fontFor(attrs, font))
+
+export const measureCell = (
+	context: CanvasRenderingContext2D,
+	font: ResolvedFont,
+): CellMetrics => {
+	context.font = `normal normal ${font.sizePx}px ${font.familyCss}`
 	const cellWidth = context.measureText('M').width
-	const lineHeight = FONT_SIZE_PX * LINE_HEIGHT_RATIO
+	const lineHeight = font.sizePx * font.lineHeightRatio
 	return { cellWidth, lineHeight }
 }
 
@@ -182,16 +199,17 @@ const drawCell = (
 	context: CanvasRenderingContext2D,
 	cell: WireCell,
 	rect: CellRect,
-	theme: TerminalTheme,
+	config: TerminalConfig,
+	fontTable: readonly string[],
 ): void => {
 	const attrs = ATTR_TABLE[cell.attrs] ?? decodeAttrs(cell.attrs)
 	const background = resolveColor(
 		attrs.reverse ? cell.fg : cell.bg,
-		theme.background,
+		config.colors.background,
 	)
 	const foreground = resolveColor(
 		attrs.reverse ? cell.bg : cell.fg,
-		theme.foreground,
+		config.colors.foreground,
 	)
 
 	context.fillStyle = background
@@ -200,7 +218,7 @@ const drawCell = (
 	if (cell.ch !== ' ' && cell.ch !== '') {
 		context.globalAlpha = attrs.dim ? DIM_ALPHA : FULL_ALPHA
 		context.fillStyle = foreground
-		context.font = FONT_TABLE[cell.attrs] ?? fontFor(attrs)
+		context.font = fontTable[cell.attrs] ?? fontFor(attrs, config.font)
 		context.fillText(cell.ch, rect.x, rect.y)
 		context.globalAlpha = FULL_ALPHA
 	}
@@ -246,16 +264,23 @@ export const drawFrame = (
 	context: CanvasRenderingContext2D,
 	frame: CellFramePayload,
 	metrics: CellMetrics,
-	theme: TerminalTheme,
+	config: TerminalConfig,
+	fontTable: readonly string[],
 ): void => {
-	clearToBackground(context, theme.background)
+	clearToBackground(context, config.colors.background)
 	context.textBaseline = 'top'
 
 	for (let row = 0; row < frame.rows; row += 1) {
 		for (let col = 0; col < frame.cols; col += 1) {
 			const cell = frame.cells[row * frame.cols + col]
 			if (!cell) continue
-			drawCell(context, cell, cellRect(col, row, metrics), theme)
+			drawCell(
+				context,
+				cell,
+				cellRect(col, row, metrics),
+				config,
+				fontTable,
+			)
 		}
 	}
 }
