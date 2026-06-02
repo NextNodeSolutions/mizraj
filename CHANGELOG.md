@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.2.0](https://github.com/NextNodeSolutions/mizraj/compare/v0.1.0...v0.2.0) (2026-06-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* the bundle identifier is now fr.nextnode.mizraj, so installed Agent Cockpit builds will not auto-update to Mizraj.
+
+### Features
+
+* **sidebar:** navigate live sessions with active highlight and count ([#7](https://github.com/NextNodeSolutions/mizraj/issues/7)) ([2017c32](https://github.com/NextNodeSolutions/mizraj/commit/2017c3213a8698b38b6eb724ecbce1ad46cb384c))
+* **tasks:** per-project SQLite task tree with inline editing ([#10](https://github.com/NextNodeSolutions/mizraj/issues/10)) ([60c704d](https://github.com/NextNodeSolutions/mizraj/commit/60c704d62d6cf5beddd9a7c52b6e5c65700332ca))
+* **terminal:** native libghostty rendering with keyboard input ([#9](https://github.com/NextNodeSolutions/mizraj/issues/9)) ([cccffb0](https://github.com/NextNodeSolutions/mizraj/commit/cccffb06c75ab15bd7b041be11402b11586883d9))
+
+
+### Bug Fixes
+
+* **errors:** format serialized SessionError rejections instead of [object Object] ([36f5f88](https://github.com/NextNodeSolutions/mizraj/commit/36f5f88fb9aa1066a66094763b834d83a430f530))
+* **term-sys:** re-run build script when libghostty appears ([84a4736](https://github.com/NextNodeSolutions/mizraj/commit/84a47366d1fd77b9e6e5e33f8fa9faf3c8fd0d09))
+
+
+### Code Refactoring
+
+* rename app to Mizraj and restructure frontend + backend ([#11](https://github.com/NextNodeSolutions/mizraj/issues/11)) ([51c1e48](https://github.com/NextNodeSolutions/mizraj/commit/51c1e4875135f7b365deb3981db53c840d2e4f4b))
+
 ## 0.1.0 (2026-05-30)
 
 ### Features
