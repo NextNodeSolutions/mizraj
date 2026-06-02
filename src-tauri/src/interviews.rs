@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use crate::project::ActiveProject;
 use crate::plans::protocol::is_safe_slug;
+use crate::project::ActiveProject;
 
 pub type InterviewState = serde_json::Value;
 

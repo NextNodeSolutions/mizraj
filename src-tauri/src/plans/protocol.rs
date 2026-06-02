@@ -7,8 +7,8 @@ use serde_json::{json, Value};
 use tauri::http::{header, HeaderMap, Method, Request, Response, StatusCode};
 use tauri::{Manager, Runtime, UriSchemeContext};
 
-use crate::project::ActiveProject;
 use super::list::PlanKind;
+use crate::project::ActiveProject;
 
 pub const SCHEME: &str = "plan";
 

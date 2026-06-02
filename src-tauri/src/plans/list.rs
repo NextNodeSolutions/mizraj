@@ -6,8 +6,8 @@ use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
 
-use crate::project::ActiveProject;
 use super::protocol::{is_safe_slug, plan_url};
+use crate::project::ActiveProject;
 
 const ERR_NO_ACTIVE_PROJECT: &str = "no active project: call set_active_project first";
 const ERR_REPO_MISMATCH: &str =
@@ -421,10 +421,7 @@ mod tests {
             .expect("interview entry");
         assert_eq!(interview.slug, "mizraj");
         assert_eq!(interview.title, "Interview");
-        assert_eq!(
-            interview.url,
-            plan_url(PlanKind::Interview, "mizraj")
-        );
+        assert_eq!(interview.url, plan_url(PlanKind::Interview, "mizraj"));
         assert!(interview.mtime > 0);
 
         let plan = entries
@@ -433,10 +430,7 @@ mod tests {
             .expect("plan entry");
         assert_eq!(plan.slug, "2026-05-15-mizraj");
         assert_eq!(plan.title, "Plan");
-        assert_eq!(
-            plan.url,
-            plan_url(PlanKind::Plan, "2026-05-15-mizraj")
-        );
+        assert_eq!(plan.url, plan_url(PlanKind::Plan, "2026-05-15-mizraj"));
         assert!(plan.mtime > 0);
     }
 
@@ -591,11 +585,8 @@ mod tests {
         fs::create_dir_all(&plans_dir).expect("mkdir plans");
 
         let fixture = include_str!("../../../docs/plans/2026-05-16-mizraj-backlog.html");
-        fs::write(
-            plans_dir.join("2026-05-16-mizraj-backlog.html"),
-            fixture,
-        )
-        .expect("write fixture");
+        fs::write(plans_dir.join("2026-05-16-mizraj-backlog.html"), fixture)
+            .expect("write fixture");
 
         let entries = collect_entries(tmp.path()).expect("collect_entries");
         assert_eq!(entries.len(), 1);

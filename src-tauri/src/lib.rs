@@ -4,14 +4,14 @@ mod interviews;
 mod logging;
 mod plans;
 mod project;
-mod tasks;
 pub mod session;
+mod tasks;
 pub mod worktree;
 
 use tauri::Manager;
 
-use crate::project::ActiveProject;
 use crate::db::Db;
+use crate::project::ActiveProject;
 use crate::session::SessionManager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -26,10 +26,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(ActiveProject::default())
         .manage(Db::default())
-        .register_uri_scheme_protocol(
-            plans::protocol::SCHEME,
-            plans::protocol::handle_request,
-        )
+        .register_uri_scheme_protocol(plans::protocol::SCHEME, plans::protocol::handle_request)
         .setup(|app| {
             #[cfg(target_os = "macos")]
             if let Some(path) = session::path::capture_login_shell_path() {

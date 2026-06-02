@@ -22,10 +22,7 @@ mod tests {
     #[test]
     fn deep_path_uses_final_segment() {
         assert_eq!(
-            derive_label(
-                "claude",
-                "/Users/walid/repos/mizraj/feat-foundations"
-            ),
+            derive_label("claude", "/Users/walid/repos/mizraj/feat-foundations"),
             "claude @ feat-foundations"
         );
     }

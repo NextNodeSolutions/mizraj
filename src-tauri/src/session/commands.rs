@@ -349,10 +349,7 @@ mod tests {
                 assert_eq!(row.0, id.as_str());
                 assert_eq!(row.1, cwd);
                 assert_eq!(row.2, cwd);
-                assert_eq!(
-                    row.3,
-                    format!("refs/mizraj/sessions/{}", id.as_str())
-                );
+                assert_eq!(row.3, format!("refs/mizraj/sessions/{}", id.as_str()));
                 assert!(
                     row.4.contains('T') && row.4.ends_with('Z'),
                     "started_at should be ISO 8601 UTC, got {}",
