@@ -16,25 +16,19 @@ const SCHEMA_VERSION: i64 = 1;
 const SCHEMA: &str = include_str!("../progress.schema.sql");
 
 /// Resolve the per-project progress database path:
-/// `$HOME/mizraj/<slug>/progress.db`, where `<slug>` identifies the active
+/// `$HOME/Mizraj/<slug>/progress.db`, where `<slug>` identifies the active
 /// project (see [`repo_slug`]).
 pub fn progress_db_path(slug: &str) -> PathBuf {
     let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
-    home.join("mizraj").join(slug).join("progress.db")
+    home.join("Mizraj").join(slug).join("progress.db")
 }
 
 /// Derive a stable slug for `repo_path`: the last segment of the `origin` remote
 /// URL with any `.git` suffix stripped, falling back to the git work tree's
-/// directory name, and finally to the passed path's own name. Always lowercased
-/// so `Mizraj` and `mizraj` resolve to the same
-/// `~/mizraj/<slug>/progress.db`, even on a case-sensitive filesystem.
+/// directory name, and finally to the passed path's own name. The slug keeps its
+/// source casing verbatim, so `~/Mizraj/<slug>/progress.db` mirrors the
+/// repository's own name exactly.
 pub fn repo_slug(repo_path: &Path) -> String {
-    raw_repo_slug(repo_path).to_lowercase()
-}
-
-/// The slug before case-folding; [`repo_slug`] lowercases the result so every
-/// derivation path — remote URL, work tree, bare path — is canonicalized once.
-fn raw_repo_slug(repo_path: &Path) -> String {
     if let Ok(repo) = repo_open(repo_path) {
         if let Ok(Some(url)) = origin_url(&repo) {
             if let Some(slug) = slug_from_remote_url(&url) {
@@ -206,18 +200,18 @@ mod tests {
     }
 
     #[test]
-    fn repo_slug_lowercases_the_resolved_name() {
+    fn repo_slug_preserves_the_resolved_name_casing() {
         let tmp = tempdir().expect("tempdir");
         let project = tmp.path().join("Mizraj");
         std::fs::create_dir(&project).expect("create project dir");
 
-        assert_eq!(repo_slug(&project), "mizraj");
+        assert_eq!(repo_slug(&project), "Mizraj");
     }
 
     #[test]
     fn progress_db_path_lives_under_home_mizraj_slug() {
         let path = progress_db_path("mizraj");
-        assert!(path.ends_with("mizraj/mizraj/progress.db"));
+        assert!(path.ends_with("Mizraj/mizraj/progress.db"));
     }
 
     #[test]

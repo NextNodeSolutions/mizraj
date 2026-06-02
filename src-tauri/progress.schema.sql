@@ -1,5 +1,5 @@
 -- Canonical, idempotent schema for the per-project progress database
--- (`~/mizraj/<slug>/progress.db`). The app and the planning skills are
+-- (`~/Mizraj/<slug>/progress.db`). The app and the planning skills are
 -- independent co-clients of the same file — neither "needs" the other, and
 -- `CREATE ... IF NOT EXISTS` lets whichever opens first create it. There is no
 -- checksummed migration: this file IS the contract, versioned via schema_meta.
