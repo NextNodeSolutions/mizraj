@@ -5,6 +5,10 @@
 //! effective config the renderer consumes. This crate is that layer, kept free of
 //! Tauri so the parsing/resolution logic can be unit-tested in isolation.
 
+mod color;
 mod parse;
+mod resolve;
 
+pub use color::{parse_color, Color, Rgb};
 pub use parse::{parse, Directive};
+pub use resolve::{resolve, Adjustment, CopyOnSelect, CursorStyle, PaddingAxis, ResolvedConfig};
