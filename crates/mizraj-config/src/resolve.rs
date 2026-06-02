@@ -12,6 +12,7 @@
 use std::collections::BTreeMap;
 
 use crate::color::{parse_color, Color, Rgb};
+use crate::diagnostic::Diagnostic;
 use crate::Directive;
 
 /// The shape Ghostty draws the cursor as.
@@ -138,8 +139,9 @@ pub struct ResolvedConfig {
     pub copy_on_select: Option<CopyOnSelect>,
     pub mouse_hide_while_typing: Option<bool>,
     pub term: Option<String>,
-    /// Values that could not be parsed, kept so the host can surface them.
-    pub diagnostics: Vec<String>,
+    /// Problems found while loading/folding the config, kept so the host can
+    /// surface them rather than silently dropping bad values.
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 /// Fold directives into the effective config, in load order (last writer wins).
@@ -383,7 +385,7 @@ fn set<T>(
     value: &str,
     reset: bool,
     parse: impl FnOnce(&str) -> Option<T>,
-    diagnostics: &mut Vec<String>,
+    diagnostics: &mut Vec<Diagnostic>,
     key: &str,
 ) {
     if reset {
@@ -391,7 +393,7 @@ fn set<T>(
     } else if let Some(parsed) = parse(value) {
         *slot = Some(parsed);
     } else {
-        diagnostics.push(format!("invalid value for {key}: {value:?}"));
+        diagnostics.push(Diagnostic::new(key, value, "unrecognized or invalid value"));
     }
 }
 
@@ -403,13 +405,15 @@ fn apply_palette(config: &mut ResolvedConfig, value: &str, reset: bool) {
     let Some((index_part, color_part)) = value.split_once('=') else {
         config
             .diagnostics
-            .push(format!("invalid palette entry: {value:?}"));
+            .push(Diagnostic::new("palette", value, "expected N=#RRGGBB"));
         return;
     };
     let Ok(index) = index_part.trim().parse::<u8>() else {
-        config
-            .diagnostics
-            .push(format!("invalid palette index: {value:?}"));
+        config.diagnostics.push(Diagnostic::new(
+            "palette",
+            value,
+            "palette index must be 0-255",
+        ));
         return;
     };
     let color = color_part.trim();
@@ -423,7 +427,7 @@ fn apply_palette(config: &mut ResolvedConfig, value: &str, reset: bool) {
         }
         None => config
             .diagnostics
-            .push(format!("invalid palette color: {value:?}")),
+            .push(Diagnostic::new("palette", value, "invalid hex color")),
     }
 }
 
@@ -583,8 +587,8 @@ mod tests {
         assert_eq!(config.font_size, None);
         assert_eq!(config.background, None);
         assert_eq!(config.diagnostics.len(), 2);
-        assert!(config.diagnostics.iter().any(|d| d.contains("font-size")));
-        assert!(config.diagnostics.iter().any(|d| d.contains("background")));
+        assert!(config.diagnostics.iter().any(|d| d.key == "font-size"));
+        assert!(config.diagnostics.iter().any(|d| d.key == "background"));
     }
 
     #[test]
