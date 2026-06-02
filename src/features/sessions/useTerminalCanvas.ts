@@ -3,12 +3,11 @@ import { listen } from '@tauri-apps/api/event'
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 
-import { useSettings } from '@/features/settings/settings'
-import type { Theme } from '@/features/settings/settings'
+import { useAppearance } from '@/features/settings/settings'
 import { describeError, isSessionError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
-import type { Appearance, GhosttyConfig } from './ghosttyConfig'
+import type { GhosttyConfig } from './ghosttyConfig'
 import {
 	loadGhosttyConfig,
 	resolveBackgroundAlpha,
@@ -28,17 +27,6 @@ import {
 type TerminalCanvasHandles = {
 	containerRef: RefObject<HTMLDivElement | null>
 	canvasRef: RefObject<HTMLCanvasElement | null>
-}
-
-// Map the user's theme setting onto the light/dark axis the Ghostty config
-// loader keys off; `system` follows the OS preference. Pure: no effect needed,
-// it is derived from the setting and the media query on every render.
-const appearanceFor = (theme: Theme): Appearance => {
-	if (theme === 'light') return 'light'
-	if (theme === 'dark') return 'dark'
-	return window.matchMedia('(prefers-color-scheme: dark)').matches
-		? 'dark'
-		: 'light'
 }
 
 // The two default colors prefer the Ghostty config's bg/fg (e.g. a theme's
@@ -108,8 +96,7 @@ const propagateResize = (
 export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const canvasRef = useRef<HTMLCanvasElement>(null)
-	const { theme } = useSettings()
-	const appearance = appearanceFor(theme)
+	const appearance = useAppearance()
 
 	useEffect(() => {
 		const container = containerRef.current

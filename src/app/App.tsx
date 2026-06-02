@@ -6,6 +6,7 @@ import { useActiveProject } from '@/features/projects/activeProject'
 import { ProjectPicker } from '@/features/projects/ProjectPicker'
 import { RunAgentButton } from '@/features/sessions/RunAgentButton'
 import { SessionSidebar } from '@/features/sessions/SessionSidebar'
+import { useGhosttyTheme } from '@/features/sessions/useGhosttyTheme'
 import { useSessions } from '@/features/sessions/useSessions'
 import { useSettings } from '@/features/settings/settings'
 import { SettingsPanel } from '@/features/settings/SettingsPanel'
@@ -26,6 +27,12 @@ export function App(): React.JSX.Element {
 	const activeSessionCount = sessions.filter(
 		session => session.status === 'running',
 	).length
+
+	// Drives the app-wide chrome from the resolved Ghostty theme when one is
+	// present; layers inline custom properties on <html> that win over the
+	// data-theme stylesheet below. With no Ghostty theme it is a no-op and the
+	// Catppuccin tokens stand.
+	useGhosttyTheme()
 
 	useEffect(() => {
 		document.documentElement.dataset.theme = settings.theme
