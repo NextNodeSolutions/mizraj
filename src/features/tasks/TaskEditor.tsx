@@ -12,7 +12,7 @@ type TaskEditorProps = {
 	nameOnly?: boolean
 }
 
-const TaskEditor = ({
+export const TaskEditor = ({
 	task,
 	onSaved,
 	onCancel,
@@ -109,5 +109,3 @@ const TaskEditor = ({
 		</form>
 	)
 }
-
-export default TaskEditor

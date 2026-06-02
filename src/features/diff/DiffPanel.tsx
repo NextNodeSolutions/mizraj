@@ -1,14 +1,14 @@
 import { useLayoutToggle } from '@/shared/useLayoutToggle'
 
-import DiffPanelBody from './DiffPanelBody'
-import DiffPanelToolbar from './DiffPanelToolbar'
+import { DiffPanelBody } from './DiffPanelBody'
+import { DiffPanelToolbar } from './DiffPanelToolbar'
 import { useDiff } from './useDiff'
 
 type Props = {
 	onClose?: () => void
 }
 
-const DiffPanel = ({ onClose }: Props): React.JSX.Element => {
+export const DiffPanel = ({ onClose }: Props): React.JSX.Element => {
 	const state = useDiff()
 	const { layout, toggleLayout, diffStyle } = useLayoutToggle()
 
@@ -23,5 +23,3 @@ const DiffPanel = ({ onClose }: Props): React.JSX.Element => {
 		</div>
 	)
 }
-
-export default DiffPanel

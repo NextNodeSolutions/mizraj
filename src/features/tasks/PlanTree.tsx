@@ -1,4 +1,4 @@
-import MilestoneSection from './MilestoneSection'
+import { MilestoneSection } from './MilestoneSection'
 import type { MilestoneGroup } from './tasks'
 
 type PlanTreeProps = {
@@ -6,7 +6,7 @@ type PlanTreeProps = {
 	onChanged: () => void
 }
 
-const PlanTree = ({
+export const PlanTree = ({
 	milestones,
 	onChanged,
 }: PlanTreeProps): React.JSX.Element => {
@@ -29,5 +29,3 @@ const PlanTree = ({
 		</div>
 	)
 }
-
-export default PlanTree

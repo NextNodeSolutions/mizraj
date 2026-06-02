@@ -15,7 +15,7 @@ type Props = {
 
 const DEFAULT_BINARY = 'claude'
 
-const RunAgentButton = ({
+export const RunAgentButton = ({
 	repoPath,
 	binary = DEFAULT_BINARY,
 }: Props): React.JSX.Element => {
@@ -56,5 +56,3 @@ const RunAgentButton = ({
 		</button>
 	)
 }
-
-export default RunAgentButton

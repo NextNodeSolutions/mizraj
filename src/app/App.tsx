@@ -1,22 +1,22 @@
 import { useEffect, useState } from 'react'
 
 import './App.css'
-import PlansMenu from '@/features/plans/PlansMenu'
+import { PlansMenu } from '@/features/plans/PlansMenu'
 import { useActiveProject } from '@/features/projects/activeProject'
-import ProjectPicker from '@/features/projects/ProjectPicker'
-import RunAgentButton from '@/features/sessions/RunAgentButton'
-import SessionSidebar from '@/features/sessions/SessionSidebar'
+import { ProjectPicker } from '@/features/projects/ProjectPicker'
+import { RunAgentButton } from '@/features/sessions/RunAgentButton'
+import { SessionSidebar } from '@/features/sessions/SessionSidebar'
 import { useSessions } from '@/features/sessions/useSessions'
 import { useSettings } from '@/features/settings/settings'
-import SettingsPanel from '@/features/settings/SettingsPanel'
+import { SettingsPanel } from '@/features/settings/SettingsPanel'
 
-import MainContent from './MainContent'
+import { MainContent } from './MainContent'
 import { matchAgentRunRoute, navigate, tasksHref, usePathname } from './router'
 
 const activeSessionsLabel = (count: number): string =>
 	`${count} active ${count === 1 ? 'session' : 'sessions'}`
 
-function App(): React.JSX.Element {
+export function App(): React.JSX.Element {
 	const settings = useSettings()
 	const activeProjectPath = useActiveProject(settings.lastProjectPath)
 	const [panelOpen, setPanelOpen] = useState(false)
@@ -86,5 +86,3 @@ function App(): React.JSX.Element {
 		</main>
 	)
 }
-
-export default App

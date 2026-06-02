@@ -1,4 +1,4 @@
-import TaskGroup from './TaskGroup'
+import { TaskGroup } from './TaskGroup'
 import type { Task } from './tasks'
 import { TASK_STATUSES } from './tasks'
 
@@ -7,7 +7,7 @@ type UserTaskListProps = {
 	onChanged: () => void
 }
 
-const UserTaskList = ({
+export const UserTaskList = ({
 	tasks,
 	onChanged,
 }: UserTaskListProps): React.JSX.Element => {
@@ -30,5 +30,3 @@ const UserTaskList = ({
 		</div>
 	)
 }
-
-export default UserTaskList

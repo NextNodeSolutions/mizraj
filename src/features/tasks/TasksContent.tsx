@@ -1,13 +1,13 @@
-import PlanTree from './PlanTree'
+import { PlanTree } from './PlanTree'
 import type { Overview } from './tasks'
-import UserTaskList from './UserTaskList'
+import { UserTaskList } from './UserTaskList'
 
 type TasksContentProps = {
 	overview: Overview
 	onChanged: () => void
 }
 
-const TasksContent = ({
+export const TasksContent = ({
 	overview,
 	onChanged,
 }: TasksContentProps): React.JSX.Element => (
@@ -16,5 +16,3 @@ const TasksContent = ({
 		<UserTaskList tasks={overview.userTasks} onChanged={onChanged} />
 	</>
 )
-
-export default TasksContent

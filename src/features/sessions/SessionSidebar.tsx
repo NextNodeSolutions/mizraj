@@ -12,7 +12,7 @@ type SessionSidebarProps = {
 	activeSessionId: string | null
 }
 
-const SessionSidebar = ({
+export const SessionSidebar = ({
 	activeSessionId,
 }: SessionSidebarProps): React.JSX.Element => {
 	const sessions = useSessions()
@@ -57,5 +57,3 @@ const SessionSidebar = ({
 		</nav>
 	)
 }
-
-export default SessionSidebar

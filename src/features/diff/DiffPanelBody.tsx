@@ -1,7 +1,7 @@
 import type { DiffStyle } from '@/shared/useLayoutToggle'
 
-import DiffPanelPlaceholder from './DiffPanelPlaceholder'
-import DiffPanelView from './DiffPanelView'
+import { DiffPanelPlaceholder } from './DiffPanelPlaceholder'
+import { DiffPanelView } from './DiffPanelView'
 import type { DiffLoadState } from './useDiff'
 
 type Props = {
@@ -9,7 +9,10 @@ type Props = {
 	diffStyle: DiffStyle
 }
 
-const DiffPanelBody = ({ state, diffStyle }: Props): React.JSX.Element => {
+export const DiffPanelBody = ({
+	state,
+	diffStyle,
+}: Props): React.JSX.Element => {
 	if (state.status === 'loading') {
 		return (
 			<DiffPanelPlaceholder tone="loading">
@@ -33,5 +36,3 @@ const DiffPanelBody = ({ state, diffStyle }: Props): React.JSX.Element => {
 	}
 	return <DiffPanelView patch={state.patch} diffStyle={diffStyle} />
 }
-
-export default DiffPanelBody

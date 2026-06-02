@@ -10,7 +10,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 import type { Task } from './tasks'
-import TrackTaskRow from './TrackTaskRow'
+import { TrackTaskRow } from './TrackTaskRow'
 
 const TRACK_TASK: Task = {
 	id: 'track-1',

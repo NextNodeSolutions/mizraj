@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import TaskEditor from './TaskEditor'
+import { TaskEditor } from './TaskEditor'
 import type { Task } from './tasks'
 import { STATUS_CONFIG } from './taskStatusConfig'
 
@@ -9,7 +9,7 @@ type TrackTaskRowProps = {
 	onChanged: () => void
 }
 
-const TrackTaskRow = ({
+export const TrackTaskRow = ({
 	task,
 	onChanged,
 }: TrackTaskRowProps): React.JSX.Element => {
@@ -70,5 +70,3 @@ const TrackTaskRow = ({
 		</li>
 	)
 }
-
-export default TrackTaskRow

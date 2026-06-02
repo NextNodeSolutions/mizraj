@@ -8,7 +8,7 @@ type Props = {
 	sessionId: string
 }
 
-const TerminalPane = ({ sessionId }: Props): React.JSX.Element => {
+export const TerminalPane = ({ sessionId }: Props): React.JSX.Element => {
 	const { containerRef, canvasRef } = useTerminalCanvas(sessionId)
 	const claim = useSetAtom(claimActiveSessionAtom)
 	const release = useSetAtom(releaseActiveSessionAtom)
@@ -31,5 +31,3 @@ const TerminalPane = ({ sessionId }: Props): React.JSX.Element => {
 		</div>
 	)
 }
-
-export default TerminalPane

@@ -1,12 +1,12 @@
 import type { MilestoneGroup } from './tasks'
-import TrackSection from './TrackSection'
+import { TrackSection } from './TrackSection'
 
 type MilestoneSectionProps = {
 	milestone: MilestoneGroup
 	onChanged: () => void
 }
 
-const MilestoneSection = ({
+export const MilestoneSection = ({
 	milestone,
 	onChanged,
 }: MilestoneSectionProps): React.JSX.Element => {
@@ -36,5 +36,3 @@ const MilestoneSection = ({
 		</section>
 	)
 }
-
-export default MilestoneSection

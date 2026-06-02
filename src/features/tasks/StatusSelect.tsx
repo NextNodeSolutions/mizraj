@@ -11,7 +11,7 @@ type StatusSelectProps = {
 	onChanged: () => void
 }
 
-const StatusSelect = ({
+export const StatusSelect = ({
 	task,
 	onChanged,
 }: StatusSelectProps): React.JSX.Element => {
@@ -61,5 +61,3 @@ const StatusSelect = ({
 		</div>
 	)
 }
-
-export default StatusSelect

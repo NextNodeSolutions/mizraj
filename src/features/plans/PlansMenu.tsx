@@ -83,7 +83,7 @@ const renderState = (
 	)
 }
 
-const PlansMenu = ({ repoPath, onSelect }: Props): React.JSX.Element => {
+export const PlansMenu = ({ repoPath, onSelect }: Props): React.JSX.Element => {
 	const state = usePlans(repoPath)
 	const handleSelect = onSelect ?? defaultSelect
 	return (
@@ -92,5 +92,3 @@ const PlansMenu = ({ repoPath, onSelect }: Props): React.JSX.Element => {
 		</nav>
 	)
 }
-
-export default PlansMenu

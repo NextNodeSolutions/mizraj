@@ -1,4 +1,4 @@
-import TaskItem from './TaskItem'
+import { TaskItem } from './TaskItem'
 import type { Task, TaskStatus } from './tasks'
 import { STATUS_CONFIG } from './taskStatusConfig'
 
@@ -8,7 +8,7 @@ type GroupProps = {
 	onChanged: () => void
 }
 
-const TaskGroup = ({
+export const TaskGroup = ({
 	status,
 	tasks,
 	onChanged,
@@ -25,5 +25,3 @@ const TaskGroup = ({
 		</ul>
 	</section>
 )
-
-export default TaskGroup

@@ -1,12 +1,15 @@
 import type { OverviewState } from './tasks'
-import TasksContent from './TasksContent'
+import { TasksContent } from './TasksContent'
 
 type TasksBodyProps = {
 	state: OverviewState
 	onChanged: () => void
 }
 
-const TasksBody = ({ state, onChanged }: TasksBodyProps): React.JSX.Element => {
+export const TasksBody = ({
+	state,
+	onChanged,
+}: TasksBodyProps): React.JSX.Element => {
 	if (state.status === 'idle') {
 		return <p className="tasks-view__empty">No project selected.</p>
 	}
@@ -29,5 +32,3 @@ const TasksBody = ({ state, onChanged }: TasksBodyProps): React.JSX.Element => {
 	}
 	return <TasksContent overview={state.data} onChanged={onChanged} />
 }
-
-export default TasksBody

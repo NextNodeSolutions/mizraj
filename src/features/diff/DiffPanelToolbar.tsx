@@ -6,7 +6,7 @@ type Props = {
 	onClose?: () => void
 }
 
-const DiffPanelToolbar = ({
+export const DiffPanelToolbar = ({
 	layout,
 	onToggle,
 	onClose,
@@ -32,5 +32,3 @@ const DiffPanelToolbar = ({
 		)}
 	</div>
 )
-
-export default DiffPanelToolbar

@@ -9,7 +9,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 	invoke: invokeMock,
 }))
 
-import PlanTree from './PlanTree'
+import { PlanTree } from './PlanTree'
 import type { MilestoneGroup, Task } from './tasks'
 
 const trackTask: Task = {

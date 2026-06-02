@@ -7,7 +7,10 @@ type Props = {
 	children: ReactNode
 }
 
-const DiffPanelPlaceholder = ({ tone, children }: Props): React.JSX.Element => {
+export const DiffPanelPlaceholder = ({
+	tone,
+	children,
+}: Props): React.JSX.Element => {
 	if (tone === 'loading') {
 		return (
 			<p
@@ -35,5 +38,3 @@ const DiffPanelPlaceholder = ({ tone, children }: Props): React.JSX.Element => {
 		</p>
 	)
 }
-
-export default DiffPanelPlaceholder

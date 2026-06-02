@@ -10,7 +10,10 @@ type Props = {
 	diffStyle: DiffStyle
 }
 
-const DiffPanelView = ({ patch, diffStyle }: Props): React.JSX.Element => {
+export const DiffPanelView = ({
+	patch,
+	diffStyle,
+}: Props): React.JSX.Element => {
 	const files = useMemo(
 		() => parsePatchFiles(patch).flatMap(parsed => parsed.files),
 		[patch],
@@ -28,5 +31,3 @@ const DiffPanelView = ({ patch, diffStyle }: Props): React.JSX.Element => {
 		</div>
 	)
 }
-
-export default DiffPanelView

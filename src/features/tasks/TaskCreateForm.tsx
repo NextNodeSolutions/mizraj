@@ -8,7 +8,9 @@ type CreateFormProps = {
 	onCreated: () => void
 }
 
-const TaskCreateForm = ({ onCreated }: CreateFormProps): React.JSX.Element => {
+export const TaskCreateForm = ({
+	onCreated,
+}: CreateFormProps): React.JSX.Element => {
 	const [title, setTitle] = useState('')
 	const [description, setDescription] = useState('')
 	const [submitting, setSubmitting] = useState(false)
@@ -72,5 +74,3 @@ const TaskCreateForm = ({ onCreated }: CreateFormProps): React.JSX.Element => {
 		</form>
 	)
 }
-
-export default TaskCreateForm

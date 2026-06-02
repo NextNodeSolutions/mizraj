@@ -6,7 +6,7 @@ import { matchPlanRoute, usePathname } from '@/app/router'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
-import PlanPanel from './PlanPanel'
+import { PlanPanel } from './PlanPanel'
 
 type ResolvedPlan = { url: string }
 
@@ -17,7 +17,7 @@ type Resolution =
 
 const planKey = ({ kind, slug }: PlanRoute): string => `${kind}/${slug}`
 
-const PlanView = (): React.JSX.Element => {
+export const PlanView = (): React.JSX.Element => {
 	const pathname = usePathname()
 	const route = matchPlanRoute(pathname)
 	const [resolution, setResolution] = useState<Resolution>({
@@ -80,5 +80,3 @@ const PlanView = (): React.JSX.Element => {
 	const key = planKey(route)
 	return <PlanPanel key={key} src={resolution.url} title={key} />
 }
-
-export default PlanView

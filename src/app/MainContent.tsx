@@ -1,6 +1,6 @@
-import PlanView from '@/features/plans/PlanView'
-import AgentRun from '@/features/sessions/AgentRun'
-import TasksView from '@/features/tasks/TasksView'
+import { PlanView } from '@/features/plans/PlanView'
+import { AgentRun } from '@/features/sessions/AgentRun'
+import { TasksView } from '@/features/tasks/TasksView'
 
 import { matchAgentRunRoute, matchTasksRoute, usePathname } from './router'
 
@@ -8,7 +8,9 @@ type Props = {
 	activeProjectPath: string | null
 }
 
-const MainContent = ({ activeProjectPath }: Props): React.JSX.Element => {
+export const MainContent = ({
+	activeProjectPath,
+}: Props): React.JSX.Element => {
 	const pathname = usePathname()
 	const agentRunRoute = matchAgentRunRoute(pathname)
 	if (agentRunRoute) {
@@ -24,5 +26,3 @@ const MainContent = ({ activeProjectPath }: Props): React.JSX.Element => {
 	}
 	return <PlanView />
 }
-
-export default MainContent

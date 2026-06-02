@@ -25,7 +25,7 @@ vi.mock('@pierre/diffs/react', () => {
 	return { FileDiff }
 })
 
-import DiffPanel from './DiffPanel'
+import { DiffPanel } from './DiffPanel'
 
 const FIXTURE_PATCH = [
 	'diff --git a/foo.ts b/foo.ts',

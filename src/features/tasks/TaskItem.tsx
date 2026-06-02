@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
-import StatusSelect from './StatusSelect'
-import TaskEditor from './TaskEditor'
+import { StatusSelect } from './StatusSelect'
+import { TaskEditor } from './TaskEditor'
 import type { Task } from './tasks'
 import { STATUS_CONFIG } from './taskStatusConfig'
 
@@ -10,7 +10,7 @@ type ItemProps = {
 	onChanged: () => void
 }
 
-const TaskItem = ({ task, onChanged }: ItemProps): React.JSX.Element => {
+export const TaskItem = ({ task, onChanged }: ItemProps): React.JSX.Element => {
 	const [editing, setEditing] = useState(false)
 	const hasDescription = task.description !== null && task.description !== ''
 
@@ -56,5 +56,3 @@ const TaskItem = ({ task, onChanged }: ItemProps): React.JSX.Element => {
 		</li>
 	)
 }
-
-export default TaskItem

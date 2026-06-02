@@ -18,7 +18,7 @@ const THEME_OPTIONS: ReadonlyArray<{ value: Theme; label: string }> = [
 	{ value: 'system', label: 'System' },
 ]
 
-const SettingsPanel = ({
+export const SettingsPanel = ({
 	open: isOpen,
 	onClose,
 	settings,
@@ -152,5 +152,3 @@ const SettingsPanel = ({
 		</dialog>
 	)
 }
-
-export default SettingsPanel

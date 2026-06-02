@@ -9,7 +9,7 @@ type LoadStatus = 'loading' | 'loaded' | 'timeout'
 
 const LOAD_TIMEOUT_MS = 5000
 
-const PlanPanel = ({ src, title }: Props): React.JSX.Element => {
+export const PlanPanel = ({ src, title }: Props): React.JSX.Element => {
 	const [status, setStatus] = useState<LoadStatus>('loading')
 
 	useEffect(() => {
@@ -52,5 +52,3 @@ const PlanPanel = ({ src, title }: Props): React.JSX.Element => {
 		</div>
 	)
 }
-
-export default PlanPanel

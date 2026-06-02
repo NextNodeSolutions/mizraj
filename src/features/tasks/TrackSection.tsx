@@ -1,12 +1,12 @@
 import type { TrackGroup } from './tasks'
-import TrackTaskRow from './TrackTaskRow'
+import { TrackTaskRow } from './TrackTaskRow'
 
 type TrackSectionProps = {
 	track: TrackGroup
 	onChanged: () => void
 }
 
-const TrackSection = ({
+export const TrackSection = ({
 	track,
 	onChanged,
 }: TrackSectionProps): React.JSX.Element => (
@@ -22,5 +22,3 @@ const TrackSection = ({
 		</ul>
 	</section>
 )
-
-export default TrackSection

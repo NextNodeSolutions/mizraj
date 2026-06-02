@@ -1,12 +1,12 @@
-import TaskCreateForm from './TaskCreateForm'
+import { TaskCreateForm } from './TaskCreateForm'
 import { useTasks } from './tasks'
-import TasksBody from './TasksBody'
+import { TasksBody } from './TasksBody'
 
 type Props = {
 	repoPath: string | null
 }
 
-const TasksView = ({ repoPath }: Props): React.JSX.Element => {
+export const TasksView = ({ repoPath }: Props): React.JSX.Element => {
 	const { state, refetch } = useTasks(repoPath)
 	return (
 		<section className="tasks-view" aria-label="Tasks">
@@ -16,5 +16,3 @@ const TasksView = ({ repoPath }: Props): React.JSX.Element => {
 		</section>
 	)
 }
-
-export default TasksView

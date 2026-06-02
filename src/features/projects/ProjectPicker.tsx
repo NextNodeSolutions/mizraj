@@ -7,7 +7,7 @@ type Props = {
 	onSelect: (path: string) => void
 }
 
-const ProjectPicker = ({ onSelect }: Props): React.JSX.Element => {
+export const ProjectPicker = ({ onSelect }: Props): React.JSX.Element => {
 	const handleClick = (): void => {
 		open({ directory: true })
 			.then(selected => {
@@ -29,5 +29,3 @@ const ProjectPicker = ({ onSelect }: Props): React.JSX.Element => {
 		</button>
 	)
 }
-
-export default ProjectPicker

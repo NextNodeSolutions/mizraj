@@ -30,10 +30,8 @@ const handleError = (error: unknown, info: ErrorInfo): void => {
 	})
 }
 
-const ErrorBoundary = ({ children }: Props): React.JSX.Element => (
+export const ErrorBoundary = ({ children }: Props): React.JSX.Element => (
 	<ReactErrorBoundary FallbackComponent={ErrorFallback} onError={handleError}>
 		{children}
 	</ReactErrorBoundary>
 )
-
-export default ErrorBoundary

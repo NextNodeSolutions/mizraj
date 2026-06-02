@@ -9,7 +9,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 	invoke: invokeMock,
 }))
 
-import TaskItem from './TaskItem'
+import { TaskItem } from './TaskItem'
 import type { Task } from './tasks'
 
 const USER_TASK: Task = {

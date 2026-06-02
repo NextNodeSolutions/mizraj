@@ -1,11 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
 import { useState } from 'react'
 
-import DiffPanel from '@/features/diff/DiffPanel'
+import { DiffPanel } from '@/features/diff/DiffPanel'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
-import TerminalPane from './TerminalPane'
+import { TerminalPane } from './TerminalPane'
 import { useSession } from './useSession'
 
 type Props = {
@@ -22,7 +22,7 @@ const stopSession = (sessionId: string): void => {
 	})
 }
 
-const AgentRun = ({ sessionId }: Props): React.JSX.Element => {
+export const AgentRun = ({ sessionId }: Props): React.JSX.Element => {
 	const session = useSession(sessionId)
 	const ended = session?.status === 'ended'
 
@@ -69,5 +69,3 @@ const AgentRun = ({ sessionId }: Props): React.JSX.Element => {
 		</div>
 	)
 }
-
-export default AgentRun
