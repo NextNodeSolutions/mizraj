@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { EMPTY_CONFIG } from './ghosttyConfig'
 import type { GhosttyConfig, PaletteEntry } from './ghosttyConfig'
-import { THEME_TOKEN_KEYS, ghosttyThemeTokens } from './useGhosttyTheme'
+import { ghosttyThemeTokens, THEME_TOKEN_KEYS } from './ghosttyTheme'
 
 // A Catppuccin-Latte-shaped config: light background, dark foreground, and a
 // full 16-entry palette (indices 0..15). Built from EMPTY_CONFIG so only the

@@ -6,19 +6,16 @@ import {
 	resolveBackgroundAlpha,
 	resolveFont,
 } from './ghosttyConfig'
-import type {
-	CellFramePayload,
-	TerminalConfig,
-	WireCell,
-} from './terminalRenderer'
+import { buildFontTable } from './terminalAttrs'
+import { buildPalette } from './terminalPalette'
+import type { TerminalConfig } from './terminalRenderer'
 import {
-	buildFontTable,
-	buildPalette,
 	cellRect,
 	drawFrame,
 	gridForSize,
 	measureCell,
 } from './terminalRenderer'
+import type { CellFramePayload, WireCell } from './terminalWire'
 
 // Box-drawing borders disappeared because cells were placed at fractional
 // `col * cellWidth` offsets, smearing 1px vertical strokes across two columns.
@@ -230,53 +227,7 @@ describe('measureCell', () => {
 // xterm default.
 const LATTE_BG = '#eff1f5'
 const LATTE_FG = '#4c4f69'
-const LATTE_ANSI_0 = '#5c5f77'
 const LATTE_ANSI_15 = '#dce0e8'
-const XTERM_DEFAULT_RED = '#cd0000'
-const XTERM_DEFAULT_CUBE_21 = 'rgb(0, 0, 255)'
-
-describe('buildPalette', () => {
-	it('keeps the full xterm default table when there are no overrides', () => {
-		const palette = buildPalette([])
-
-		expect(palette).toHaveLength(256)
-		expect(palette[1]).toBe(XTERM_DEFAULT_RED)
-		// index 21 is the first fully-blue cube entry, untouched by a theme.
-		expect(palette[21]).toBe(XTERM_DEFAULT_CUBE_21)
-	})
-
-	it('lets a config override win at its own index', () => {
-		const palette = buildPalette([{ index: 0, color: LATTE_ANSI_0 }])
-
-		expect(palette[0]).toBe(LATTE_ANSI_0)
-	})
-
-	it('leaves indices the config did not override at the xterm default', () => {
-		const palette = buildPalette([{ index: 0, color: LATTE_ANSI_0 }])
-
-		// only index 0 was overridden; 1 (red) and 21 (cube blue) are unchanged.
-		expect(palette[1]).toBe(XTERM_DEFAULT_RED)
-		expect(palette[21]).toBe(XTERM_DEFAULT_CUBE_21)
-	})
-
-	it('ignores out-of-range override indices without growing or holing the table', () => {
-		const palette = buildPalette([
-			{ index: -1, color: '#deadbe' },
-			{ index: 256, color: '#feedee' },
-		])
-
-		expect(palette).toHaveLength(256)
-		expect(palette[255]).toBe('rgb(238, 238, 238)')
-	})
-
-	it('does not mutate the shared xterm defaults across builds', () => {
-		buildPalette([{ index: 1, color: LATTE_ANSI_0 }])
-		const second = buildPalette([])
-
-		// a prior build's override must not bleed into a later default build.
-		expect(second[1]).toBe(XTERM_DEFAULT_RED)
-	})
-})
 
 describe('resolveBackgroundAlpha', () => {
 	it.each([

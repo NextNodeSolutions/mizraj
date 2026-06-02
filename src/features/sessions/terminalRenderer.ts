@@ -1,124 +1,14 @@
-import type { PaletteEntry, ResolvedFont } from './ghosttyConfig'
+import type { ResolvedFont } from './ghosttyConfig'
+import { ATTR_TABLE, decodeAttrs, fontFor } from './terminalAttrs'
+import type { TerminalColors } from './terminalPalette'
+import { resolveColor } from './terminalPalette'
+import type { CellFramePayload, WireCell } from './terminalWire'
 
 const UNDERLINE_OFFSET_PX = 2
 const UNDERLINE_THICKNESS_PX = 1
 const STRIKE_CENTER_RATIO = 0.5
 const DIM_ALPHA = 0.6
 const FULL_ALPHA = 1
-
-// Bit masks for the backend u8 attrs bitfield (bit positions 0..5).
-const ATTR_BOLD = 0b00_0001
-const ATTR_ITALIC = 0b00_0010
-const ATTR_UNDERLINE = 0b00_0100
-const ATTR_REVERSE = 0b00_1000
-const ATTR_DIM = 0b01_0000
-const ATTR_STRIKE = 0b10_0000
-
-const ANSI_16 = [
-	'#000000',
-	'#cd0000',
-	'#00cd00',
-	'#cdcd00',
-	'#0000ee',
-	'#cd00cd',
-	'#00cdcd',
-	'#e5e5e5',
-	'#7f7f7f',
-	'#ff0000',
-	'#00ff00',
-	'#ffff00',
-	'#5c5cff',
-	'#ff00ff',
-	'#00ffff',
-	'#ffffff',
-] as const
-
-const CUBE_BASE = 16
-const CUBE_END = 231
-const CUBE_STEP = 40
-const CUBE_OFFSET = 55
-const CUBE_SIDE = 6
-const CUBE_PLANE = CUBE_SIDE * CUBE_SIDE
-const PALETTE_MAX_INDEX = 255
-const GRAYSCALE_BASE = 232
-const GRAYSCALE_START = 8
-const GRAYSCALE_STEP = 10
-
-const cubeChannel = (level: number): number =>
-	level === 0 ? 0 : CUBE_OFFSET + level * CUBE_STEP
-
-// The standard xterm 256-color table: ANSI 16 + a 6x6x6 color cube (16..231) +
-// a 24-step grayscale ramp (232..255). Indices 16..255 already match Ghostty's
-// defaults exactly, so this is the base layer a theme's `palette` overrides sit
-// on top of (a full theme only ships 0..15).
-const buildXtermDefaults = (): readonly string[] => {
-	const palette: string[] = [...ANSI_16]
-
-	for (let idx = CUBE_BASE; idx <= CUBE_END; idx += 1) {
-		const n = idx - CUBE_BASE
-		const r = cubeChannel(Math.floor(n / CUBE_PLANE))
-		const g = cubeChannel(Math.floor((n % CUBE_PLANE) / CUBE_SIDE))
-		const b = cubeChannel(n % CUBE_SIDE)
-		palette.push(`rgb(${r}, ${g}, ${b})`)
-	}
-
-	for (let idx = GRAYSCALE_BASE; idx <= PALETTE_MAX_INDEX; idx += 1) {
-		const v = GRAYSCALE_START + (idx - GRAYSCALE_BASE) * GRAYSCALE_STEP
-		palette.push(`rgb(${v}, ${v}, ${v})`)
-	}
-
-	return palette
-}
-
-const XTERM_PALETTE = buildXtermDefaults()
-
-// The 256-entry palette the renderer actually indexes: the xterm defaults with
-// the Ghostty config's `palette` overrides applied on top (override index wins,
-// non-overridden indices keep the xterm default). Built once per config — like
-// the font table — and threaded in via TerminalConfig, never rebuilt per frame.
-// Out-of-range override indices are ignored so a bad config never grows the
-// array past 256 or punches holes in it. Lives here because the xterm defaults
-// it layers onto are the renderer's; the dependency stays renderer -> config
-// (it only borrows the PaletteEntry type), never the reverse.
-export const buildPalette = (
-	overrides: readonly PaletteEntry[],
-): readonly string[] => {
-	const palette = [...XTERM_PALETTE]
-
-	for (const { index, color } of overrides) {
-		if (index < 0 || index > PALETTE_MAX_INDEX) continue
-		palette[index] = color
-	}
-
-	return palette
-}
-
-export type WireColor =
-	| { kind: 'default' }
-	| { kind: 'indexed'; idx: number }
-	| { kind: 'rgb'; r: number; g: number; b: number }
-
-export type WireCell = {
-	ch: string
-	fg: WireColor
-	bg: WireColor
-	attrs: number
-}
-
-export type CellFramePayload = {
-	session_id: string
-	cols: number
-	rows: number
-	cells: WireCell[]
-}
-
-// The two colors a cell's `Color::Default` resolves to. Passed in by the caller
-// rather than hardcoded so the `--terminal-bg`/`--terminal-fg` CSS variables stay
-// the single source of truth (see useTerminalCanvas).
-export type TerminalColors = {
-	background: string
-	foreground: string
-}
 
 // Everything the renderer needs that comes from outside the cell stream, grouped
 // by concern so later parity milestones bolt on without re-plumbing every
@@ -138,65 +28,6 @@ type CellMetrics = {
 	cellWidth: number
 	lineHeight: number
 }
-
-type CellAttrs = {
-	bold: boolean
-	italic: boolean
-	underline: boolean
-	reverse: boolean
-	dim: boolean
-	strike: boolean
-}
-
-/* eslint-disable no-bitwise -- decodes the backend u8 attrs bitfield (BOLD..STRIKE); the wire format mandates bit math here */
-const decodeAttrs = (attrs: number): CellAttrs => ({
-	bold: (attrs & ATTR_BOLD) !== 0,
-	italic: (attrs & ATTR_ITALIC) !== 0,
-	underline: (attrs & ATTR_UNDERLINE) !== 0,
-	reverse: (attrs & ATTR_REVERSE) !== 0,
-	dim: (attrs & ATTR_DIM) !== 0,
-	strike: (attrs & ATTR_STRIKE) !== 0,
-})
-/* eslint-enable no-bitwise */
-
-// One resolver for both planes: the only difference is which theme color the
-// terminal `default` resolves to, so the caller passes that as the fallback
-// (also used when an indexed color is out of the 0..255 palette range). Indexed
-// colors resolve against the per-config palette (xterm defaults + theme
-// overrides), not the bare module-const defaults.
-const resolveColor = (
-	color: WireColor,
-	fallback: string,
-	palette: readonly string[],
-): string => {
-	if (color.kind === 'default') return fallback
-	if (color.kind === 'rgb') return `rgb(${color.r}, ${color.g}, ${color.b})`
-	return palette[color.idx] ?? fallback
-}
-
-const fontFor = (attrs: CellAttrs, font: ResolvedFont): string => {
-	const weight = attrs.bold ? 'bold' : 'normal'
-	const style = attrs.italic ? 'italic' : 'normal'
-	return `${style} ${weight} ${font.sizePx}px ${font.familyCss}`
-}
-
-// `attrs` is a backend u8, so there are only 256 possible decodings. Decode them
-// once at module load and index by the raw byte in the per-cell hot path,
-// instead of allocating a fresh attrs object for every cell of every frame (tens
-// of thousands per second during a heavy TUI redraw).
-const ATTR_TABLE: readonly CellAttrs[] = Array.from(
-	{ length: 256 },
-	(_, bits) => decodeAttrs(bits),
-)
-
-// Each font yields 256 possible CSS font strings (one per attrs byte). Building
-// them per cell per frame would allocate in the hottest path, so the table is
-// precomputed once per font and indexed by the raw attrs byte while drawing.
-// The font is fixed for the lifetime of a startRendering call (it changes only
-// on session/appearance change, which tears down the whole closure), so the
-// caller builds this once there and threads it in alongside the metrics.
-export const buildFontTable = (font: ResolvedFont): readonly string[] =>
-	ATTR_TABLE.map(attrs => fontFor(attrs, font))
 
 export const measureCell = (
 	context: CanvasRenderingContext2D,

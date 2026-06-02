@@ -90,10 +90,9 @@ export const useSettings = (): UseSettings => {
 // The OS-level dark-mode query. Resolving `system` against it is a genuine
 // external-system read, so it goes through useSyncExternalStore rather than an
 // ad-hoc effect: the snapshot is `.matches`, and subscribing to its `change`
-// event is what makes a live OS theme switch propagate (the listener the old
-// per-canvas appearanceFor lacked). matchMedia exists in the Tauri webview at
-// runtime, but guard it anyway so a non-DOM test/SSR context falls back to
-// "not dark" instead of throwing.
+// event is what makes a live OS theme switch propagate to the whole app.
+// matchMedia exists in the Tauri webview at runtime, but guard it anyway so a
+// non-DOM test/SSR context falls back to "not dark" instead of throwing.
 const DARK_SCHEME_QUERY = '(prefers-color-scheme: dark)'
 
 const prefersDarkQuery = (): MediaQueryList | null => {

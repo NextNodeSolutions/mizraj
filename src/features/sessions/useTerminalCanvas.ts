@@ -14,15 +14,16 @@ import {
 	resolveFont,
 } from './ghosttyConfig'
 import { AGENT_CELLS_EVENT } from './sessions'
-import type { CellFramePayload, TerminalConfig } from './terminalRenderer'
+import { buildFontTable } from './terminalAttrs'
+import { buildPalette } from './terminalPalette'
+import type { TerminalConfig } from './terminalRenderer'
 import {
-	buildFontTable,
-	buildPalette,
 	drawFrame,
 	gridForSize,
 	measureCell,
 	syncBackingStore,
 } from './terminalRenderer'
+import type { CellFramePayload } from './terminalWire'
 
 type TerminalCanvasHandles = {
 	containerRef: RefObject<HTMLDivElement | null>
