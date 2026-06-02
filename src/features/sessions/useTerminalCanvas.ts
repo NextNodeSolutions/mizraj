@@ -8,12 +8,17 @@ import type { Theme } from '@/features/settings/settings'
 import { describeError, isSessionError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
-import type { Appearance } from './ghosttyConfig'
-import { loadGhosttyConfig, resolveFont } from './ghosttyConfig'
+import type { Appearance, GhosttyConfig } from './ghosttyConfig'
+import {
+	loadGhosttyConfig,
+	resolveBackgroundAlpha,
+	resolveFont,
+} from './ghosttyConfig'
 import { AGENT_CELLS_EVENT } from './sessions'
 import type { CellFramePayload, TerminalConfig } from './terminalRenderer'
 import {
 	buildFontTable,
+	buildPalette,
 	drawFrame,
 	gridForSize,
 	measureCell,
@@ -36,16 +41,23 @@ const appearanceFor = (theme: Theme): Appearance => {
 		: 'light'
 }
 
-// The two default colors come straight from the --terminal-bg/--terminal-fg
-// :root vars (single source of truth, see App.css). Static, so read once per
-// effect run, not per frame. Values can carry leading whitespace, hence trim.
-const readTerminalColors = (
+// The two default colors prefer the Ghostty config's bg/fg (e.g. a theme's
+// `#eff1f5`/`#4c4f69`); when the config leaves them null, fall back to the
+// --terminal-bg/--terminal-fg :root vars (the pre-config source of truth, see
+// App.css). CSS vars are read once per effect run, not per frame, and can carry
+// leading whitespace, hence trim.
+const resolveTerminalColors = (
 	canvas: HTMLCanvasElement,
+	config: GhosttyConfig,
 ): TerminalConfig['colors'] => {
 	const computed = getComputedStyle(canvas)
 	return {
-		background: computed.getPropertyValue('--terminal-bg').trim(),
-		foreground: computed.getPropertyValue('--terminal-fg').trim(),
+		background:
+			config.background ??
+			computed.getPropertyValue('--terminal-bg').trim(),
+		foreground:
+			config.foreground ??
+			computed.getPropertyValue('--terminal-fg').trim(),
 	}
 }
 
@@ -123,7 +135,7 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 				container,
 				canvas,
 				sessionId,
-				resolveFont(ghosttyConfig),
+				ghosttyConfig,
 			)
 		})
 
@@ -136,25 +148,29 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 	return { containerRef, canvasRef }
 }
 
-// Wire the cell-frame listener and resize observer for a session at a known
-// font, returning a teardown that releases both. Split out of the effect so the
-// effect body stays wiring + cleanup (it only awaits the font and delegates);
-// the resize/hold-frame architecture and the once-per-font metric measurement
-// live here, where the font is finally available.
+// Wire the cell-frame listener and resize observer for a session against a
+// resolved Ghostty config, returning a teardown that releases both. Split out of
+// the effect so the effect body stays wiring + cleanup (it only awaits the
+// config and delegates); the resize/hold-frame architecture and the
+// once-per-config derivations (font metrics, font table, color palette) live
+// here, where the config is finally available.
 const startRendering = (
 	context: CanvasRenderingContext2D,
 	container: HTMLDivElement,
 	canvas: HTMLCanvasElement,
 	sessionId: string,
-	font: TerminalConfig['font'],
+	ghosttyConfig: GhosttyConfig,
 ): (() => void) => {
+	const font = resolveFont(ghosttyConfig)
 	const config: TerminalConfig = {
-		colors: readTerminalColors(canvas),
+		colors: resolveTerminalColors(canvas, ghosttyConfig),
 		font,
+		palette: buildPalette(ghosttyConfig.palette),
+		backgroundAlpha: resolveBackgroundAlpha(ghosttyConfig),
 	}
 
-	// Metrics and the per-attrs font table depend only on the font, so they are
-	// built once per font here rather than per frame.
+	// Metrics, the per-attrs font table and the 256-entry color palette depend
+	// only on the config, so they are built once here rather than per frame.
 	const metrics = measureCell(context, font)
 	const fontTable = buildFontTable(font)
 	let cssWidth = 0

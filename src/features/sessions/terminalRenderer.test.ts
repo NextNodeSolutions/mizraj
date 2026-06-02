@@ -1,7 +1,24 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { DEFAULT_FONT_STACK, EMPTY_CONFIG, resolveFont } from './ghosttyConfig'
-import { cellRect, gridForSize, measureCell } from './terminalRenderer'
+import {
+	DEFAULT_FONT_STACK,
+	EMPTY_CONFIG,
+	resolveBackgroundAlpha,
+	resolveFont,
+} from './ghosttyConfig'
+import type {
+	CellFramePayload,
+	TerminalConfig,
+	WireCell,
+} from './terminalRenderer'
+import {
+	buildFontTable,
+	buildPalette,
+	cellRect,
+	drawFrame,
+	gridForSize,
+	measureCell,
+} from './terminalRenderer'
 
 // Box-drawing borders disappeared because cells were placed at fractional
 // `col * cellWidth` offsets, smearing 1px vertical strokes across two columns.
@@ -204,5 +221,263 @@ describe('measureCell', () => {
 
 		// 26px * 0.6 advance = 15.6: proof the width tracks the given size.
 		expect(big.cellWidth).toBeCloseTo(15.6, 5)
+	})
+})
+
+// Catppuccin Latte fragments used as realistic, hardcoded expected values: a
+// light theme overrides the default ANSI 0/15 (black/white) with its own beige
+// and ink, so an `indexed` cell color must resolve to the OVERRIDE, not the
+// xterm default.
+const LATTE_BG = '#eff1f5'
+const LATTE_FG = '#4c4f69'
+const LATTE_ANSI_0 = '#5c5f77'
+const LATTE_ANSI_15 = '#dce0e8'
+const XTERM_DEFAULT_RED = '#cd0000'
+const XTERM_DEFAULT_CUBE_21 = 'rgb(0, 0, 255)'
+
+describe('buildPalette', () => {
+	it('keeps the full xterm default table when there are no overrides', () => {
+		const palette = buildPalette([])
+
+		expect(palette).toHaveLength(256)
+		expect(palette[1]).toBe(XTERM_DEFAULT_RED)
+		// index 21 is the first fully-blue cube entry, untouched by a theme.
+		expect(palette[21]).toBe(XTERM_DEFAULT_CUBE_21)
+	})
+
+	it('lets a config override win at its own index', () => {
+		const palette = buildPalette([{ index: 0, color: LATTE_ANSI_0 }])
+
+		expect(palette[0]).toBe(LATTE_ANSI_0)
+	})
+
+	it('leaves indices the config did not override at the xterm default', () => {
+		const palette = buildPalette([{ index: 0, color: LATTE_ANSI_0 }])
+
+		// only index 0 was overridden; 1 (red) and 21 (cube blue) are unchanged.
+		expect(palette[1]).toBe(XTERM_DEFAULT_RED)
+		expect(palette[21]).toBe(XTERM_DEFAULT_CUBE_21)
+	})
+
+	it('ignores out-of-range override indices without growing or holing the table', () => {
+		const palette = buildPalette([
+			{ index: -1, color: '#deadbe' },
+			{ index: 256, color: '#feedee' },
+		])
+
+		expect(palette).toHaveLength(256)
+		expect(palette[255]).toBe('rgb(238, 238, 238)')
+	})
+
+	it('does not mutate the shared xterm defaults across builds', () => {
+		buildPalette([{ index: 1, color: LATTE_ANSI_0 }])
+		const second = buildPalette([])
+
+		// a prior build's override must not bleed into a later default build.
+		expect(second[1]).toBe(XTERM_DEFAULT_RED)
+	})
+})
+
+describe('resolveBackgroundAlpha', () => {
+	it.each([
+		{ background_opacity: null, expected: 1, label: 'null -> opaque' },
+		{
+			background_opacity: 0.95,
+			expected: 0.95,
+			label: 'fraction passes through',
+		},
+		{ background_opacity: 1, expected: 1, label: '1 -> opaque' },
+		{ background_opacity: 1.5, expected: 1, label: '>1 clamps to opaque' },
+		{
+			background_opacity: 0,
+			expected: 1,
+			label: '0 -> opaque (never invisible)',
+		},
+		{ background_opacity: -0.2, expected: 1, label: 'negative -> opaque' },
+	])('$label', ({ background_opacity, expected }) => {
+		expect(
+			resolveBackgroundAlpha({ ...EMPTY_CONFIG, background_opacity }),
+		).toBe(expected)
+	})
+})
+
+// A recording 2d-context double for the paint path. drawFrame/drawCell set
+// `fillStyle`/`globalAlpha` as properties and THEN call fillRect/fillText, so we
+// snapshot the active style+alpha at the moment of each paint into an ordered
+// log. This lets the tests assert on observable output (what got painted, in
+// which color, at which alpha) without touching renderer internals. jsdom has no
+// real 2d backend, so a fake is the only option here.
+type Paint = { op: 'rect' | 'text'; fillStyle: string; alpha: number }
+
+const recordingContext = (): {
+	context: CanvasRenderingContext2D
+	paints: Paint[]
+} => {
+	const paints: Paint[] = []
+	const state = { fillStyle: '', globalAlpha: 1 }
+	const context = {
+		canvas: { width: 800, height: 600 },
+		set fillStyle(value: string) {
+			state.fillStyle = value
+		},
+		set globalAlpha(value: number) {
+			state.globalAlpha = value
+		},
+		set font(_value: string) {},
+		set textBaseline(_value: string) {},
+		save() {},
+		restore() {},
+		setTransform() {},
+		fillRect() {
+			paints.push({
+				op: 'rect',
+				fillStyle: state.fillStyle,
+				alpha: state.globalAlpha,
+			})
+		},
+		fillText() {
+			paints.push({
+				op: 'text',
+				fillStyle: state.fillStyle,
+				alpha: state.globalAlpha,
+			})
+		},
+	}
+	// @ts-expect-error - deliberate partial CanvasRenderingContext2D double;
+	// jsdom cannot provide a real 2d context, and drawFrame touches only the
+	// members faked here (fillStyle/globalAlpha setters, save/restore/
+	// setTransform, fillRect/fillText, canvas dimensions).
+	return { context, paints }
+}
+
+const INTEGRAL_METRICS = { cellWidth: 8, lineHeight: 16 }
+
+// A single non-blank cell whose fg/bg are both `default`, so they resolve to the
+// config's default colors and the test isolates the bg/fg fallback + opacity.
+const defaultColorCell: WireCell = {
+	ch: 'A',
+	fg: { kind: 'default' },
+	bg: { kind: 'default' },
+	attrs: 0,
+}
+
+const oneCellFrame = (cell: WireCell): CellFramePayload => ({
+	session_id: 'sess-1',
+	cols: 1,
+	rows: 1,
+	cells: [cell],
+})
+
+const configWith = (overrides: Partial<TerminalConfig>): TerminalConfig => ({
+	colors: { background: LATTE_BG, foreground: LATTE_FG },
+	font: resolveFont(EMPTY_CONFIG),
+	palette: buildPalette([]),
+	backgroundAlpha: 1,
+	...overrides,
+})
+
+describe('drawFrame color resolution', () => {
+	it('paints a default-colored cell with the config bg and fg', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+
+		drawFrame(
+			context,
+			oneCellFrame(defaultColorCell),
+			INTEGRAL_METRICS,
+			configWith({}),
+			fontTable,
+		)
+
+		const cellBg = paints.find(
+			p => p.op === 'rect' && p.fillStyle === LATTE_BG,
+		)
+		const glyph = paints.find(p => p.op === 'text')
+		expect(cellBg?.fillStyle).toBe(LATTE_BG)
+		expect(glyph?.fillStyle).toBe(LATTE_FG)
+	})
+
+	it('resolves an indexed fg against the config palette override, not the xterm default', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+		// ANSI index 15 (default xterm white #ffffff) overridden by Latte's #dce0e8.
+		const indexedCell: WireCell = {
+			ch: 'A',
+			fg: { kind: 'indexed', idx: 15 },
+			bg: { kind: 'default' },
+			attrs: 0,
+		}
+
+		drawFrame(
+			context,
+			oneCellFrame(indexedCell),
+			INTEGRAL_METRICS,
+			configWith({
+				palette: buildPalette([{ index: 15, color: LATTE_ANSI_15 }]),
+			}),
+			fontTable,
+		)
+
+		const glyph = paints.find(p => p.op === 'text')
+		expect(glyph?.fillStyle).toBe(LATTE_ANSI_15)
+	})
+})
+
+describe('drawFrame background-opacity', () => {
+	it('applies the alpha to the cell background fill but not the glyph', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+
+		drawFrame(
+			context,
+			oneCellFrame(defaultColorCell),
+			INTEGRAL_METRICS,
+			configWith({ backgroundAlpha: 0.95 }),
+			fontTable,
+		)
+
+		const cellBg = paints.find(
+			p => p.op === 'rect' && p.fillStyle === LATTE_BG,
+		)
+		const glyph = paints.find(p => p.op === 'text')
+		expect(cellBg?.alpha).toBe(0.95)
+		expect(glyph?.alpha).toBe(1)
+	})
+
+	it('applies the alpha to the full-canvas clear fill', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+
+		drawFrame(
+			context,
+			oneCellFrame(defaultColorCell),
+			INTEGRAL_METRICS,
+			configWith({ backgroundAlpha: 0.95 }),
+			fontTable,
+		)
+
+		// the very first paint is clearToBackground over the whole backing store.
+		const clearFill = paints[0]
+		expect(clearFill?.op).toBe('rect')
+		expect(clearFill?.fillStyle).toBe(LATTE_BG)
+		expect(clearFill?.alpha).toBe(0.95)
+	})
+
+	it('paints fully opaque when the alpha is 1', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+
+		drawFrame(
+			context,
+			oneCellFrame(defaultColorCell),
+			INTEGRAL_METRICS,
+			configWith({ backgroundAlpha: 1 }),
+			fontTable,
+		)
+
+		const cellBg = paints.find(
+			p => p.op === 'rect' && p.fillStyle === LATTE_BG,
+		)
+		expect(cellBg?.alpha).toBe(1)
 	})
 })

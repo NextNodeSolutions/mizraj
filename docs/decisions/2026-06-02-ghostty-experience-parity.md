@@ -98,11 +98,17 @@ embedded pane does not own.
 2. **Theme resolver** — I4. `theme = name | light:..,dark:.. | abs-path`; search
    `~/.config/ghostty/themes` then bundled dir; parse the fragment with the same parser as a
    **base layer**; explicit user `background`/`foreground`/`palette` override it.
-3. **Resolved-config DTO + backend palette resolution** — I6. One typed serde struct = the
-   effective config after theme+overrides merge: `palette[256]` as RGB, fg/bg/cursor colors,
-   font family/variants/size/features, `adjust-*` metrics, cursor style/blink/opacity, padding,
-   opacity, bold-is-bright, scrollback-limit, term. Resolve indexed/default → RGB on the backend,
-   killing the frontend's hardcoded `ANSI_16`/`buildPalette`.
+3. **Resolved-config DTO + palette seam** — I6. One typed serde struct = the effective config
+   after theme+overrides merge: scalar colors (fg/bg/cursor/selection) as hex, the `palette` as
+   **sparse per-index overrides** (`BTreeMap<u8, Rgb>` → `{index, color}[]`, not a resolved 256
+   table), font family/variants/size/features, `adjust-*` metrics, cursor style/blink/opacity,
+   padding, opacity, bold-is-bright, scrollback-limit, term. **Palette resolution stays on the
+   frontend** (revised from the original "resolve on the backend, kill `buildPalette`"): the
+   renderer keeps the xterm-256 default base (`buildPalette` over `XTERM_PALETTE`) and layers the
+   backend's overrides on top. Rationale: the cube/grayscale range (16–255) is identical on both
+   sides, so a backend 256-table would duplicate it for no gain; the renderer already owns the
+   canvas palette. There is **one** palette authority (the frontend), not two — so when any
+   future backend per-cell RGB resolution lands it must replace this path, not run beside it.
 4. **Renderer config injection** (react-implementer) — I6. Widen `TerminalTheme` → a full
    `TerminalConfig` threaded through `drawFrame`/`drawCell`; re-run `measureCell` when font
    changes (currently once).

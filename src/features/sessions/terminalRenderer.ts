@@ -1,4 +1,4 @@
-import type { ResolvedFont } from './ghosttyConfig'
+import type { PaletteEntry, ResolvedFont } from './ghosttyConfig'
 
 const UNDERLINE_OFFSET_PX = 2
 const UNDERLINE_THICKNESS_PX = 1
@@ -47,7 +47,11 @@ const GRAYSCALE_STEP = 10
 const cubeChannel = (level: number): number =>
 	level === 0 ? 0 : CUBE_OFFSET + level * CUBE_STEP
 
-const buildPalette = (): readonly string[] => {
+// The standard xterm 256-color table: ANSI 16 + a 6x6x6 color cube (16..231) +
+// a 24-step grayscale ramp (232..255). Indices 16..255 already match Ghostty's
+// defaults exactly, so this is the base layer a theme's `palette` overrides sit
+// on top of (a full theme only ships 0..15).
+const buildXtermDefaults = (): readonly string[] => {
 	const palette: string[] = [...ANSI_16]
 
 	for (let idx = CUBE_BASE; idx <= CUBE_END; idx += 1) {
@@ -66,7 +70,28 @@ const buildPalette = (): readonly string[] => {
 	return palette
 }
 
-const XTERM_PALETTE = buildPalette()
+const XTERM_PALETTE = buildXtermDefaults()
+
+// The 256-entry palette the renderer actually indexes: the xterm defaults with
+// the Ghostty config's `palette` overrides applied on top (override index wins,
+// non-overridden indices keep the xterm default). Built once per config — like
+// the font table — and threaded in via TerminalConfig, never rebuilt per frame.
+// Out-of-range override indices are ignored so a bad config never grows the
+// array past 256 or punches holes in it. Lives here because the xterm defaults
+// it layers onto are the renderer's; the dependency stays renderer -> config
+// (it only borrows the PaletteEntry type), never the reverse.
+export const buildPalette = (
+	overrides: readonly PaletteEntry[],
+): readonly string[] => {
+	const palette = [...XTERM_PALETTE]
+
+	for (const { index, color } of overrides) {
+		if (index < 0 || index > PALETTE_MAX_INDEX) continue
+		palette[index] = color
+	}
+
+	return palette
+}
 
 export type WireColor =
 	| { kind: 'default' }
@@ -97,11 +122,16 @@ export type TerminalColors = {
 
 // Everything the renderer needs that comes from outside the cell stream, grouped
 // by concern so later parity milestones bolt on without re-plumbing every
-// signature: M0.5 fills `colors` (CSS vars, unchanged) + `font` (resolved from
-// the Ghostty config); M1 adds the palette, M3 adds cursor state.
+// signature: M0.5 filled `colors` + `font`; M1 adds `palette` (the resolved
+// 256-entry table indexed colors resolve against) and `backgroundAlpha` (the
+// Ghostty `background-opacity`, applied to background fills only). M3 adds cursor
+// state. `colors` now carries the config bg/fg when present, else the CSS-var
+// fallback (see useTerminalCanvas).
 export type TerminalConfig = {
 	colors: TerminalColors
 	font: ResolvedFont
+	palette: readonly string[]
+	backgroundAlpha: number
 }
 
 type CellMetrics = {
@@ -131,11 +161,17 @@ const decodeAttrs = (attrs: number): CellAttrs => ({
 
 // One resolver for both planes: the only difference is which theme color the
 // terminal `default` resolves to, so the caller passes that as the fallback
-// (also used when an indexed color is out of the 0..255 palette range).
-const resolveColor = (color: WireColor, fallback: string): string => {
+// (also used when an indexed color is out of the 0..255 palette range). Indexed
+// colors resolve against the per-config palette (xterm defaults + theme
+// overrides), not the bare module-const defaults.
+const resolveColor = (
+	color: WireColor,
+	fallback: string,
+	palette: readonly string[],
+): string => {
 	if (color.kind === 'default') return fallback
 	if (color.kind === 'rgb') return `rgb(${color.r}, ${color.g}, ${color.b})`
-	return XTERM_PALETTE[color.idx] ?? fallback
+	return palette[color.idx] ?? fallback
 }
 
 const fontFor = (attrs: CellAttrs, font: ResolvedFont): string => {
@@ -206,14 +242,20 @@ const drawCell = (
 	const background = resolveColor(
 		attrs.reverse ? cell.fg : cell.bg,
 		config.colors.background,
+		config.palette,
 	)
 	const foreground = resolveColor(
 		attrs.reverse ? cell.bg : cell.fg,
 		config.colors.foreground,
+		config.palette,
 	)
 
+	// background-opacity dims the cell's background fill only; the glyph and any
+	// underline/strike below stay fully opaque so text never washes out.
+	context.globalAlpha = config.backgroundAlpha
 	context.fillStyle = background
 	context.fillRect(rect.x, rect.y, rect.width, rect.height)
+	context.globalAlpha = FULL_ALPHA
 
 	if (cell.ch !== ' ' && cell.ch !== '') {
 		context.globalAlpha = attrs.dim ? DIM_ALPHA : FULL_ALPHA
@@ -244,17 +286,21 @@ const drawCell = (
 	}
 }
 
-// Paint the whole backing store with the default background. The context is
-// scaled by devicePixelRatio for crisp text, so we drop to the identity
-// transform first and fill in physical pixels — filling `canvas.width` under
-// the scaled transform would overshoot the canvas by the DPR factor.
+// Paint the whole backing store with the default background at the configured
+// background-opacity. The context is scaled by devicePixelRatio for crisp text,
+// so we drop to the identity transform first and fill in physical pixels —
+// filling `canvas.width` under the scaled transform would overshoot the canvas
+// by the DPR factor. `save`/`restore` also rolls back the alpha so the rest of
+// the frame draws fully opaque.
 const clearToBackground = (
 	context: CanvasRenderingContext2D,
 	background: string,
+	alpha: number,
 ): void => {
 	const { canvas } = context
 	context.save()
 	context.setTransform(1, 0, 0, 1, 0, 0)
+	context.globalAlpha = alpha
 	context.fillStyle = background
 	context.fillRect(0, 0, canvas.width, canvas.height)
 	context.restore()
@@ -267,7 +313,7 @@ export const drawFrame = (
 	config: TerminalConfig,
 	fontTable: readonly string[],
 ): void => {
-	clearToBackground(context, config.colors.background)
+	clearToBackground(context, config.colors.background, config.backgroundAlpha)
 	context.textBaseline = 'top'
 
 	for (let row = 0; row < frame.rows; row += 1) {

@@ -183,3 +183,16 @@ export const resolveFont = (config: GhosttyConfig): ResolvedFont => {
 		lineHeightRatio: lineHeightRatioFrom(config.adjust_cell_height, sizePx),
 	}
 }
+
+// background-opacity is meaningful only as a fraction strictly inside (0, 1):
+// 0 would paint nothing, >=1 (or a missing value) is plain opaque. Anything
+// outside that window — including a malformed negative/NaN — falls back to fully
+// opaque so a bad config never makes the terminal vanish.
+const OPAQUE_ALPHA = 1
+
+export const resolveBackgroundAlpha = (config: GhosttyConfig): number => {
+	const opacity = config.background_opacity
+	if (opacity === null) return OPAQUE_ALPHA
+	if (opacity <= 0 || opacity >= OPAQUE_ALPHA) return OPAQUE_ALPHA
+	return opacity
+}
