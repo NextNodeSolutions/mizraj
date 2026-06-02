@@ -1,5 +1,6 @@
 mod db;
 mod diff;
+mod ghostty;
 mod interviews;
 mod logging;
 mod plans;
@@ -45,6 +46,7 @@ pub fn run() {
             logging::log_from_frontend,
             interviews::read_interview_state,
             diff::get_diff,
+            ghostty::load_ghostty_config,
             plans::list::list_plans,
             project::set_active_project,
             project::clear_active_project,

@@ -2474,9 +2474,10 @@ dependencies = [
 
 [[package]]
 name = "mizraj"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "html-escape",
+ "mizraj-config",
  "mizraj-term",
  "mizraj-vcs",
  "nix 0.29.0",
@@ -2501,6 +2502,13 @@ dependencies = [
  "tracing-subscriber",
  "ulid",
  "which",
+]
+
+[[package]]
+name = "mizraj-config"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
 ]
 
 [[package]]
