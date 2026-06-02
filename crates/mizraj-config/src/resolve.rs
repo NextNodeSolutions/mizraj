@@ -13,89 +13,10 @@ use std::collections::BTreeMap;
 
 use crate::color::{parse_color, Color, Rgb};
 use crate::diagnostic::Diagnostic;
+use crate::value::{
+    parse_bool, parse_f32, parse_u64, Adjustment, CopyOnSelect, CursorStyle, PaddingAxis,
+};
 use crate::Directive;
-
-/// The shape Ghostty draws the cursor as.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CursorStyle {
-    Block,
-    Bar,
-    Underline,
-    BlockHollow,
-}
-
-impl CursorStyle {
-    fn parse(value: &str) -> Option<CursorStyle> {
-        match value {
-            "block" => Some(CursorStyle::Block),
-            "bar" => Some(CursorStyle::Bar),
-            "underline" => Some(CursorStyle::Underline),
-            "block_hollow" => Some(CursorStyle::BlockHollow),
-            _ => None,
-        }
-    }
-}
-
-/// What `copy-on-select` copies the selection to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CopyOnSelect {
-    Disabled,
-    /// The selection/primary target (on platforms without one, the clipboard).
-    Selection,
-    /// Both the selection target and the system clipboard.
-    Clipboard,
-}
-
-impl CopyOnSelect {
-    fn parse(value: &str) -> Option<CopyOnSelect> {
-        match value {
-            "false" => Some(CopyOnSelect::Disabled),
-            "true" => Some(CopyOnSelect::Selection),
-            "clipboard" => Some(CopyOnSelect::Clipboard),
-            _ => None,
-        }
-    }
-}
-
-/// A Ghostty cell-metric adjustment: an absolute amount or a percentage of the
-/// natural metric (`adjust-cell-height = 10%` vs `adjust-cell-height = -2`).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Adjustment {
-    Percent(f32),
-    Absolute(f32),
-}
-
-impl Adjustment {
-    fn parse(value: &str) -> Option<Adjustment> {
-        match value.strip_suffix('%') {
-            Some(percent) => percent.trim().parse().ok().map(Adjustment::Percent),
-            None => value.parse().ok().map(Adjustment::Absolute),
-        }
-    }
-}
-
-/// Padding for one axis, in points. A single `N` sets both sides; `N,M` sets the
-/// two sides independently (Ghostty's `window-padding-x = left,right`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PaddingAxis {
-    pub start: u16,
-    pub end: u16,
-}
-
-impl PaddingAxis {
-    fn parse(value: &str) -> Option<PaddingAxis> {
-        let mut parts = value.split(',');
-        let start: u16 = parts.next()?.trim().parse().ok()?;
-        let end = match parts.next() {
-            Some(second) => second.trim().parse().ok()?,
-            None => start,
-        };
-        if parts.next().is_some() {
-            return None;
-        }
-        Some(PaddingAxis { start, end })
-    }
-}
 
 /// The effective Ghostty config after folding all directives (and any theme
 /// base layer). Every field is the value the renderer/keybind layers consume;
@@ -429,22 +350,6 @@ fn apply_palette(config: &mut ResolvedConfig, value: &str, reset: bool) {
             .diagnostics
             .push(Diagnostic::new("palette", value, "invalid hex color")),
     }
-}
-
-fn parse_bool(value: &str) -> Option<bool> {
-    match value {
-        "true" => Some(true),
-        "false" => Some(false),
-        _ => None,
-    }
-}
-
-fn parse_f32(value: &str) -> Option<f32> {
-    value.parse().ok()
-}
-
-fn parse_u64(value: &str) -> Option<u64> {
-    value.parse().ok()
 }
 
 #[cfg(test)]

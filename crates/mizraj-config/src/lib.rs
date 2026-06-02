@@ -10,9 +10,11 @@ mod diagnostic;
 mod load;
 mod parse;
 mod resolve;
+mod value;
 
 pub use color::{parse_color, Color, Rgb};
 pub use diagnostic::Diagnostic;
 pub use load::{load, Appearance, LoadOptions};
 pub use parse::{parse, Directive};
-pub use resolve::{resolve, Adjustment, CopyOnSelect, CursorStyle, PaddingAxis, ResolvedConfig};
+pub use resolve::{resolve, ResolvedConfig};
+pub use value::{Adjustment, CopyOnSelect, CursorStyle, PaddingAxis};
