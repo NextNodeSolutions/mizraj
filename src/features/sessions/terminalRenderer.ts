@@ -104,9 +104,15 @@ const drawCell = (
 	fontTable: readonly string[],
 ): void => {
 	const attrs = ATTR_TABLE[cell.attrs] ?? decodeAttrs(cell.attrs)
+	// Reverse video swaps the cell's two colors AND the theme defaults each falls
+	// back to. Swapping only the sources collapses a default-on-default reversed
+	// cell — exactly how Ink/Claude Code draws its input cursor (`chalk.inverse`
+	// of a blank) — back to a normal cell, painting an invisible block. Swapping
+	// the fallbacks too makes it resolve to foreground-on-background, matching
+	// native Ghostty.
 	const background = resolveColor(
 		attrs.reverse ? cell.fg : cell.bg,
-		config.colors.background,
+		attrs.reverse ? config.colors.foreground : config.colors.background,
 		config.palette,
 	)
 	const foreground = resolveColor(
@@ -115,7 +121,7 @@ const drawCell = (
 			attrs.bold,
 			config.boldIsBright,
 		),
-		config.colors.foreground,
+		attrs.reverse ? config.colors.background : config.colors.foreground,
 		config.palette,
 	)
 

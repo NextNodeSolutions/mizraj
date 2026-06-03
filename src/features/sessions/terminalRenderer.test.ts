@@ -624,6 +624,64 @@ describe('drawFrame color resolution', () => {
 		const glyph = paints.find(p => p.op === 'text')
 		expect(glyph?.fillStyle).toBe(LATTE_ANSI_15)
 	})
+
+	// Claude Code (Ink) hides the OS cursor and draws its own as a reverse-video
+	// blank — `chalk.inverse(' ')` — so the input cursor reaches us as a cell with
+	// default fg/bg and the REVERSE attr. Reverse must swap the default fallbacks,
+	// not just the color sources, or the block collapses to the normal cell colors
+	// and the cursor is invisible. ATTR byte 8 = REVERSE (bit 3).
+	it("paints a reverse default cell as a visible block (Claude's cursor): fg fills the bg, bg paints the glyph", () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+		const reverseDefaultCell: WireCell = {
+			ch: 'A',
+			fg: { kind: 'default' },
+			bg: { kind: 'default' },
+			attrs: 0b00_1000,
+			wide: 'narrow',
+		}
+
+		drawFrame(
+			context,
+			oneCellFrame(reverseDefaultCell),
+			INTEGRAL_METRICS,
+			configWith({}),
+			fontTable,
+		)
+
+		const block = paints.find(
+			p => p.op === 'rect' && p.fillStyle === LATTE_FG,
+		)
+		const glyph = paints.find(p => p.op === 'text')
+		expect(block?.fillStyle).toBe(LATTE_FG)
+		expect(glyph?.fillStyle).toBe(LATTE_BG)
+	})
+
+	it('paints a reverse default BLANK cell as a visible block with no glyph (cursor at end of input)', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+		const reverseBlankCell: WireCell = {
+			ch: ' ',
+			fg: { kind: 'default' },
+			bg: { kind: 'default' },
+			attrs: 0b00_1000,
+			wide: 'narrow',
+		}
+
+		drawFrame(
+			context,
+			oneCellFrame(reverseBlankCell),
+			INTEGRAL_METRICS,
+			configWith({}),
+			fontTable,
+		)
+
+		const block = paints.find(
+			p => p.op === 'rect' && p.fillStyle === LATTE_FG,
+		)
+		expect(block?.fillStyle).toBe(LATTE_FG)
+		expect(paints.find(p => p.op === 'text')).toBeUndefined()
+	})
 })
 
 describe('drawFrame background-opacity', () => {
