@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import type { ResolvedFont } from './ghosttyConfig'
 import {
 	DEFAULT_FONT_STACK,
 	EMPTY_CONFIG,
@@ -99,9 +100,28 @@ describe('gridForSize', () => {
 })
 
 describe('resolveFont', () => {
-	it('falls back to the built-in 13px/1.2 mono stack when the config is empty', () => {
+	it('falls back to the built-in 13px/1.2 mono stack with synthetic variants when the config is empty', () => {
 		expect(resolveFont(EMPTY_CONFIG)).toEqual({
-			familyCss: DEFAULT_FONT_STACK,
+			regular: {
+				familyCss: DEFAULT_FONT_STACK,
+				weight: 'normal',
+				style: 'normal',
+			},
+			bold: {
+				familyCss: DEFAULT_FONT_STACK,
+				weight: 'bold',
+				style: 'normal',
+			},
+			italic: {
+				familyCss: DEFAULT_FONT_STACK,
+				weight: 'normal',
+				style: 'italic',
+			},
+			boldItalic: {
+				familyCss: DEFAULT_FONT_STACK,
+				weight: 'bold',
+				style: 'italic',
+			},
 			sizePx: 13,
 			lineHeightRatio: 1.2,
 		})
@@ -113,9 +133,62 @@ describe('resolveFont', () => {
 			font_family: ['MonoLisa', 'JetBrains Mono'],
 		})
 
-		expect(font.familyCss).toBe(
+		expect(font.regular.familyCss).toBe(
 			`MonoLisa, JetBrains Mono, ${DEFAULT_FONT_STACK}`,
 		)
+	})
+
+	it('draws an explicit bold family verbatim at normal weight', () => {
+		const font = resolveFont({
+			...EMPTY_CONFIG,
+			font_family: ['Reg'],
+			font_family_bold: ['Reg Bold'],
+		})
+
+		expect(font.bold).toEqual({
+			familyCss: `Reg Bold, ${DEFAULT_FONT_STACK}`,
+			weight: 'normal',
+			style: 'normal',
+		})
+	})
+
+	it('synthesizes bold on the regular family when no bold family is configured', () => {
+		const font = resolveFont({ ...EMPTY_CONFIG, font_family: ['Reg'] })
+
+		expect(font.bold).toEqual({
+			familyCss: `Reg, ${DEFAULT_FONT_STACK}`,
+			weight: 'bold',
+			style: 'normal',
+		})
+	})
+
+	it('falls a bold-italic cell back to the bold family with synthetic italic', () => {
+		const font = resolveFont({
+			...EMPTY_CONFIG,
+			font_family: ['Reg'],
+			font_family_bold: ['Reg Bold'],
+		})
+
+		expect(font.boldItalic).toEqual({
+			familyCss: `Reg Bold, ${DEFAULT_FONT_STACK}`,
+			weight: 'normal',
+			style: 'italic',
+		})
+	})
+
+	it('uses an explicit bold-italic family verbatim when configured', () => {
+		const font = resolveFont({
+			...EMPTY_CONFIG,
+			font_family: ['Reg'],
+			font_family_bold: ['Reg Bold'],
+			font_family_bold_italic: ['Reg Bold Italic'],
+		})
+
+		expect(font.boldItalic).toEqual({
+			familyCss: `Reg Bold Italic, ${DEFAULT_FONT_STACK}`,
+			weight: 'normal',
+			style: 'normal',
+		})
 	})
 
 	it('uses the configured font size', () => {
@@ -180,15 +253,29 @@ const fakeContextMeasuringEm = (
 	return { context, setFont }
 }
 
+// A uniform ResolvedFont (every variant on the same family) for tests that only
+// care about size/family/lineHeight, not per-variant resolution.
+const monoFont = (
+	familyCss: string,
+	sizePx: number,
+	lineHeightRatio: number,
+): ResolvedFont => {
+	const variant = { familyCss, weight: 'normal', style: 'normal' } as const
+	return {
+		regular: variant,
+		bold: variant,
+		italic: variant,
+		boldItalic: variant,
+		sizePx,
+		lineHeightRatio,
+	}
+}
+
 describe('measureCell', () => {
-	it('sets a plain (normal/normal) font string from the resolved font', () => {
+	it('sets a plain (normal/normal) font string from the resolved regular family', () => {
 		const { context, setFont } = fakeContextMeasuringEm(0.6)
 
-		measureCell(context, {
-			familyCss: 'JetBrains Mono',
-			sizePx: 16,
-			lineHeightRatio: 1.5,
-		})
+		measureCell(context, monoFont('JetBrains Mono', 16, 1.5))
 
 		expect(setFont).toHaveBeenCalledWith(
 			'normal normal 16px JetBrains Mono',
@@ -198,11 +285,10 @@ describe('measureCell', () => {
 	it('derives lineHeight as sizePx * lineHeightRatio of the passed font', () => {
 		const { context } = fakeContextMeasuringEm(0.6)
 
-		const metrics = measureCell(context, {
-			familyCss: 'JetBrains Mono',
-			sizePx: 20,
-			lineHeightRatio: 1.4,
-		})
+		const metrics = measureCell(
+			context,
+			monoFont('JetBrains Mono', 20, 1.4),
+		)
 
 		expect(metrics.lineHeight).toBeCloseTo(28, 5)
 	})
@@ -210,11 +296,7 @@ describe('measureCell', () => {
 	it('measures cellWidth at the passed font size, not a fixed default', () => {
 		const { context } = fakeContextMeasuringEm(0.6)
 
-		const big = measureCell(context, {
-			familyCss: 'JetBrains Mono',
-			sizePx: 26,
-			lineHeightRatio: 1.2,
-		})
+		const big = measureCell(context, monoFont('JetBrains Mono', 26, 1.2))
 
 		// 26px * 0.6 advance = 15.6: proof the width tracks the given size.
 		expect(big.cellWidth).toBeCloseTo(15.6, 5)

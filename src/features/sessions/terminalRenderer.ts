@@ -1,5 +1,5 @@
 import type { ResolvedFont } from './ghosttyConfig'
-import { ATTR_TABLE, decodeAttrs, fontFor } from './terminalAttrs'
+import { ATTR_TABLE, decodeAttrs, fontCss, fontFor } from './terminalAttrs'
 import type { TerminalColors } from './terminalPalette'
 import { brightenForBold, resolveColor } from './terminalPalette'
 import type { CellFramePayload, WireCell } from './terminalWire'
@@ -36,7 +36,7 @@ export const measureCell = (
 	context: CanvasRenderingContext2D,
 	font: ResolvedFont,
 ): CellMetrics => {
-	context.font = `normal normal ${font.sizePx}px ${font.familyCss}`
+	context.font = fontCss(font.regular, font.sizePx)
 	const cellWidth = context.measureText('M').width
 	const lineHeight = font.sizePx * font.lineHeightRatio
 	return { cellWidth, lineHeight }

@@ -139,11 +139,33 @@ export const loadGhosttyConfig = async (
 	}
 }
 
-// The font the canvas renderer actually draws with, resolved from the config
-// with the built-in defaults as fallback. Pure: same config in, same metrics
-// out — no IO, no canvas measurement (that is the renderer's measureCell job).
-export type ResolvedFont = {
+// One (family, synthetic weight, synthetic style) triple the canvas draws a
+// given attribute combination with. A configured variant family (e.g.
+// `font-family-bold`) is used verbatim at normal weight/style; when absent the
+// regular family is reused and the bold/italic is synthesized by the canvas.
+// The literals double as both axes: `NORMAL`/`BOLD` for weight, `NORMAL`/`ITALIC`
+// for style.
+const NORMAL = 'normal'
+const BOLD = 'bold'
+const ITALIC = 'italic'
+
+export type FontVariant = {
 	familyCss: string
+	weight: typeof NORMAL | typeof BOLD
+	style: typeof NORMAL | typeof ITALIC
+}
+
+// The font the canvas renderer actually draws with, resolved from the config
+// with the built-in defaults as fallback. Carries one variant per (bold, italic)
+// combination so an explicit `font-family-bold`/`-italic`/`-bold-italic` is
+// honored, falling back to synthetic weight/style on the regular family. Pure:
+// same config in, same metrics out — no IO, no canvas measurement (that is the
+// renderer's measureCell job).
+export type ResolvedFont = {
+	regular: FontVariant
+	bold: FontVariant
+	italic: FontVariant
+	boldItalic: FontVariant
 	sizePx: number
 	lineHeightRatio: number
 }
@@ -153,6 +175,57 @@ export type ResolvedFont = {
 const familyStackFrom = (families: string[]): string => {
 	if (families.length === 0) return DEFAULT_FONT_STACK
 	return `${families.join(', ')}, ${DEFAULT_FONT_STACK}`
+}
+
+// A configured variant family is drawn verbatim (normal weight/style — the font
+// already carries the bold/italic); when absent the regular stack is reused and
+// the variant is synthesized with the given weight/style.
+const variantFrom = (
+	families: string[],
+	regularCss: string,
+	synthWeight: FontVariant['weight'],
+	synthStyle: FontVariant['style'],
+): FontVariant =>
+	families.length === 0
+		? { familyCss: regularCss, weight: synthWeight, style: synthStyle }
+		: {
+				familyCss: familyStackFrom(families),
+				weight: NORMAL,
+				style: NORMAL,
+			}
+
+// Bold-italic prefers the first configured family in priority order, drawn
+// verbatim with only the axis it does NOT already carry synthesized: an explicit
+// bold-italic family (synthesize nothing), the bold family (synthesize italic),
+// then the italic family (synthesize bold). With none configured it falls back
+// to the regular family with both axes synthesized.
+const boldItalicVariant = (
+	config: GhosttyConfig,
+	regularCss: string,
+): FontVariant => {
+	const candidates: ReadonlyArray<{
+		families: string[]
+		weight: FontVariant['weight']
+		style: FontVariant['style']
+	}> = [
+		{
+			families: config.font_family_bold_italic,
+			weight: NORMAL,
+			style: NORMAL,
+		},
+		{ families: config.font_family_bold, weight: NORMAL, style: ITALIC },
+		{ families: config.font_family_italic, weight: BOLD, style: NORMAL },
+	]
+	const configured = candidates.find(
+		candidate => candidate.families.length > 0,
+	)
+	if (!configured)
+		return { familyCss: regularCss, weight: BOLD, style: ITALIC }
+	return {
+		familyCss: familyStackFrom(configured.families),
+		weight: configured.weight,
+		style: configured.style,
+	}
 }
 
 // Cell height (line box) relative to the font size, honoring adjust-cell-height.
@@ -177,8 +250,17 @@ const lineHeightRatioFrom = (
 
 export const resolveFont = (config: GhosttyConfig): ResolvedFont => {
 	const sizePx = config.font_size ?? DEFAULT_FONT_SIZE_PX
+	const regularCss = familyStackFrom(config.font_family)
 	return {
-		familyCss: familyStackFrom(config.font_family),
+		regular: { familyCss: regularCss, weight: NORMAL, style: NORMAL },
+		bold: variantFrom(config.font_family_bold, regularCss, BOLD, NORMAL),
+		italic: variantFrom(
+			config.font_family_italic,
+			regularCss,
+			NORMAL,
+			ITALIC,
+		),
+		boldItalic: boldItalicVariant(config, regularCss),
 		sizePx,
 		lineHeightRatio: lineHeightRatioFrom(config.adjust_cell_height, sizePx),
 	}

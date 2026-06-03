@@ -1,4 +1,4 @@
-import type { ResolvedFont } from './ghosttyConfig'
+import type { FontVariant, ResolvedFont } from './ghosttyConfig'
 
 // Bit masks for the backend u8 attrs bitfield (bit positions 0..5).
 const ATTR_BOLD = 0b00_0001
@@ -28,11 +28,24 @@ export const decodeAttrs = (attrs: number): CellAttrs => ({
 })
 /* eslint-enable no-bitwise */
 
-export const fontFor = (attrs: CellAttrs, font: ResolvedFont): string => {
-	const weight = attrs.bold ? 'bold' : 'normal'
-	const style = attrs.italic ? 'italic' : 'normal'
-	return `${style} ${weight} ${font.sizePx}px ${font.familyCss}`
+// Pick the resolved variant for an attrs combination: bold-italic, bold, italic,
+// or regular. Each variant already knows its family and whether the canvas must
+// synthesize the weight/style (no configured variant family) or not.
+const variantFor = (attrs: CellAttrs, font: ResolvedFont): FontVariant => {
+	if (attrs.bold && attrs.italic) return font.boldItalic
+	if (attrs.bold) return font.bold
+	if (attrs.italic) return font.italic
+	return font.regular
 }
+
+// The CSS `font` shorthand for a resolved variant at a given size. Single source
+// of truth for the font string format, shared by the per-attrs font table here
+// and the renderer's cell measurement (measureCell).
+export const fontCss = (variant: FontVariant, sizePx: number): string =>
+	`${variant.style} ${variant.weight} ${sizePx}px ${variant.familyCss}`
+
+export const fontFor = (attrs: CellAttrs, font: ResolvedFont): string =>
+	fontCss(variantFor(attrs, font), font.sizePx)
 
 // `attrs` is a backend u8, so there are only 256 possible decodings. Decode them
 // once at module load and index by the raw byte in the per-cell hot path,
