@@ -3,13 +3,24 @@ import { applyAdjustment } from './ghosttyConfig'
 import { ATTR_TABLE, decodeAttrs, fontCss, fontFor } from './terminalAttrs'
 import type { TerminalColors } from './terminalPalette'
 import { brightenForBold, resolveColor } from './terminalPalette'
-import type { CellFramePayload, WireCell, WireCellWidth } from './terminalWire'
+import type {
+	CellFramePayload,
+	WireCell,
+	WireCellWidth,
+	WireCursor,
+} from './terminalWire'
 
 const UNDERLINE_OFFSET_PX = 2
 const UNDERLINE_THICKNESS_PX = 1
 const STRIKE_CENTER_RATIO = 0.5
 const DIM_ALPHA = 0.6
 const FULL_ALPHA = 1
+
+// Cursor geometry: the bar's width and the underline's thickness, plus the
+// stroke width of the hollow (unfocused) block.
+const CURSOR_BAR_WIDTH_PX = 2
+const CURSOR_UNDERLINE_HEIGHT_PX = 2
+const CURSOR_HOLLOW_STROKE_PX = 1
 
 // Everything the renderer needs that comes from outside the cell stream, grouped
 // by concern so later parity milestones bolt on without re-plumbing every
@@ -162,6 +173,40 @@ const WIDE_SPAN = 2
 const isSpacer = (wide: WireCellWidth): boolean =>
 	wide === 'spacer_tail' || wide === 'spacer_head'
 
+// Paint the cursor over the grid, after the cells, in `color`. The shape mirrors
+// the terminal/config cursor style: a filled block, a thin left bar, a bottom
+// underline, or a hollow (unfocused) block outline.
+const drawCursor = (
+	context: CanvasRenderingContext2D,
+	cursor: WireCursor,
+	metrics: CellMetrics,
+	color: string,
+): void => {
+	const rect = cellRect(cursor.x, cursor.y, metrics)
+	context.fillStyle = color
+
+	if (cursor.style === 'bar') {
+		context.fillRect(rect.x, rect.y, CURSOR_BAR_WIDTH_PX, rect.height)
+		return
+	}
+	if (cursor.style === 'underline') {
+		context.fillRect(
+			rect.x,
+			rect.y + rect.height - CURSOR_UNDERLINE_HEIGHT_PX,
+			rect.width,
+			CURSOR_UNDERLINE_HEIGHT_PX,
+		)
+		return
+	}
+	if (cursor.style === 'block_hollow') {
+		context.strokeStyle = color
+		context.lineWidth = CURSOR_HOLLOW_STROKE_PX
+		context.strokeRect(rect.x, rect.y, rect.width, rect.height)
+		return
+	}
+	context.fillRect(rect.x, rect.y, rect.width, rect.height)
+}
+
 export const drawFrame = (
 	context: CanvasRenderingContext2D,
 	frame: CellFramePayload,
@@ -186,6 +231,10 @@ export const drawFrame = (
 				fontTable,
 			)
 		}
+	}
+
+	if (frame.cursor && frame.cursor.visible) {
+		drawCursor(context, frame.cursor, metrics, config.colors.foreground)
 	}
 }
 

@@ -17,7 +17,12 @@ import {
 	gridForSize,
 	measureCell,
 } from './terminalRenderer'
-import type { CellFramePayload, WireCell } from './terminalWire'
+import type {
+	CellFramePayload,
+	WireCell,
+	WireCursor,
+	WireCursorStyle,
+} from './terminalWire'
 
 // Box-drawing borders disappeared because cells were placed at fractional
 // `col * cellWidth` offsets, smearing 1px vertical strokes across two columns.
@@ -409,11 +414,13 @@ describe('resolveBackgroundAlpha', () => {
 // which color, at which alpha) without touching renderer internals. jsdom has no
 // real 2d backend, so a fake is the only option here.
 type Paint = {
-	op: 'rect' | 'text'
+	op: 'rect' | 'text' | 'stroke'
 	fillStyle: string
 	alpha: number
 	x: number
+	y: number
 	width: number
+	height: number
 	text?: string
 }
 
@@ -422,44 +429,63 @@ const recordingContext = (): {
 	paints: Paint[]
 } => {
 	const paints: Paint[] = []
-	const state = { fillStyle: '', globalAlpha: 1 }
+	const state = { fillStyle: '', strokeStyle: '', globalAlpha: 1 }
 	const context = {
 		canvas: { width: 800, height: 600 },
 		set fillStyle(value: string) {
 			state.fillStyle = value
+		},
+		set strokeStyle(value: string) {
+			state.strokeStyle = value
 		},
 		set globalAlpha(value: number) {
 			state.globalAlpha = value
 		},
 		set font(_value: string) {},
 		set textBaseline(_value: string) {},
+		set lineWidth(_value: number) {},
 		save() {},
 		restore() {},
 		setTransform() {},
-		fillRect(x: number, _y: number, width: number) {
+		fillRect(x: number, y: number, width: number, height: number) {
 			paints.push({
 				op: 'rect',
 				fillStyle: state.fillStyle,
 				alpha: state.globalAlpha,
 				x,
+				y,
 				width,
+				height,
 			})
 		},
-		fillText(text: string, x: number) {
+		strokeRect(x: number, y: number, width: number, height: number) {
+			paints.push({
+				op: 'stroke',
+				fillStyle: state.strokeStyle,
+				alpha: state.globalAlpha,
+				x,
+				y,
+				width,
+				height,
+			})
+		},
+		fillText(text: string, x: number, y: number) {
 			paints.push({
 				op: 'text',
 				fillStyle: state.fillStyle,
 				alpha: state.globalAlpha,
 				x,
+				y,
 				width: 0,
+				height: 0,
 				text,
 			})
 		},
 	}
 	// @ts-expect-error - deliberate partial CanvasRenderingContext2D double;
 	// jsdom cannot provide a real 2d context, and drawFrame touches only the
-	// members faked here (fillStyle/globalAlpha setters, save/restore/
-	// setTransform, fillRect/fillText, canvas dimensions).
+	// members faked here (fill/stroke style + globalAlpha + lineWidth setters,
+	// save/restore/setTransform, fillRect/strokeRect/fillText, canvas dimensions).
 	return { context, paints }
 }
 
@@ -749,5 +775,110 @@ describe('drawFrame wide cells and graphemes', () => {
 
 		const glyph = paints.find(p => p.op === 'text')
 		expect(glyph?.text).toBe('é')
+	})
+})
+
+const spaceCell: WireCell = {
+	ch: ' ',
+	fg: { kind: 'default' },
+	bg: { kind: 'default' },
+	attrs: 0,
+	wide: 'narrow',
+}
+
+const cursorAt = (style: WireCursorStyle, visible = true): WireCursor => ({
+	x: 0,
+	y: 0,
+	style,
+	blink: false,
+	visible,
+})
+
+describe('drawFrame cursor', () => {
+	// A single space cell paints only its LATTE_BG background and no glyph, so the
+	// only LATTE_FG (foreground) paint in the log is the cursor itself.
+	const cursorPaints = (cursor: WireCursor | null): Paint[] => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+		const frame: CellFramePayload = {
+			session_id: 'sess-1',
+			cols: 1,
+			rows: 1,
+			cells: [spaceCell],
+			cursor,
+		}
+		drawFrame(context, frame, INTEGRAL_METRICS, configWith({}), fontTable)
+		return paints
+	}
+
+	it('fills the whole cell for a block cursor in the foreground color', () => {
+		const cursor = cursorPaints(cursorAt('block')).find(
+			p => p.fillStyle === LATTE_FG,
+		)
+
+		expect(cursor).toMatchObject({
+			op: 'rect',
+			x: 0,
+			y: 0,
+			width: 8,
+			height: 16,
+		})
+	})
+
+	it('draws a thin left bar for a bar cursor', () => {
+		const cursor = cursorPaints(cursorAt('bar')).find(
+			p => p.fillStyle === LATTE_FG,
+		)
+
+		expect(cursor).toMatchObject({
+			op: 'rect',
+			x: 0,
+			y: 0,
+			width: 2,
+			height: 16,
+		})
+	})
+
+	it('draws a bottom underline for an underline cursor', () => {
+		const cursor = cursorPaints(cursorAt('underline')).find(
+			p => p.fillStyle === LATTE_FG,
+		)
+
+		// cell height 16, underline thickness 2 -> sits at y = 14.
+		expect(cursor).toMatchObject({
+			op: 'rect',
+			x: 0,
+			y: 14,
+			width: 8,
+			height: 2,
+		})
+	})
+
+	it('strokes an outline for a hollow block cursor', () => {
+		const cursor = cursorPaints(cursorAt('block_hollow')).find(
+			p => p.fillStyle === LATTE_FG,
+		)
+
+		expect(cursor).toMatchObject({
+			op: 'stroke',
+			x: 0,
+			y: 0,
+			width: 8,
+			height: 16,
+		})
+	})
+
+	it('does not draw a hidden cursor', () => {
+		expect(
+			cursorPaints(cursorAt('block', false)).find(
+				p => p.fillStyle === LATTE_FG,
+			),
+		).toBeUndefined()
+	})
+
+	it('does not draw when there is no cursor', () => {
+		expect(
+			cursorPaints(null).find(p => p.fillStyle === LATTE_FG),
+		).toBeUndefined()
 	})
 })
