@@ -395,4 +395,61 @@ mod tests {
         assert_eq!(drawn.y, 0);
         assert!(drawn.visible);
     }
+
+    /// DECTCEM reset (ESC[?25l) hides the cursor: the render state must report it
+    /// not-visible so the renderer does not draw a stray cursor over a TUI that
+    /// manages its own.
+    #[test]
+    fn cursor_hidden_by_dectcem_reports_not_visible() {
+        use mizraj_term::{RenderState, Terminal};
+
+        let mut term = Terminal::new(4, 10).expect("terminal");
+        term.feed(b"\x1b[?25l").expect("feed");
+
+        let mut render_state = RenderState::new().expect("render state");
+        render_state.update(&mut term).expect("update");
+        let cursor = render_state.cursor().expect("cursor");
+
+        assert_eq!(cursor.map(|c| c.visible), Some(false));
+    }
+
+    /// Absolute cursor positioning (CUP) is reported in viewport cell coords so
+    /// the renderer draws the cursor where the program put it.
+    #[test]
+    fn cursor_follows_absolute_positioning() {
+        use mizraj_term::{RenderState, Terminal};
+
+        let mut term = Terminal::new(10, 20).expect("terminal");
+        // CUP to row 6, col 4 (1-indexed) -> viewport (x=3, y=5) zero-indexed.
+        term.feed(b"\x1b[6;4H").expect("feed");
+
+        let mut render_state = RenderState::new().expect("render state");
+        render_state.update(&mut term).expect("update");
+        let cursor = render_state
+            .cursor()
+            .expect("cursor")
+            .expect("cursor in viewport");
+
+        assert_eq!((cursor.x, cursor.y), (3, 5));
+    }
+
+    /// A cursor-only move (no cell content change) must still mark the render
+    /// state dirty, otherwise term_sink skips the frame and the drawn cursor goes
+    /// stale as the program repositions it.
+    #[test]
+    fn cursor_only_move_marks_dirty() {
+        use mizraj_term::{Dirty, RenderState, Terminal};
+
+        let mut term = Terminal::new(4, 10).expect("terminal");
+        term.feed(b"hi").expect("feed");
+        let mut render_state = RenderState::new().expect("render state");
+        render_state.update(&mut term).expect("update");
+        render_state.mark_clean().expect("mark clean");
+
+        // Move the cursor only — no cell content changes.
+        term.feed(b"\x1b[3;5H").expect("feed");
+        let dirty = render_state.update(&mut term).expect("update");
+
+        assert_ne!(dirty, Dirty::Clean);
+    }
 }

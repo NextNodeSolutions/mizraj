@@ -11,7 +11,7 @@ import {
 } from './ghosttyConfig'
 import { buildFontTable } from './terminalAttrs'
 import { buildPalette } from './terminalPalette'
-import type { TerminalConfig } from './terminalRenderer'
+import type { DrawFrameOptions, TerminalConfig } from './terminalRenderer'
 import {
 	cellRect,
 	drawFrame,
@@ -798,12 +798,26 @@ const spaceCell: WireCell = {
 	wide: 'narrow',
 }
 
-const cursorAt = (style: WireCursorStyle, visible = true): WireCursor => ({
+const cursorAt = (
+	style: WireCursorStyle,
+	visible = true,
+	blink = false,
+): WireCursor => ({
 	x: 0,
 	y: 0,
 	style,
-	blink: false,
+	blink,
 	visible,
+})
+
+// A non-blank cell at the cursor's position, so the invert pass has a glyph to
+// redraw over the block.
+const glyphCell = (ch: string): WireCell => ({
+	ch,
+	fg: { kind: 'default' },
+	bg: { kind: 'default' },
+	attrs: 0,
+	wide: 'narrow',
 })
 
 describe('drawFrame cursor', () => {
@@ -812,6 +826,8 @@ describe('drawFrame cursor', () => {
 	const cursorPaints = (
 		cursor: WireCursor | null,
 		cursorConfig: ResolvedCursor = cursorConfigWith({}),
+		options: DrawFrameOptions = {},
+		cell: WireCell = spaceCell,
 	): Paint[] => {
 		const { context, paints } = recordingContext()
 		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
@@ -819,7 +835,7 @@ describe('drawFrame cursor', () => {
 			session_id: 'sess-1',
 			cols: 1,
 			rows: 1,
-			cells: [spaceCell],
+			cells: [cell],
 			cursor,
 		}
 		drawFrame(
@@ -828,6 +844,7 @@ describe('drawFrame cursor', () => {
 			INTEGRAL_METRICS,
 			configWith({ cursor: cursorConfig }),
 			fontTable,
+			options,
 		)
 		return paints
 	}
@@ -929,6 +946,73 @@ describe('drawFrame cursor', () => {
 		).find(p => p.fillStyle === LATTE_FG)
 
 		expect(cursor?.alpha).toBe(0.5)
+	})
+
+	// Visibility = visible AND (steady OR blink-phase-on). The truth table:
+	it.each([
+		{
+			label: 'blinking cursor hidden during the off phase',
+			blink: true,
+			blinkOn: false,
+			drawn: false,
+		},
+		{
+			label: 'blinking cursor shown during the on phase',
+			blink: true,
+			blinkOn: true,
+			drawn: true,
+		},
+		{
+			label: 'steady cursor shown regardless of phase',
+			blink: false,
+			blinkOn: false,
+			drawn: true,
+		},
+	])('$label', ({ blink, blinkOn, drawn }) => {
+		const cursor = cursorPaints(
+			cursorAt('block', true, blink),
+			cursorConfigWith({}),
+			{ cursorBlinkOn: blinkOn },
+		).find(p => p.fillStyle === LATTE_FG)
+
+		expect(Boolean(cursor)).toBe(drawn)
+	})
+
+	it('inverts the glyph under a block cursor to the background by default', () => {
+		const glyphs = cursorPaints(
+			cursorAt('block'),
+			cursorConfigWith({}),
+			{},
+			glyphCell('A'),
+		).filter(p => p.op === 'text' && p.text === 'A')
+
+		// The cell paints 'A' in the foreground; the cursor invert redraws it in
+		// the background on top, so the last 'A' is the inverted one.
+		expect(glyphs.at(-1)?.fillStyle).toBe(LATTE_BG)
+	})
+
+	it('inverts using cursor-text when configured', () => {
+		const glyphs = cursorPaints(
+			cursorAt('block'),
+			cursorConfigWith({ textColor: '#abcdef' }),
+			{},
+			glyphCell('A'),
+		).filter(p => p.op === 'text' && p.text === 'A')
+
+		expect(glyphs.at(-1)?.fillStyle).toBe('#abcdef')
+	})
+
+	it('does not invert the glyph under a non-block cursor', () => {
+		const glyphs = cursorPaints(
+			cursorAt('bar'),
+			cursorConfigWith({}),
+			{},
+			glyphCell('A'),
+		).filter(p => p.op === 'text' && p.text === 'A')
+
+		// Only the cell's own foreground glyph; a bar does not cover or invert it.
+		expect(glyphs).toHaveLength(1)
+		expect(glyphs[0]?.fillStyle).toBe(LATTE_FG)
 	})
 })
 

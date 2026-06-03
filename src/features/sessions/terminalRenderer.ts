@@ -86,6 +86,16 @@ export const cellRect = (
 	}
 }
 
+// The CSS font string for a cell's glyph: the precomputed per-attrs entry,
+// falling back to building one for an attrs byte outside the table.
+const glyphFont = (
+	cell: WireCell,
+	config: TerminalConfig,
+	fontTable: readonly string[],
+): string =>
+	fontTable[cell.attrs] ??
+	fontFor(ATTR_TABLE[cell.attrs] ?? decodeAttrs(cell.attrs), config.font)
+
 const drawCell = (
 	context: CanvasRenderingContext2D,
 	cell: WireCell,
@@ -119,7 +129,7 @@ const drawCell = (
 	if (cell.ch !== ' ' && cell.ch !== '') {
 		context.globalAlpha = attrs.dim ? DIM_ALPHA : FULL_ALPHA
 		context.fillStyle = foreground
-		context.font = fontTable[cell.attrs] ?? fontFor(attrs, config.font)
+		context.font = glyphFont(cell, config, fontTable)
 		context.fillText(cell.ch, rect.x, rect.y)
 		context.globalAlpha = FULL_ALPHA
 	}
@@ -206,14 +216,33 @@ const drawCursorShape = (
 	context.fillRect(rect.x, rect.y, rect.width, rect.height)
 }
 
+// Redraw the glyph a block cursor covers, in the invert color, so the character
+// stays legible on the cursor block: cursor-text when configured, else the
+// terminal background (classic reverse video). Skips empty cells.
+const drawInvertedGlyph = (
+	context: CanvasRenderingContext2D,
+	cell: WireCell,
+	rect: CellRect,
+	config: TerminalConfig,
+	fontTable: readonly string[],
+): void => {
+	if (cell.ch === ' ' || cell.ch === '') return
+	context.fillStyle = config.cursor.textColor ?? config.colors.background
+	context.font = glyphFont(cell, config, fontTable)
+	context.fillText(cell.ch, rect.x, rect.y)
+}
+
 // Paint the cursor over the grid, after the cells. The config drives it: an
 // explicit cursor-style overrides the frame's shape, cursor-color overrides the
-// foreground default, and cursor-opacity dims the whole cursor.
+// foreground default, and cursor-opacity dims the whole cursor. A block cursor
+// also inverts the glyph it covers (`cellUnder`) so the character stays legible.
 const drawCursor = (
 	context: CanvasRenderingContext2D,
 	cursor: WireCursor,
+	cellUnder: WireCell | undefined,
 	metrics: CellMetrics,
 	config: TerminalConfig,
+	fontTable: readonly string[],
 ): void => {
 	const rect = cellRect(cursor.x, cursor.y, metrics)
 	const style = config.cursor.style ?? cursor.style
@@ -222,8 +251,15 @@ const drawCursor = (
 	context.globalAlpha = config.cursor.opacity
 	context.fillStyle = color
 	drawCursorShape(context, style, rect, color)
+	if (style === 'block' && cellUnder) {
+		drawInvertedGlyph(context, cellUnder, rect, config, fontTable)
+	}
 	context.globalAlpha = FULL_ALPHA
 }
+
+// `cursorBlinkOn` is the blink phase for this paint (the caller's timer toggles
+// it): a blinking cursor is drawn only while it is on, a steady cursor always.
+export type DrawFrameOptions = { cursorBlinkOn?: boolean }
 
 export const drawFrame = (
 	context: CanvasRenderingContext2D,
@@ -231,6 +267,7 @@ export const drawFrame = (
 	metrics: CellMetrics,
 	config: TerminalConfig,
 	fontTable: readonly string[],
+	options: DrawFrameOptions = {},
 ): void => {
 	clearToBackground(context, config.colors.background, config.backgroundAlpha)
 	context.textBaseline = 'top'
@@ -251,8 +288,11 @@ export const drawFrame = (
 		}
 	}
 
-	if (frame.cursor && frame.cursor.visible) {
-		drawCursor(context, frame.cursor, metrics, config)
+	const cursor = frame.cursor
+	const blinkOn = options.cursorBlinkOn ?? true
+	if (cursor && cursor.visible && (!cursor.blink || blinkOn)) {
+		const cellUnder = frame.cells[cursor.y * frame.cols + cursor.x]
+		drawCursor(context, cursor, cellUnder, metrics, config, fontTable)
 	}
 }
 

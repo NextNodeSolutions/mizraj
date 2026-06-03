@@ -31,6 +31,9 @@ type TerminalCanvasHandles = {
 	canvasRef: RefObject<HTMLCanvasElement | null>
 }
 
+// The cursor blink half-period (xterm's ~530ms): each tick toggles the phase.
+const CURSOR_BLINK_INTERVAL_MS = 530
+
 // The two default colors prefer the Ghostty config's bg/fg (e.g. a theme's
 // `#eff1f5`/`#4c4f69`); when the config leaves them null, fall back to the
 // --terminal-bg/--terminal-fg :root vars (the pre-config source of truth, see
@@ -167,6 +170,16 @@ const startRendering = (
 	let cssWidth = 0
 	let cssHeight = 0
 	let lastGrid: { cols: number; rows: number } | null = null
+	let lastFrame: CellFramePayload | null = null
+	let blinkOn = true
+
+	const paint = (): void => {
+		if (!lastFrame) return
+		syncBackingStore(canvas, context, cssWidth, cssHeight)
+		drawFrame(context, lastFrame, metrics, config, fontTable, {
+			cursorBlinkOn: blinkOn,
+		})
+	}
 
 	const onResize = (width: number, height: number): void => {
 		cssWidth = width
@@ -184,9 +197,17 @@ const startRendering = (
 
 	const unlisten = listen<CellFramePayload>(AGENT_CELLS_EVENT, event => {
 		if (event.payload.session_id !== sessionId) return
-		syncBackingStore(canvas, context, cssWidth, cssHeight)
-		drawFrame(context, event.payload, metrics, config, fontTable)
+		lastFrame = event.payload
+		// Activity makes the cursor solid again; it resumes blinking from there.
+		blinkOn = true
+		paint()
 	})
+
+	const blinkTimer = setInterval(() => {
+		if (!lastFrame?.cursor?.blink) return
+		blinkOn = !blinkOn
+		paint()
+	}, CURSOR_BLINK_INTERVAL_MS)
 
 	const observer = new ResizeObserver(entries => {
 		const rect = entries[entries.length - 1]?.contentRect
@@ -198,6 +219,7 @@ const startRendering = (
 	onResize(initial.width, initial.height)
 
 	return () => {
+		clearInterval(blinkTimer)
 		observer.disconnect()
 		unlisten
 			.then(stop => stop())
