@@ -480,6 +480,7 @@ const oneCellFrame = (cell: WireCell): CellFramePayload => ({
 	cols: 1,
 	rows: 1,
 	cells: [cell],
+	cursor: null,
 })
 
 const configWith = (overrides: Partial<TerminalConfig>): TerminalConfig => ({
@@ -671,6 +672,7 @@ describe('drawFrame wide cells and graphemes', () => {
 			cols: 2,
 			rows: 1,
 			cells: [wideCell('中'), spacerTailCell],
+			cursor: null,
 		}
 
 		drawFrame(context, frame, INTEGRAL_METRICS, configWith({}), fontTable)
@@ -707,6 +709,7 @@ describe('drawFrame wide cells and graphemes', () => {
 				cols: 1,
 				rows: 1,
 				cells: [spacer],
+				cursor: null,
 			}
 
 			drawFrame(
@@ -739,6 +742,7 @@ describe('drawFrame wide cells and graphemes', () => {
 			cols: 1,
 			rows: 1,
 			cells: [clusterCell],
+			cursor: null,
 		}
 
 		drawFrame(context, frame, INTEGRAL_METRICS, configWith({}), fontTable)

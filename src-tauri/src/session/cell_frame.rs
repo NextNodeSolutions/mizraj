@@ -1,4 +1,4 @@
-use mizraj_term::{Cell, CellWidth, Cells, Color};
+use mizraj_term::{Cell, CellWidth, Cells, Color, Cursor, CursorShape};
 use serde::Serialize;
 
 /// Wire representation of a single cell color (D4).
@@ -77,6 +77,52 @@ impl From<Cell> for WireCell {
     }
 }
 
+/// Wire representation of the cursor shape (DG6), using the same vocabulary as
+/// the config's `cursor-style` directive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WireCursorStyle {
+    Block,
+    Bar,
+    Underline,
+    BlockHollow,
+}
+
+impl From<CursorShape> for WireCursorStyle {
+    fn from(shape: CursorShape) -> Self {
+        match shape {
+            CursorShape::Block => WireCursorStyle::Block,
+            CursorShape::Bar => WireCursorStyle::Bar,
+            CursorShape::Underline => WireCursorStyle::Underline,
+            CursorShape::BlockHollow => WireCursorStyle::BlockHollow,
+        }
+    }
+}
+
+/// Wire representation of the cursor (DG6): its viewport position, shape, and the
+/// terminal's blink / visible modes. The frontend draws it; absent (`None`) when
+/// the cursor is scrolled out of the viewport.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct WireCursor {
+    pub x: u16,
+    pub y: u16,
+    pub style: WireCursorStyle,
+    pub blink: bool,
+    pub visible: bool,
+}
+
+impl From<Cursor> for WireCursor {
+    fn from(cursor: Cursor) -> Self {
+        Self {
+            x: cursor.x,
+            y: cursor.y,
+            style: cursor.shape.into(),
+            blink: cursor.blink,
+            visible: cursor.visible,
+        }
+    }
+}
+
 /// A full grid snapshot emitted to the frontend once per render frame (D4).
 ///
 /// `cells` is row-major (`row * cols + col`), matching [`Cells`]. `session_id`
@@ -88,17 +134,19 @@ pub struct CellFrame {
     pub cols: u16,
     pub rows: u16,
     pub cells: Vec<WireCell>,
+    pub cursor: Option<WireCursor>,
 }
 
 impl CellFrame {
     /// Consumes `cells`, moving each glyph cluster into the wire frame rather than
     /// cloning the whole grid's strings (the snapshot is discarded right after).
-    pub fn from_cells(session_id: String, cells: Cells) -> Self {
+    pub fn from_cells(session_id: String, cells: Cells, cursor: Option<Cursor>) -> Self {
         Self {
             session_id,
             cols: cells.cols,
             rows: cells.rows,
             cells: cells.data.into_iter().map(WireCell::from).collect(),
+            cursor: cursor.map(WireCursor::from),
         }
     }
 }
@@ -138,7 +186,7 @@ mod tests {
             ],
         };
 
-        let frame = CellFrame::from_cells("sess-1".to_string(), cells);
+        let frame = CellFrame::from_cells("sess-1".to_string(), cells, None);
 
         assert_eq!(frame.session_id, "sess-1");
         assert_eq!(frame.rows, 1);
@@ -186,7 +234,7 @@ mod tests {
             }],
         };
 
-        let frame = CellFrame::from_cells("s".to_string(), cells);
+        let frame = CellFrame::from_cells("s".to_string(), cells, None);
         let json = serde_json::to_value(&frame).expect("serialize CellFrame");
 
         assert_eq!(json["session_id"], "s");
@@ -201,6 +249,38 @@ mod tests {
         assert_eq!(json["cells"][0]["bg"]["idx"], 4);
         assert_eq!(json["cells"][0]["attrs"], Attrs::BOLD.bits());
         assert_eq!(json["cells"][0]["wide"], "narrow");
+        assert_eq!(json["cursor"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn serializes_cursor_state() {
+        let cells = Cells {
+            rows: 1,
+            cols: 1,
+            data: vec![Cell {
+                ch: " ".to_string(),
+                fg: Color::Default,
+                bg: Color::Default,
+                attrs: Attrs::empty(),
+                width: CellWidth::Narrow,
+            }],
+        };
+        let cursor = Some(Cursor {
+            x: 3,
+            y: 2,
+            shape: CursorShape::Bar,
+            blink: true,
+            visible: true,
+        });
+
+        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells, cursor))
+            .expect("serialize CellFrame");
+
+        assert_eq!(json["cursor"]["x"], 3);
+        assert_eq!(json["cursor"]["y"], 2);
+        assert_eq!(json["cursor"]["style"], "bar");
+        assert_eq!(json["cursor"]["blink"], true);
+        assert_eq!(json["cursor"]["visible"], true);
     }
 
     #[test]
@@ -226,7 +306,7 @@ mod tests {
             ],
         };
 
-        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells))
+        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells, None))
             .expect("serialize CellFrame");
 
         assert_eq!(json["cells"][0]["wide"], "wide");
@@ -246,7 +326,7 @@ mod tests {
         render_state.update(&mut term).expect("update");
         let cells = render_state.snapshot().expect("snapshot");
 
-        let frame = CellFrame::from_cells("sess".to_string(), cells);
+        let frame = CellFrame::from_cells("sess".to_string(), cells, None);
 
         assert_eq!(frame.rows, 4);
         assert_eq!(frame.cols, 10);
@@ -268,7 +348,7 @@ mod tests {
         render_state.update(&mut term).expect("update");
         let cells = render_state.snapshot().expect("snapshot");
 
-        let frame = CellFrame::from_cells("sess".to_string(), cells);
+        let frame = CellFrame::from_cells("sess".to_string(), cells, None);
 
         assert_eq!(frame.cells[0].ch, "中");
         assert_eq!(frame.cells[0].wide, WireCellWidth::Wide);
@@ -289,8 +369,30 @@ mod tests {
         render_state.update(&mut term).expect("update");
         let cells = render_state.snapshot().expect("snapshot");
 
-        let frame = CellFrame::from_cells("sess".to_string(), cells);
+        let frame = CellFrame::from_cells("sess".to_string(), cells, None);
 
         assert_eq!(frame.cells[0].ch, "e\u{0301}");
+    }
+
+    /// The render state reports the cursor's viewport position end-to-end: after
+    /// printing two glyphs the cursor sits at column 2, row 0, and is visible.
+    #[test]
+    fn cursor_reports_viewport_position_after_input() {
+        use mizraj_term::{RenderState, Terminal};
+
+        let mut term = Terminal::new(4, 10).expect("terminal");
+        term.feed(b"Hi").expect("feed");
+
+        let mut render_state = RenderState::new().expect("render state");
+        render_state.update(&mut term).expect("update");
+        let cells = render_state.snapshot().expect("snapshot");
+        let cursor = render_state.cursor().expect("cursor");
+
+        let frame = CellFrame::from_cells("sess".to_string(), cells, cursor);
+        let drawn = frame.cursor.expect("cursor present in viewport");
+
+        assert_eq!(drawn.x, 2);
+        assert_eq!(drawn.y, 0);
+        assert!(drawn.visible);
     }
 }

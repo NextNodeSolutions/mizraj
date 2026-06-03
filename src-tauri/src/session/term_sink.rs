@@ -153,7 +153,14 @@ fn render_loop<R: Runtime>(
             }
         };
 
-        let frame = CellFrame::from_cells(sid.to_string(), cells);
+        // A cursor read failure must not drop the whole frame: degrade to no
+        // cursor (None) and still paint the grid.
+        let cursor = render_state.cursor().unwrap_or_else(|err| {
+            tracing::warn!(session_id = sid, error = %err, "render state cursor read failed");
+            None
+        });
+
+        let frame = CellFrame::from_cells(sid.to_string(), cells, cursor);
         let _ = app.emit(AGENT_CELLS_EVENT, frame);
 
         if let Err(err) = render_state.mark_clean() {

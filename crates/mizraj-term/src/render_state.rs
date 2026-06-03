@@ -12,7 +12,16 @@ use mizraj_term_sys::{
     GhosttyCell, GhosttyCellData_GHOSTTY_CELL_DATA_WIDE, GhosttyCellWide_GHOSTTY_CELL_WIDE_NARROW,
     GhosttyCellWide_GHOSTTY_CELL_WIDE_SPACER_HEAD, GhosttyCellWide_GHOSTTY_CELL_WIDE_SPACER_TAIL,
     GhosttyCellWide_GHOSTTY_CELL_WIDE_WIDE, GhosttyRenderState,
-    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLS,
+    GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BAR,
+    GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK_HOLLOW,
+    GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_UNDERLINE,
+    GhosttyRenderStateData, GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLS,
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING,
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE,
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X,
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y,
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE,
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE,
     GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_DIRTY,
     GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_ROWS,
     GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_ROW_ITERATOR,
@@ -46,6 +55,30 @@ pub enum Dirty {
     Partial,
     /// Global state changed; renderer should redraw everything.
     Full,
+}
+
+/// The shape the cursor is drawn as, mirroring libghostty's
+/// `GhosttyRenderStateCursorVisualStyle` (set by DECSCUSR / the config default).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CursorShape {
+    #[default]
+    Block,
+    Bar,
+    Underline,
+    BlockHollow,
+}
+
+/// The cursor as the renderer needs it: position within the viewport, shape, and
+/// whether it blinks / is visible per the terminal's modes. Read from the render
+/// state via [`RenderState::cursor`]; absent when the cursor is scrolled out of
+/// the viewport.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Cursor {
+    pub x: u16,
+    pub y: u16,
+    pub shape: CursorShape,
+    pub blink: bool,
+    pub visible: bool,
 }
 
 /// Persistent render state attached to a terminal.
@@ -194,35 +227,77 @@ impl RenderState {
 
     /// Returns `(rows, cols)` of the current render state viewport.
     pub fn dimensions(&self) -> Result<(u16, u16)> {
-        let mut cols: u16 = 0;
-        // SAFETY: handle is live; COLS writes a `uint16_t` into `cols`.
-        let r = unsafe {
-            ghostty_render_state_get(
-                self.handle.as_ptr(),
-                GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLS,
-                out_ptr(&mut cols),
-            )
-        };
-        if r != GhosttyResult_GHOSTTY_SUCCESS {
-            return Err(TermError::Feed(format!(
-                "ghostty_render_state_get(COLS) returned {r}"
-            )));
-        }
-        let mut rows: u16 = 0;
-        // SAFETY: handle is live; ROWS writes a `uint16_t` into `rows`.
-        let r = unsafe {
-            ghostty_render_state_get(
-                self.handle.as_ptr(),
-                GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_ROWS,
-                out_ptr(&mut rows),
-            )
-        };
-        if r != GhosttyResult_GHOSTTY_SUCCESS {
-            return Err(TermError::Feed(format!(
-                "ghostty_render_state_get(ROWS) returned {r}"
-            )));
-        }
+        let rows = self.read_u16(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_ROWS)?;
+        let cols = self.read_u16(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLS)?;
         Ok((rows, cols))
+    }
+
+    /// The cursor as the renderer needs it, or `None` when it is scrolled out of
+    /// the viewport (in which case its position would be undefined). `visible`
+    /// reflects the terminal's show/hide mode; the caller decides whether to draw.
+    pub fn cursor(&self) -> Result<Option<Cursor>> {
+        let in_viewport = self.read_bool(
+            GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE,
+        )?;
+        if !in_viewport {
+            return Ok(None);
+        }
+        Ok(Some(Cursor {
+            x: self.read_u16(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X)?,
+            y: self.read_u16(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y)?,
+            shape: self.read_cursor_shape()?,
+            blink: self
+                .read_bool(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING)?,
+            visible: self
+                .read_bool(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE)?,
+        }))
+    }
+
+    /// Read a scalar render-state field. `T` MUST be the type libghostty writes
+    /// for `data` (see GhosttyRenderStateData); the caller picks it per data kind,
+    /// the FFI call overwrites the zero-initialized slot. The single FFI scalar
+    /// read kernel shared by the typed readers below.
+    fn read_scalar<T: Default>(&self, data: GhosttyRenderStateData) -> Result<T> {
+        let mut value = T::default();
+        // SAFETY: handle is live; `out_ptr` hands the C side the slot's address to
+        // write the `data`-typed value through (caller guarantees `T` matches).
+        let r =
+            unsafe { ghostty_render_state_get(self.handle.as_ptr(), data, out_ptr(&mut value)) };
+        if r != GhosttyResult_GHOSTTY_SUCCESS {
+            return Err(TermError::Feed(format!(
+                "ghostty_render_state_get({data}) returned {r}"
+            )));
+        }
+        Ok(value)
+    }
+
+    /// Read a `uint16_t` render-state field.
+    fn read_u16(&self, data: GhosttyRenderStateData) -> Result<u16> {
+        self.read_scalar(data)
+    }
+
+    /// Read a `bool` render-state field.
+    fn read_bool(&self, data: GhosttyRenderStateData) -> Result<bool> {
+        self.read_scalar(data)
+    }
+
+    fn read_cursor_shape(&self) -> Result<CursorShape> {
+        // CURSOR_VISUAL_STYLE writes a `GhosttyRenderStateCursorVisualStyle`
+        // (a u32 enum per bindgen).
+        let style: u32 =
+            self.read_scalar(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE)?;
+        Ok(match style {
+            s if s == GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BAR => {
+                CursorShape::Bar
+            }
+            s if s == GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_UNDERLINE => {
+                CursorShape::Underline
+            }
+            s if s == GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK_HOLLOW => {
+                CursorShape::BlockHollow
+            }
+            _ => CursorShape::Block,
+        })
     }
 
     /// Walk the render state and build an owned `Cells` snapshot.
@@ -306,21 +381,9 @@ impl RenderState {
     }
 
     fn read_dirty(&self) -> Result<Dirty> {
-        let mut value: u32 = 0;
-        // SAFETY: handle is live; DIRTY expects a `GhosttyRenderStateDirty`
-        // output (a u32 enum per the bindgen-generated type).
-        let r = unsafe {
-            ghostty_render_state_get(
-                self.handle.as_ptr(),
-                GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_DIRTY,
-                out_ptr(&mut value),
-            )
-        };
-        if r != GhosttyResult_GHOSTTY_SUCCESS {
-            return Err(TermError::Feed(format!(
-                "ghostty_render_state_get(DIRTY) returned {r}"
-            )));
-        }
+        // DIRTY writes a `GhosttyRenderStateDirty` (a u32 enum per bindgen).
+        let value: u32 =
+            self.read_scalar(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_DIRTY)?;
         Ok(match value {
             v if v == GhosttyRenderStateDirty_GHOSTTY_RENDER_STATE_DIRTY_FALSE => Dirty::Clean,
             v if v == GhosttyRenderStateDirty_GHOSTTY_RENDER_STATE_DIRTY_PARTIAL => Dirty::Partial,

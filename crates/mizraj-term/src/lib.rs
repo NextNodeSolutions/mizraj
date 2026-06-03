@@ -7,7 +7,7 @@ mod terminal;
 
 pub use cells::{Attrs, Cell, CellWidth, Cells, Color};
 pub use key::{KeyEncoder, Mods};
-pub use render_state::{Dirty, RenderState};
+pub use render_state::{Cursor, CursorShape, Dirty, RenderState};
 pub use terminal::Terminal;
 
 pub type Result<T> = std::result::Result<T, TermError>;
