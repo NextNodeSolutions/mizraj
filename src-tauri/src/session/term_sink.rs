@@ -153,7 +153,7 @@ fn render_loop<R: Runtime>(
             }
         };
 
-        let frame = CellFrame::from_cells(sid.to_string(), &cells);
+        let frame = CellFrame::from_cells(sid.to_string(), cells);
         let _ = app.emit(AGENT_CELLS_EVENT, frame);
 
         if let Err(err) = render_state.mark_clean() {

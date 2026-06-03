@@ -32,9 +32,9 @@ use mizraj_term_sys::{
 
 use crate::{Attrs, Cell, CellWidth, Cells, Color, Result, TermError, Terminal};
 
-/// Stack-allocated grapheme buffer cap. Cells with more grapheme codepoints
-/// than this collapse to the base codepoint only; covers the vast majority
-/// of realistic terminal cells (single base + 0-2 combining marks).
+/// Stack-allocated grapheme buffer cap. Clusters longer than this fall back to a
+/// heap buffer; the stack path covers the vast majority of realistic terminal
+/// cells (a base codepoint plus a handful of combining marks / ZWJ joiners).
 const MAX_GRAPHEMES_PER_CELL: usize = 16;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -349,7 +349,7 @@ impl Drop for RenderState {
 }
 
 fn read_current_cell(cells: GhosttyRenderStateRowCells) -> Result<Cell> {
-    let ch = read_codepoint(cells)?;
+    let ch = read_text(cells)?;
     let (fg, bg, attrs) = read_style(cells)?;
     let width = read_width(cells)?;
     Ok(Cell {
@@ -401,15 +401,45 @@ fn read_width(cells: GhosttyRenderStateRowCells) -> Result<CellWidth> {
     })
 }
 
-fn read_codepoint(cells: GhosttyRenderStateRowCells) -> Result<char> {
+/// The cell's printable text: its full grapheme cluster (base codepoint plus any
+/// combining marks / ZWJ-joined codepoints), so accented and emoji clusters
+/// render as one glyph. A cell with no text is a single space.
+fn read_text(cells: GhosttyRenderStateRowCells) -> Result<String> {
+    let len = grapheme_len(cells)?;
+    if len == 0 {
+        return Ok(" ".to_string());
+    }
+
+    // Stack buffer for the common case (a base codepoint plus a few marks); the
+    // heap path covers only the rare long cluster.
+    let text = if len <= MAX_GRAPHEMES_PER_CELL {
+        let mut buf = [0u32; MAX_GRAPHEMES_PER_CELL];
+        fill_graphemes(cells, &mut buf[..len])?;
+        codepoints_to_string(&buf[..len])
+    } else {
+        let mut buf = vec![0u32; len];
+        fill_graphemes(cells, &mut buf)?;
+        codepoints_to_string(&buf)
+    };
+
+    // Every codepoint was an invalid scalar value (should not happen): fall back
+    // to a renderable blank rather than an empty, zero-width cell.
+    if text.is_empty() {
+        return Ok(" ".to_string());
+    }
+    Ok(text)
+}
+
+/// Number of grapheme codepoints in the current cell (0 = no text).
+fn grapheme_len(cells: GhosttyRenderStateRowCells) -> Result<usize> {
     let mut len: u32 = 0;
     // SAFETY: `cells` is positioned on a valid cell by the caller; GRAPHEMES_LEN
-    // expects a `uint32_t*` output.
+    // writes a `uint32_t` into `len`.
     let r = unsafe {
         ghostty_render_state_row_cells_get(
             cells,
             GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_LEN,
-            (&mut len as *mut u32).cast::<c_void>(),
+            out_ptr(&mut len),
         )
     };
     if r != GhosttyResult_GHOSTTY_SUCCESS {
@@ -417,47 +447,35 @@ fn read_codepoint(cells: GhosttyRenderStateRowCells) -> Result<char> {
             "row_cells_get(GRAPHEMES_LEN) returned {r}"
         )));
     }
-    if len == 0 {
-        return Ok(' ');
-    }
-    let len = len as usize;
+    Ok(len as usize)
+}
 
-    let base = if len <= MAX_GRAPHEMES_PER_CELL {
-        let mut buf = [0u32; MAX_GRAPHEMES_PER_CELL];
-        // SAFETY: `buf` holds at least `len` u32s (len <= MAX_GRAPHEMES_PER_CELL);
-        // GRAPHEMES_BUF writes exactly `len` codepoints into the pointer.
-        let r = unsafe {
-            ghostty_render_state_row_cells_get(
-                cells,
-                GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF,
-                buf.as_mut_ptr().cast::<c_void>(),
-            )
-        };
-        if r != GhosttyResult_GHOSTTY_SUCCESS {
-            return Err(TermError::Feed(format!(
-                "row_cells_get(GRAPHEMES_BUF) returned {r}"
-            )));
-        }
-        buf[0]
-    } else {
-        let mut buf: Vec<u32> = vec![0; len];
-        // SAFETY: `buf` holds exactly `len` u32s; GRAPHEMES_BUF writes exactly
-        // `len` codepoints into the pointer.
-        let r = unsafe {
-            ghostty_render_state_row_cells_get(
-                cells,
-                GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF,
-                buf.as_mut_ptr().cast::<c_void>(),
-            )
-        };
-        if r != GhosttyResult_GHOSTTY_SUCCESS {
-            return Err(TermError::Feed(format!(
-                "row_cells_get(GRAPHEMES_BUF) returned {r}"
-            )));
-        }
-        buf[0]
+/// Fill `buf` with the current cell's grapheme codepoints. `buf.len()` must equal
+/// the count from [`grapheme_len`] — the C side writes exactly that many.
+fn fill_graphemes(cells: GhosttyRenderStateRowCells, buf: &mut [u32]) -> Result<()> {
+    // SAFETY: `buf` holds exactly the grapheme count; GRAPHEMES_BUF writes that
+    // many codepoints through the pointer.
+    let r = unsafe {
+        ghostty_render_state_row_cells_get(
+            cells,
+            GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF,
+            buf.as_mut_ptr().cast::<c_void>(),
+        )
     };
-    Ok(char::from_u32(base).unwrap_or(' '))
+    if r != GhosttyResult_GHOSTTY_SUCCESS {
+        return Err(TermError::Feed(format!(
+            "row_cells_get(GRAPHEMES_BUF) returned {r}"
+        )));
+    }
+    Ok(())
+}
+
+/// Map grapheme codepoints to a string, dropping any invalid scalar value.
+fn codepoints_to_string(codepoints: &[u32]) -> String {
+    codepoints
+        .iter()
+        .filter_map(|&cp| char::from_u32(cp))
+        .collect()
 }
 
 fn read_style(cells: GhosttyRenderStateRowCells) -> Result<(Color, Color, Attrs)> {
@@ -517,7 +535,7 @@ fn style_color_to_color(c: GhosttyStyleColor) -> Color {
 
 fn blank_cell() -> Cell {
     Cell {
-        ch: ' ',
+        ch: " ".to_string(),
         fg: Color::Default,
         bg: Color::Default,
         attrs: Attrs::empty(),

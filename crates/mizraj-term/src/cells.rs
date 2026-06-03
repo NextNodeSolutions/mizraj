@@ -36,7 +36,11 @@ pub enum CellWidth {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Cell {
-    pub ch: char,
+    /// The cell's printable content: its full grapheme cluster (base codepoint
+    /// plus any combining marks / ZWJ-joined codepoints), so accented and emoji
+    /// clusters render as one glyph rather than just the base codepoint. A cell
+    /// with no text is a single space.
+    pub ch: String,
     pub fg: Color,
     pub bg: Color,
     pub attrs: Attrs,
@@ -66,7 +70,7 @@ mod tests {
 
     fn cell(ch: char) -> Cell {
         Cell {
-            ch,
+            ch: ch.to_string(),
             fg: Color::Default,
             bg: Color::Default,
             attrs: Attrs::empty(),

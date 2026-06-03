@@ -58,15 +58,15 @@ impl From<CellWidth> for WireCellWidth {
 /// frontend span wide glyphs across two columns and skip spacer cells.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct WireCell {
-    pub ch: char,
+    pub ch: String,
     pub fg: WireColor,
     pub bg: WireColor,
     pub attrs: u8,
     pub wide: WireCellWidth,
 }
 
-impl From<&Cell> for WireCell {
-    fn from(cell: &Cell) -> Self {
+impl From<Cell> for WireCell {
+    fn from(cell: Cell) -> Self {
         Self {
             ch: cell.ch,
             fg: cell.fg.into(),
@@ -91,12 +91,14 @@ pub struct CellFrame {
 }
 
 impl CellFrame {
-    pub fn from_cells(session_id: String, cells: &Cells) -> Self {
+    /// Consumes `cells`, moving each glyph cluster into the wire frame rather than
+    /// cloning the whole grid's strings (the snapshot is discarded right after).
+    pub fn from_cells(session_id: String, cells: Cells) -> Self {
         Self {
             session_id,
             cols: cells.cols,
             rows: cells.rows,
-            cells: cells.data.iter().map(WireCell::from).collect(),
+            cells: cells.data.into_iter().map(WireCell::from).collect(),
         }
     }
 }
@@ -113,21 +115,21 @@ mod tests {
             cols: 3,
             data: vec![
                 Cell {
-                    ch: 'H',
+                    ch: "H".to_string(),
                     fg: Color::Indexed(1),
                     bg: Color::Default,
                     attrs: Attrs::BOLD,
                     width: CellWidth::Narrow,
                 },
                 Cell {
-                    ch: 'i',
+                    ch: "i".to_string(),
                     fg: Color::Rgb(10, 20, 30),
                     bg: Color::Default,
                     attrs: Attrs::ITALIC | Attrs::UNDERLINE,
                     width: CellWidth::Narrow,
                 },
                 Cell {
-                    ch: ' ',
+                    ch: " ".to_string(),
                     fg: Color::Default,
                     bg: Color::Default,
                     attrs: Attrs::empty(),
@@ -136,19 +138,19 @@ mod tests {
             ],
         };
 
-        let frame = CellFrame::from_cells("sess-1".to_string(), &cells);
+        let frame = CellFrame::from_cells("sess-1".to_string(), cells);
 
         assert_eq!(frame.session_id, "sess-1");
         assert_eq!(frame.rows, 1);
         assert_eq!(frame.cols, 3);
         assert_eq!(frame.cells.len(), 3);
 
-        assert_eq!(frame.cells[0].ch, 'H');
+        assert_eq!(frame.cells[0].ch, "H");
         assert_eq!(frame.cells[0].fg, WireColor::Indexed { idx: 1 });
         assert_eq!(frame.cells[0].bg, WireColor::Default);
         assert_eq!(frame.cells[0].attrs, Attrs::BOLD.bits());
 
-        assert_eq!(frame.cells[1].ch, 'i');
+        assert_eq!(frame.cells[1].ch, "i");
         assert_eq!(
             frame.cells[1].fg,
             WireColor::Rgb {
@@ -162,7 +164,7 @@ mod tests {
             (Attrs::ITALIC | Attrs::UNDERLINE).bits()
         );
 
-        assert_eq!(frame.cells[2].ch, ' ');
+        assert_eq!(frame.cells[2].ch, " ");
         assert_eq!(frame.cells[2].fg, WireColor::Default);
         assert_eq!(frame.cells[2].attrs, 0);
 
@@ -176,7 +178,7 @@ mod tests {
             rows: 1,
             cols: 1,
             data: vec![Cell {
-                ch: 'X',
+                ch: "X".to_string(),
                 fg: Color::Rgb(1, 2, 3),
                 bg: Color::Indexed(4),
                 attrs: Attrs::BOLD,
@@ -184,7 +186,7 @@ mod tests {
             }],
         };
 
-        let frame = CellFrame::from_cells("s".to_string(), &cells);
+        let frame = CellFrame::from_cells("s".to_string(), cells);
         let json = serde_json::to_value(&frame).expect("serialize CellFrame");
 
         assert_eq!(json["session_id"], "s");
@@ -208,14 +210,14 @@ mod tests {
             cols: 2,
             data: vec![
                 Cell {
-                    ch: '中',
+                    ch: "中".to_string(),
                     fg: Color::Default,
                     bg: Color::Default,
                     attrs: Attrs::empty(),
                     width: CellWidth::Wide,
                 },
                 Cell {
-                    ch: ' ',
+                    ch: " ".to_string(),
                     fg: Color::Default,
                     bg: Color::Default,
                     attrs: Attrs::empty(),
@@ -224,7 +226,7 @@ mod tests {
             ],
         };
 
-        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), &cells))
+        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells))
             .expect("serialize CellFrame");
 
         assert_eq!(json["cells"][0]["wide"], "wide");
@@ -244,13 +246,13 @@ mod tests {
         render_state.update(&mut term).expect("update");
         let cells = render_state.snapshot().expect("snapshot");
 
-        let frame = CellFrame::from_cells("sess".to_string(), &cells);
+        let frame = CellFrame::from_cells("sess".to_string(), cells);
 
         assert_eq!(frame.rows, 4);
         assert_eq!(frame.cols, 10);
         assert_eq!(frame.cells.len(), 40);
-        assert_eq!(frame.cells[0].ch, 'H');
-        assert_eq!(frame.cells[1].ch, 'i');
+        assert_eq!(frame.cells[0].ch, "H");
+        assert_eq!(frame.cells[1].ch, "i");
     }
 
     /// A real CJK glyph fed through libghostty lands as a `Wide` cell followed by
@@ -266,10 +268,29 @@ mod tests {
         render_state.update(&mut term).expect("update");
         let cells = render_state.snapshot().expect("snapshot");
 
-        let frame = CellFrame::from_cells("sess".to_string(), &cells);
+        let frame = CellFrame::from_cells("sess".to_string(), cells);
 
-        assert_eq!(frame.cells[0].ch, '中');
+        assert_eq!(frame.cells[0].ch, "中");
         assert_eq!(frame.cells[0].wide, WireCellWidth::Wide);
         assert_eq!(frame.cells[1].wide, WireCellWidth::SpacerTail);
+    }
+
+    /// A base codepoint plus a combining mark fed through libghostty lands as one
+    /// cell carrying the FULL grapheme cluster, not just the base codepoint.
+    #[test]
+    fn combining_mark_is_kept_as_a_full_grapheme_cluster() {
+        use mizraj_term::{RenderState, Terminal};
+
+        let mut term = Terminal::new(2, 10).expect("terminal");
+        // 'e' followed by U+0301 COMBINING ACUTE ACCENT ("é" in decomposed form).
+        term.feed("e\u{0301}".as_bytes()).expect("feed");
+
+        let mut render_state = RenderState::new().expect("render state");
+        render_state.update(&mut term).expect("update");
+        let cells = render_state.snapshot().expect("snapshot");
+
+        let frame = CellFrame::from_cells("sess".to_string(), cells);
+
+        assert_eq!(frame.cells[0].ch, "e\u{0301}");
     }
 }

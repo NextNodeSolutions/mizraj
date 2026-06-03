@@ -3,7 +3,7 @@ import { applyAdjustment } from './ghosttyConfig'
 import { ATTR_TABLE, decodeAttrs, fontCss, fontFor } from './terminalAttrs'
 import type { TerminalColors } from './terminalPalette'
 import { brightenForBold, resolveColor } from './terminalPalette'
-import type { CellFramePayload, WireCell } from './terminalWire'
+import type { CellFramePayload, WireCell, WireCellWidth } from './terminalWire'
 
 const UNDERLINE_OFFSET_PX = 2
 const UNDERLINE_THICKNESS_PX = 1
@@ -54,17 +54,21 @@ export const measureCell = (
 // columns by anti-aliasing and effectively vanishes, while horizontals survive.
 type CellRect = { x: number; y: number; width: number; height: number }
 
+// `span` is how many columns the cell occupies: 1 for a normal cell, 2 for a
+// wide (CJK/emoji) glyph so its background, underline and strike cover both
+// columns and the glyph is not clipped to one.
 export const cellRect = (
 	col: number,
 	row: number,
 	metrics: CellMetrics,
+	span = 1,
 ): CellRect => {
 	const x = Math.round(col * metrics.cellWidth)
 	const y = Math.round(row * metrics.lineHeight)
 	return {
 		x,
 		y,
-		width: Math.round((col + 1) * metrics.cellWidth) - x,
+		width: Math.round((col + span) * metrics.cellWidth) - x,
 		height: Math.round((row + 1) * metrics.lineHeight) - y,
 	}
 }
@@ -148,6 +152,16 @@ const clearToBackground = (
 	context.restore()
 }
 
+// A wide glyph spans two columns; a narrow glyph one.
+const WIDE_SPAN = 2
+
+// Spacer cells hold no glyph: 'spacer_tail' is the second column of a wide glyph
+// (already painted by the wide cell), 'spacer_head' pads a soft-wrapped line.
+// Skipping them keeps a spacer's background from overpainting the wide glyph's
+// right half.
+const isSpacer = (wide: WireCellWidth): boolean =>
+	wide === 'spacer_tail' || wide === 'spacer_head'
+
 export const drawFrame = (
 	context: CanvasRenderingContext2D,
 	frame: CellFramePayload,
@@ -162,10 +176,12 @@ export const drawFrame = (
 		for (let col = 0; col < frame.cols; col += 1) {
 			const cell = frame.cells[row * frame.cols + col]
 			if (!cell) continue
+			if (isSpacer(cell.wide)) continue
+			const span = cell.wide === 'wide' ? WIDE_SPAN : 1
 			drawCell(
 				context,
 				cell,
-				cellRect(col, row, metrics),
+				cellRect(col, row, metrics, span),
 				config,
 				fontTable,
 			)

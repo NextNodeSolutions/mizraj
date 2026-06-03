@@ -78,6 +78,18 @@ describe('cellRect', () => {
 			height: 16,
 		})
 	})
+
+	it('spans a wide cell across two columns when span is 2', () => {
+		const integral = { cellWidth: 8, lineHeight: 16 }
+
+		// col 0 over two columns: width covers 2 cells (16), height one row.
+		expect(cellRect(0, 0, integral, 2)).toEqual({
+			x: 0,
+			y: 0,
+			width: 16,
+			height: 16,
+		})
+	})
 })
 
 describe('gridForSize', () => {
@@ -396,7 +408,14 @@ describe('resolveBackgroundAlpha', () => {
 // log. This lets the tests assert on observable output (what got painted, in
 // which color, at which alpha) without touching renderer internals. jsdom has no
 // real 2d backend, so a fake is the only option here.
-type Paint = { op: 'rect' | 'text'; fillStyle: string; alpha: number }
+type Paint = {
+	op: 'rect' | 'text'
+	fillStyle: string
+	alpha: number
+	x: number
+	width: number
+	text?: string
+}
 
 const recordingContext = (): {
 	context: CanvasRenderingContext2D
@@ -417,18 +436,23 @@ const recordingContext = (): {
 		save() {},
 		restore() {},
 		setTransform() {},
-		fillRect() {
+		fillRect(x: number, _y: number, width: number) {
 			paints.push({
 				op: 'rect',
 				fillStyle: state.fillStyle,
 				alpha: state.globalAlpha,
+				x,
+				width,
 			})
 		},
-		fillText() {
+		fillText(text: string, x: number) {
 			paints.push({
 				op: 'text',
 				fillStyle: state.fillStyle,
 				alpha: state.globalAlpha,
+				x,
+				width: 0,
+				text,
 			})
 		},
 	}
@@ -619,5 +643,107 @@ describe('drawFrame background-opacity', () => {
 			p => p.op === 'rect' && p.fillStyle === LATTE_BG,
 		)
 		expect(cellBg?.alpha).toBe(1)
+	})
+})
+
+const wideCell = (ch: string): WireCell => ({
+	ch,
+	fg: { kind: 'default' },
+	bg: { kind: 'default' },
+	attrs: 0,
+	wide: 'wide',
+})
+
+const spacerTailCell: WireCell = {
+	ch: ' ',
+	fg: { kind: 'default' },
+	bg: { kind: 'default' },
+	attrs: 0,
+	wide: 'spacer_tail',
+}
+
+describe('drawFrame wide cells and graphemes', () => {
+	it('paints a wide glyph across two columns and skips its spacer tail', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+		const frame: CellFramePayload = {
+			session_id: 'sess-1',
+			cols: 2,
+			rows: 1,
+			cells: [wideCell('中'), spacerTailCell],
+		}
+
+		drawFrame(context, frame, INTEGRAL_METRICS, configWith({}), fontTable)
+
+		// Exactly one glyph painted (the wide char): the spacer drew nothing.
+		const glyphs = paints.filter(p => p.op === 'text')
+		expect(glyphs).toHaveLength(1)
+		expect(glyphs[0]?.text).toBe('中')
+
+		// The wide cell's background spans two cells (2 * cellWidth 8 = 16).
+		const wideBg = paints.find(
+			p => p.op === 'rect' && p.x === 0 && p.width === 16,
+		)
+		expect(wideBg).toBeDefined()
+
+		// No cell paint starts at the spacer's column (x = 8): it was skipped.
+		expect(paints.some(p => p.x === 8)).toBe(false)
+	})
+
+	it.each(['spacer_tail', 'spacer_head'] as const)(
+		'skips a %s spacer cell entirely (only the canvas clear paints)',
+		wide => {
+			const { context, paints } = recordingContext()
+			const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+			const spacer: WireCell = {
+				ch: ' ',
+				fg: { kind: 'default' },
+				bg: { kind: 'default' },
+				attrs: 0,
+				wide,
+			}
+			const frame: CellFramePayload = {
+				session_id: 'sess-1',
+				cols: 1,
+				rows: 1,
+				cells: [spacer],
+			}
+
+			drawFrame(
+				context,
+				frame,
+				INTEGRAL_METRICS,
+				configWith({}),
+				fontTable,
+			)
+
+			expect(paints.filter(p => p.op === 'text')).toHaveLength(0)
+			// Only clearToBackground's full-canvas rect; no per-cell background.
+			expect(paints.filter(p => p.op === 'rect')).toHaveLength(1)
+		},
+	)
+
+	it('draws a multi-codepoint grapheme cluster as a single glyph string', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+		// 'e' + U+0301 combining acute: must reach fillText whole, not truncated.
+		const clusterCell: WireCell = {
+			ch: 'é',
+			fg: { kind: 'default' },
+			bg: { kind: 'default' },
+			attrs: 0,
+			wide: 'narrow',
+		}
+		const frame: CellFramePayload = {
+			session_id: 'sess-1',
+			cols: 1,
+			rows: 1,
+			cells: [clusterCell],
+		}
+
+		drawFrame(context, frame, INTEGRAL_METRICS, configWith({}), fontTable)
+
+		const glyph = paints.find(p => p.op === 'text')
+		expect(glyph?.text).toBe('é')
 	})
 })
