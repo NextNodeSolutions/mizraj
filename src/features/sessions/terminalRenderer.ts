@@ -1,4 +1,5 @@
 import type { ResolvedFont } from './ghosttyConfig'
+import { applyAdjustment } from './ghosttyConfig'
 import { ATTR_TABLE, decodeAttrs, fontCss, fontFor } from './terminalAttrs'
 import type { TerminalColors } from './terminalPalette'
 import { brightenForBold, resolveColor } from './terminalPalette'
@@ -37,7 +38,10 @@ export const measureCell = (
 	font: ResolvedFont,
 ): CellMetrics => {
 	context.font = fontCss(font.regular, font.sizePx)
-	const cellWidth = context.measureText('M').width
+	const cellWidth = applyAdjustment(
+		context.measureText('M').width,
+		font.cellWidthAdjustment,
+	)
 	const lineHeight = font.sizePx * font.lineHeightRatio
 	return { cellWidth, lineHeight }
 }

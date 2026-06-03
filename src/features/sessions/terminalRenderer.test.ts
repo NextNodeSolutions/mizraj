@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { ResolvedFont } from './ghosttyConfig'
 import {
+	applyAdjustment,
 	DEFAULT_FONT_STACK,
 	EMPTY_CONFIG,
 	resolveBackgroundAlpha,
@@ -124,6 +125,7 @@ describe('resolveFont', () => {
 			},
 			sizePx: 13,
 			lineHeightRatio: 1.2,
+			cellWidthAdjustment: null,
 		})
 	})
 
@@ -193,6 +195,15 @@ describe('resolveFont', () => {
 
 	it('uses the configured font size', () => {
 		expect(resolveFont({ ...EMPTY_CONFIG, font_size: 16 }).sizePx).toBe(16)
+	})
+
+	it('carries adjust-cell-width through for measureCell to apply', () => {
+		const font = resolveFont({
+			...EMPTY_CONFIG,
+			adjust_cell_width: { kind: 'percent', value: 10 },
+		})
+
+		expect(font.cellWidthAdjustment).toEqual({ kind: 'percent', value: 10 })
 	})
 
 	it('scales the line-height ratio by a percent adjust-cell-height', () => {
@@ -268,6 +279,7 @@ const monoFont = (
 		boldItalic: variant,
 		sizePx,
 		lineHeightRatio,
+		cellWidthAdjustment: null,
 	}
 }
 
@@ -300,6 +312,50 @@ describe('measureCell', () => {
 
 		// 26px * 0.6 advance = 15.6: proof the width tracks the given size.
 		expect(big.cellWidth).toBeCloseTo(15.6, 5)
+	})
+
+	it('applies a percent adjust-cell-width to the measured natural width', () => {
+		const { context } = fakeContextMeasuringEm(0.6)
+		const font: ResolvedFont = {
+			...monoFont('JetBrains Mono', 16, 1.5),
+			cellWidthAdjustment: { kind: 'percent', value: 50 },
+		}
+
+		// natural 16 * 0.6 = 9.6, +50% = 14.4
+		expect(measureCell(context, font).cellWidth).toBeCloseTo(14.4, 5)
+	})
+
+	it('applies an absolute adjust-cell-width as a pixel delta', () => {
+		const { context } = fakeContextMeasuringEm(0.6)
+		const font: ResolvedFont = {
+			...monoFont('JetBrains Mono', 16, 1.5),
+			cellWidthAdjustment: { kind: 'absolute', value: 4 },
+		}
+
+		// natural 16 * 0.6 = 9.6, +4px = 13.6
+		expect(measureCell(context, font).cellWidth).toBeCloseTo(13.6, 5)
+	})
+})
+
+describe('applyAdjustment', () => {
+	it('returns the natural value when there is no adjustment', () => {
+		expect(applyAdjustment(8, null)).toBe(8)
+	})
+
+	it('scales by a percent adjustment', () => {
+		// 8 + 25% = 10
+		expect(applyAdjustment(8, { kind: 'percent', value: 25 })).toBeCloseTo(
+			10,
+			5,
+		)
+	})
+
+	it('adds an absolute pixel delta', () => {
+		expect(applyAdjustment(8, { kind: 'absolute', value: 3 })).toBe(11)
+	})
+
+	it('shrinks the value on a negative absolute delta', () => {
+		expect(applyAdjustment(8, { kind: 'absolute', value: -2 })).toBe(6)
 	})
 })
 

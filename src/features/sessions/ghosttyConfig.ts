@@ -168,6 +168,10 @@ export type ResolvedFont = {
 	boldItalic: FontVariant
 	sizePx: number
 	lineHeightRatio: number
+	// adjust-cell-width, applied by measureCell to the measured natural glyph
+	// width (the width is unknown until the canvas measures it, so unlike
+	// lineHeightRatio it cannot be folded in here). null = no adjustment.
+	cellWidthAdjustment: Adjustment | null
 }
 
 // Append the built-in monospace stack so a single missing family still has the
@@ -228,25 +232,32 @@ const boldItalicVariant = (
 	}
 }
 
-// Cell height (line box) relative to the font size, honoring adjust-cell-height.
-//   - percent: scale the natural 1.2 ratio by (1 + value/100)
-//   - absolute: add `value` device pixels to the natural line box, then express
-//     that back as a ratio of the configured size
-// Falls back to the natural 1.2 when there is no adjustment.
+// Apply a cell-metric adjustment to a natural (measured or derived) pixel value:
+//   - percent: scale by (1 + value/100)
+//   - absolute: add `value` device pixels
+// Returns the value unchanged when there is no adjustment. The shared kernel for
+// both cell metrics: adjust-cell-height folds in at resolve time (via
+// lineHeightRatioFrom), adjust-cell-width is applied by measureCell once the
+// canvas has measured the natural glyph width.
+export const applyAdjustment = (
+	natural: number,
+	adjustment: Adjustment | null,
+): number => {
+	if (!adjustment) return natural
+	if (adjustment.kind === 'percent') {
+		return natural * (1 + adjustment.value / PERCENT_TO_FRACTION)
+	}
+	return natural + adjustment.value
+}
+
+// Cell height (line box) as a ratio of the font size, honoring adjust-cell-height
+// against the natural 1.2 line box: the adjustment lands on `sizePx * 1.2`, then
+// the result is re-expressed back as a ratio of the configured size.
 const lineHeightRatioFrom = (
 	adjustment: Adjustment | null,
 	sizePx: number,
-): number => {
-	if (!adjustment) return DEFAULT_LINE_HEIGHT_RATIO
-	if (adjustment.kind === 'percent') {
-		return (
-			DEFAULT_LINE_HEIGHT_RATIO *
-			(1 + adjustment.value / PERCENT_TO_FRACTION)
-		)
-	}
-	const naturalLineHeight = sizePx * DEFAULT_LINE_HEIGHT_RATIO
-	return (naturalLineHeight + adjustment.value) / sizePx
-}
+): number =>
+	applyAdjustment(sizePx * DEFAULT_LINE_HEIGHT_RATIO, adjustment) / sizePx
 
 export const resolveFont = (config: GhosttyConfig): ResolvedFont => {
 	const sizePx = config.font_size ?? DEFAULT_FONT_SIZE_PX
@@ -263,6 +274,7 @@ export const resolveFont = (config: GhosttyConfig): ResolvedFont => {
 		boldItalic: boldItalicVariant(config, regularCss),
 		sizePx,
 		lineHeightRatio: lineHeightRatioFrom(config.adjust_cell_height, sizePx),
+		cellWidthAdjustment: config.adjust_cell_width,
 	}
 }
 
