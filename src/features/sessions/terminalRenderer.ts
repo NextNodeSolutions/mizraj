@@ -1,7 +1,7 @@
 import type { ResolvedFont } from './ghosttyConfig'
 import { ATTR_TABLE, decodeAttrs, fontFor } from './terminalAttrs'
 import type { TerminalColors } from './terminalPalette'
-import { resolveColor } from './terminalPalette'
+import { brightenForBold, resolveColor } from './terminalPalette'
 import type { CellFramePayload, WireCell } from './terminalWire'
 
 const UNDERLINE_OFFSET_PX = 2
@@ -16,12 +16,15 @@ const FULL_ALPHA = 1
 // 256-entry table indexed colors resolve against) and `backgroundAlpha` (the
 // Ghostty `background-opacity`, applied to background fills only). M3 adds cursor
 // state. `colors` now carries the config bg/fg when present, else the CSS-var
-// fallback (see useTerminalCanvas).
+// fallback (see useTerminalCanvas). `boldIsBright` is the Ghostty `bold-is-bright`
+// directive: when set, a bold cell's standard ANSI foreground is drawn with its
+// bright palette counterpart.
 export type TerminalConfig = {
 	colors: TerminalColors
 	font: ResolvedFont
 	palette: readonly string[]
 	backgroundAlpha: number
+	boldIsBright: boolean
 }
 
 type CellMetrics = {
@@ -76,7 +79,11 @@ const drawCell = (
 		config.palette,
 	)
 	const foreground = resolveColor(
-		attrs.reverse ? cell.bg : cell.fg,
+		brightenForBold(
+			attrs.reverse ? cell.bg : cell.fg,
+			attrs.bold,
+			config.boldIsBright,
+		),
 		config.colors.foreground,
 		config.palette,
 	)

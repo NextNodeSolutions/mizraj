@@ -324,6 +324,7 @@ const configWith = (overrides: Partial<TerminalConfig>): TerminalConfig => ({
 	font: resolveFont(EMPTY_CONFIG),
 	palette: buildPalette([]),
 	backgroundAlpha: 1,
+	boldIsBright: false,
 	...overrides,
 })
 
@@ -346,6 +347,52 @@ describe('drawFrame color resolution', () => {
 		const glyph = paints.find(p => p.op === 'text')
 		expect(cellBg?.fillStyle).toBe(LATTE_BG)
 		expect(glyph?.fillStyle).toBe(LATTE_FG)
+	})
+
+	it('draws a bold standard-ANSI fg with its bright counterpart when bold-is-bright is on', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+		// ATTR byte 1 = BOLD. fg index 1 (xterm red #cd0000) must resolve to its
+		// bright counterpart index 9 (#ff0000) once bold-is-bright is enabled.
+		const boldRedCell: WireCell = {
+			ch: 'A',
+			fg: { kind: 'indexed', idx: 1 },
+			bg: { kind: 'default' },
+			attrs: 1,
+		}
+
+		drawFrame(
+			context,
+			oneCellFrame(boldRedCell),
+			INTEGRAL_METRICS,
+			configWith({ boldIsBright: true }),
+			fontTable,
+		)
+
+		const glyph = paints.find(p => p.op === 'text')
+		expect(glyph?.fillStyle).toBe('#ff0000')
+	})
+
+	it('leaves a bold standard-ANSI fg at its normal color when bold-is-bright is off', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+		const boldRedCell: WireCell = {
+			ch: 'A',
+			fg: { kind: 'indexed', idx: 1 },
+			bg: { kind: 'default' },
+			attrs: 1,
+		}
+
+		drawFrame(
+			context,
+			oneCellFrame(boldRedCell),
+			INTEGRAL_METRICS,
+			configWith({ boldIsBright: false }),
+			fontTable,
+		)
+
+		const glyph = paints.find(p => p.op === 'text')
+		expect(glyph?.fillStyle).toBe('#cd0000')
 	})
 
 	it('resolves an indexed fg against the config palette override, not the xterm default', () => {

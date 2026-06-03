@@ -102,3 +102,23 @@ export const resolveColor = (
 	if (color.kind === 'rgb') return `rgb(${color.r}, ${color.g}, ${color.b})`
 	return palette[color.idx] ?? fallback
 }
+
+// The last standard ANSI index (0..7 are the normal colors) and the offset to
+// each one's bright counterpart (8..15).
+const ANSI_NORMAL_LAST = 7
+const ANSI_BRIGHT_OFFSET = 8
+
+// Ghostty's `bold-is-bright`: a bold glyph whose foreground is one of the eight
+// standard ANSI colors (palette 0..7) is promoted to its bright counterpart
+// (8..15). Bright colors, the 16..255 cube/grayscale, truecolor and the terminal
+// default are all left untouched. Pure: maps a foreground wire color to the wire
+// color the renderer should actually resolve.
+export const brightenForBold = (
+	color: WireColor,
+	isBold: boolean,
+	boldIsBright: boolean,
+): WireColor => {
+	if (!boldIsBright || !isBold) return color
+	if (color.kind !== 'indexed' || color.idx > ANSI_NORMAL_LAST) return color
+	return { kind: 'indexed', idx: color.idx + ANSI_BRIGHT_OFFSET }
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildPalette } from './terminalPalette'
+import { brightenForBold, buildPalette } from './terminalPalette'
+import type { WireColor } from './terminalWire'
 
 // Catppuccin Latte fragments used as realistic, hardcoded expected values: a
 // light theme overrides the default ANSI 0/15 (black/white) with its own beige
@@ -50,5 +51,45 @@ describe('buildPalette', () => {
 
 		// a prior build's override must not bleed into a later default build.
 		expect(second[1]).toBe(XTERM_DEFAULT_RED)
+	})
+})
+
+describe('brightenForBold', () => {
+	const BOLD = true
+	const ENABLED = true
+
+	it.each([
+		{ idx: 0, brightIdx: 8 },
+		{ idx: 1, brightIdx: 9 },
+		{ idx: 7, brightIdx: 15 },
+	])(
+		'promotes a bold standard ANSI fg $idx to its bright counterpart $brightIdx',
+		({ idx, brightIdx }) => {
+			expect(
+				brightenForBold({ kind: 'indexed', idx }, BOLD, ENABLED),
+			).toEqual({ kind: 'indexed', idx: brightIdx })
+		},
+	)
+
+	it.each<{ label: string; color: WireColor }>([
+		{ label: 'already-bright index 8', color: { kind: 'indexed', idx: 8 } },
+		{ label: 'index 15', color: { kind: 'indexed', idx: 15 } },
+		{ label: 'cube index 21', color: { kind: 'indexed', idx: 21 } },
+		{ label: 'truecolor', color: { kind: 'rgb', r: 10, g: 20, b: 30 } },
+		{ label: 'terminal default', color: { kind: 'default' } },
+	])('leaves a bold $label untouched', ({ color }) => {
+		expect(brightenForBold(color, BOLD, ENABLED)).toEqual(color)
+	})
+
+	it('leaves a non-bold standard ANSI fg untouched even when enabled', () => {
+		expect(
+			brightenForBold({ kind: 'indexed', idx: 1 }, false, ENABLED),
+		).toEqual({ kind: 'indexed', idx: 1 })
+	})
+
+	it('leaves a bold standard ANSI fg untouched when the directive is off', () => {
+		expect(
+			brightenForBold({ kind: 'indexed', idx: 1 }, BOLD, false),
+		).toEqual({ kind: 'indexed', idx: 1 })
 	})
 })

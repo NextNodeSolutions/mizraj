@@ -155,6 +155,7 @@ const startRendering = (
 		font,
 		palette: buildPalette(ghosttyConfig.palette),
 		backgroundAlpha: resolveBackgroundAlpha(ghosttyConfig),
+		boldIsBright: ghosttyConfig.bold_is_bright ?? false,
 	}
 
 	// Metrics, the per-attrs font table and the 256-entry color palette depend
