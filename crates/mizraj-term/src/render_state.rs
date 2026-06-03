@@ -3,12 +3,15 @@ use std::mem;
 use std::ptr::{self, NonNull};
 
 use mizraj_term_sys::{
-    ghostty_render_state_free, ghostty_render_state_get, ghostty_render_state_new,
-    ghostty_render_state_row_cells_free, ghostty_render_state_row_cells_get,
-    ghostty_render_state_row_cells_new, ghostty_render_state_row_cells_next,
-    ghostty_render_state_row_get, ghostty_render_state_row_iterator_free,
-    ghostty_render_state_row_iterator_new, ghostty_render_state_row_iterator_next,
-    ghostty_render_state_set, ghostty_render_state_update, GhosttyRenderState,
+    ghostty_cell_get, ghostty_render_state_free, ghostty_render_state_get,
+    ghostty_render_state_new, ghostty_render_state_row_cells_free,
+    ghostty_render_state_row_cells_get, ghostty_render_state_row_cells_new,
+    ghostty_render_state_row_cells_next, ghostty_render_state_row_get,
+    ghostty_render_state_row_iterator_free, ghostty_render_state_row_iterator_new,
+    ghostty_render_state_row_iterator_next, ghostty_render_state_set, ghostty_render_state_update,
+    GhosttyCell, GhosttyCellData_GHOSTTY_CELL_DATA_WIDE, GhosttyCellWide_GHOSTTY_CELL_WIDE_NARROW,
+    GhosttyCellWide_GHOSTTY_CELL_WIDE_SPACER_HEAD, GhosttyCellWide_GHOSTTY_CELL_WIDE_SPACER_TAIL,
+    GhosttyCellWide_GHOSTTY_CELL_WIDE_WIDE, GhosttyRenderState,
     GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLS,
     GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_DIRTY,
     GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_ROWS,
@@ -19,6 +22,7 @@ use mizraj_term_sys::{
     GhosttyRenderStateOption_GHOSTTY_RENDER_STATE_OPTION_DIRTY, GhosttyRenderStateRowCells,
     GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF,
     GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_LEN,
+    GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_RAW,
     GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_STYLE,
     GhosttyRenderStateRowCellsImpl, GhosttyRenderStateRowData_GHOSTTY_RENDER_STATE_ROW_DATA_CELLS,
     GhosttyRenderStateRowIterator, GhosttyRenderStateRowIteratorImpl,
@@ -26,7 +30,7 @@ use mizraj_term_sys::{
     GhosttyStyleColorTag_GHOSTTY_STYLE_COLOR_PALETTE, GhosttyStyleColorTag_GHOSTTY_STYLE_COLOR_RGB,
 };
 
-use crate::{Attrs, Cell, Cells, Color, Result, TermError, Terminal};
+use crate::{Attrs, Cell, CellWidth, Cells, Color, Result, TermError, Terminal};
 
 /// Stack-allocated grapheme buffer cap. Cells with more grapheme codepoints
 /// than this collapse to the base codepoint only; covers the vast majority
@@ -347,7 +351,54 @@ impl Drop for RenderState {
 fn read_current_cell(cells: GhosttyRenderStateRowCells) -> Result<Cell> {
     let ch = read_codepoint(cells)?;
     let (fg, bg, attrs) = read_style(cells)?;
-    Ok(Cell { ch, fg, bg, attrs })
+    let width = read_width(cells)?;
+    Ok(Cell {
+        ch,
+        fg,
+        bg,
+        attrs,
+        width,
+    })
+}
+
+/// The cell's wide property, read from the raw cell value. A wide character
+/// (CJK, emoji) is a `Wide` cell trailed by a `SpacerTail` the renderer must not
+/// draw a glyph into; `SpacerHead` pads a soft-wrap before a wide char.
+fn read_width(cells: GhosttyRenderStateRowCells) -> Result<CellWidth> {
+    let mut raw: GhosttyCell = 0;
+    // SAFETY: `cells` is positioned on a valid cell by the caller; RAW writes a
+    // `GhosttyCell` (uint64) into `raw`.
+    let r = unsafe {
+        ghostty_render_state_row_cells_get(
+            cells,
+            GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_RAW,
+            out_ptr(&mut raw),
+        )
+    };
+    if r != GhosttyResult_GHOSTTY_SUCCESS {
+        return Err(TermError::Feed(format!("row_cells_get(RAW) returned {r}")));
+    }
+
+    let mut wide = GhosttyCellWide_GHOSTTY_CELL_WIDE_NARROW;
+    // SAFETY: `raw` is the cell value just read above; WIDE writes a
+    // `GhosttyCellWide` (c_uint) into `wide`.
+    let r = unsafe {
+        ghostty_cell_get(
+            raw,
+            GhosttyCellData_GHOSTTY_CELL_DATA_WIDE,
+            out_ptr(&mut wide),
+        )
+    };
+    if r != GhosttyResult_GHOSTTY_SUCCESS {
+        return Err(TermError::Feed(format!("cell_get(WIDE) returned {r}")));
+    }
+
+    Ok(match wide {
+        w if w == GhosttyCellWide_GHOSTTY_CELL_WIDE_WIDE => CellWidth::Wide,
+        w if w == GhosttyCellWide_GHOSTTY_CELL_WIDE_SPACER_TAIL => CellWidth::SpacerTail,
+        w if w == GhosttyCellWide_GHOSTTY_CELL_WIDE_SPACER_HEAD => CellWidth::SpacerHead,
+        _ => CellWidth::Narrow,
+    })
 }
 
 fn read_codepoint(cells: GhosttyRenderStateRowCells) -> Result<char> {
@@ -470,5 +521,6 @@ fn blank_cell() -> Cell {
         fg: Color::Default,
         bg: Color::Default,
         attrs: Attrs::empty(),
+        width: CellWidth::Narrow,
     }
 }

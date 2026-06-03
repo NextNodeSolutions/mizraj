@@ -448,6 +448,7 @@ const defaultColorCell: WireCell = {
 	fg: { kind: 'default' },
 	bg: { kind: 'default' },
 	attrs: 0,
+	wide: 'narrow',
 }
 
 const oneCellFrame = (cell: WireCell): CellFramePayload => ({
@@ -497,6 +498,7 @@ describe('drawFrame color resolution', () => {
 			fg: { kind: 'indexed', idx: 1 },
 			bg: { kind: 'default' },
 			attrs: 1,
+			wide: 'narrow',
 		}
 
 		drawFrame(
@@ -519,6 +521,7 @@ describe('drawFrame color resolution', () => {
 			fg: { kind: 'indexed', idx: 1 },
 			bg: { kind: 'default' },
 			attrs: 1,
+			wide: 'narrow',
 		}
 
 		drawFrame(
@@ -542,6 +545,7 @@ describe('drawFrame color resolution', () => {
 			fg: { kind: 'indexed', idx: 15 },
 			bg: { kind: 'default' },
 			attrs: 0,
+			wide: 'narrow',
 		}
 
 		drawFrame(

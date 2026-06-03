@@ -1,4 +1,4 @@
-use mizraj_term::{Cell, Cells, Color};
+use mizraj_term::{Cell, CellWidth, Cells, Color};
 use serde::Serialize;
 
 /// Wire representation of a single cell color (D4).
@@ -23,18 +23,46 @@ impl From<Color> for WireColor {
     }
 }
 
+/// Wire representation of a cell's width (DG5).
+///
+/// Mirrors libghostty's `GhosttyCellWide`: a wide character (CJK, many emoji)
+/// occupies two columns — `Wide` carries the glyph, `SpacerTail` is the
+/// placeholder the frontend must not draw a glyph into; `SpacerHead` pads a
+/// soft-wrapped line before a wide char that did not fit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WireCellWidth {
+    Narrow,
+    Wide,
+    SpacerTail,
+    SpacerHead,
+}
+
+impl From<CellWidth> for WireCellWidth {
+    fn from(width: CellWidth) -> Self {
+        match width {
+            CellWidth::Narrow => WireCellWidth::Narrow,
+            CellWidth::Wide => WireCellWidth::Wide,
+            CellWidth::SpacerTail => WireCellWidth::SpacerTail,
+            CellWidth::SpacerHead => WireCellWidth::SpacerHead,
+        }
+    }
+}
+
 /// Wire representation of one terminal cell (D4).
 ///
 /// `attrs` carries the raw bits of [`mizraj_term::Attrs`] verbatim so the
 /// frontend mirrors a single bit layout instead of decoding six booleans per
 /// cell: `BOLD = 1 << 0`, `ITALIC = 1 << 1`, `UNDERLINE = 1 << 2`,
-/// `REVERSE = 1 << 3`, `DIM = 1 << 4`, `STRIKE = 1 << 5`.
+/// `REVERSE = 1 << 3`, `DIM = 1 << 4`, `STRIKE = 1 << 5`. `wide` lets the
+/// frontend span wide glyphs across two columns and skip spacer cells.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct WireCell {
     pub ch: char,
     pub fg: WireColor,
     pub bg: WireColor,
     pub attrs: u8,
+    pub wide: WireCellWidth,
 }
 
 impl From<&Cell> for WireCell {
@@ -44,6 +72,7 @@ impl From<&Cell> for WireCell {
             fg: cell.fg.into(),
             bg: cell.bg.into(),
             attrs: cell.attrs.bits(),
+            wide: cell.width.into(),
         }
     }
 }
@@ -88,18 +117,21 @@ mod tests {
                     fg: Color::Indexed(1),
                     bg: Color::Default,
                     attrs: Attrs::BOLD,
+                    width: CellWidth::Narrow,
                 },
                 Cell {
                     ch: 'i',
                     fg: Color::Rgb(10, 20, 30),
                     bg: Color::Default,
                     attrs: Attrs::ITALIC | Attrs::UNDERLINE,
+                    width: CellWidth::Narrow,
                 },
                 Cell {
                     ch: ' ',
                     fg: Color::Default,
                     bg: Color::Default,
                     attrs: Attrs::empty(),
+                    width: CellWidth::Narrow,
                 },
             ],
         };
@@ -133,6 +165,9 @@ mod tests {
         assert_eq!(frame.cells[2].ch, ' ');
         assert_eq!(frame.cells[2].fg, WireColor::Default);
         assert_eq!(frame.cells[2].attrs, 0);
+
+        // Plain ASCII cells are all narrow.
+        assert!(frame.cells.iter().all(|c| c.wide == WireCellWidth::Narrow));
     }
 
     #[test]
@@ -145,6 +180,7 @@ mod tests {
                 fg: Color::Rgb(1, 2, 3),
                 bg: Color::Indexed(4),
                 attrs: Attrs::BOLD,
+                width: CellWidth::Narrow,
             }],
         };
 
@@ -162,6 +198,37 @@ mod tests {
         assert_eq!(json["cells"][0]["bg"]["kind"], "indexed");
         assert_eq!(json["cells"][0]["bg"]["idx"], 4);
         assert_eq!(json["cells"][0]["attrs"], Attrs::BOLD.bits());
+        assert_eq!(json["cells"][0]["wide"], "narrow");
+    }
+
+    #[test]
+    fn wide_serializes_to_snake_case_variants() {
+        let cells = Cells {
+            rows: 1,
+            cols: 2,
+            data: vec![
+                Cell {
+                    ch: '中',
+                    fg: Color::Default,
+                    bg: Color::Default,
+                    attrs: Attrs::empty(),
+                    width: CellWidth::Wide,
+                },
+                Cell {
+                    ch: ' ',
+                    fg: Color::Default,
+                    bg: Color::Default,
+                    attrs: Attrs::empty(),
+                    width: CellWidth::SpacerTail,
+                },
+            ],
+        };
+
+        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), &cells))
+            .expect("serialize CellFrame");
+
+        assert_eq!(json["cells"][0]["wide"], "wide");
+        assert_eq!(json["cells"][1]["wide"], "spacer_tail");
     }
 
     /// End-to-end: a raw VT byte sequence fed through a real libghostty
@@ -184,5 +251,25 @@ mod tests {
         assert_eq!(frame.cells.len(), 40);
         assert_eq!(frame.cells[0].ch, 'H');
         assert_eq!(frame.cells[1].ch, 'i');
+    }
+
+    /// A real CJK glyph fed through libghostty lands as a `Wide` cell followed by
+    /// a `SpacerTail`, proving the wide flag is read end-to-end from the FFI.
+    #[test]
+    fn wide_character_through_terminal_marks_wide_then_spacer_tail() {
+        use mizraj_term::{RenderState, Terminal};
+
+        let mut term = Terminal::new(2, 10).expect("terminal");
+        term.feed("中".as_bytes()).expect("feed");
+
+        let mut render_state = RenderState::new().expect("render state");
+        render_state.update(&mut term).expect("update");
+        let cells = render_state.snapshot().expect("snapshot");
+
+        let frame = CellFrame::from_cells("sess".to_string(), &cells);
+
+        assert_eq!(frame.cells[0].ch, '中');
+        assert_eq!(frame.cells[0].wide, WireCellWidth::Wide);
+        assert_eq!(frame.cells[1].wide, WireCellWidth::SpacerTail);
     }
 }

@@ -5,7 +5,7 @@ mod key;
 mod render_state;
 mod terminal;
 
-pub use cells::{Attrs, Cell, Cells, Color};
+pub use cells::{Attrs, Cell, CellWidth, Cells, Color};
 pub use key::{KeyEncoder, Mods};
 pub use render_state::{Dirty, RenderState};
 pub use terminal::Terminal;
