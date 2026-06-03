@@ -3,6 +3,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
+import type { WireCursorStyle } from './terminalWire'
+
 const LOAD_COMMAND = 'load_ghostty_config'
 
 // The current renderer defaults, kept verbatim as the fallback so behavior is
@@ -290,3 +292,52 @@ export const resolveBackgroundAlpha = (config: GhosttyConfig): number => {
 	if (opacity <= 0 || opacity >= OPAQUE_ALPHA) return OPAQUE_ALPHA
 	return opacity
 }
+
+// The cursor settings the renderer draws with, resolved from the config. `color`
+// and `style` are null when the config leaves them unset, so the renderer falls
+// back to the terminal foreground / the frame's reported style respectively.
+// `textColor` is the glyph color shown under a block cursor (cursor invert).
+export type ResolvedCursor = {
+	color: string | null
+	textColor: string | null
+	style: WireCursorStyle | null
+	opacity: number
+}
+
+const CURSOR_STYLES: readonly WireCursorStyle[] = [
+	'block',
+	'bar',
+	'underline',
+	'block_hollow',
+]
+
+// A cursor color is usable only as a CSS color literal (hex or `rgb(...)`).
+// Ghostty's `cell-foreground`/`cell-background` sentinels are not CSS colors, so
+// they fall back (null) to the renderer's default cursor color (the foreground).
+const cursorColorFrom = (color: string | null): string | null => {
+	if (color === null) return null
+	if (color.startsWith('#') || color.startsWith('rgb')) return color
+	return null
+}
+
+// cursor-style overrides the frame's reported shape only when it is a known
+// style; an unknown/absent value leaves the frame's style in charge.
+const cursorStyleFrom = (style: string | null): WireCursorStyle | null => {
+	if (style === null) return null
+	return CURSOR_STYLES.find(known => known === style) ?? null
+}
+
+// cursor-opacity clamped to [0, 1]; a missing or malformed value is fully opaque.
+const resolveCursorOpacity = (opacity: number | null): number => {
+	if (opacity === null || Number.isNaN(opacity)) return OPAQUE_ALPHA
+	if (opacity <= 0) return 0
+	if (opacity >= OPAQUE_ALPHA) return OPAQUE_ALPHA
+	return opacity
+}
+
+export const resolveCursor = (config: GhosttyConfig): ResolvedCursor => ({
+	color: cursorColorFrom(config.cursor_color),
+	textColor: cursorColorFrom(config.cursor_text),
+	style: cursorStyleFrom(config.cursor_style),
+	opacity: resolveCursorOpacity(config.cursor_opacity),
+})

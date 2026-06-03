@@ -1,4 +1,4 @@
-import type { ResolvedFont } from './ghosttyConfig'
+import type { ResolvedCursor, ResolvedFont } from './ghosttyConfig'
 import { applyAdjustment } from './ghosttyConfig'
 import { ATTR_TABLE, decodeAttrs, fontCss, fontFor } from './terminalAttrs'
 import type { TerminalColors } from './terminalPalette'
@@ -8,6 +8,7 @@ import type {
 	WireCell,
 	WireCellWidth,
 	WireCursor,
+	WireCursorStyle,
 } from './terminalWire'
 
 const UNDERLINE_OFFSET_PX = 2
@@ -37,6 +38,7 @@ export type TerminalConfig = {
 	palette: readonly string[]
 	backgroundAlpha: number
 	boldIsBright: boolean
+	cursor: ResolvedCursor
 }
 
 type CellMetrics = {
@@ -173,23 +175,20 @@ const WIDE_SPAN = 2
 const isSpacer = (wide: WireCellWidth): boolean =>
 	wide === 'spacer_tail' || wide === 'spacer_head'
 
-// Paint the cursor over the grid, after the cells, in `color`. The shape mirrors
-// the terminal/config cursor style: a filled block, a thin left bar, a bottom
-// underline, or a hollow (unfocused) block outline.
-const drawCursor = (
+// Draw one cursor shape into `rect` (color/alpha already set on the context): a
+// thin left bar, a bottom underline, a hollow (unfocused) block outline, or a
+// filled block.
+const drawCursorShape = (
 	context: CanvasRenderingContext2D,
-	cursor: WireCursor,
-	metrics: CellMetrics,
+	style: WireCursorStyle,
+	rect: CellRect,
 	color: string,
 ): void => {
-	const rect = cellRect(cursor.x, cursor.y, metrics)
-	context.fillStyle = color
-
-	if (cursor.style === 'bar') {
+	if (style === 'bar') {
 		context.fillRect(rect.x, rect.y, CURSOR_BAR_WIDTH_PX, rect.height)
 		return
 	}
-	if (cursor.style === 'underline') {
+	if (style === 'underline') {
 		context.fillRect(
 			rect.x,
 			rect.y + rect.height - CURSOR_UNDERLINE_HEIGHT_PX,
@@ -198,13 +197,32 @@ const drawCursor = (
 		)
 		return
 	}
-	if (cursor.style === 'block_hollow') {
+	if (style === 'block_hollow') {
 		context.strokeStyle = color
 		context.lineWidth = CURSOR_HOLLOW_STROKE_PX
 		context.strokeRect(rect.x, rect.y, rect.width, rect.height)
 		return
 	}
 	context.fillRect(rect.x, rect.y, rect.width, rect.height)
+}
+
+// Paint the cursor over the grid, after the cells. The config drives it: an
+// explicit cursor-style overrides the frame's shape, cursor-color overrides the
+// foreground default, and cursor-opacity dims the whole cursor.
+const drawCursor = (
+	context: CanvasRenderingContext2D,
+	cursor: WireCursor,
+	metrics: CellMetrics,
+	config: TerminalConfig,
+): void => {
+	const rect = cellRect(cursor.x, cursor.y, metrics)
+	const style = config.cursor.style ?? cursor.style
+	const color = config.cursor.color ?? config.colors.foreground
+
+	context.globalAlpha = config.cursor.opacity
+	context.fillStyle = color
+	drawCursorShape(context, style, rect, color)
+	context.globalAlpha = FULL_ALPHA
 }
 
 export const drawFrame = (
@@ -234,7 +252,7 @@ export const drawFrame = (
 	}
 
 	if (frame.cursor && frame.cursor.visible) {
-		drawCursor(context, frame.cursor, metrics, config.colors.foreground)
+		drawCursor(context, frame.cursor, metrics, config)
 	}
 }
 

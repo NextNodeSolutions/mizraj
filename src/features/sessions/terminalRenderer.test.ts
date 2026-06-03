@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ResolvedFont } from './ghosttyConfig'
+import type { ResolvedCursor, ResolvedFont } from './ghosttyConfig'
 import {
 	applyAdjustment,
 	DEFAULT_FONT_STACK,
 	EMPTY_CONFIG,
 	resolveBackgroundAlpha,
+	resolveCursor,
 	resolveFont,
 } from './ghosttyConfig'
 import { buildFontTable } from './terminalAttrs'
@@ -509,12 +510,23 @@ const oneCellFrame = (cell: WireCell): CellFramePayload => ({
 	cursor: null,
 })
 
+const cursorConfigWith = (
+	overrides: Partial<ResolvedCursor>,
+): ResolvedCursor => ({
+	color: null,
+	textColor: null,
+	style: null,
+	opacity: 1,
+	...overrides,
+})
+
 const configWith = (overrides: Partial<TerminalConfig>): TerminalConfig => ({
 	colors: { background: LATTE_BG, foreground: LATTE_FG },
 	font: resolveFont(EMPTY_CONFIG),
 	palette: buildPalette([]),
 	backgroundAlpha: 1,
 	boldIsBright: false,
+	cursor: cursorConfigWith({}),
 	...overrides,
 })
 
@@ -796,8 +808,11 @@ const cursorAt = (style: WireCursorStyle, visible = true): WireCursor => ({
 
 describe('drawFrame cursor', () => {
 	// A single space cell paints only its LATTE_BG background and no glyph, so the
-	// only LATTE_FG (foreground) paint in the log is the cursor itself.
-	const cursorPaints = (cursor: WireCursor | null): Paint[] => {
+	// only non-LATTE_BG paint in the log is the cursor itself.
+	const cursorPaints = (
+		cursor: WireCursor | null,
+		cursorConfig: ResolvedCursor = cursorConfigWith({}),
+	): Paint[] => {
 		const { context, paints } = recordingContext()
 		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
 		const frame: CellFramePayload = {
@@ -807,7 +822,13 @@ describe('drawFrame cursor', () => {
 			cells: [spaceCell],
 			cursor,
 		}
-		drawFrame(context, frame, INTEGRAL_METRICS, configWith({}), fontTable)
+		drawFrame(
+			context,
+			frame,
+			INTEGRAL_METRICS,
+			configWith({ cursor: cursorConfig }),
+			fontTable,
+		)
 		return paints
 	}
 
@@ -880,5 +901,89 @@ describe('drawFrame cursor', () => {
 		expect(
 			cursorPaints(null).find(p => p.fillStyle === LATTE_FG),
 		).toBeUndefined()
+	})
+
+	it('paints with the config cursor-color instead of the foreground', () => {
+		const cursor = cursorPaints(
+			cursorAt('block'),
+			cursorConfigWith({ color: '#ff8800' }),
+		).find(p => p.fillStyle === '#ff8800')
+
+		expect(cursor).toMatchObject({ op: 'rect', x: 0, width: 8 })
+	})
+
+	it('lets the config cursor-style override the frame shape', () => {
+		// Frame reports a block, but the config forces a bar (thin left rect).
+		const cursor = cursorPaints(
+			cursorAt('block'),
+			cursorConfigWith({ style: 'bar' }),
+		).find(p => p.fillStyle === LATTE_FG)
+
+		expect(cursor).toMatchObject({ op: 'rect', width: 2, height: 16 })
+	})
+
+	it('dims the cursor by the config cursor-opacity', () => {
+		const cursor = cursorPaints(
+			cursorAt('block'),
+			cursorConfigWith({ opacity: 0.5 }),
+		).find(p => p.fillStyle === LATTE_FG)
+
+		expect(cursor?.alpha).toBe(0.5)
+	})
+})
+
+describe('resolveCursor', () => {
+	it('defaults to no overrides and full opacity for an empty config', () => {
+		expect(resolveCursor(EMPTY_CONFIG)).toEqual({
+			color: null,
+			textColor: null,
+			style: null,
+			opacity: 1,
+		})
+	})
+
+	it('passes a hex cursor-color through', () => {
+		expect(
+			resolveCursor({ ...EMPTY_CONFIG, cursor_color: '#ff0000' }).color,
+		).toBe('#ff0000')
+	})
+
+	it('drops a non-CSS cursor-color sentinel to null (foreground fallback)', () => {
+		expect(
+			resolveCursor({ ...EMPTY_CONFIG, cursor_color: 'cell-foreground' })
+				.color,
+		).toBeNull()
+	})
+
+	it('carries cursor-text for the invert color', () => {
+		expect(
+			resolveCursor({ ...EMPTY_CONFIG, cursor_text: '#000000' })
+				.textColor,
+		).toBe('#000000')
+	})
+
+	it('accepts a known cursor-style and rejects an unknown one', () => {
+		expect(
+			resolveCursor({ ...EMPTY_CONFIG, cursor_style: 'bar' }).style,
+		).toBe('bar')
+		expect(
+			resolveCursor({ ...EMPTY_CONFIG, cursor_style: 'beam' }).style,
+		).toBeNull()
+	})
+
+	it.each([
+		{ cursor_opacity: null, expected: 1, label: 'null -> opaque' },
+		{
+			cursor_opacity: 0.4,
+			expected: 0.4,
+			label: 'fraction passes through',
+		},
+		{ cursor_opacity: 0, expected: 0, label: '0 -> invisible' },
+		{ cursor_opacity: 1.5, expected: 1, label: '>1 clamps to opaque' },
+		{ cursor_opacity: -1, expected: 0, label: 'negative clamps to 0' },
+	])('resolves cursor-opacity ($label)', ({ cursor_opacity, expected }) => {
+		expect(resolveCursor({ ...EMPTY_CONFIG, cursor_opacity }).opacity).toBe(
+			expected,
+		)
 	})
 })

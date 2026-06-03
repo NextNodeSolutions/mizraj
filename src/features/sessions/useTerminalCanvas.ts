@@ -11,6 +11,7 @@ import type { GhosttyConfig } from './ghosttyConfig'
 import {
 	loadGhosttyConfig,
 	resolveBackgroundAlpha,
+	resolveCursor,
 	resolveFont,
 } from './ghosttyConfig'
 import { AGENT_CELLS_EVENT } from './sessions'
@@ -155,6 +156,7 @@ const startRendering = (
 		font,
 		palette: buildPalette(ghosttyConfig.palette),
 		backgroundAlpha: resolveBackgroundAlpha(ghosttyConfig),
+		cursor: resolveCursor(ghosttyConfig),
 		boldIsBright: ghosttyConfig.bold_is_bright ?? false,
 	}
 
