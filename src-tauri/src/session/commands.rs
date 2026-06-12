@@ -8,14 +8,18 @@ use tauri::async_runtime::Sender;
 use tauri::{AppHandle, Runtime};
 
 use crate::db::Db;
+use crate::session::cell_frame::CellFrame;
 use crate::session::error::SessionError;
 use crate::session::id::SessionId;
 use crate::session::key::KeyStroke;
 use crate::session::manager::SessionManager;
+use crate::session::mouse::MouseEventDto;
 use crate::session::path;
 use crate::session::sink::OutputSink;
 use crate::session::tauri_sink::TauriEventSink;
 use crate::session::term_sink::TermSink;
+use mizraj_term::ScrollViewport;
+use serde::Deserialize;
 
 fn session_ref_name(session_id: &str) -> String {
     format!("refs/mizraj/sessions/{session_id}")
@@ -130,10 +134,12 @@ pub async fn session_create<R: Runtime>(
     db: tauri::State<'_, Db>,
 ) -> Result<SessionId, SessionError> {
     let pool = db.pool().await.map_err(SessionError::Database)?;
+    let scrollback_lines = crate::ghostty::scrollback_lines();
     session_create_inner(&manager, &pool, &binary, cwd, move |id, pty_input| {
         vec![
             Arc::new(TauriEventSink::new(app.clone(), id.clone())) as Arc<dyn OutputSink>,
-            Arc::new(TermSink::new(app, id.clone(), pty_input)) as Arc<dyn OutputSink>,
+            Arc::new(TermSink::new(app, id.clone(), pty_input, scrollback_lines))
+                as Arc<dyn OutputSink>,
         ]
     })
     .await
@@ -170,6 +176,140 @@ pub async fn session_close(
     manager: tauri::State<'_, SessionManager>,
 ) -> Result<(), SessionError> {
     manager.session_close(&session_id).await
+}
+
+/// Pull the session's current grid as a [`CellFrame`] (TP1). A pane invokes
+/// this right after subscribing so it paints immediately — even when the
+/// session has been idle — instead of staying blank until the next output.
+#[tauri::command]
+pub async fn session_get_frame(
+    session_id: SessionId,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<CellFrame, SessionError> {
+    manager.request_frame(&session_id).await
+}
+
+/// The user's preferred shell ($SHELL, with a platform fallback) — what the
+/// frontend spawns for a plain terminal session, no agent involved.
+#[tauri::command]
+pub fn session_default_shell() -> String {
+    path::default_shell()
+}
+
+/// Write raw UTF-8 bytes to the session's PTY, verbatim — the transport for
+/// keybind-injected payloads (`text:`/`esc:` actions). Unlike `session_paste`
+/// there is no encoding: the binding's bytes ARE the intended input.
+#[tauri::command]
+pub async fn session_write(
+    session_id: SessionId,
+    text: String,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.send_input(&session_id, text.into_bytes()).await
+}
+
+/// Reset the session's terminal emulator to boot state (Ghostty `reset`
+/// keybind action). The child is untouched; the grid repaints fresh.
+#[tauri::command]
+pub async fn session_reset(
+    session_id: SessionId,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.reset_terminal(&session_id).await
+}
+
+/// Where to scroll, in the wire shape: 'top' | 'bottom' | {'delta': rows} |
+/// 'page_up' | 'page_down' (pages resolved against the live grid height by
+/// the render thread's caller — here, using the manager's knowledge).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScrollRequestDto {
+    Top,
+    Bottom,
+    Delta { rows: i64 },
+    PageUp,
+    PageDown,
+}
+
+/// Reposition the session's viewport over its scrollback (TP6). Page
+/// requests scroll by one viewport height minus a context row.
+#[tauri::command]
+pub async fn session_scroll(
+    session_id: SessionId,
+    request: ScrollRequestDto,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    let to = match request {
+        ScrollRequestDto::Top => ScrollViewport::Top,
+        ScrollRequestDto::Bottom => ScrollViewport::Bottom,
+        ScrollRequestDto::Delta { rows } => {
+            // Saturate out-of-range i64 deltas to isize bounds instead of
+            // silently dropping them to 0 — the scroll still goes the right way.
+            ScrollViewport::Delta(isize::try_from(rows).unwrap_or(if rows < 0 {
+                isize::MIN
+            } else {
+                isize::MAX
+            }))
+        }
+        // The render thread knows the live height; a page is expressed as a
+        // sentinel the sink resolves. Keep it simple: managers don't know the
+        // grid, so pages ride as deltas of the DEFAULT grid? No — resolve in
+        // the sink via terminal.rows() would need a new variant. The frontend
+        // already knows its grid (it drives resize), so pages are sent as
+        // deltas from there; these arms guard direct CLI/tooling calls.
+        ScrollRequestDto::PageUp => {
+            ScrollViewport::Delta(-(i32::from(crate::session::pty::DEFAULT_ROWS) as isize - 1))
+        }
+        ScrollRequestDto::PageDown => {
+            ScrollViewport::Delta(i32::from(crate::session::pty::DEFAULT_ROWS) as isize - 1)
+        }
+    };
+    manager.scroll(&session_id, to).await
+}
+
+/// Forward a mouse event (cell coordinates) to the session: encoded against
+/// the live mouse-tracking mode on the render thread, dropped outside any
+/// tracking mode (TP10).
+#[tauri::command]
+pub async fn session_mouse(
+    session_id: SessionId,
+    event: MouseEventDto,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.send_mouse(&session_id, event.into()).await
+}
+
+/// Paste text into the session: the terminal sink encodes it against the live
+/// bracketed-paste mode (DEC 2004) and writes it to the PTY (TP7/TP8).
+#[tauri::command]
+pub async fn session_paste(
+    session_id: SessionId,
+    text: String,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.paste(&session_id, text.into_bytes()).await
+}
+
+/// Mark the session as watched by a frontend pane: the terminal sink resumes
+/// emitting `agent:cells` frames (and pushes a catch-up frame if output arrived
+/// while hidden). Returns `NotFound` for unknown sessions.
+#[tauri::command]
+pub async fn session_subscribe(
+    session_id: SessionId,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.set_subscribed(&session_id, true).await
+}
+
+/// Mark the session as unwatched: the terminal sink stops snapshotting and
+/// emitting frames while the grid keeps tracking output (TP3). Returns
+/// `NotFound` for unknown sessions.
+#[tauri::command]
+pub async fn session_unsubscribe(
+    session_id: SessionId,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.set_subscribed(&session_id, false).await
 }
 
 #[cfg(test)]

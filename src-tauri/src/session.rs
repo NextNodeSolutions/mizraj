@@ -6,6 +6,7 @@ pub mod id;
 pub mod key;
 pub mod label;
 pub mod manager;
+pub mod mouse;
 pub mod path;
 pub mod pty;
 pub mod sink;

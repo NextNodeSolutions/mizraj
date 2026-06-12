@@ -20,12 +20,31 @@ bitflags! {
     }
 }
 
+/// How wide a cell is, mirroring libghostty's `GhosttyCellWide` (screen.h). A
+/// wide character (CJK, many emoji) occupies two columns: the `Wide` cell holds
+/// the glyph and is followed by a `SpacerTail` placeholder the renderer must not
+/// draw a glyph into. `SpacerHead` pads the end of a soft-wrapped line before a
+/// wide char that didn't fit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CellWidth {
+    #[default]
+    Narrow,
+    Wide,
+    SpacerTail,
+    SpacerHead,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Cell {
-    pub ch: char,
+    /// The cell's printable content: its full grapheme cluster (base codepoint
+    /// plus any combining marks / ZWJ-joined codepoints), so accented and emoji
+    /// clusters render as one glyph rather than just the base codepoint. A cell
+    /// with no text is a single space.
+    pub ch: String,
     pub fg: Color,
     pub bg: Color,
     pub attrs: Attrs,
+    pub width: CellWidth,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -51,10 +70,11 @@ mod tests {
 
     fn cell(ch: char) -> Cell {
         Cell {
-            ch,
+            ch: ch.to_string(),
             fg: Color::Default,
             bg: Color::Default,
             attrs: Attrs::empty(),
+            width: CellWidth::Narrow,
         }
     }
 
@@ -105,5 +125,10 @@ mod tests {
         assert_eq!(Color::default(), Color::Default);
         assert_ne!(Color::Indexed(1), Color::Indexed(2));
         assert_eq!(Color::Rgb(10, 20, 30), Color::Rgb(10, 20, 30));
+    }
+
+    #[test]
+    fn cell_width_defaults_to_narrow() {
+        assert_eq!(CellWidth::default(), CellWidth::Narrow);
     }
 }

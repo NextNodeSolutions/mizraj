@@ -3,13 +3,25 @@ use std::mem;
 use std::ptr::{self, NonNull};
 
 use mizraj_term_sys::{
-    ghostty_render_state_free, ghostty_render_state_get, ghostty_render_state_new,
-    ghostty_render_state_row_cells_free, ghostty_render_state_row_cells_get,
-    ghostty_render_state_row_cells_new, ghostty_render_state_row_cells_next,
-    ghostty_render_state_row_get, ghostty_render_state_row_iterator_free,
-    ghostty_render_state_row_iterator_new, ghostty_render_state_row_iterator_next,
-    ghostty_render_state_set, ghostty_render_state_update, GhosttyRenderState,
-    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLS,
+    ghostty_cell_get, ghostty_render_state_free, ghostty_render_state_get,
+    ghostty_render_state_new, ghostty_render_state_row_cells_free,
+    ghostty_render_state_row_cells_get, ghostty_render_state_row_cells_new,
+    ghostty_render_state_row_cells_next, ghostty_render_state_row_get,
+    ghostty_render_state_row_iterator_free, ghostty_render_state_row_iterator_new,
+    ghostty_render_state_row_iterator_next, ghostty_render_state_set, ghostty_render_state_update,
+    GhosttyCell, GhosttyCellData_GHOSTTY_CELL_DATA_WIDE, GhosttyCellWide_GHOSTTY_CELL_WIDE_NARROW,
+    GhosttyCellWide_GHOSTTY_CELL_WIDE_SPACER_HEAD, GhosttyCellWide_GHOSTTY_CELL_WIDE_SPACER_TAIL,
+    GhosttyCellWide_GHOSTTY_CELL_WIDE_WIDE, GhosttyRenderState,
+    GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BAR,
+    GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK_HOLLOW,
+    GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_UNDERLINE,
+    GhosttyRenderStateData, GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLS,
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING,
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE,
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X,
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y,
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE,
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE,
     GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_DIRTY,
     GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_ROWS,
     GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_ROW_ITERATOR,
@@ -19,6 +31,7 @@ use mizraj_term_sys::{
     GhosttyRenderStateOption_GHOSTTY_RENDER_STATE_OPTION_DIRTY, GhosttyRenderStateRowCells,
     GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF,
     GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_LEN,
+    GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_RAW,
     GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_STYLE,
     GhosttyRenderStateRowCellsImpl, GhosttyRenderStateRowData_GHOSTTY_RENDER_STATE_ROW_DATA_CELLS,
     GhosttyRenderStateRowIterator, GhosttyRenderStateRowIteratorImpl,
@@ -26,11 +39,11 @@ use mizraj_term_sys::{
     GhosttyStyleColorTag_GHOSTTY_STYLE_COLOR_PALETTE, GhosttyStyleColorTag_GHOSTTY_STYLE_COLOR_RGB,
 };
 
-use crate::{Attrs, Cell, Cells, Color, Result, TermError, Terminal};
+use crate::{Attrs, Cell, CellWidth, Cells, Color, Result, TermError, Terminal};
 
-/// Stack-allocated grapheme buffer cap. Cells with more grapheme codepoints
-/// than this collapse to the base codepoint only; covers the vast majority
-/// of realistic terminal cells (single base + 0-2 combining marks).
+/// Stack-allocated grapheme buffer cap. Clusters longer than this fall back to a
+/// heap buffer; the stack path covers the vast majority of realistic terminal
+/// cells (a base codepoint plus a handful of combining marks / ZWJ joiners).
 const MAX_GRAPHEMES_PER_CELL: usize = 16;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +55,30 @@ pub enum Dirty {
     Partial,
     /// Global state changed; renderer should redraw everything.
     Full,
+}
+
+/// The shape the cursor is drawn as, mirroring libghostty's
+/// `GhosttyRenderStateCursorVisualStyle` (set by DECSCUSR / the config default).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CursorShape {
+    #[default]
+    Block,
+    Bar,
+    Underline,
+    BlockHollow,
+}
+
+/// The cursor as the renderer needs it: position within the viewport, shape, and
+/// whether it blinks / is visible per the terminal's modes. Read from the render
+/// state via [`RenderState::cursor`]; absent when the cursor is scrolled out of
+/// the viewport.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Cursor {
+    pub x: u16,
+    pub y: u16,
+    pub shape: CursorShape,
+    pub blink: bool,
+    pub visible: bool,
 }
 
 /// Persistent render state attached to a terminal.
@@ -57,6 +94,11 @@ pub struct RenderState {
     handle: NonNull<GhosttyRenderStateImpl>,
     row_iter: NonNull<GhosttyRenderStateRowIteratorImpl>,
     row_cells: NonNull<GhosttyRenderStateRowCellsImpl>,
+    /// Cursor as of the previous `update`. libghostty does not flag relative
+    /// cursor moves (CUF/CUB/CUU/CUD — e.g. Ink advancing past a typed space
+    /// with `CSI 1C`) as dirty, only absolute ones, so `update` compares the
+    /// cursor itself and upgrades a Clean report to Partial when it moved.
+    last_cursor: Option<Option<Cursor>>,
 }
 
 /// Build the `void* out` argument every `ghostty_*_get` call expects: a pointer
@@ -142,6 +184,7 @@ impl RenderState {
             handle,
             row_iter,
             row_cells,
+            last_cursor: None,
         })
     }
 
@@ -158,7 +201,13 @@ impl RenderState {
                 "ghostty_render_state_update returned {r}"
             )));
         }
-        self.read_dirty()
+        let dirty = self.read_dirty()?;
+        let cursor = self.cursor()?;
+        let moved = self.last_cursor.replace(cursor) != Some(cursor);
+        if dirty == Dirty::Clean && moved {
+            return Ok(Dirty::Partial);
+        }
+        Ok(dirty)
     }
 
     /// Current dirty state without re-pulling from the terminal.
@@ -190,35 +239,77 @@ impl RenderState {
 
     /// Returns `(rows, cols)` of the current render state viewport.
     pub fn dimensions(&self) -> Result<(u16, u16)> {
-        let mut cols: u16 = 0;
-        // SAFETY: handle is live; COLS writes a `uint16_t` into `cols`.
-        let r = unsafe {
-            ghostty_render_state_get(
-                self.handle.as_ptr(),
-                GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLS,
-                out_ptr(&mut cols),
-            )
-        };
-        if r != GhosttyResult_GHOSTTY_SUCCESS {
-            return Err(TermError::Feed(format!(
-                "ghostty_render_state_get(COLS) returned {r}"
-            )));
-        }
-        let mut rows: u16 = 0;
-        // SAFETY: handle is live; ROWS writes a `uint16_t` into `rows`.
-        let r = unsafe {
-            ghostty_render_state_get(
-                self.handle.as_ptr(),
-                GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_ROWS,
-                out_ptr(&mut rows),
-            )
-        };
-        if r != GhosttyResult_GHOSTTY_SUCCESS {
-            return Err(TermError::Feed(format!(
-                "ghostty_render_state_get(ROWS) returned {r}"
-            )));
-        }
+        let rows = self.read_u16(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_ROWS)?;
+        let cols = self.read_u16(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLS)?;
         Ok((rows, cols))
+    }
+
+    /// The cursor as the renderer needs it, or `None` when it is scrolled out of
+    /// the viewport (in which case its position would be undefined). `visible`
+    /// reflects the terminal's show/hide mode; the caller decides whether to draw.
+    pub fn cursor(&self) -> Result<Option<Cursor>> {
+        let in_viewport = self.read_bool(
+            GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE,
+        )?;
+        if !in_viewport {
+            return Ok(None);
+        }
+        Ok(Some(Cursor {
+            x: self.read_u16(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X)?,
+            y: self.read_u16(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y)?,
+            shape: self.read_cursor_shape()?,
+            blink: self
+                .read_bool(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING)?,
+            visible: self
+                .read_bool(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE)?,
+        }))
+    }
+
+    /// Read a scalar render-state field. `T` MUST be the type libghostty writes
+    /// for `data` (see GhosttyRenderStateData); the caller picks it per data kind,
+    /// the FFI call overwrites the zero-initialized slot. The single FFI scalar
+    /// read kernel shared by the typed readers below.
+    fn read_scalar<T: Default>(&self, data: GhosttyRenderStateData) -> Result<T> {
+        let mut value = T::default();
+        // SAFETY: handle is live; `out_ptr` hands the C side the slot's address to
+        // write the `data`-typed value through (caller guarantees `T` matches).
+        let r =
+            unsafe { ghostty_render_state_get(self.handle.as_ptr(), data, out_ptr(&mut value)) };
+        if r != GhosttyResult_GHOSTTY_SUCCESS {
+            return Err(TermError::Feed(format!(
+                "ghostty_render_state_get({data}) returned {r}"
+            )));
+        }
+        Ok(value)
+    }
+
+    /// Read a `uint16_t` render-state field.
+    fn read_u16(&self, data: GhosttyRenderStateData) -> Result<u16> {
+        self.read_scalar(data)
+    }
+
+    /// Read a `bool` render-state field.
+    fn read_bool(&self, data: GhosttyRenderStateData) -> Result<bool> {
+        self.read_scalar(data)
+    }
+
+    fn read_cursor_shape(&self) -> Result<CursorShape> {
+        // CURSOR_VISUAL_STYLE writes a `GhosttyRenderStateCursorVisualStyle`
+        // (a u32 enum per bindgen).
+        let style: u32 =
+            self.read_scalar(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE)?;
+        Ok(match style {
+            s if s == GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BAR => {
+                CursorShape::Bar
+            }
+            s if s == GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_UNDERLINE => {
+                CursorShape::Underline
+            }
+            s if s == GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK_HOLLOW => {
+                CursorShape::BlockHollow
+            }
+            _ => CursorShape::Block,
+        })
     }
 
     /// Walk the render state and build an owned `Cells` snapshot.
@@ -302,21 +393,9 @@ impl RenderState {
     }
 
     fn read_dirty(&self) -> Result<Dirty> {
-        let mut value: u32 = 0;
-        // SAFETY: handle is live; DIRTY expects a `GhosttyRenderStateDirty`
-        // output (a u32 enum per the bindgen-generated type).
-        let r = unsafe {
-            ghostty_render_state_get(
-                self.handle.as_ptr(),
-                GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_DIRTY,
-                out_ptr(&mut value),
-            )
-        };
-        if r != GhosttyResult_GHOSTTY_SUCCESS {
-            return Err(TermError::Feed(format!(
-                "ghostty_render_state_get(DIRTY) returned {r}"
-            )));
-        }
+        // DIRTY writes a `GhosttyRenderStateDirty` (a u32 enum per bindgen).
+        let value: u32 =
+            self.read_scalar(GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_DIRTY)?;
         Ok(match value {
             v if v == GhosttyRenderStateDirty_GHOSTTY_RENDER_STATE_DIRTY_FALSE => Dirty::Clean,
             v if v == GhosttyRenderStateDirty_GHOSTTY_RENDER_STATE_DIRTY_PARTIAL => Dirty::Partial,
@@ -345,20 +424,97 @@ impl Drop for RenderState {
 }
 
 fn read_current_cell(cells: GhosttyRenderStateRowCells) -> Result<Cell> {
-    let ch = read_codepoint(cells)?;
+    let ch = read_text(cells)?;
     let (fg, bg, attrs) = read_style(cells)?;
-    Ok(Cell { ch, fg, bg, attrs })
+    let width = read_width(cells)?;
+    Ok(Cell {
+        ch,
+        fg,
+        bg,
+        attrs,
+        width,
+    })
 }
 
-fn read_codepoint(cells: GhosttyRenderStateRowCells) -> Result<char> {
+/// The cell's wide property, read from the raw cell value. A wide character
+/// (CJK, emoji) is a `Wide` cell trailed by a `SpacerTail` the renderer must not
+/// draw a glyph into; `SpacerHead` pads a soft-wrap before a wide char.
+fn read_width(cells: GhosttyRenderStateRowCells) -> Result<CellWidth> {
+    let mut raw: GhosttyCell = 0;
+    // SAFETY: `cells` is positioned on a valid cell by the caller; RAW writes a
+    // `GhosttyCell` (uint64) into `raw`.
+    let r = unsafe {
+        ghostty_render_state_row_cells_get(
+            cells,
+            GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_RAW,
+            out_ptr(&mut raw),
+        )
+    };
+    if r != GhosttyResult_GHOSTTY_SUCCESS {
+        return Err(TermError::Feed(format!("row_cells_get(RAW) returned {r}")));
+    }
+
+    let mut wide = GhosttyCellWide_GHOSTTY_CELL_WIDE_NARROW;
+    // SAFETY: `raw` is the cell value just read above; WIDE writes a
+    // `GhosttyCellWide` (c_uint) into `wide`.
+    let r = unsafe {
+        ghostty_cell_get(
+            raw,
+            GhosttyCellData_GHOSTTY_CELL_DATA_WIDE,
+            out_ptr(&mut wide),
+        )
+    };
+    if r != GhosttyResult_GHOSTTY_SUCCESS {
+        return Err(TermError::Feed(format!("cell_get(WIDE) returned {r}")));
+    }
+
+    Ok(match wide {
+        w if w == GhosttyCellWide_GHOSTTY_CELL_WIDE_WIDE => CellWidth::Wide,
+        w if w == GhosttyCellWide_GHOSTTY_CELL_WIDE_SPACER_TAIL => CellWidth::SpacerTail,
+        w if w == GhosttyCellWide_GHOSTTY_CELL_WIDE_SPACER_HEAD => CellWidth::SpacerHead,
+        _ => CellWidth::Narrow,
+    })
+}
+
+/// The cell's printable text: its full grapheme cluster (base codepoint plus any
+/// combining marks / ZWJ-joined codepoints), so accented and emoji clusters
+/// render as one glyph. A cell with no text is a single space.
+fn read_text(cells: GhosttyRenderStateRowCells) -> Result<String> {
+    let len = grapheme_len(cells)?;
+    if len == 0 {
+        return Ok(" ".to_string());
+    }
+
+    // Stack buffer for the common case (a base codepoint plus a few marks); the
+    // heap path covers only the rare long cluster.
+    let text = if len <= MAX_GRAPHEMES_PER_CELL {
+        let mut buf = [0u32; MAX_GRAPHEMES_PER_CELL];
+        fill_graphemes(cells, &mut buf[..len])?;
+        codepoints_to_string(&buf[..len])
+    } else {
+        let mut buf = vec![0u32; len];
+        fill_graphemes(cells, &mut buf)?;
+        codepoints_to_string(&buf)
+    };
+
+    // Every codepoint was an invalid scalar value (should not happen): fall back
+    // to a renderable blank rather than an empty, zero-width cell.
+    if text.is_empty() {
+        return Ok(" ".to_string());
+    }
+    Ok(text)
+}
+
+/// Number of grapheme codepoints in the current cell (0 = no text).
+fn grapheme_len(cells: GhosttyRenderStateRowCells) -> Result<usize> {
     let mut len: u32 = 0;
     // SAFETY: `cells` is positioned on a valid cell by the caller; GRAPHEMES_LEN
-    // expects a `uint32_t*` output.
+    // writes a `uint32_t` into `len`.
     let r = unsafe {
         ghostty_render_state_row_cells_get(
             cells,
             GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_LEN,
-            (&mut len as *mut u32).cast::<c_void>(),
+            out_ptr(&mut len),
         )
     };
     if r != GhosttyResult_GHOSTTY_SUCCESS {
@@ -366,47 +522,35 @@ fn read_codepoint(cells: GhosttyRenderStateRowCells) -> Result<char> {
             "row_cells_get(GRAPHEMES_LEN) returned {r}"
         )));
     }
-    if len == 0 {
-        return Ok(' ');
-    }
-    let len = len as usize;
+    Ok(len as usize)
+}
 
-    let base = if len <= MAX_GRAPHEMES_PER_CELL {
-        let mut buf = [0u32; MAX_GRAPHEMES_PER_CELL];
-        // SAFETY: `buf` holds at least `len` u32s (len <= MAX_GRAPHEMES_PER_CELL);
-        // GRAPHEMES_BUF writes exactly `len` codepoints into the pointer.
-        let r = unsafe {
-            ghostty_render_state_row_cells_get(
-                cells,
-                GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF,
-                buf.as_mut_ptr().cast::<c_void>(),
-            )
-        };
-        if r != GhosttyResult_GHOSTTY_SUCCESS {
-            return Err(TermError::Feed(format!(
-                "row_cells_get(GRAPHEMES_BUF) returned {r}"
-            )));
-        }
-        buf[0]
-    } else {
-        let mut buf: Vec<u32> = vec![0; len];
-        // SAFETY: `buf` holds exactly `len` u32s; GRAPHEMES_BUF writes exactly
-        // `len` codepoints into the pointer.
-        let r = unsafe {
-            ghostty_render_state_row_cells_get(
-                cells,
-                GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF,
-                buf.as_mut_ptr().cast::<c_void>(),
-            )
-        };
-        if r != GhosttyResult_GHOSTTY_SUCCESS {
-            return Err(TermError::Feed(format!(
-                "row_cells_get(GRAPHEMES_BUF) returned {r}"
-            )));
-        }
-        buf[0]
+/// Fill `buf` with the current cell's grapheme codepoints. `buf.len()` must equal
+/// the count from [`grapheme_len`] — the C side writes exactly that many.
+fn fill_graphemes(cells: GhosttyRenderStateRowCells, buf: &mut [u32]) -> Result<()> {
+    // SAFETY: `buf` holds exactly the grapheme count; GRAPHEMES_BUF writes that
+    // many codepoints through the pointer.
+    let r = unsafe {
+        ghostty_render_state_row_cells_get(
+            cells,
+            GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF,
+            buf.as_mut_ptr().cast::<c_void>(),
+        )
     };
-    Ok(char::from_u32(base).unwrap_or(' '))
+    if r != GhosttyResult_GHOSTTY_SUCCESS {
+        return Err(TermError::Feed(format!(
+            "row_cells_get(GRAPHEMES_BUF) returned {r}"
+        )));
+    }
+    Ok(())
+}
+
+/// Map grapheme codepoints to a string, dropping any invalid scalar value.
+fn codepoints_to_string(codepoints: &[u32]) -> String {
+    codepoints
+        .iter()
+        .filter_map(|&cp| char::from_u32(cp))
+        .collect()
 }
 
 fn read_style(cells: GhosttyRenderStateRowCells) -> Result<(Color, Color, Attrs)> {
@@ -466,9 +610,10 @@ fn style_color_to_color(c: GhosttyStyleColor) -> Color {
 
 fn blank_cell() -> Cell {
     Cell {
-        ch: ' ',
+        ch: " ".to_string(),
         fg: Color::Default,
         bg: Color::Default,
         attrs: Attrs::empty(),
+        width: CellWidth::Narrow,
     }
 }

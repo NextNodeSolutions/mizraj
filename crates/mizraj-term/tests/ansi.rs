@@ -34,12 +34,11 @@ fn red_foo_fixture_decodes_to_red_glyphs() {
     assert_eq!(cells.rows, 4);
     assert_eq!(cells.cols, 16);
 
-    let row0: Vec<char> = (0..3)
-        .map(|col| cells.get(0, col).expect("cell in bounds").ch)
+    let row0: String = (0..3)
+        .map(|col| cells.get(0, col).expect("cell in bounds").ch.clone())
         .collect();
     assert_eq!(
-        row0,
-        vec!['f', 'o', 'o'],
+        row0, "foo",
         "expected ANSI parser to decode the three glyphs at row 0 cols 0..3"
     );
 

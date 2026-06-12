@@ -3,6 +3,14 @@ import { agentRunHref, navigate } from '@/app/router'
 import type { SessionState } from './sessions'
 import { useSessions } from './useSessions'
 
+// '/bin/zsh' -> 'zsh': the program name is the human label, the full id stays
+// in the tooltip for disambiguation.
+const sessionLabel = (session: SessionState): string => {
+	if (session.title) return session.title
+	const name = session.binary.split('/').pop() ?? session.binary
+	return name === '' ? session.id : name
+}
+
 const STATUS_LABEL: Readonly<Record<SessionState['status'], string>> = {
 	running: 'Running',
 	ended: 'Ended',
@@ -41,7 +49,7 @@ export const SessionSidebar = ({
 								title={session.id}
 							>
 								<span className="session-sidebar__label">
-									{session.id}
+									{sessionLabel(session)}
 								</span>
 								<span
 									className="session-sidebar__status"

@@ -1,100 +1,51 @@
-const FONT_SIZE_PX = 13
-const LINE_HEIGHT_RATIO = 1.2
-const FONT_FAMILY =
-	'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace'
+import type { ResolvedCursor, ResolvedFont } from './ghosttyConfig'
+import { applyAdjustment } from './ghosttyConfig'
+import { ATTR_TABLE, decodeAttrs, fontCss, fontFor } from './terminalAttrs'
+import type { GridLink } from './terminalLinks'
+import { isCellSelected } from './terminalMouse'
+import type { SelectionRange } from './terminalMouse'
+import type { TerminalColors } from './terminalPalette'
+import { brightenForBold, resolveColor } from './terminalPalette'
+import { coalesceTextRuns } from './terminalRuns'
+import type {
+	CellFramePayload,
+	WireCell,
+	WireCellWidth,
+	WireCursor,
+	WireCursorStyle,
+} from './terminalWire'
+
 const UNDERLINE_OFFSET_PX = 2
 const UNDERLINE_THICKNESS_PX = 1
 const STRIKE_CENTER_RATIO = 0.5
 const DIM_ALPHA = 0.6
 const FULL_ALPHA = 1
 
-// Bit masks for the backend u8 attrs bitfield (bit positions 0..5).
-const ATTR_BOLD = 0b00_0001
-const ATTR_ITALIC = 0b00_0010
-const ATTR_UNDERLINE = 0b00_0100
-const ATTR_REVERSE = 0b00_1000
-const ATTR_DIM = 0b01_0000
-const ATTR_STRIKE = 0b10_0000
+// Cursor geometry: the bar's width and the underline's thickness, plus the
+// stroke width of the hollow (unfocused) block.
+const CURSOR_BAR_WIDTH_PX = 2
+const CURSOR_UNDERLINE_HEIGHT_PX = 2
+const CURSOR_HOLLOW_STROKE_PX = 1
 
-const ANSI_16 = [
-	'#000000',
-	'#cd0000',
-	'#00cd00',
-	'#cdcd00',
-	'#0000ee',
-	'#cd00cd',
-	'#00cdcd',
-	'#e5e5e5',
-	'#7f7f7f',
-	'#ff0000',
-	'#00ff00',
-	'#ffff00',
-	'#5c5cff',
-	'#ff00ff',
-	'#00ffff',
-	'#ffffff',
-] as const
-
-const CUBE_BASE = 16
-const CUBE_END = 231
-const CUBE_STEP = 40
-const CUBE_OFFSET = 55
-const CUBE_SIDE = 6
-const CUBE_PLANE = CUBE_SIDE * CUBE_SIDE
-const PALETTE_MAX_INDEX = 255
-const GRAYSCALE_BASE = 232
-const GRAYSCALE_START = 8
-const GRAYSCALE_STEP = 10
-
-const cubeChannel = (level: number): number =>
-	level === 0 ? 0 : CUBE_OFFSET + level * CUBE_STEP
-
-const buildPalette = (): readonly string[] => {
-	const palette: string[] = [...ANSI_16]
-
-	for (let idx = CUBE_BASE; idx <= CUBE_END; idx += 1) {
-		const n = idx - CUBE_BASE
-		const r = cubeChannel(Math.floor(n / CUBE_PLANE))
-		const g = cubeChannel(Math.floor((n % CUBE_PLANE) / CUBE_SIDE))
-		const b = cubeChannel(n % CUBE_SIDE)
-		palette.push(`rgb(${r}, ${g}, ${b})`)
-	}
-
-	for (let idx = GRAYSCALE_BASE; idx <= PALETTE_MAX_INDEX; idx += 1) {
-		const v = GRAYSCALE_START + (idx - GRAYSCALE_BASE) * GRAYSCALE_STEP
-		palette.push(`rgb(${v}, ${v}, ${v})`)
-	}
-
-	return palette
-}
-
-const XTERM_PALETTE = buildPalette()
-
-export type WireColor =
-	| { kind: 'default' }
-	| { kind: 'indexed'; idx: number }
-	| { kind: 'rgb'; r: number; g: number; b: number }
-
-export type WireCell = {
-	ch: string
-	fg: WireColor
-	bg: WireColor
-	attrs: number
-}
-
-export type CellFramePayload = {
-	session_id: string
-	cols: number
-	rows: number
-	cells: WireCell[]
-}
-
-// The two colors a cell's `Color::Default` resolves to. Passed in by the caller
-// rather than hardcoded so the `--terminal-bg`/`--terminal-fg` CSS variables stay
-// the single source of truth (see useTerminalCanvas).
-export type TerminalTheme = {
-	background: string
-	foreground: string
+// Everything the renderer needs that comes from outside the cell stream, grouped
+// by concern so later parity milestones bolt on without re-plumbing every
+// signature: M0.5 filled `colors` + `font`; M1 adds `palette` (the resolved
+// 256-entry table indexed colors resolve against) and `backgroundAlpha` (the
+// Ghostty `background-opacity`, applied to background fills only). M3 adds cursor
+// state. `colors` now carries the config bg/fg when present, else the CSS-var
+// fallback (see useTerminalCanvas). `boldIsBright` is the Ghostty `bold-is-bright`
+// directive: when set, a bold cell's standard ANSI foreground is drawn with its
+// bright palette counterpart.
+export type TerminalConfig = {
+	colors: TerminalColors
+	font: ResolvedFont
+	palette: readonly string[]
+	backgroundAlpha: number
+	boldIsBright: boolean
+	cursor: ResolvedCursor
+	/// selection-background/-foreground from the config; null falls back to
+	/// reverse video (swap the cell's resolved colors), Ghostty's default.
+	selection: { background: string | null; foreground: string | null }
 }
 
 type CellMetrics = {
@@ -102,56 +53,16 @@ type CellMetrics = {
 	lineHeight: number
 }
 
-type CellAttrs = {
-	bold: boolean
-	italic: boolean
-	underline: boolean
-	reverse: boolean
-	dim: boolean
-	strike: boolean
-}
-
-/* eslint-disable no-bitwise -- decodes the backend u8 attrs bitfield (BOLD..STRIKE); the wire format mandates bit math here */
-const decodeAttrs = (attrs: number): CellAttrs => ({
-	bold: (attrs & ATTR_BOLD) !== 0,
-	italic: (attrs & ATTR_ITALIC) !== 0,
-	underline: (attrs & ATTR_UNDERLINE) !== 0,
-	reverse: (attrs & ATTR_REVERSE) !== 0,
-	dim: (attrs & ATTR_DIM) !== 0,
-	strike: (attrs & ATTR_STRIKE) !== 0,
-})
-/* eslint-enable no-bitwise */
-
-// One resolver for both planes: the only difference is which theme color the
-// terminal `default` resolves to, so the caller passes that as the fallback
-// (also used when an indexed color is out of the 0..255 palette range).
-const resolveColor = (color: WireColor, fallback: string): string => {
-	if (color.kind === 'default') return fallback
-	if (color.kind === 'rgb') return `rgb(${color.r}, ${color.g}, ${color.b})`
-	return XTERM_PALETTE[color.idx] ?? fallback
-}
-
-const fontFor = (attrs: CellAttrs): string => {
-	const weight = attrs.bold ? 'bold' : 'normal'
-	const style = attrs.italic ? 'italic' : 'normal'
-	return `${style} ${weight} ${FONT_SIZE_PX}px ${FONT_FAMILY}`
-}
-
-// `attrs` is a backend u8, so there are only 256 possible decodings and 256
-// possible fonts. Precompute both once at module load and index by the raw byte
-// in the per-cell hot path, instead of allocating a fresh attrs object and font
-// string for every cell of every frame (tens of thousands per second during a
-// heavy TUI redraw).
-const ATTR_TABLE: readonly CellAttrs[] = Array.from(
-	{ length: 256 },
-	(_, bits) => decodeAttrs(bits),
-)
-const FONT_TABLE: readonly string[] = ATTR_TABLE.map(fontFor)
-
-export const measureCell = (context: CanvasRenderingContext2D): CellMetrics => {
-	context.font = `normal normal ${FONT_SIZE_PX}px ${FONT_FAMILY}`
-	const cellWidth = context.measureText('M').width
-	const lineHeight = FONT_SIZE_PX * LINE_HEIGHT_RATIO
+export const measureCell = (
+	context: CanvasRenderingContext2D,
+	font: ResolvedFont,
+): CellMetrics => {
+	context.font = fontCss(font.regular, font.sizePx)
+	const cellWidth = applyAdjustment(
+		context.measureText('M').width,
+		font.cellWidthAdjustment,
+	)
+	const lineHeight = font.sizePx * font.lineHeightRatio
 	return { cellWidth, lineHeight }
 }
 
@@ -163,45 +74,98 @@ export const measureCell = (context: CanvasRenderingContext2D): CellMetrics => {
 // columns by anti-aliasing and effectively vanishes, while horizontals survive.
 type CellRect = { x: number; y: number; width: number; height: number }
 
+// `span` is how many columns the cell occupies: 1 for a normal cell, 2 for a
+// wide (CJK/emoji) glyph so its background, underline and strike cover both
+// columns and the glyph is not clipped to one.
 export const cellRect = (
 	col: number,
 	row: number,
 	metrics: CellMetrics,
+	span = 1,
 ): CellRect => {
 	const x = Math.round(col * metrics.cellWidth)
 	const y = Math.round(row * metrics.lineHeight)
 	return {
 		x,
 		y,
-		width: Math.round((col + 1) * metrics.cellWidth) - x,
+		width: Math.round((col + span) * metrics.cellWidth) - x,
 		height: Math.round((row + 1) * metrics.lineHeight) - y,
 	}
 }
 
+// The CSS font string for a cell's glyph: the precomputed per-attrs entry,
+// falling back to building one for an attrs byte outside the table.
+const glyphFont = (
+	cell: WireCell,
+	config: TerminalConfig,
+	fontTable: readonly string[],
+): string =>
+	fontTable[cell.attrs] ??
+	fontFor(ATTR_TABLE[cell.attrs] ?? decodeAttrs(cell.attrs), config.font)
+
+// Reverse video swaps the cell's two colors AND the theme defaults each falls
+// back to. Swapping only the sources collapses a default-on-default reversed
+// cell — exactly how Ink/Claude Code draws its input cursor (`chalk.inverse`
+// of a blank) — back to a normal cell, painting an invisible block. Swapping
+// the fallbacks too makes it resolve to foreground-on-background, matching
+// native Ghostty. A selected cell then takes the configured selection colors;
+// without them the classic reverse video keeps the highlight visible anywhere.
+const resolveCellColors = (
+	cell: WireCell,
+	config: TerminalConfig,
+	selected: boolean,
+): { background: string; foreground: string } => {
+	const attrs = ATTR_TABLE[cell.attrs] ?? decodeAttrs(cell.attrs)
+	const resolvedBackground = resolveColor(
+		attrs.reverse ? cell.fg : cell.bg,
+		attrs.reverse ? config.colors.foreground : config.colors.background,
+		config.palette,
+	)
+	const resolvedForeground = resolveColor(
+		brightenForBold(
+			attrs.reverse ? cell.bg : cell.fg,
+			attrs.bold,
+			config.boldIsBright,
+		),
+		attrs.reverse ? config.colors.background : config.colors.foreground,
+		config.palette,
+	)
+	if (!selected) {
+		return {
+			background: resolvedBackground,
+			foreground: resolvedForeground,
+		}
+	}
+	return {
+		background: config.selection.background ?? resolvedForeground,
+		foreground: config.selection.foreground ?? resolvedBackground,
+	}
+}
+
+// Background and decorations only — glyphs are painted by the run pass in
+// drawFrame so the shaper sees whole same-style stretches (ligatures, TP15).
 const drawCell = (
 	context: CanvasRenderingContext2D,
 	cell: WireCell,
 	rect: CellRect,
-	theme: TerminalTheme,
+	config: TerminalConfig,
+	fontTable: readonly string[],
+	selected: boolean,
 ): void => {
 	const attrs = ATTR_TABLE[cell.attrs] ?? decodeAttrs(cell.attrs)
-	const background = resolveColor(
-		attrs.reverse ? cell.fg : cell.bg,
-		theme.background,
-	)
-	const foreground = resolveColor(
-		attrs.reverse ? cell.bg : cell.fg,
-		theme.foreground,
-	)
+	const { background, foreground } = resolveCellColors(cell, config, selected)
 
-	context.fillStyle = background
-	context.fillRect(rect.x, rect.y, rect.width, rect.height)
-
-	if (cell.ch !== ' ' && cell.ch !== '') {
-		context.globalAlpha = attrs.dim ? DIM_ALPHA : FULL_ALPHA
-		context.fillStyle = foreground
-		context.font = FONT_TABLE[cell.attrs] ?? fontFor(attrs)
-		context.fillText(cell.ch, rect.x, rect.y)
+	// Default-background cells are already covered by clearToBackground; skipping
+	// their fill avoids re-compositing the alpha layer (a wash at opacity < 1)
+	// and cuts the per-frame fillRect count by the grid's blank majority.
+	const paintsBackground =
+		selected || attrs.reverse || cell.bg.kind !== 'default'
+	if (paintsBackground) {
+		// background-opacity dims the cell's background fill only; the glyph and
+		// any underline/strike below stay fully opaque so text never washes out.
+		context.globalAlpha = config.backgroundAlpha
+		context.fillStyle = background
+		context.fillRect(rect.x, rect.y, rect.width, rect.height)
 		context.globalAlpha = FULL_ALPHA
 	}
 
@@ -226,37 +190,348 @@ const drawCell = (
 	}
 }
 
-// Paint the whole backing store with the default background. The context is
-// scaled by devicePixelRatio for crisp text, so we drop to the identity
-// transform first and fill in physical pixels — filling `canvas.width` under
-// the scaled transform would overshoot the canvas by the DPR factor.
+// Paint the whole backing store with the default background at the configured
+// background-opacity. The context is scaled by devicePixelRatio for crisp text,
+// so we drop to the identity transform first and fill in physical pixels —
+// filling `canvas.width` under the scaled transform would overshoot the canvas
+// by the DPR factor. `save`/`restore` also rolls back the alpha so the rest of
+// the frame draws fully opaque.
 const clearToBackground = (
 	context: CanvasRenderingContext2D,
 	background: string,
+	alpha: number,
 ): void => {
 	const { canvas } = context
 	context.save()
 	context.setTransform(1, 0, 0, 1, 0, 0)
+	// A translucent fill composes OVER the previous frame's pixels, leaving
+	// (1 - alpha) of every old glyph behind on each repaint — ghost trails.
+	// Wipe to transparent first so the frame always starts from a clean slate.
+	context.clearRect(0, 0, canvas.width, canvas.height)
+	context.globalAlpha = alpha
 	context.fillStyle = background
 	context.fillRect(0, 0, canvas.width, canvas.height)
 	context.restore()
+}
+
+// A wide glyph spans two columns; a narrow glyph one.
+const WIDE_SPAN = 2
+
+// Spacer cells hold no glyph: 'spacer_tail' is the second column of a wide glyph
+// (already painted by the wide cell), 'spacer_head' pads a soft-wrapped line.
+// Skipping them keeps a spacer's background from overpainting the wide glyph's
+// right half.
+const isSpacer = (wide: WireCellWidth): boolean =>
+	wide === 'spacer_tail' || wide === 'spacer_head'
+
+// Draw one cursor shape into `rect` (color/alpha already set on the context): a
+// thin left bar, a bottom underline, a hollow (unfocused) block outline, or a
+// filled block.
+const drawCursorShape = (
+	context: CanvasRenderingContext2D,
+	style: WireCursorStyle,
+	rect: CellRect,
+	color: string,
+): void => {
+	if (style === 'bar') {
+		context.fillRect(rect.x, rect.y, CURSOR_BAR_WIDTH_PX, rect.height)
+		return
+	}
+	if (style === 'underline') {
+		context.fillRect(
+			rect.x,
+			rect.y + rect.height - CURSOR_UNDERLINE_HEIGHT_PX,
+			rect.width,
+			CURSOR_UNDERLINE_HEIGHT_PX,
+		)
+		return
+	}
+	if (style === 'block_hollow') {
+		context.strokeStyle = color
+		context.lineWidth = CURSOR_HOLLOW_STROKE_PX
+		context.strokeRect(rect.x, rect.y, rect.width, rect.height)
+		return
+	}
+	context.fillRect(rect.x, rect.y, rect.width, rect.height)
+}
+
+// Redraw the glyph a block cursor covers, in the invert color, so the character
+// stays legible on the cursor block: cursor-text when configured, else the
+// terminal background (classic reverse video). Skips empty cells.
+const drawInvertedGlyph = (
+	context: CanvasRenderingContext2D,
+	cell: WireCell,
+	rect: CellRect,
+	config: TerminalConfig,
+	fontTable: readonly string[],
+): void => {
+	if (cell.ch === ' ' || cell.ch === '') return
+	context.fillStyle = config.cursor.textColor ?? config.colors.background
+	context.font = glyphFont(cell, config, fontTable)
+	context.fillText(cell.ch, rect.x, rect.y)
+}
+
+// Paint the cursor over the grid, after the cells. The config drives it: an
+// explicit cursor-style overrides the frame's shape, cursor-color overrides the
+// foreground default, and cursor-opacity dims the whole cursor. A block cursor
+// also inverts the glyph it covers (`cellUnder`) so the character stays legible.
+const drawCursor = (
+	context: CanvasRenderingContext2D,
+	cursor: WireCursor,
+	cellUnder: WireCell | undefined,
+	metrics: CellMetrics,
+	config: TerminalConfig,
+	fontTable: readonly string[],
+): void => {
+	const rect = cellRect(cursor.x, cursor.y, metrics)
+	const style = config.cursor.style ?? cursor.style
+	const color = config.cursor.color ?? config.colors.foreground
+
+	context.globalAlpha = config.cursor.opacity
+	context.fillStyle = color
+	drawCursorShape(context, style, rect, color)
+	if (style === 'block' && cellUnder) {
+		drawInvertedGlyph(context, cellUnder, rect, config, fontTable)
+	}
+	context.globalAlpha = FULL_ALPHA
+}
+
+// The grid tiles at cellWidth but fillText advances at the font's natural
+// width; with adjust-cell-width (or a fallback font) the two diverge and a
+// single-run fillText drifts cumulatively off the grid — the cursor then sits
+// visibly right of the text. Within this tolerance the run is drawn in one
+// call (shaper ligatures intact); beyond it the advance is corrected.
+const RUN_DRIFT_TOLERANCE_PX = 0.5
+
+// Codepoints coding fonts fuse into ligatures (`->`, `=>`, `!=`, `::`, `||`).
+// They must reach the shaper in ONE unspaced fillText: a non-zero letterSpacing
+// disables ligature formation (CSS text spec, honored by WebKit's canvas) and
+// per-char placement never shapes. Sequences of these chars are therefore drawn
+// raw at their cell origin; the drift inside one is bounded by
+// LIGATURE_DRIFT_CAP_PX — long separators (`====`) are chunked to keep the
+// bound, and a chunk seam between repeated identical glyphs is invisible.
+const LIGATURE_CHARS = new Set(String.raw`-=<>!&|~+:?/.*#_\;@$%^`)
+const LIGATURE_DRIFT_CAP_PX = 2
+// A chunk shorter than 2 chars cannot fuse anything — the floor below which
+// chunking would defeat its own purpose.
+const MIN_LIGATURE_CHUNK_CHARS = 2
+
+type RunSegment = { startIndex: number; text: string; ligature: boolean }
+
+// Split a run's chars into maximal stretches of ligature-candidate punctuation
+// vs everything else, keeping each stretch's offset into the run.
+const splitLigatureSegments = (chars: readonly string[]): RunSegment[] => {
+	const segments: RunSegment[] = []
+	for (const [index, char] of chars.entries()) {
+		const ligature = LIGATURE_CHARS.has(char)
+		const last = segments.at(-1)
+		if (last && last.ligature === ligature) {
+			last.text += char
+			continue
+		}
+		segments.push({ startIndex: index, text: char, ligature })
+	}
+	return segments
+}
+
+const columnX = (col: number, metrics: CellMetrics): number =>
+	Math.round(col * metrics.cellWidth)
+
+// One unspaced fillText so the shaper fuses the sequence. Past the drift cap
+// (a long `----` separator under adjust-cell-width) the segment is chunked,
+// each chunk re-anchored on its own column.
+const fillLigatureSegment = (
+	context: CanvasRenderingContext2D,
+	text: string,
+	startCol: number,
+	y: number,
+	metrics: CellMetrics,
+): void => {
+	const chars = [...text]
+	const drift = Math.abs(
+		context.measureText(text).width - chars.length * metrics.cellWidth,
+	)
+	if (drift <= LIGATURE_DRIFT_CAP_PX) {
+		context.fillText(text, columnX(startCol, metrics), y)
+		return
+	}
+	const chunkLength = Math.max(
+		MIN_LIGATURE_CHUNK_CHARS,
+		Math.floor((LIGATURE_DRIFT_CAP_PX * chars.length) / drift),
+	)
+	for (let index = 0; index < chars.length; index += chunkLength) {
+		context.fillText(
+			chars.slice(index, index + chunkLength).join(''),
+			columnX(startCol + index, metrics),
+			y,
+		)
+	}
+}
+
+// Keep every char of a non-ligature segment on its grid column. letterSpacing
+// (Safari 17.4+/WKWebView) absorbs the advance mismatch in one call; engines
+// without it place per character. Reflect.has, not `in`: lib.dom types the
+// property unconditionally, so an `in` check would narrow the no-support
+// branch to `never`.
+const fillAlignedSegment = (
+	context: CanvasRenderingContext2D,
+	text: string,
+	startCol: number,
+	y: number,
+	metrics: CellMetrics,
+): void => {
+	const chars = [...text]
+	const x = columnX(startCol, metrics)
+	if (chars.length === 1) {
+		context.fillText(text, x, y)
+		return
+	}
+	if (Reflect.has(context, 'letterSpacing')) {
+		const natural = context.measureText(text).width
+		const target = chars.length * metrics.cellWidth
+		context.letterSpacing = `${(target - natural) / chars.length}px`
+		context.fillText(text, x, y)
+		context.letterSpacing = '0px'
+		return
+	}
+	for (const [index, char] of chars.entries()) {
+		context.fillText(char, columnX(startCol + index, metrics), y)
+	}
+}
+
+// Draw one run's text so each character lands on its grid column. A matching
+// natural advance draws the whole run in one call (ligatures form, zero extra
+// cost). On a mismatch the run is split into ligature-candidate and plain
+// segments: ligature stretches stay unspaced so the shaper can fuse them,
+// plain stretches are realigned per column (fillAlignedSegment).
+const fillRunText = (
+	context: CanvasRenderingContext2D,
+	text: string,
+	startCol: number,
+	rect: { x: number; y: number },
+	metrics: CellMetrics,
+): void => {
+	const chars = [...text]
+	if (chars.length <= 1) {
+		context.fillText(text, rect.x, rect.y)
+		return
+	}
+	const natural = context.measureText(text).width
+	const target = chars.length * metrics.cellWidth
+	if (Math.abs(natural - target) <= RUN_DRIFT_TOLERANCE_PX) {
+		context.fillText(text, rect.x, rect.y)
+		return
+	}
+	for (const segment of splitLigatureSegments(chars)) {
+		const fillSegment = segment.ligature
+			? fillLigatureSegment
+			: fillAlignedSegment
+		fillSegment(
+			context,
+			segment.text,
+			startCol + segment.startIndex,
+			rect.y,
+			metrics,
+		)
+	}
+}
+
+// Whether the cursor blinks for this frame. An explicit cursor-style-blink
+// rules. Unset, Ghostty blinks the never-styled default cursor — but
+// libghostty's wire collapses that default to block+steady, identical to an
+// explicit DECSCUSR 2. The heuristic: a steady BLOCK reads as the default
+// (blinks), a steady bar/underline as a deliberate DECSCUSR 4/6 (stays
+// steady). Deviation for explicit steady-block requests, noted in the
+// implementation notes.
+export const cursorBlinks = (
+	config: TerminalConfig,
+	cursor: WireCursor,
+): boolean => {
+	if (config.cursor.blink !== null) return config.cursor.blink
+	if (cursor.blink) return true
+	return cursor.style === 'block'
+}
+
+// `cursorBlinkOn` is the blink phase for this paint (the caller's timer toggles
+// it): a blinking cursor is drawn only while it is on, a steady cursor always.
+// `selection` must already be normalized (anchor before head in stream order —
+// normalizeSelection in terminalMouse); per-cell highlight rides drawCell.
+export type DrawFrameOptions = {
+	cursorBlinkOn?: boolean
+	selection?: SelectionRange | null
+	// The link under the pointer, underlined like Ghostty's hover affordance.
+	hoveredLink?: GridLink | null
 }
 
 export const drawFrame = (
 	context: CanvasRenderingContext2D,
 	frame: CellFramePayload,
 	metrics: CellMetrics,
-	theme: TerminalTheme,
+	config: TerminalConfig,
+	fontTable: readonly string[],
+	options: DrawFrameOptions = {},
 ): void => {
-	clearToBackground(context, theme.background)
+	clearToBackground(context, config.colors.background, config.backgroundAlpha)
 	context.textBaseline = 'top'
+	const selection = options.selection ?? null
 
 	for (let row = 0; row < frame.rows; row += 1) {
 		for (let col = 0; col < frame.cols; col += 1) {
 			const cell = frame.cells[row * frame.cols + col]
 			if (!cell) continue
-			drawCell(context, cell, cellRect(col, row, metrics), theme)
+			if (isSpacer(cell.wide)) continue
+			const span = cell.wide === 'wide' ? WIDE_SPAN : 1
+			drawCell(
+				context,
+				cell,
+				cellRect(col, row, metrics, span),
+				config,
+				fontTable,
+				selection ? isCellSelected(col, row, selection) : false,
+			)
 		}
+	}
+
+	// Glyph pass, by run: one fillText per same-style stretch lets the font
+	// shaper form ligatures (=>, !=) exactly like Ghostty's harfbuzz pass,
+	// while bg/selection/decorations above stayed per-cell.
+	const runs = coalesceTextRuns(frame, (col, row) =>
+		selection ? isCellSelected(col, row, selection) : false,
+	)
+	for (const run of runs) {
+		const attrs = ATTR_TABLE[run.cell.attrs] ?? decodeAttrs(run.cell.attrs)
+		const { foreground } = resolveCellColors(run.cell, config, run.selected)
+		const rect = cellRect(run.startCol, run.row, metrics, run.span)
+		context.globalAlpha = attrs.dim ? DIM_ALPHA : FULL_ALPHA
+		context.fillStyle = foreground
+		context.font = glyphFont(run.cell, config, fontTable)
+		fillRunText(context, run.text, run.startCol, rect, metrics)
+		context.globalAlpha = FULL_ALPHA
+	}
+
+	const hovered = options.hoveredLink
+	if (hovered) {
+		context.fillStyle = config.colors.foreground
+		for (let col = hovered.startCol; col <= hovered.endCol; col += 1) {
+			const rect = cellRect(col, hovered.row, metrics)
+			context.fillRect(
+				rect.x,
+				rect.y + rect.height - UNDERLINE_OFFSET_PX,
+				rect.width,
+				UNDERLINE_THICKNESS_PX,
+			)
+		}
+	}
+
+	const cursor = frame.cursor
+	const blinkOn = options.cursorBlinkOn ?? true
+	if (
+		cursor &&
+		cursor.visible &&
+		(!cursorBlinks(config, cursor) || blinkOn)
+	) {
+		const cellUnder = frame.cells[cursor.y * frame.cols + cursor.x]
+		drawCursor(context, cursor, cellUnder, metrics, config, fontTable)
 	}
 }
 

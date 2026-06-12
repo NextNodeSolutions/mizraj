@@ -4,6 +4,8 @@ import { atom, getDefaultStore } from 'jotai'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
+import type { CellFramePayload } from './terminalWire'
+
 export type OutputChunkKind = 'stdout' | 'stderr'
 
 export type OutputChunk = {
@@ -15,6 +17,15 @@ export type SessionStatus = 'running' | 'ended'
 
 export type SessionState = {
 	id: string
+	/// The spawned program ('claude' for agent runs, the user's shell for
+	/// plain terminals) — what the sidebar labels the session with.
+	binary: string
+	/// The repo the session was launched in — what a split spawned from this
+	/// session inherits as its working directory.
+	repoPath: string | null
+	/// The OSC 0/2 title the program set, when any — overrides the derived
+	/// label while present (TP13).
+	title: string | null
 	output: ReadonlyArray<OutputChunk>
 	status: SessionStatus
 	exitCode: number | null
@@ -37,21 +48,36 @@ export const AGENT_END_EVENT = 'agent:end'
 
 export const AGENT_CELLS_EVENT = 'agent:cells'
 
+export const AGENT_TITLE_EVENT = 'agent:title'
+
+export type TitlePayload = {
+	session_id: string
+	title: string | null
+}
+
 type SessionsMap = Readonly<Record<string, SessionState>>
 
 export const sessionsAtom = atom<SessionsMap>({})
 
-export const startSessionAtom = atom(null, (get, set, sessionId: string) => {
-	set(sessionsAtom, {
-		...get(sessionsAtom),
-		[sessionId]: {
-			id: sessionId,
-			output: [],
-			status: 'running',
-			exitCode: null,
-		},
-	})
-})
+type StartSessionArgs = { id: string; binary: string; repoPath: string | null }
+
+export const startSessionAtom = atom(
+	null,
+	(get, set, { id, binary, repoPath }: StartSessionArgs) => {
+		set(sessionsAtom, {
+			...get(sessionsAtom),
+			[id]: {
+				id,
+				binary,
+				repoPath,
+				title: null,
+				output: [],
+				status: 'running',
+				exitCode: null,
+			},
+		})
+	},
+)
 
 type AppendOutputArgs = { sessionId: string; chunk: OutputChunk }
 
@@ -71,6 +97,21 @@ export const appendOutputAtom = atom(
 	},
 )
 
+type SetTitleArgs = { sessionId: string; title: string | null }
+
+export const setSessionTitleAtom = atom(
+	null,
+	(get, set, { sessionId, title }: SetTitleArgs) => {
+		const sessions = get(sessionsAtom)
+		const existing = sessions[sessionId]
+		if (!existing) return
+		set(sessionsAtom, {
+			...sessions,
+			[sessionId]: { ...existing, title },
+		})
+	},
+)
+
 type EndSessionArgs = { sessionId: string; exitCode: number | null }
 
 export const endSessionAtom = atom(
@@ -82,6 +123,24 @@ export const endSessionAtom = atom(
 		set(sessionsAtom, {
 			...sessions,
 			[sessionId]: { ...existing, status: 'ended', exitCode },
+		})
+	},
+)
+
+type CellFramesMap = Readonly<Record<string, CellFramePayload>>
+
+// The single global home for the latest cell frame per session. A pane that
+// remounts reads the last frame from here instead of racing a per-pane
+// agent:cells listen, so it repaints immediately rather than staying blank
+// until the next live frame.
+export const cellFramesAtom = atom<CellFramesMap>({})
+
+export const setCellFrameAtom = atom(
+	null,
+	(get, set, frame: CellFramePayload) => {
+		set(cellFramesAtom, {
+			...get(cellFramesAtom),
+			[frame.session_id]: frame,
 		})
 	},
 )
@@ -165,6 +224,17 @@ export const startAgentEventsBridge = (): void => {
 				sessionId: session_id,
 				exitCode: exit_code,
 			})
+		},
+	)
+
+	forwardSessionEvent<CellFramePayload>(AGENT_CELLS_EVENT, frame => {
+		store.set(setCellFrameAtom, frame)
+	})
+
+	forwardSessionEvent<TitlePayload>(
+		AGENT_TITLE_EVENT,
+		({ session_id, title }) => {
+			store.set(setSessionTitleAtom, { sessionId: session_id, title })
 		},
 	)
 }

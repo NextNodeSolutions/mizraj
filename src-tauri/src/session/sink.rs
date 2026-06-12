@@ -1,4 +1,12 @@
+use mizraj_term::{MouseInput, ScrollViewport};
+
+use crate::session::cell_frame::CellFrame;
 use crate::session::key::KeyStroke;
+
+/// Reply channel for an on-demand frame snapshot (TP1). Capacity 1: the
+/// terminal sink's render thread `try_send`s exactly one frame, the requesting
+/// command awaits it with a timeout.
+pub type FrameReply = tauri::async_runtime::Sender<CellFrame>;
 
 /// Per-session terminal endpoint: the PTY reader fans out every output chunk to
 /// all registered sinks (D4: channel sink for the live UI, scrollback sink for
@@ -33,6 +41,42 @@ pub trait OutputSink: Send + Sync {
     /// writing it to the PTY); byte-only sinks ignore it. Same ~1ms budget —
     /// the encode itself happens off-thread on the render thread.
     fn key(&self, _stroke: KeyStroke) {}
+
+    /// Called when a frontend pane starts (`true`) or stops (`false`) watching
+    /// the session (TP3). Only the terminal sink reacts — it gates cell-frame
+    /// emission so an unwatched session costs no snapshot/serialize/IPC work;
+    /// byte-only sinks keep their default no-op. Same ~1ms budget.
+    fn set_subscribed(&self, _subscribed: bool) {}
+
+    /// Called when the frontend pulls the current grid on mount (TP1). Only
+    /// the terminal sink replies — its render thread serializes the live grid
+    /// into the reply channel; byte-only sinks keep the default no-op and the
+    /// caller's timeout handles a session with no terminal sink. Same ~1ms
+    /// budget: the snapshot itself happens on the render thread.
+    fn frame_request(&self, _reply: FrameReply) {}
+
+    /// Called when the user triggers the Ghostty `reset` keybind action. Only
+    /// the terminal sink acts: its render thread resets the emulator to boot
+    /// state and pushes a fresh frame. The child process is not signaled.
+    fn reset_terminal(&self) {}
+
+    /// Called when the frontend forwards a mouse event (TP10). Only the
+    /// terminal sink acts: its render thread encodes against the live
+    /// mouse-tracking mode and writes to the PTY — or nothing, outside any
+    /// tracking mode. Same ~1ms budget.
+    fn mouse(&self, _input: MouseInput) {}
+
+    /// Called when the user scrolls the viewport (wheel outside app mouse
+    /// mode, scroll keybinds — TP6). Only the terminal sink acts: its render
+    /// thread repositions the window over the scrollback and repaints.
+    fn scroll(&self, _to: ScrollViewport) {}
+
+    /// Called when the user pastes into the session (TP7/TP8). Only the
+    /// terminal sink acts: its render thread encodes the payload against the
+    /// live bracketed-paste mode (strip unsafe bytes, wrap in `ESC[200~ …` or
+    /// convert newlines) and writes the result to the PTY. Same ~1ms budget —
+    /// the encode happens off-thread.
+    fn paste(&self, _data: Vec<u8>) {}
 }
 
 #[cfg(test)]

@@ -11,6 +11,7 @@ export type SessionError =
 	| { kind: 'session_ref'; message: string }
 	| { kind: 'database'; message: string }
 	| { kind: 'resize'; message: string }
+	| { kind: 'frame_unavailable'; session_id: string }
 
 export type SessionErrorKind = SessionError['kind']
 
@@ -25,6 +26,7 @@ const SESSION_ERROR_DETAIL: Record<SessionErrorKind, string> = {
 	session_ref: 'message',
 	database: 'message',
 	resize: 'message',
+	frame_unavailable: 'session_id',
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -60,6 +62,8 @@ const formatSessionError = (error: SessionError): string => {
 			return `database error: ${error.message}`
 		case 'resize':
 			return `failed to resize pty: ${error.message}`
+		case 'frame_unavailable':
+			return `no terminal frame available for session: ${error.session_id}`
 	}
 }
 

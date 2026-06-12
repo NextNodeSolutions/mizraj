@@ -1,5 +1,5 @@
 {
-	"effort": "V8",
+	"effort": "V12",
 	"milestones": [
 		{
 			"id": "M1",
@@ -259,6 +259,571 @@
 							"slice_of": ["D11"],
 							"done_when": "drag-drop assigne une tâche à un agent ; lâcher hors de la grille désassigne",
 							"description": "WHAT: assignation par drag-drop (tasks_assign) et désassignation en lâchant hors de la grille, dans CockpitGrid.\n\nWHY: D11 — interaction d'assignation du cockpit, démo finale 2 tâches × 2 agents. Build-or-Borrow à exécuter au dev : le drag-drop est borrow-par-défaut (DnD natif HTML5 vs lib) — trancher via la probe dans /next.\n\nWHERE: src/views/CockpitGrid.tsx + src/components/CockpitCell.tsx ; invoke('tasks_assign') / désassignation.\n\nDONE WHEN:\n- drop sur une cellule → assignation persistée\n- drop hors grille → désassignation\n- la grille se rafraîchit (démo 2 tâches × 2 agents)",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M7",
+			"demo": "Le terminal lit le config Ghostty de l'utilisateur (parser + thème résolu + DTO typé), le renderer le consomme, et un changement de fichier est rechargé à chaud.",
+			"skeleton": false,
+			"needs": ["M2"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/ghostty-foundation",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Parser le fichier de config Ghostty",
+							"size": "I4",
+							"slice_of": ["DG1", "DG2"],
+							"done_when": "key=value parsés, includes config-file gérés, diagnostics structurés",
+							"description": "WHAT: lire et parser ~/.config/ghostty/config (+ chemin macOS) avec un line-parser (trim, split premier =, commentaires #, includes ?optional).\n\nWHY: DG2 — toute feature ghostty dépend de la lecture du config ; c'est la base.\n\nWHERE: crates/mizraj-config (parse.rs, load.rs) ; src-tauri/src/ghostty.rs (load_ghostty_config)\n\nDONE WHEN: key=value parsés, includes config-file gérés, diagnostics structurés",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Résoudre le thème en couche de base",
+							"size": "I4",
+							"slice_of": ["DG2"],
+							"done_when": "theme=name|light:..,dark:..|path résolu, overrides user au-dessus",
+							"description": "WHAT: résoudre theme (name | light:..,dark:.. | path absolu), recherche ~/.config/ghostty/themes puis dossier bundlé, parser le fragment comme couche de base.\n\nWHY: DG2 — les couleurs du thème sont la base que les overrides background/foreground/palette recouvrent.\n\nWHERE: crates/mizraj-config (resolve.rs, load.rs)\n\nDONE WHEN: theme=name|light:..,dark:..|path résolu, overrides user au-dessus",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Exposer un DTO de config résolue",
+							"size": "I4",
+							"slice_of": ["DG2"],
+							"done_when": "ResolvedConfig + GhosttyConfigDto sérialisés, palette en overrides sparse",
+							"description": "WHAT: produire un struct serde typé = config effective après merge thème+overrides ; palette en overrides sparse (BTreeMap<u8,Rgb> -> {index,color}[]), pas de table 256 résolue.\n\nWHY: DG2 — un seul DTO typé est le contrat backend->frontend ; l'autorité palette reste le frontend.\n\nWHERE: crates/mizraj-config/resolve.rs ; src-tauri/src/ghostty/dto.rs ; src/features/sessions/ghosttyConfig.ts\n\nDONE WHEN: ResolvedConfig + GhosttyConfigDto sérialisés, palette en overrides sparse",
+							"sink_id": null
+						},
+						{
+							"step": "04",
+							"title": "Injecter la config dans le renderer",
+							"size": "I4",
+							"slice_of": ["DG2"],
+							"done_when": "TerminalConfig threadé dans drawFrame/drawCell, re-measure au changement de police",
+							"description": "WHAT: élargir TerminalTheme en TerminalConfig complet threadé dans drawFrame/drawCell, et re-exécuter measureCell quand la police change.\n\nWHY: DG2 — le renderer doit consommer la config résolue, pas des constantes hardcodées.\n\nWHERE: src/features/sessions/terminalRenderer.ts (TerminalConfig, drawFrame, drawCell) ; useTerminalCanvas.ts\n\nDONE WHEN: TerminalConfig threadé dans drawFrame/drawCell, re-measure au changement de police",
+							"sink_id": null
+						},
+						{
+							"step": "05",
+							"title": "Recharger la config à chaud",
+							"size": "I4",
+							"slice_of": ["DG3"],
+							"done_when": "éditer le fichier config repeint la pane sans reload de l'app",
+							"description": "WHAT: backend émet un event config-changed quand le fichier change ; frontend re-pull le DTO et ré-injecte (re-measure + repaint).\n\nWHY: DG3 — le hot-reload est la dernière brique du foundation (config-changed manquant aujourd'hui).\n\nWHERE: src-tauri/src/ghostty.rs ; src/features/sessions/useGhosttyTheme.ts ; useTerminalCanvas.ts (startRendering)\n\nDONE WHEN: éditer le fichier config repeint la pane sans reload de l'app",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M8",
+			"demo": "Les couleurs du terminal (palette 256, background/foreground, thème clair/sombre, bold-is-bright, background-opacity) suivent le config Ghostty.",
+			"skeleton": false,
+			"needs": ["M7"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/ghostty-themes",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Appliquer la palette et bg/fg du thème",
+							"size": "I4",
+							"slice_of": ["DG4"],
+							"done_when": "buildPalette superpose les overrides backend, drawCell utilise bg/fg du config",
+							"description": "WHAT: superposer les overrides sparse du backend sur la base xterm-256 (buildPalette) et utiliser background/foreground du config dans drawCell.\n\nWHY: DG4 — les couleurs sont la parité la plus visible.\n\nWHERE: src/features/sessions/terminalPalette.ts (buildPalette) ; terminalRenderer.ts (drawCell) ; ghosttyConfig.ts\n\nDONE WHEN: buildPalette superpose les overrides backend, drawCell utilise bg/fg du config",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Suivre l'apparence claire/sombre",
+							"size": "I3",
+							"slice_of": ["DG4"],
+							"done_when": "basculer l'OS clair/sombre choisit la variante de thème correspondante",
+							"description": "WHAT: passer l'appearance à load_ghostty_config pour choisir la variante light:/dark: du thème.\n\nWHY: DG4 — theme=light:..,dark:.. impose de suivre l'apparence système.\n\nWHERE: src-tauri/src/ghostty.rs (load_ghostty_config) ; src/features/sessions/useGhosttyTheme.ts\n\nDONE WHEN: basculer l'OS clair/sombre choisit la variante de thème correspondante",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Appliquer background-opacity",
+							"size": "I3",
+							"slice_of": ["DG4"],
+							"done_when": "background-opacity<1 rend le fond du terminal translucide",
+							"description": "WHAT: appliquer background-opacity comme globalAlpha lors du remplissage du fond dans drawCell.\n\nWHY: DG4 — la transparence de fond fait partie de la parité couleurs.\n\nWHERE: src/features/sessions/ghosttyConfig.ts (resolveBackgroundAlpha) ; terminalRenderer.ts (drawCell)\n\nDONE WHEN: background-opacity<1 rend le fond du terminal translucide",
+							"sink_id": null
+						},
+						{
+							"step": "04",
+							"title": "Rendre bold-is-bright dans le renderer",
+							"size": "I3",
+							"slice_of": ["DG4"],
+							"done_when": "avec bold-is-bright=true le texte gras utilise les indices palette 8-15",
+							"description": "WHAT: appliquer bold-is-bright (parsé mais inutilisé) : mapper un glyphe gras sur la couleur bright correspondante de la palette.\n\nWHY: DG4 — directive de couleur parsée mais pas encore consommée par le renderer.\n\nWHERE: src/features/sessions/terminalRenderer.ts (drawCell) ; terminalPalette.ts\n\nDONE WHEN: avec bold-is-bright=true le texte gras utilise les indices palette 8-15",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M9",
+			"demo": "La police (famille+variantes, taille, adjust-cell-*) et les caractères larges/graphèmes (CJK, emoji) s'affichent correctement.",
+			"skeleton": false,
+			"needs": ["M7"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/ghostty-font-text",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Appliquer la config police dans le canvas",
+							"size": "I4",
+							"slice_of": ["DG5"],
+							"done_when": "famille/variantes/taille du config rendues, lineHeight calculé",
+							"description": "WHAT: construire la stack CSS de police (regular/bold/italic/bold-italic), taille et lineHeight depuis le config et les passer au canvas.\n\nWHY: DG5 — la police config-driven remplace les trois constantes hardcodées.\n\nWHERE: src/features/sessions/ghosttyConfig.ts (resolveFont) ; terminalRenderer.ts (measureCell) ; terminalAttrs.ts (buildFontTable)\n\nDONE WHEN: famille/variantes/taille du config rendues, lineHeight calculé",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Appliquer adjust-cell-width au métrique",
+							"size": "I3",
+							"slice_of": ["DG5"],
+							"done_when": "adjust-cell-width modifie la largeur de cellule mesurée",
+							"description": "WHAT: appliquer adjust-cell-width (parsé, inutilisé) au calcul de largeur de cellule, en complément de adjust-cell-height déjà appliqué.\n\nWHY: DG5 — métrique de cellule parsée mais pas encore consommée.\n\nWHERE: src/features/sessions/ghosttyConfig.ts ; terminalRenderer.ts (measureCell)\n\nDONE WHEN: adjust-cell-width modifie la largeur de cellule mesurée",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Transporter les cellules larges dans le wire",
+							"size": "I4",
+							"slice_of": ["DG5"],
+							"done_when": "WireCell porte un flag wide émis par libghostty",
+							"description": "WHAT: ajouter le flag de cellule large (wide) à CellFrame/WireCell depuis les données libghostty (aujourd'hui le wire ne porte que ch/fg/bg/attrs).\n\nWHY: DG5 — la correction CJK/emoji exige de connaître la largeur côté frontend.\n\nWHERE: src-tauri/src/session/cell_frame.rs ; crates/mizraj-term ; src/features/sessions/terminalWire.ts\n\nDONE WHEN: WireCell porte un flag wide émis par libghostty",
+							"sink_id": null
+						},
+						{
+							"step": "04",
+							"title": "Rendre les caractères larges et graphèmes",
+							"size": "I4",
+							"slice_of": ["DG5"],
+							"done_when": "CJK et emoji s'affichent sans chevauchement ni troncature",
+							"description": "WHAT: dessiner les cellules larges sur deux colonnes et consommer les buffers de graphèmes pour les clusters (emoji).\n\nWHY: DG5 — fin de la correction wide-char + grapheme.\n\nWHERE: src/features/sessions/terminalRenderer.ts (drawCell) ; terminalWire.ts\n\nDONE WHEN: CJK et emoji s'affichent sans chevauchement ni troncature",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M10",
+			"demo": "Le curseur s'affiche (style bloc/barre/souligné, clignotement, couleur, invert, opacité) selon le config.",
+			"skeleton": false,
+			"needs": ["M7"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/ghostty-cursor",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Transporter l'état du curseur dans le wire",
+							"size": "I4",
+							"slice_of": ["DG6"],
+							"done_when": "CellFrame porte cursor x/y/style/blink/visible",
+							"description": "WHAT: ajouter l'état curseur (x, y, style, blink, visible) à CellFrame/WireCell (libghostty l'expose, le wire l'ignore).\n\nWHY: DG6 — rien ne peut être dessiné sans l'état curseur côté frontend.\n\nWHERE: src-tauri/src/session/cell_frame.rs ; src/features/sessions/terminalWire.ts\n\nDONE WHEN: CellFrame porte cursor x/y/style/blink/visible",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Dessiner le curseur",
+							"size": "I4",
+							"slice_of": ["DG6"],
+							"done_when": "une passe dessine le curseur (bloc/barre/souligné) à la position",
+							"description": "WHAT: ajouter une passe de dessin du curseur dans drawFrame selon le style (bloc, barre, souligné).\n\nWHY: DG6 — aucun curseur n'est rendu aujourd'hui.\n\nWHERE: src/features/sessions/terminalRenderer.ts (drawFrame)\n\nDONE WHEN: une passe dessine le curseur (bloc/barre/souligné) à la position",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Appliquer style, couleur et opacité du curseur",
+							"size": "I3",
+							"slice_of": ["DG6"],
+							"done_when": "cursor-style/color/opacity du config pilotent le rendu",
+							"description": "WHAT: consommer cursor-style, cursor-color et cursor-opacity du config dans la passe curseur.\n\nWHY: DG6 — directives curseur parsées mais inutilisées.\n\nWHERE: src/features/sessions/terminalRenderer.ts ; ghosttyConfig.ts\n\nDONE WHEN: cursor-style/color/opacity du config pilotent le rendu",
+							"sink_id": null
+						},
+						{
+							"step": "04",
+							"title": "Faire clignoter et inverser le curseur",
+							"size": "I3",
+							"slice_of": ["DG6"],
+							"done_when": "le curseur clignote et inverse la couleur du texte sous lui",
+							"description": "WHAT: gérer le clignotement (cursor-style-blink) et l'invert (couleur du texte sous le curseur).\n\nWHY: DG6 — finition du rendu curseur.\n\nWHERE: src/features/sessions/terminalRenderer.ts ; terminalAttrs.ts\n\nDONE WHEN: le curseur clignote et inverse la couleur du texte sous lui",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M11",
+			"demo": "2 agents dont 1 idle : un switch A→B→A repeint le pane instantanément (pas d'écran blanc) ; l'IPC ne porte que la session visible (coalescée à ~120fps) et la config est servie depuis un cache.",
+			"skeleton": false,
+			"needs": ["M2", "M7"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "fix/terminal-session-switch",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Bridger agent:cells dans un listener global unique",
+							"size": "I4",
+							"slice_of": ["TP2"],
+							"done_when": "un seul listener agent:cells quel que soit le nombre de panes, et le pane peint la dernière frame de sa session depuis l'atom",
+							"description": "WHAT: déplacer l'abonnement agent:cells du pane vers le bridge global : un seul listen(AGENT_CELLS_EVENT) awaité dans sessions.ts écrit la dernière frame par session_id dans un atom (map sid→frame) ; useTerminalCanvas retire son listen local et lit l'atom de sa session, peint sur changement.\n\nWHY: TP2 — l'abonnement par-pane est async/racé/recréé à chaque mount ; un foyer unique retient la dernière frame par session et supprime les courses de remount.\n\nWHERE: src/features/sessions/sessions.ts (cellFramesAtom + forwardSessionEvent pour AGENT_CELLS_EVENT, ligne ~161) ; src/features/sessions/useTerminalCanvas.ts (retrait du listen ligne ~198, lecture de l'atom).\n\nDONE WHEN:\n- un seul listen agent:cells enregistré (test idempotence du bridge)\n- la 1re frame post-mount est peinte (aucune frame perdue à l'ouverture)\n- le flux live continue de peindre les panes",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Gater l'émission backend aux sessions abonnées",
+							"size": "I4",
+							"slice_of": ["TP3"],
+							"done_when": "une session sans abonné n'émet aucune frame ; un pane s'abonne au mount et se désabonne à l'unmount",
+							"description": "WHAT: le render_loop n'émet un CellFrame que si la session est abonnée ; ajouter session_subscribe/session_unsubscribe(session_id) ; le pane appelle subscribe au mount et unsubscribe à l'unmount.\n\nWHY: TP3 — aujourd'hui term_sink émet pour toutes les sessions vivantes (term_sink.rs:164, emit inconditionnel) ; à N agents bavards l'IPC sature. Le gate de visibilité borne l'émission aux panes affichés.\n\nWHERE: src-tauri/src/session/term_sink.rs (flag d'abonnement + gate avant emit) ; src-tauri/src/session/commands.rs + src-tauri/src/lib.rs (session_subscribe/session_unsubscribe) ; src/features/sessions/useTerminalCanvas.ts (invoke subscribe/unsubscribe dans l'effect).\n\nDONE WHEN:\n- session_subscribe/session_unsubscribe enregistrées (test : session inconnue → erreur typée)\n- une session sans abonné n'émet rien (test ou mesure : agent:cells ≈ 0)\n- une session abonnée émet comme avant",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Coalescer l'émission à ~120fps",
+							"size": "I3",
+							"slice_of": ["TP3"],
+							"done_when": "le débit d'émission est borné à ~120 frames/s par session visible (fenêtre ~8ms)",
+							"description": "WHAT: coalescer les frames dirty et n'émettre qu'au plus une fois par fenêtre ~8ms (≈120fps) par session.\n\nWHY: TP3 — l'utilisateur a demandé 120fps ; un burst d'output ne doit pas émettre une frame par snapshot mais au plus une par fenêtre temporelle.\n\nWHERE: src-tauri/src/session/term_sink.rs (coalescing temporel dans le render_loop, en complément du drain de burst existant ligne ~123).\n\nDONE WHEN:\n- débit borné à ~120 frames/s par session visible sous fort output (test ou mesure)\n- aucune frame finale perdue (la dernière frame d'un burst est toujours émise)",
+							"sink_id": null
+						},
+						{
+							"step": "04",
+							"title": "Snapshoter la grille à la demande et peindre au mount",
+							"size": "I4",
+							"slice_of": ["TP1"],
+							"done_when": "un switch A→B→A affiche le pane immédiatement (pas d'écran blanc, < 50ms), sans attendre un nouvel output",
+							"description": "WHAT: commande session_get_frame(session_id) : le render thread sérialise la grille courante en CellFrame et la renvoie ; au mount (après subscribe), useTerminalCanvas invoque session_get_frame et peint la frame — paint() ne sort plus tôt faute de lastFrame puisque le snapshot la fournit — puis enchaîne sur le live via le bridge (TP2).\n\nWHY: TP1 — c'est le cœur du fix : sans snapshot, un pane remonté reste blanc jusqu'au prochain output. Le snapshot au (ré)abonnement fournit la 1re frame.\n\nWHERE: src-tauri/src/session/term_sink.rs (chemin snapshot — lecture courte du dernier RenderState) ; src-tauri/src/session/commands.rs + lib.rs (session_get_frame) ; src/features/sessions/useTerminalCanvas.ts (invoke au mount → paint ; lever le early-return ligne ~177 quand le snapshot est présent).\n\nDONE WHEN:\n- session_get_frame renvoie la grille courante (test)\n- au mount le cycle est ordonné : subscribe (TP3) → session_get_frame → paint → live via le bridge (le snapshot précède la 1re frame live, pas de trou)\n- switch A→B→A : pane A repeint immédiatement (pas de blanc, < 50ms)\n- le snapshot ne bloque pas le render_loop (lock bref)",
+							"sink_id": null
+						},
+						{
+							"step": "05",
+							"title": "Mémoïser la config résolue et ses dérivés par appearance",
+							"size": "I4",
+							"slice_of": ["TP4"],
+							"done_when": "un remont ne ré-invoque ni loadGhosttyConfig ni measureCell/buildFontTable/buildPalette (cache hit), et éditer la config repeint toujours",
+							"description": "WHAT: cache module-level keyé par appearance (light/dark) stockant {config résolu, metrics, fontTable, palette} ; startRendering lit le cache au lieu d'awaiter loadGhosttyConfig à chaque mount ; l'event config-changed (DG3/M7) vide le cache.\n\nWHY: TP4 — l'aller-retour async loadGhosttyConfig + re-mesure à chaque switch retarde le premier paint ; le cache rend le retour réellement instantané. Invalidation par hot-reload pour ne pas figer la config.\n\nWHERE: src/features/sessions/useTerminalCanvas.ts (startRendering lit le cache, ligne ~123-169) ; nouveau module src/features/sessions/ghosttyConfigCache.ts (get(appearance) + invalidation sur config-changed).\n\nDONE WHEN:\n- 1er mount (cache miss) : loadGhosttyConfig + dérivés calculés une fois puis seedés dans le cache\n- profiler un switch : aucune invocation loadGhosttyConfig ni measureCell/buildFontTable/buildPalette au remount (cache hit)\n- éditer le fichier config vide le cache et repeint la pane (invalidation OK)",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M12",
+			"demo": "Les keybindings Ghostty (copy/paste/select-all via le presse-papier officiel, font-size, clear/reset, text:/esc:, super, physical:, séquences) déclenchent des actions au lieu d'aller au PTY.",
+			"skeleton": false,
+			"needs": ["M7", "M11"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/ghostty-keybindings",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Intégrer le plugin clipboard officiel Tauri",
+							"size": "I3",
+							"slice_of": ["TP7"],
+							"done_when": "le front lit/écrit le presse-papier OS via tauri-plugin-clipboard-manager (collable hors app)",
+							"description": "WHAT: ajouter tauri-plugin-clipboard-manager (Cargo.toml + tauri_plugin_clipboard_manager::init() dans lib.rs + capability clipboard) et un wrapper front fin sur @tauri-apps/plugin-clipboard-manager (readText/writeText).\n\nWHY: TP7 — Build-or-Borrow : plugin officiel tauri-apps (maintenu, vérifié context7) → use-platform-native ; navigator.clipboard est fragile en webview. Pré-requis des actions copy/paste (TP8) et du copy-on-select (M13).\n\nWHERE: src-tauri/Cargo.toml ; src-tauri/src/lib.rs (init) ; src-tauri/capabilities/*.json (clipboard) ; nouveau src/features/sessions/clipboard.ts (readText/writeText).\n\nDONE WHEN:\n- writeText/readText fonctionnent via le plugin (smoke test) ; capability accordée\n- copy met une chaîne au presse-papier OS (collable hors app)\n- build macOS OK (Linux/Win verts)",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Parser les keybinds en table d'actions typée",
+							"size": "I4",
+							"slice_of": ["TP8"],
+							"done_when": "les directives keybind sont parsées en table d'actions typée (super, physical:, séquences) exposée dans le DTO",
+							"description": "WHAT: mizraj-config gagne un bras keybind → table d'actions typée (trigger : mods dont super, physical:, touche/séquence ; action : copy/paste/select_all/font-size/clear/reset/text:/esc:), répétable, exposée via ghostty/dto.rs.\n\nWHY: TP8 — la couche de dispatch a besoin d'une table typée avant de router ; aucun bras keybind n'existe aujourd'hui (resolve.rs droppe la clé inconnue).\n\nWHERE: crates/mizraj-config/value.rs (types Keybind/KeySpec/KeybindAction) + resolve.rs (bras keybind, accumulation façon set_list) ; src-tauri/src/ghostty/dto.rs (KeybindDto).\n\nDONE WHEN:\n- les directives keybind parsent en table (super, physical:, séquences) — tests sur binds représentatifs\n- la table est surfacée dans le GhosttyConfigDto\n- une directive invalide produit un diagnostic, pas un panic",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Dispatcher l'action keybind avant l'encodage PTY",
+							"size": "I4",
+							"slice_of": ["TP8"],
+							"done_when": "un keydown qui matche la table exécute l'action (zéro octet PTY) ; sinon il est encodé vers le PTY comme avant",
+							"description": "WHAT: intercaler un dispatch dans le routeur clavier : si le keydown matche la table d'actions, exécuter l'action ; sinon encoder vers le PTY comme aujourd'hui (l'encodeur VT reste le fallback).\n\nWHY: TP8 — actuellement chaque touche non-meta part directement à l'encodeur (terminalInput.ts) ; le dispatch front évite les round-trips backend sur le chemin critique clavier.\n\nWHERE: src/features/sessions/terminalInput.ts (dispatch avant propagateKey) ; src/features/sessions/ghosttyConfig.ts (exposer la table keybind au front).\n\nDONE WHEN:\n- une touche bindée exécute son action avec zéro octet au PTY\n- une touche non-bindée arrive au PTY comme avant\n- la résolution du match gère super et physical:",
+							"sink_id": null
+						},
+						{
+							"step": "04",
+							"title": "Câbler copy/paste/select-all",
+							"size": "I3",
+							"slice_of": ["TP8", "TP7"],
+							"done_when": "copy met la sélection au presse-papier, paste injecte le presse-papier dans le PTY, select-all sélectionne la grille",
+							"description": "WHAT: câbler les actions copy/paste/select_all sur le wrapper clipboard : select-all extrait le texte de la grille visible, copy écrit la sélection (à défaut la grille) au presse-papier, paste lit le presse-papier → session_write vers le PTY.\n\nWHY: TP8+TP7 — actions de base d'un terminal. La sélection souris (drag) arrive en M13 ; ici copy opère sur le select-all / l'extraction de grille.\n\nWHERE: src/features/sessions/terminalInput.ts (actions) ; src/features/sessions/clipboard.ts ; src/features/sessions (extraction texte de grille).\n\nDONE WHEN:\n- copy → presse-papier OS ; paste → le PTY reçoit le presse-papier\n- select-all sélectionne la grille visible\n- collable hors app",
+							"sink_id": null
+						},
+						{
+							"step": "05",
+							"title": "Câbler font-size, clear/reset et text:/esc:",
+							"size": "I3",
+							"slice_of": ["TP8"],
+							"done_when": "font-size +/- re-mesure et repeint, clear/reset nettoie l'écran, text:/esc: injectent leurs octets",
+							"description": "WHAT: câbler les actions intégrées restantes : font-size +/- (invalide le cache config de M11 + re-mesure + repaint), clear-screen/reset (commande dédiée), rebinds text:/esc: (injectent une séquence littérale/échappée vers le PTY).\n\nWHY: TP8 — complète la couverture des actions keybind hors scroll (livré en M14). font-size réutilise l'invalidation du cache TP4.\n\nWHERE: src/features/sessions/terminalInput.ts ; src/features/sessions/useTerminalCanvas.ts (re-mesure + invalidation cache) ; src-tauri/src/session/commands.rs (clear/reset si besoin d'une commande).\n\nDONE WHEN:\n- font-size +/- re-mesure et repeint\n- clear/reset nettoie l'écran/réinitialise\n- text:/esc: injectent leurs octets au PTY",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M13",
+			"demo": "On sélectionne du texte à la souris (highlight + copy-on-select aux couleurs du config), le window-padding est pris en compte dans le hit-testing, et en mode souris app les events sont encodés vers le PTY (vim, htop).",
+			"skeleton": false,
+			"needs": ["M7", "M12"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/ghostty-mouse-selection",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Centraliser la conversion pixel→cellule (window-padding + DPR)",
+							"size": "I3",
+							"slice_of": ["TP12"],
+							"done_when": "avec un window-padding non nul, un pixel mappe la bonne cellule ; le padding est rendu comme marge",
+							"description": "WHAT: appliquer window-padding (déjà parsé et dans le DTO) comme marge du conteneur canvas, et construire une fonction unique pixel→cellule (origine = padding, échelle = DPR) que tous les consommateurs souris utiliseront.\n\nWHY: TP12 — un offset ad hoc par consommateur (un padding ajouté ailleurs) décalerait silencieusement sélection + liens ; une seule source de vérité du hit-testing, réutilisée par M16 (hover).\n\nWHERE: src/features/sessions/ghosttyConfig.ts (padding déjà exposé) ; src/features/sessions/TerminalPane.tsx + useTerminalCanvas.ts (marge + fonction pixelToCell).\n\nDONE WHEN:\n- avec window-padding non nul, pixel→cellule renvoie la bonne cellule (test unitaire de la conversion)\n- le padding est rendu comme marge autour du canvas",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Écouter la souris et émettre des coordonnées de cellule",
+							"size": "I3",
+							"slice_of": ["TP9"],
+							"done_when": "down/move/up/wheel sur le canvas sont traduits en coordonnées de cellule via la conversion unique",
+							"description": "WHAT: ajouter les listeners mousedown/mousemove/mouseup/wheel sur le canvas qui émettent des coordonnées de cellule via la conversion de TP12 ; nettoyés à l'unmount.\n\nWHY: TP9 — aucun listener souris n'existe aujourd'hui ; cette couche unique est consommée par la sélection (ici), la molette (M14) et le hover liens (M16).\n\nWHERE: src/features/sessions/useTerminalCanvas.ts (listeners + dispatch) ; src/features/sessions/TerminalPane.tsx.\n\nDONE WHEN:\n- down/move/up/wheel produisent les bonnes coordonnées de cellule\n- les listeners sont retirés à l'unmount (pas de fuite)",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Modéliser et surligner la sélection",
+							"size": "I4",
+							"slice_of": ["TP9"],
+							"done_when": "un drag surligne les cellules avec selection-background/foreground du config",
+							"description": "WHAT: tenir un modèle de sélection (ancre→tête) piloté par le drag, et ajouter une passe highlight per-cell dans drawFrame avec selection-background/foreground du config (déjà résolus).\n\nWHY: TP9 — pas de modèle ni de rendu de sélection aujourd'hui ; la passe reste per-cell (n'altère pas les passes fond/curseur).\n\nWHERE: src/features/sessions/useTerminalCanvas.ts (état sélection) ; src/features/sessions/terminalRenderer.ts (passe highlight avant le curseur) ; ghosttyConfig.ts (couleurs déjà présentes).\n\nDONE WHEN:\n- un drag surligne les bonnes cellules\n- les couleurs suivent selection-background/foreground du config\n- les passes fond/curseur restent intactes",
+							"sink_id": null
+						},
+						{
+							"step": "04",
+							"title": "Extraire et copier la sélection (copy-on-select)",
+							"size": "I3",
+							"slice_of": ["TP9"],
+							"done_when": "la sélection produit du texte et, si copy-on-select est actif, le met au presse-papier",
+							"description": "WHAT: extraire le texte de la grille pour la sélection courante et, quand copy-on-select est configuré, l'écrire au presse-papier (wrapper TP7).\n\nWHY: TP9 — une sélection doit être copiable ; réutilise le clipboard de M12.\n\nWHERE: src/features/sessions/useTerminalCanvas.ts (extraction) ; src/features/sessions/clipboard.ts (M12) ; ghosttyConfig.ts (copy_on_select déjà exposé).\n\nDONE WHEN:\n- la sélection produit le texte attendu (jointures de lignes correctes)\n- copy-on-select met la sélection au presse-papier OS",
+							"sink_id": null
+						},
+						{
+							"step": "05",
+							"title": "Exposer le MouseEncoder de libghostty",
+							"size": "I4",
+							"slice_of": ["TP10"],
+							"done_when": "un clic/molette est encodé vers les octets attendus pour le mode souris courant",
+							"description": "WHAT: mizraj-term expose un wrapper MouseEncoder (calqué sur KeyEncoder) au-dessus de ghostty_mouse_encoder_new/setopt_from_terminal/encode (bindings vérifiés présents dans mizraj-term-sys).\n\nWHY: TP10 — réécrire l'encodage SGR à la main réimplémenterait un protocole que la lib gère (X10/UTF-8/SGR/URxvt/SGR-Pixels) ; on expose la capacité existante.\n\nWHERE: crates/mizraj-term/mouse.rs (nouveau, calqué sur key.rs) ; crates/mizraj-term/lib.rs (export).\n\nDONE WHEN:\n- MouseEncoder encode un clic/molette vers les octets attendus selon le mode souris (test unitaire)\n- setopt_from_terminal suit le mode souris courant",
+							"sink_id": null
+						},
+						{
+							"step": "06",
+							"title": "Encoder les events souris vers le PTY en mode souris app",
+							"size": "I4",
+							"slice_of": ["TP10"],
+							"done_when": "dans vim (souris on), un clic positionne le curseur / la molette défile dans vim",
+							"description": "WHAT: term_sink encode via le MouseEncoder les events souris reçus du front et les écrit dans pty_input quand le terminal est en mode souris application ; le front transmet les events (down/move/up/wheel) pour encodage.\n\nWHY: TP10 — l'encodeur souris existe mais n'est jamais appelé ; le front (TP9) envoie juste les events, le backend les encode.\n\nWHERE: src-tauri/src/session/term_sink.rs (encode → pty_input) ; src-tauri/src/session/commands.rs + lib.rs (session_mouse) ; src/features/sessions/useTerminalCanvas.ts (forward des events en mode souris).\n\nDONE WHEN:\n- en mode souris app, un clic est encodé et reçu côté programme\n- la molette défile dans vim (mode souris on)\n- hors mode souris app, aucun octet souris au PTY",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M14",
+			"demo": "On remonte l'historique du terminal à la molette et au keybind (viewport snapshoté à l'offset), borné par scrollback-limit compté en octets (parité Ghostty).",
+			"skeleton": false,
+			"needs": ["M7", "M11", "M12", "M13"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/scrollback-bytes",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Borner le scrollback en octets",
+							"size": "I4",
+							"slice_of": ["TP5"],
+							"done_when": "scrollback-limit en octets évince les plus vieilles lignes au seuil, sans OOM à grande valeur",
+							"description": "WHAT: le ring de mizraj-term passe d'une borne en lignes (DEFAULT_MAX_SCROLLBACK=10_000) à une comptabilité en octets : Terminal::new reçoit la limite en octets et évince les plus vieilles lignes au dépassement ; manager.rs passe scrollback_limit (DTO, déjà u64 octets) au lieu de la constante. Changement de contrat atomique (greenfield, pas de double comptabilité).\n\nWHY: TP5 — parité Ghostty exacte (scrollback-limit est en octets) ; une heuristique octets→lignes serait approximative et valeur=lignes serait faux (10MB→10M lignes).\n\nWHERE: crates/mizraj-term/terminal.rs (ring + signature Terminal::new) ; src-tauri/src/session/manager.rs (câblage scrollback_limit).\n\nDONE WHEN:\n- scrollback-limit à 64KB + >64KB d'output : les plus vieilles lignes sont évincées au seuil d'octets (test unitaire du ring)\n- pas d'OOM à grande valeur\n- Terminal::new consomme la limite en octets (constante supprimée)",
+							"sink_id": null
+						}
+					]
+				},
+				{
+					"id": "B",
+					"branch": "feat/ghostty-scrollback",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Étendre le wire avec viewport_top et history_total",
+							"size": "I4",
+							"slice_of": ["TP6", "TP11"],
+							"done_when": "CellFrame porte viewport_top et history_total, et le contrat wire est documenté",
+							"description": "WHAT: ajouter 2 champs scalaires viewport_top (offset depuis le live) et history_total à CellFrame/WireCell (cell_frame.rs + terminalWire.ts) + tests ; documenter le contrat wire en section de référence (discipline TP11 : extension dans la slice du jalon, comme M9/M10).\n\nWHY: TP6+TP11 — le front doit savoir où est le viewport pour défiler ; l'extension se fait dans la slice de son jalon (pas de PR fondation batchée).\n\nWHERE: src-tauri/src/session/cell_frame.rs (2 champs + commentaire de contrat) ; src/features/sessions/terminalWire.ts (miroir).\n\nDONE WHEN:\n- CellFrame/WireCell portent viewport_top + history_total (Rust + TS alignés, tests)\n- le contrat wire est documenté en une section de référence en tête de cell_frame.rs (liste des champs + jalon d'origine) et reflété dans terminalWire.ts",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Repositionner la fenêtre via session_scroll",
+							"size": "I4",
+							"slice_of": ["TP6"],
+							"done_when": "session_scroll(offset) renvoie la fenêtre à cet offset ; viewport_top=0 ré-accroche le live",
+							"description": "WHAT: commande session_scroll(session_id, viewport_top) : le backend repositionne la fenêtre et émet/renvoie le snapshot à cet offset (réutilise le modèle snapshot de M11) ; le backend reste maître de la jointure live/historique.\n\nWHY: TP6 — défiler = poser viewport_top et re-snapshoter cette fenêtre ; éviter l'historique complet dans la frame (payloads énormes) et le double chemin live/historique.\n\nWHERE: src-tauri/src/session/commands.rs + lib.rs (session_scroll) ; src-tauri/src/session/term_sink.rs (snapshot à offset).\n\nDONE WHEN:\n- session_scroll(offset) renvoie la fenêtre à cet offset (test)\n- viewport_top=0 ré-accroche le live\n- pas de trou ni doublon à la jointure",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Défiler à la molette et au keybind",
+							"size": "I4",
+							"slice_of": ["TP6"],
+							"done_when": "molette et keybind de scroll déplacent viewport_top et l'historique remonte sans trou ni doublon",
+							"description": "WHAT: la molette (couche souris M13) et le keybind de scroll (dispatch M12) posent viewport_top → invoke session_scroll → repaint.\n\nWHY: TP6 — interaction de scroll absente aujourd'hui ; réutilise la couche souris (M13) et le dispatch keybind (M12).\n\nWHERE: src/features/sessions/useTerminalCanvas.ts (wheel → viewport_top) ; src/features/sessions/terminalInput.ts (keybind scroll → viewport_top).\n\nDONE WHEN:\n- molette et keybind déplacent viewport_top\n- l'historique remonte sans trou ni doublon à la jointure live\n- revenir en bas (viewport_top=0) ré-accroche le live",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M15",
+			"demo": "Les requêtes PTY (DSR/DA) reçoivent une réponse (les TUIs ne gèlent plus au démarrage) et un titre OSC 0/2 renomme la session (fallback label dérivé quand le titre est vide).",
+			"skeleton": false,
+			"needs": ["M2", "M3"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/ghostty-pty-correctness",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Renvoyer les réponses DSR/DA vers le PTY",
+							"size": "I4",
+							"slice_of": ["TP14"],
+							"done_when": "feed d'une requête DA → la réponse attendue est écrite dans pty_input, et un programme qui interroge DA/DSR au démarrage ne gèle pas",
+							"description": "WHAT: router les réponses DSR/DA générées par libghostty vers le canal pty_input existant (même canal que l'input clavier). Tâche sliceée par le comportement observable : la voie FFI exacte (callback type OPT_WRITE_PTY) est à confirmer à l'implémentation — les headers sys n'exposent pas le symbole tel quel, mais device.h porte DA1/DA2/DSR.\n\nWHY: TP14 — à faire tôt (correctness transversale) avant les jalons qui lancent des TUIs complexes ; sans réponse PTY certains programmes bloquent au démarrage.\n\nWHERE: crates/mizraj-term (install du write-back + génération de réponse) ; src-tauri/src/session/term_sink.rs (route vers pty_input).\n\nDONE WHEN:\n- feed d'une requête DA → réponse attendue écrite dans pty_input (test)\n- un programme qui interroge DA/DSR au démarrage ne gèle pas\n- l'input clavier/souris vers pty_input n'est pas perturbé",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Mettre à jour le label depuis le titre OSC 0/2",
+							"size": "I4",
+							"slice_of": ["TP13"],
+							"done_when": "printf OSC-2 titre → le label de session devient « mon-titre » ; titre vide → retour au label dérivé",
+							"description": "WHAT: mizraj-term feed les bytes au parser OSC de libghostty (ghostty_osc_*, vérifié) et extrait le titre ; le backend session met à jour le label (fallback derive_label quand le titre est vide/absent) ; le front affiche le label live dans la sidebar/grille.\n\nWHY: TP13 — garder toujours le label dérivé ignore l'info du programme (agents indistinguables) ; le titre OSC améliore la sidebar (M3) et la grille (M6).\n\nWHERE: crates/mizraj-term (hook OSC titre) ; src-tauri/src/session/label.rs + manager.rs (update + fallback derive_label) ; front (label live sidebar).\n\nDONE WHEN:\n- printf '\\e]2;mon-titre\\a' : le label devient « mon-titre »\n- titre vide/absent : retour au label dérivé (binaire @ branche)\n- le rendu de la grille de cellules n'est pas touché",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M16",
+			"demo": "Les liens (OSC8 + détection d'URL) sont surlignés au survol et s'ouvrent au cmd-clic via l'opener Tauri.",
+			"skeleton": false,
+			"needs": ["M7", "M13"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/ghostty-links",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Transporter hyperlink_id dans le wire et parser OSC8",
+							"size": "I4",
+							"slice_of": ["TP11"],
+							"done_when": "WireCell porte un hyperlink_id, OSC8 est parsé, et l'extension du contrat wire est documentée",
+							"description": "WHAT: ajouter un champ hyperlink_id à WireCell (cell_frame.rs + terminalWire.ts) depuis les données OSC8 de libghostty, et parser les séquences OSC8 ; documenter l'ajout au contrat wire (discipline TP11, dans la slice du jalon).\n\nWHY: TP11 — la détection de lien a besoin de l'id côté front ; l'extension wire se fait dans la slice de M16 (pattern M9/M10). Dépend de libghostty exposant l'hyperlink id par cellule (à confirmer à l'implémentation).\n\nWHERE: crates/mizraj-term (hyperlink OSC8) ; src-tauri/src/session/cell_frame.rs ; src/features/sessions/terminalWire.ts ; section de contrat wire.\n\nDONE WHEN:\n- WireCell porte hyperlink_id (Rust + TS alignés, tests)\n- OSC8 est parsé\n- le contrat wire documenté est mis à jour",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Surligner les liens au survol",
+							"size": "I3",
+							"slice_of": ["TP9", "TP12"],
+							"done_when": "survoler un lien (OSC8 ou URL détectée) le souligne, via la couche souris partagée",
+							"description": "WHAT: détecter le survol d'un lien — hyperlink_id OSC8 OU URL détectée par regex dans le texte — via la couche souris (M13) et la conversion pixel→cellule (TP12), et le styler (souligné).\n\nWHY: TP9+TP12 — feedback visuel avant le clic ; réutilise la couche souris unique (un seul endroit à corriger en cas d'offset).\n\nWHERE: src/features/sessions/useTerminalCanvas.ts (hover via la couche souris) ; src/features/sessions/terminalRenderer.ts (souligné du lien survolé).\n\nDONE WHEN:\n- survoler un lien OSC8 le souligne\n- survoler une URL en texte brut (détectée) le souligne\n- le hit-testing intègre le window-padding (TP12)",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Ouvrir le lien au clic via l'opener Tauri",
+							"size": "I3",
+							"slice_of": ["TP9"],
+							"done_when": "cmd-clic sur une URL l'ouvre dans le navigateur via l'opener Tauri",
+							"description": "WHAT: ouvrir le lien cliqué (cmd-clic) via le plugin opener Tauri.\n\nWHY: TP9 — action finale du lien ; Build-or-Borrow : plugin opener officiel → use-platform-native.\n\nWHERE: src-tauri (plugin opener + capability) ; src/features/sessions/useTerminalCanvas.ts (cmd-clic → open).\n\nDONE WHEN:\n- cmd-clic sur une URL l'ouvre dans le navigateur\n- un clic simple ne déclenche pas l'ouverture (réservé à la sélection)",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M17",
+			"demo": "Les ligatures et font-features s'affichent via une passe texte par runs (cellules adjacentes de même style), bg/sélection/curseur restant per-cell — aucune régression sur le wide/curseur/sélection.",
+			"skeleton": false,
+			"needs": ["M7", "M9", "M10", "M13"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/ghostty-ligatures",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Coalescer les cellules de même style en runs (passe texte)",
+							"size": "I4",
+							"slice_of": ["TP15"],
+							"done_when": "les cellules contiguës de même style forment des runs, cassés aux changements de style et aux frontières de cellule large",
+							"description": "WHAT: nouvelle passe texte dans drawFrame qui coalesce les cellules contiguës de même style en runs, cassés aux changements de style ET aux frontières de cellule large (M9) ; les passes fond, sélection (M13) et curseur (M10) restent per-cell.\n\nWHY: TP15 — un renderer unifié par run réécrirait invert curseur + sélection (gros risque de régression) ; on ne coalesce QUE la passe texte/glyphes.\n\nWHERE: src/features/sessions/terminalRenderer.ts (drawFrame : passe texte par runs).\n\nDONE WHEN:\n- les cellules de même style contiguës sont regroupées en runs\n- les runs cassent aux changements de style et aux cellules larges\n- les passes fond/sélection/curseur restent per-cell",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Dessiner les runs avec font-feature-settings",
+							"size": "I4",
+							"slice_of": ["TP15"],
+							"done_when": "Fira Code ligature `=>`/`!=` ; CJK/emoji intacts, sélection et invert curseur corrects sous les runs",
+							"description": "WHAT: dessiner chaque run en un seul fillText en appliquant font-feature-settings (depuis config.font_features, déjà résolu).\n\nWHY: TP15 — c'est le rendu effectif des ligatures ; doit préserver le déjà-livré (wide M9, curseur M10, sélection M13).\n\nWHERE: src/features/sessions/terminalRenderer.ts.\n\nDONE WHEN:\n- police à ligatures (Fira Code) : `=>`/`!=` ligaturés\n- CJK/emoji (wide) intacts (pas de chevauchement)\n- sélection et invert curseur corrects sous les runs (pas de régression)",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Étendre buildFontTable aux runs",
+							"size": "I3",
+							"slice_of": ["TP15"],
+							"done_when": "buildFontTable mémorise des runs (police + bornes de cluster) consommés par la passe texte",
+							"description": "WHAT: étendre buildFontTable pour mémoriser des runs (chaîne de police + bornes de cluster) au lieu de chaînes par cellule, et brancher la passe texte dessus.\n\nWHY: TP15 — le cache doit suivre la nouvelle granularité run.\n\nWHERE: src/features/sessions/terminalAttrs.ts.\n\nDONE WHEN:\n- buildFontTable stocke des runs (police + bornes de cluster)\n- la passe texte consomme le cache run\n- les tests terminalAttrs restent verts",
 							"sink_id": null
 						}
 					]

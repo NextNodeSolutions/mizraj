@@ -1,3 +1,40 @@
+/* Bundled fallback fonts — parity with Ghostty's embedded JetBrains Mono +
+ * Nerd symbols: when the user's configured font-family is missing (or lacks
+ * Nerd glyphs), the terminal still gets ligatures and icons instead of Menlo.
+ * Faces load lazily on first use; ghosttyConfigCache pre-loads them before
+ * measuring the cell box so metrics never come from an interim fallback. */
+@font-face {
+	font-family: 'JetBrainsMono Nerd Font Mono';
+	src: url('/fonts/JetBrainsMonoNerdFontMono-Regular.ttf') format('truetype');
+	font-weight: normal;
+	font-style: normal;
+}
+@font-face {
+	font-family: 'JetBrainsMono Nerd Font Mono';
+	src: url('/fonts/JetBrainsMonoNerdFontMono-Bold.ttf') format('truetype');
+	font-weight: bold;
+	font-style: normal;
+}
+@font-face {
+	font-family: 'JetBrainsMono Nerd Font Mono';
+	src: url('/fonts/JetBrainsMonoNerdFontMono-Italic.ttf') format('truetype');
+	font-weight: normal;
+	font-style: italic;
+}
+@font-face {
+	font-family: 'JetBrainsMono Nerd Font Mono';
+	src: url('/fonts/JetBrainsMonoNerdFontMono-BoldItalic.ttf')
+		format('truetype');
+	font-weight: bold;
+	font-style: italic;
+}
+@font-face {
+	font-family: 'Symbols Nerd Font Mono';
+	src: url('/fonts/SymbolsNerdFontMono-Regular.ttf') format('truetype');
+	font-weight: normal;
+	font-style: normal;
+}
+
 /* Catppuccin palettes
  * https://github.com/catppuccin/catppuccin
  */
@@ -851,10 +888,47 @@
 .terminal-pane {
 	width: 100%;
 	height: 100%;
+	min-width: 0;
+	min-height: 0;
 }
 
 .terminal-pane__canvas {
 	display: block;
+}
+
+/* Split panes: a 50/50 flex pair per split node, recursing. The 1px gap over
+   the container background draws the divider; inactive panes dim slightly
+   (Ghostty's unfocused-split-opacity affordance). */
+.terminal-split {
+	display: flex;
+	flex: 1 1 0;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	gap: 1px;
+	background: var(--color-border-subtle, #808080);
+}
+
+.terminal-split--row {
+	flex-direction: row;
+}
+
+.terminal-split--column {
+	flex-direction: column;
+}
+
+.terminal-split > .terminal-pane,
+.terminal-split > .terminal-split {
+	flex: 1 1 0;
+}
+
+.terminal-split .terminal-pane {
+	background: var(--terminal-bg);
+}
+
+.terminal-split .terminal-pane[data-active='false'] {
+	opacity: 0.8;
 }
 
 .top-bar {

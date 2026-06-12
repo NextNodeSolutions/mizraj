@@ -1,5 +1,6 @@
 mod db;
 mod diff;
+mod ghostty;
 mod interviews;
 mod logging;
 mod plans;
@@ -23,6 +24,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(ActiveProject::default())
         .manage(Db::default())
@@ -36,6 +38,9 @@ pub fn run() {
             // is resolved and opened lazily when a project becomes active (see
             // `set_active_project`). Until then the `Db` state holds no pool.
             app.manage(SessionManager::new());
+            // Managed for keep-alive: dropping the guard would stop hot reload.
+            let config_watch = ghostty::start_config_watcher(app.handle());
+            app.manage(config_watch);
             #[cfg(all(desktop, not(debug_assertions)))]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
@@ -45,6 +50,7 @@ pub fn run() {
             logging::log_from_frontend,
             interviews::read_interview_state,
             diff::get_diff,
+            ghostty::load_ghostty_config,
             plans::list::list_plans,
             project::set_active_project,
             project::clear_active_project,
@@ -53,9 +59,18 @@ pub fn run() {
             tasks::tasks_update,
             plans::protocol::resolve_plan,
             session::commands::session_create,
+            session::commands::session_default_shell,
             session::commands::session_resize,
             session::commands::session_key,
             session::commands::session_close,
+            session::commands::session_subscribe,
+            session::commands::session_unsubscribe,
+            session::commands::session_get_frame,
+            session::commands::session_paste,
+            session::commands::session_write,
+            session::commands::session_reset,
+            session::commands::session_mouse,
+            session::commands::session_scroll,
             session::label::session_label,
         ])
         .run(tauri::generate_context!())
