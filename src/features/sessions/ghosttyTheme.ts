@@ -51,10 +51,12 @@ const TERM_BORDER_BG_WEIGHT = 82
 // same 0.16 light / 0.3 dark pair on its static palettes).
 const GLOW_ALPHA_LIGHT = '0.16'
 const GLOW_ALPHA_DARK = '0.3'
-// v2 on-accent ink on dark themes: near-crust, like the static dark palettes
-// alias --on-accent-theme to their crust. Light themes do NOT emit it — the
-// stylesheet's --on-accent then falls back to #ffffff.
+// v2 on-accent ink: near-crust on dark themes (like the static dark palettes
+// alias --on-accent-theme to their crust), explicit white on light ones. The
+// stylesheet's #ffffff fallback cannot be relied on — under a dark data-theme
+// its --on-accent-theme alias would resolve against the bridge's light crust.
 const ON_ACCENT_BG_WEIGHT = 92
+const ON_ACCENT_LIGHT = '#ffffff'
 
 // The exact, fixed set of properties this theme writes. It is the single source
 // of truth for cleanup: the effect removes every key here before (re)applying,
@@ -109,13 +111,7 @@ export const THEME_TOKEN_KEYS = [
 // apply and the caller must leave Catppuccin untouched. Pure: no DOM, no IO.
 export type ThemeTokenKey = (typeof THEME_TOKEN_KEYS)[number]
 
-// Every key is emitted unconditionally except --on-accent-theme: it only
-// exists on dark backgrounds (a light theme wants --on-accent's #ffffff
-// fallback). THEME_TOKEN_KEYS still lists it so cleanup always removes it.
-export type ThemeTokens = Record<
-	Exclude<ThemeTokenKey, '--on-accent-theme'>,
-	string
-> & { '--on-accent-theme'?: string }
+export type ThemeTokens = Record<ThemeTokenKey, string>
 
 export const ghosttyThemeTokens = (
 	config: GhosttyConfig,
@@ -167,11 +163,8 @@ export const ghosttyThemeTokens = (
 		'--term-bg': background,
 		'--term-border': mixBackgroundToForeground(TERM_BORDER_BG_WEIGHT),
 		'--glow-alpha': lightBackground ? GLOW_ALPHA_LIGHT : GLOW_ALPHA_DARK,
-		...(lightBackground
-			? {}
-			: {
-					'--on-accent-theme':
-						mixBackgroundToForeground(ON_ACCENT_BG_WEIGHT),
-				}),
+		'--on-accent-theme': lightBackground
+			? ON_ACCENT_LIGHT
+			: mixBackgroundToForeground(ON_ACCENT_BG_WEIGHT),
 	}
 }

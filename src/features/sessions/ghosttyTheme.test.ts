@@ -249,7 +249,7 @@ describe('ghosttyThemeTokens', () => {
 			expect(tokens?.['--glow-alpha']).toBe('0.3')
 		})
 
-		it('inks on-accent with a near-crust mix on a dark background only', () => {
+		it('inks on-accent per background — crust mix on dark, white on light', () => {
 			const darkTokens = ghosttyThemeTokens({
 				...EMPTY_CONFIG,
 				background: '#1e1e2e',
@@ -259,11 +259,10 @@ describe('ghosttyThemeTokens', () => {
 			expect(darkTokens?.['--on-accent-theme']).toBe(
 				'color-mix(in srgb, var(--gx-background) 92%, var(--gx-foreground))',
 			)
-			// Absent on light: --on-accent falls back to its #ffffff default.
-			expect(lightTokens).not.toBeNull()
-			expect(
-				Object.keys(lightTokens ?? {}).includes('--on-accent-theme'),
-			).toBe(false)
+			// Explicit white on light: relying on the stylesheet fallback fails
+			// when data-theme is a dark palette (its --on-accent-theme alias
+			// would resolve against the bridge's light crust mix).
+			expect(lightTokens?.['--on-accent-theme']).toBe('#ffffff')
 		})
 	})
 
@@ -280,13 +279,13 @@ describe('ghosttyThemeTokens', () => {
 		expect(Object.keys(tokens ?? {})).toHaveLength(THEME_TOKEN_KEYS.length)
 	})
 
-	it('emits every declared key except the dark-only on-accent on a light background', () => {
+	it('emits exactly the declared keys on a light background too', () => {
 		const tokens = ghosttyThemeTokens(latteConfig(FULL_PALETTE))
-		const expectedKeys = new Set<string>(THEME_TOKEN_KEYS)
-		expectedKeys.delete('--on-accent-theme')
 
 		expect(tokens).not.toBeNull()
-		expect(new Set(Object.keys(tokens ?? {}))).toEqual(expectedKeys)
+		expect(new Set(Object.keys(tokens ?? {}))).toEqual(
+			new Set(THEME_TOKEN_KEYS),
+		)
 	})
 
 	it('has no duplicate property names in THEME_TOKEN_KEYS', () => {
