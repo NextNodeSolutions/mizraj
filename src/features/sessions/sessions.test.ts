@@ -8,16 +8,19 @@ vi.mock('@tauri-apps/api/event', () => ({
 }))
 
 import {
+	AGENT_CELLS_EVENT,
 	AGENT_END_EVENT,
 	AGENT_OUTPUT_EVENT,
 	resetAgentEventsBridgeForTests,
 	appendOutputAtom,
+	cellFramesAtom,
 	endSessionAtom,
 	sessionsAtom,
 	startAgentEventsBridge,
 	startSessionAtom,
 } from './sessions'
 import type { AgentOutputPayload, SessionEndPayload } from './sessions'
+import type { CellFramePayload } from './terminalWire'
 
 const store = getDefaultStore()
 
@@ -97,6 +100,7 @@ describe('startAgentEventsBridge', () => {
 	beforeEach(() => {
 		resetAgentEventsBridgeForTests()
 		store.set(sessionsAtom, {})
+		store.set(cellFramesAtom, {})
 		listenMock.mockReset()
 		unlistenMock.mockReset()
 		listenMock.mockResolvedValue(unlistenMock)
@@ -114,12 +118,12 @@ describe('startAgentEventsBridge', () => {
 		return handler
 	}
 
-	it('subscribes to agent:output and agent:end exactly once each', () => {
+	it('subscribes to agent:output, agent:end and agent:cells exactly once each', () => {
 		startAgentEventsBridge()
 		startAgentEventsBridge()
 		startAgentEventsBridge()
 
-		expect(listenMock).toHaveBeenCalledTimes(2)
+		expect(listenMock).toHaveBeenCalledTimes(3)
 		expect(listenMock).toHaveBeenNthCalledWith(
 			1,
 			AGENT_OUTPUT_EVENT,
@@ -128,6 +132,11 @@ describe('startAgentEventsBridge', () => {
 		expect(listenMock).toHaveBeenNthCalledWith(
 			2,
 			AGENT_END_EVENT,
+			expect.any(Function),
+		)
+		expect(listenMock).toHaveBeenNthCalledWith(
+			3,
+			AGENT_CELLS_EVENT,
 			expect.any(Function),
 		)
 	})
@@ -168,5 +177,52 @@ describe('startAgentEventsBridge', () => {
 		const session = store.get(sessionsAtom)['sess-a']
 		expect(session?.status).toBe('ended')
 		expect(session?.exitCode).toBe(0)
+	})
+
+	const getCapturedCellsHandler = (): ((event: {
+		payload: CellFramePayload
+	}) => void) => {
+		const call = listenMock.mock.calls[2]
+		if (!call) throw new Error('agent:cells listen() was not called')
+		const handler = call[1]
+		if (typeof handler !== 'function') {
+			throw new Error('agent:cells listen() handler was not a function')
+		}
+		return handler
+	}
+
+	it('routes agent:cells into cellFramesAtom for a known session', () => {
+		startAgentEventsBridge()
+		const handler = getCapturedCellsHandler()
+
+		store.set(startSessionAtom, 'sess-a')
+		const frame: CellFramePayload = {
+			session_id: 'sess-a',
+			cols: 2,
+			rows: 1,
+			cells: [],
+			cursor: null,
+		}
+		handler({ payload: frame })
+
+		expect(store.get(cellFramesAtom)['sess-a']).toBe(frame)
+	})
+
+	it('drops agent:cells for an unknown session', () => {
+		startAgentEventsBridge()
+		const handler = getCapturedCellsHandler()
+
+		const before = store.get(cellFramesAtom)
+		handler({
+			payload: {
+				session_id: 'ghost',
+				cols: 1,
+				rows: 1,
+				cells: [],
+				cursor: null,
+			},
+		})
+
+		expect(store.get(cellFramesAtom)).toBe(before)
 	})
 })

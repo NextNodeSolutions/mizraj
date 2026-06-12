@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { getDefaultStore } from 'jotai'
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 
@@ -14,7 +14,7 @@ import {
 	resolveCursor,
 	resolveFont,
 } from './ghosttyConfig'
-import { AGENT_CELLS_EVENT } from './sessions'
+import { cellFramesAtom } from './sessions'
 import { buildFontTable } from './terminalAttrs'
 import { buildPalette } from './terminalPalette'
 import type { TerminalConfig } from './terminalRenderer'
@@ -195,13 +195,25 @@ const startRendering = (
 		propagateResize(sessionId, cols, rows)
 	}
 
-	const unlisten = listen<CellFramePayload>(AGENT_CELLS_EVENT, event => {
-		if (event.payload.session_id !== sessionId) return
-		lastFrame = event.payload
+	const store = getDefaultStore()
+
+	const applyFrame = (frame: CellFramePayload): void => {
+		lastFrame = frame
 		// Activity makes the cursor solid again; it resumes blinking from there.
 		blinkOn = true
 		paint()
-	})
+	}
+
+	// Read this session's latest frame from the global agent:cells bridge and
+	// repaint when it changes. The bridge keeps the same frame object for sessions
+	// it didn't touch, so the reference check skips repaints driven by *other*
+	// sessions' frames.
+	const consumeSessionFrame = (): void => {
+		const frame = store.get(cellFramesAtom)[sessionId]
+		if (frame && frame !== lastFrame) applyFrame(frame)
+	}
+
+	const unsubscribe = store.sub(cellFramesAtom, consumeSessionFrame)
 
 	const blinkTimer = setInterval(() => {
 		if (!lastFrame?.cursor?.blink) return
@@ -218,20 +230,13 @@ const startRendering = (
 	const initial = container.getBoundingClientRect()
 	onResize(initial.width, initial.height)
 
+	// store.sub doesn't fire on subscribe, so paint any frame the global bridge
+	// already buffered before this pane mounted (now that cssWidth/cssHeight are set).
+	consumeSessionFrame()
+
 	return () => {
 		clearInterval(blinkTimer)
 		observer.disconnect()
-		unlisten
-			.then(stop => stop())
-			.catch((error: unknown) => {
-				const { message, stack } = describeError(error)
-				logger.warn(
-					`useTerminalCanvas: agent:cells unlisten failed: ${message}`,
-					{
-						scope: 'terminal-pane',
-						details: { stack, sessionId },
-					},
-				)
-			})
+		unsubscribe()
 	}
 }

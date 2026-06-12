@@ -4,6 +4,8 @@ import { atom, getDefaultStore } from 'jotai'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
+import type { CellFramePayload } from './terminalWire'
+
 export type OutputChunkKind = 'stdout' | 'stderr'
 
 export type OutputChunk = {
@@ -82,6 +84,24 @@ export const endSessionAtom = atom(
 		set(sessionsAtom, {
 			...sessions,
 			[sessionId]: { ...existing, status: 'ended', exitCode },
+		})
+	},
+)
+
+type CellFramesMap = Readonly<Record<string, CellFramePayload>>
+
+// The single global home for the latest cell frame per session. A pane that
+// remounts reads the last frame from here instead of racing a per-pane
+// agent:cells listen, so it repaints immediately rather than staying blank
+// until the next live frame.
+export const cellFramesAtom = atom<CellFramesMap>({})
+
+export const setCellFrameAtom = atom(
+	null,
+	(get, set, frame: CellFramePayload) => {
+		set(cellFramesAtom, {
+			...get(cellFramesAtom),
+			[frame.session_id]: frame,
 		})
 	},
 )
@@ -167,6 +187,10 @@ export const startAgentEventsBridge = (): void => {
 			})
 		},
 	)
+
+	forwardSessionEvent<CellFramePayload>(AGENT_CELLS_EVENT, frame => {
+		store.set(setCellFrameAtom, frame)
+	})
 }
 
 // Test-only escape hatch so suites can verify idempotency from a clean slate.
