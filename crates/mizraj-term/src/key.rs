@@ -28,7 +28,7 @@ pub struct Mods {
 }
 
 impl Mods {
-    fn to_ghostty(self) -> GhosttyMods {
+    pub(crate) fn to_ghostty(self) -> GhosttyMods {
         // The GHOSTTY_MODS_* masks are u32 consts; the setter wants a u16 bitmask.
         let mut bits: GhosttyMods = 0;
         if self.shift {

@@ -66,6 +66,34 @@ const resolveTerminalColors = (
 	}
 }
 
+type MouseEventDto = {
+	kind: 'press' | 'release' | 'motion' | 'wheel_up' | 'wheel_down'
+	button: 'none' | 'left' | 'right' | 'middle'
+	col: number
+	row: number
+	shift: boolean
+	ctrl: boolean
+	alt: boolean
+}
+
+// Best-effort like keystrokes: a dead session drops the event, the live
+// flow's `mouse_reporting` flag stops the stream at the next frame anyway.
+const forwardMouseEvent = (sessionId: string, event: MouseEventDto): void => {
+	invoke('session_mouse', { sessionId, event }).catch((error: unknown) => {
+		const { message, stack } = describeError(error)
+		logger.warn(`useTerminalCanvas: session_mouse failed: ${message}`, {
+			scope: 'terminal-pane',
+			details: { stack, sessionId },
+		})
+	})
+}
+
+const MOUSE_BUTTONS: ReadonlyArray<MouseEventDto['button']> = [
+	'left',
+	'middle',
+	'right',
+]
+
 const propagateResize = (
 	sessionId: string,
 	cols: number,
@@ -321,33 +349,106 @@ const startRendering = (
 		}
 	}
 
+	// App mouse mode (TP10): while the child tracks the mouse (vim, htop) and
+	// shift is not held (Ghostty's local-selection override), events are
+	// forwarded for PTY encoding instead of selecting. The decision latches at
+	// press time (`forwardedButton`), so a mode flip mid-gesture cannot split
+	// one drag across the two worlds.
+	let forwardedButton: MouseEventDto['button'] | null = null
+	let lastMotionCell: CellPoint | null = null
+
+	const reportsMouse = (event: MouseEvent): boolean =>
+		(lastFrame?.mouse_reporting ?? false) && !event.shiftKey
+
+	const dtoFor = (
+		kind: MouseEventDto['kind'],
+		button: MouseEventDto['button'],
+		cell: CellPoint,
+		event: MouseEvent,
+	): MouseEventDto => ({
+		kind,
+		button,
+		col: cell.col,
+		row: cell.row,
+		shift: event.shiftKey,
+		ctrl: event.ctrlKey,
+		alt: event.altKey,
+	})
+
 	const onMouseDown = (event: MouseEvent): void => {
-		if (event.button !== 0) return
 		const cell = cellFromEvent(event)
 		if (!cell) return
+		if (reportsMouse(event)) {
+			const button = MOUSE_BUTTONS[event.button] ?? 'none'
+			forwardedButton = button
+			lastMotionCell = cell
+			forwardMouseEvent(sessionId, dtoFor('press', button, cell, event))
+			return
+		}
+		if (event.button !== 0) return
 		dragAnchor = cell
 		selection = null
 		paint()
 	}
 
 	const onMouseMove = (event: MouseEvent): void => {
-		if (!dragAnchor) return
 		const cell = cellFromEvent(event)
 		if (!cell) return
+		if (forwardedButton !== null) {
+			// Deduplicate per cell: motion inside one cell reports nothing new.
+			if (
+				lastMotionCell &&
+				lastMotionCell.col === cell.col &&
+				lastMotionCell.row === cell.row
+			) {
+				return
+			}
+			lastMotionCell = cell
+			forwardMouseEvent(
+				sessionId,
+				dtoFor('motion', forwardedButton, cell, event),
+			)
+			return
+		}
+		if (!dragAnchor) return
 		selection = normalizeSelection({ anchor: dragAnchor, head: cell })
 		paint()
 	}
 
 	const onMouseUp = (event: MouseEvent): void => {
+		if (forwardedButton !== null) {
+			const cell = cellFromEvent(event)
+			if (cell) {
+				forwardMouseEvent(
+					sessionId,
+					dtoFor('release', forwardedButton, cell, event),
+				)
+			}
+			forwardedButton = null
+			lastMotionCell = null
+			return
+		}
 		if (event.button !== 0 || !dragAnchor) return
 		dragAnchor = null
 		finalizeSelection()
+	}
+
+	const onWheel = (event: WheelEvent): void => {
+		if (!reportsMouse(event)) return
+		const cell = cellFromEvent(event)
+		if (!cell) return
+		event.preventDefault()
+		forwardMouseEvent(
+			sessionId,
+			dtoFor(event.deltaY < 0 ? 'wheel_up' : 'wheel_down', 'none', cell, event),
+		)
 	}
 
 	// Press starts on the canvas; the drag may travel (and release) anywhere.
 	canvas.addEventListener('mousedown', onMouseDown)
 	window.addEventListener('mousemove', onMouseMove)
 	window.addEventListener('mouseup', onMouseUp)
+	canvas.addEventListener('wheel', onWheel, { passive: false })
 
 	// store.sub doesn't fire on subscribe, so paint any frame the global bridge
 	// already buffered before this pane mounted (now that cssWidth/cssHeight are set).
@@ -370,6 +471,7 @@ const startRendering = (
 		canvas.removeEventListener('mousedown', onMouseDown)
 		window.removeEventListener('mousemove', onMouseMove)
 		window.removeEventListener('mouseup', onMouseUp)
+		canvas.removeEventListener('wheel', onWheel)
 		unsubscribe()
 	}
 }

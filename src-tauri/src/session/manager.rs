@@ -17,6 +17,7 @@ use crate::session::id::SessionId;
 use crate::session::key::KeyStroke;
 use crate::session::pty::{self, PtySession};
 use crate::session::sink::OutputSink;
+use mizraj_term::MouseInput;
 
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(2);
 
@@ -179,6 +180,19 @@ impl SessionManager {
             .get(id)
             .ok_or_else(|| SessionError::NotFound(id.to_string()))?;
         dispatch_to_sinks(handle.sinks(), |sink| sink.set_subscribed(subscribed)).await;
+        Ok(())
+    }
+
+    /// Forward a frontend mouse event to the terminal sink, whose render
+    /// thread encodes it against the live mouse-tracking mode (TP10) — or
+    /// drops it outside any tracking mode. Returns `NotFound` for unknown
+    /// sessions.
+    pub async fn send_mouse(&self, id: &SessionId, input: MouseInput) -> Result<(), SessionError> {
+        let state = self.state.read().await;
+        let handle = state
+            .get(id)
+            .ok_or_else(|| SessionError::NotFound(id.to_string()))?;
+        dispatch_to_sinks(handle.sinks(), |sink| sink.mouse(input)).await;
         Ok(())
     }
 
@@ -1011,6 +1025,33 @@ mod tests {
             let id = SessionId::new();
             let err = manager
                 .set_subscribed(&id, true)
+                .await
+                .expect_err("unknown id should fail");
+            match err {
+                SessionError::NotFound(s) => assert_eq!(s, id.to_string()),
+                other => panic!("expected NotFound, got {other:?}"),
+            }
+        });
+    }
+
+    #[test]
+    fn send_mouse_returns_not_found_for_unknown_id() {
+        block_on(async {
+            let manager = SessionManager::new();
+            let id = SessionId::new();
+            let input = MouseInput {
+                action: mizraj_term::MouseAction::Press,
+                button: mizraj_term::MouseButton::Left,
+                col: 0,
+                row: 0,
+                mods: mizraj_term::Mods {
+                    ctrl: false,
+                    alt: false,
+                    shift: false,
+                },
+            };
+            let err = manager
+                .send_mouse(&id, input)
                 .await
                 .expect_err("unknown id should fail");
             match err {

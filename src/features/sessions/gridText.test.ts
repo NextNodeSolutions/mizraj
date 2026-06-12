@@ -21,6 +21,7 @@ const frame = (
 	rows,
 	cells,
 	cursor: null,
+	mouse_reporting: false,
 })
 
 describe('extractGridText', () => {

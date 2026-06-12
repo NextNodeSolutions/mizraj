@@ -52,6 +52,7 @@ const frame: CellFramePayload = {
 	rows: 1,
 	cells: [cell('h'), cell('i')],
 	cursor: null,
+	mouse_reporting: false,
 }
 
 const flushMicrotasks = async (): Promise<void> => {

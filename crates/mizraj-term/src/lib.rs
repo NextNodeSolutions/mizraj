@@ -2,12 +2,14 @@ use thiserror::Error;
 
 mod cells;
 mod key;
+mod mouse;
 mod paste;
 mod render_state;
 mod terminal;
 
 pub use cells::{Attrs, Cell, CellWidth, Cells, Color};
 pub use key::{KeyEncoder, Mods};
+pub use mouse::{MouseAction, MouseButton, MouseEncoder, MouseInput};
 pub use paste::encode_paste;
 pub use render_state::{Cursor, CursorShape, Dirty, RenderState};
 pub use terminal::Terminal;

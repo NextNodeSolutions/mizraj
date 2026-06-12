@@ -74,6 +74,7 @@ describe('extractSelectionText', () => {
 			cell(' '),
 		],
 		cursor: null,
+		mouse_reporting: false,
 	}
 
 	it('joins the selected span with line breaks at row boundaries', () => {

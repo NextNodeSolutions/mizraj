@@ -13,6 +13,7 @@ use crate::session::error::SessionError;
 use crate::session::id::SessionId;
 use crate::session::key::KeyStroke;
 use crate::session::manager::SessionManager;
+use crate::session::mouse::MouseEventDto;
 use crate::session::path;
 use crate::session::sink::OutputSink;
 use crate::session::tauri_sink::TauriEventSink;
@@ -211,6 +212,18 @@ pub async fn session_reset(
     manager: tauri::State<'_, SessionManager>,
 ) -> Result<(), SessionError> {
     manager.reset_terminal(&session_id).await
+}
+
+/// Forward a mouse event (cell coordinates) to the session: encoded against
+/// the live mouse-tracking mode on the render thread, dropped outside any
+/// tracking mode (TP10).
+#[tauri::command]
+pub async fn session_mouse(
+    session_id: SessionId,
+    event: MouseEventDto,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.send_mouse(&session_id, event.into()).await
 }
 
 /// Paste text into the session: the terminal sink encodes it against the live

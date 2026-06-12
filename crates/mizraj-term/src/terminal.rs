@@ -12,6 +12,10 @@ use crate::{Result, TermError};
 /// carry the value, bit 15 is the ANSI flag (0 = DEC private mode).
 const MODE_BRACKETED_PASTE: u16 = 2004;
 
+/// The three DEC mouse-tracking modes: normal (1000), button-event (1002),
+/// any-event (1003). Any of them active means the program owns the mouse.
+const MOUSE_TRACKING_MODES: [u16; 3] = [1000, 1002, 1003];
+
 const DEFAULT_MAX_SCROLLBACK: usize = 10_000;
 
 #[derive(Debug)]
@@ -118,16 +122,30 @@ impl Terminal {
     /// 2004). Pasted text must then be wrapped in `ESC[200~ … ESC[201~` so
     /// the child can tell a paste from typed input.
     pub fn bracketed_paste(&self) -> Result<bool> {
+        self.mode(MODE_BRACKETED_PASTE)
+    }
+
+    /// Whether any mouse-tracking mode is active — the program (vim, htop)
+    /// wants mouse events encoded to the PTY instead of local selection.
+    pub fn mouse_tracking(&self) -> Result<bool> {
+        for mode in MOUSE_TRACKING_MODES {
+            if self.mode(mode)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn mode(&self, mode: u16) -> Result<bool> {
         let mut value = false;
         // SAFETY: `self.handle` is a live handle from `ghostty_terminal_new`
         // (Drop hasn't run yet, guaranteed by `&self`); the out pointer
         // targets a local that outlives the call.
-        let result = unsafe {
-            ghostty_terminal_mode_get(self.handle.as_ptr(), MODE_BRACKETED_PASTE, &mut value)
-        };
+        let result =
+            unsafe { ghostty_terminal_mode_get(self.handle.as_ptr(), mode, &mut value) };
         if result != GhosttyResult_GHOSTTY_SUCCESS {
             return Err(TermError::Mode(format!(
-                "ghostty_terminal_mode_get(2004) returned {result}"
+                "ghostty_terminal_mode_get({mode}) returned {result}"
             )));
         }
         Ok(value)
@@ -190,6 +208,18 @@ mod tests {
         );
         assert_eq!(terminal.rows(), 24);
         assert_eq!(terminal.cols(), 80);
+    }
+
+    #[test]
+    fn mouse_tracking_follows_any_tracking_mode() {
+        let mut terminal = Terminal::new(24, 80).expect("new terminal");
+        assert!(!terminal.mouse_tracking().expect("query off"));
+
+        terminal.feed(b"\x1b[?1002h").expect("set button tracking");
+        assert!(terminal.mouse_tracking().expect("query on"));
+
+        terminal.feed(b"\x1b[?1002l").expect("reset");
+        assert!(!terminal.mouse_tracking().expect("query off again"));
     }
 
     #[test]

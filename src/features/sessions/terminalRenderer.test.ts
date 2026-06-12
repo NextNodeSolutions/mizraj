@@ -508,6 +508,7 @@ const oneCellFrame = (cell: WireCell): CellFramePayload => ({
 	rows: 1,
 	cells: [cell],
 	cursor: null,
+	mouse_reporting: false,
 })
 
 const cursorConfigWith = (
@@ -770,6 +771,7 @@ describe('drawFrame wide cells and graphemes', () => {
 			rows: 1,
 			cells: [wideCell('中'), spacerTailCell],
 			cursor: null,
+			mouse_reporting: false,
 		}
 
 		drawFrame(context, frame, INTEGRAL_METRICS, configWith({}), fontTable)
@@ -807,6 +809,7 @@ describe('drawFrame wide cells and graphemes', () => {
 				rows: 1,
 				cells: [spacer],
 				cursor: null,
+				mouse_reporting: false,
 			}
 
 			drawFrame(
@@ -840,6 +843,7 @@ describe('drawFrame wide cells and graphemes', () => {
 			rows: 1,
 			cells: [clusterCell],
 			cursor: null,
+			mouse_reporting: false,
 		}
 
 		drawFrame(context, frame, INTEGRAL_METRICS, configWith({}), fontTable)
@@ -965,6 +969,7 @@ describe('drawFrame cursor', () => {
 			rows: 1,
 			cells: [cell],
 			cursor,
+			mouse_reporting: false,
 		}
 		drawFrame(
 			context,

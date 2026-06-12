@@ -37,4 +37,8 @@ export type CellFramePayload = {
 	rows: number
 	cells: WireCell[]
 	cursor: WireCursor | null
+	// The child enabled a mouse-tracking mode (DEC 1000/1002/1003): forward
+	// mouse events for PTY encoding instead of selecting locally (shift still
+	// forces selection, like Ghostty).
+	mouse_reporting: boolean
 }

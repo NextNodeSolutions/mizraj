@@ -135,18 +135,28 @@ pub struct CellFrame {
     pub rows: u16,
     pub cells: Vec<WireCell>,
     pub cursor: Option<WireCursor>,
+    /// Whether the child enabled a mouse-tracking mode (DEC 1000/1002/1003):
+    /// the frontend then forwards mouse events for PTY encoding instead of
+    /// selecting locally (shift still forces selection, like Ghostty).
+    pub mouse_reporting: bool,
 }
 
 impl CellFrame {
     /// Consumes `cells`, moving each glyph cluster into the wire frame rather than
     /// cloning the whole grid's strings (the snapshot is discarded right after).
-    pub fn from_cells(session_id: String, cells: Cells, cursor: Option<Cursor>) -> Self {
+    pub fn from_cells(
+        session_id: String,
+        cells: Cells,
+        cursor: Option<Cursor>,
+        mouse_reporting: bool,
+    ) -> Self {
         Self {
             session_id,
             cols: cells.cols,
             rows: cells.rows,
             cells: cells.data.into_iter().map(WireCell::from).collect(),
             cursor: cursor.map(WireCursor::from),
+            mouse_reporting,
         }
     }
 }
@@ -186,7 +196,7 @@ mod tests {
             ],
         };
 
-        let frame = CellFrame::from_cells("sess-1".to_string(), cells, None);
+        let frame = CellFrame::from_cells("sess-1".to_string(), cells, None, false);
 
         assert_eq!(frame.session_id, "sess-1");
         assert_eq!(frame.rows, 1);
@@ -234,7 +244,7 @@ mod tests {
             }],
         };
 
-        let frame = CellFrame::from_cells("s".to_string(), cells, None);
+        let frame = CellFrame::from_cells("s".to_string(), cells, None, false);
         let json = serde_json::to_value(&frame).expect("serialize CellFrame");
 
         assert_eq!(json["session_id"], "s");
@@ -273,7 +283,7 @@ mod tests {
             visible: true,
         });
 
-        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells, cursor))
+        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells, cursor, false))
             .expect("serialize CellFrame");
 
         assert_eq!(json["cursor"]["x"], 3);
@@ -306,7 +316,7 @@ mod tests {
             ],
         };
 
-        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells, None))
+        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells, None, false))
             .expect("serialize CellFrame");
 
         assert_eq!(json["cells"][0]["wide"], "wide");
@@ -326,7 +336,7 @@ mod tests {
         render_state.update(&mut term).expect("update");
         let cells = render_state.snapshot().expect("snapshot");
 
-        let frame = CellFrame::from_cells("sess".to_string(), cells, None);
+        let frame = CellFrame::from_cells("sess".to_string(), cells, None, false);
 
         assert_eq!(frame.rows, 4);
         assert_eq!(frame.cols, 10);
@@ -348,7 +358,7 @@ mod tests {
         render_state.update(&mut term).expect("update");
         let cells = render_state.snapshot().expect("snapshot");
 
-        let frame = CellFrame::from_cells("sess".to_string(), cells, None);
+        let frame = CellFrame::from_cells("sess".to_string(), cells, None, false);
 
         assert_eq!(frame.cells[0].ch, "中");
         assert_eq!(frame.cells[0].wide, WireCellWidth::Wide);
@@ -369,7 +379,7 @@ mod tests {
         render_state.update(&mut term).expect("update");
         let cells = render_state.snapshot().expect("snapshot");
 
-        let frame = CellFrame::from_cells("sess".to_string(), cells, None);
+        let frame = CellFrame::from_cells("sess".to_string(), cells, None, false);
 
         assert_eq!(frame.cells[0].ch, "e\u{0301}");
     }
@@ -388,7 +398,7 @@ mod tests {
         let cells = render_state.snapshot().expect("snapshot");
         let cursor = render_state.cursor().expect("cursor");
 
-        let frame = CellFrame::from_cells("sess".to_string(), cells, cursor);
+        let frame = CellFrame::from_cells("sess".to_string(), cells, cursor, false);
         let drawn = frame.cursor.expect("cursor present in viewport");
 
         assert_eq!(drawn.x, 2);

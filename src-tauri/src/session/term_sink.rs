@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use mizraj_term::{encode_paste, Dirty, KeyEncoder, RenderState, Terminal};
+use mizraj_term::{encode_paste, Dirty, KeyEncoder, MouseEncoder, MouseInput, RenderState, Terminal};
 use tauri::async_runtime::Sender as PtyInputSender;
 use tauri::{AppHandle, Emitter, Runtime};
 
@@ -36,6 +36,7 @@ enum RenderInput {
     Snapshot(FrameReply),
     Paste(Vec<u8>),
     Reset,
+    Mouse(MouseInput),
 }
 
 /// `OutputSink` that turns raw PTY bytes into rendered grid snapshots, and the
@@ -142,6 +143,13 @@ impl OutputSink for TermSink {
             let _ = tx.send(RenderInput::Reset);
         }
     }
+
+    fn mouse(&self, input: MouseInput) {
+        // Encoded on the render thread, against the live mouse-tracking mode.
+        if let Ok(tx) = self.tx.lock() {
+            let _ = tx.send(RenderInput::Mouse(input));
+        }
+    }
 }
 
 /// Spin up the render thread's state and pump the input channel until it
@@ -166,6 +174,10 @@ struct RenderLoop<E: Fn(CellFrame)> {
     terminal: Terminal,
     render_state: RenderState,
     encoder: Option<KeyEncoder>,
+    // Lazy: most sessions never see an app-mouse-mode program. Failure to
+    // init is remembered as None-after-attempt via `mouse_encoder_failed`.
+    mouse_encoder: Option<MouseEncoder>,
+    mouse_encoder_failed: bool,
     // Frames are emitted only while a frontend pane is subscribed (TP3). The
     // terminal keeps feeding regardless so its grid stays current; skipped
     // updates leave the damage accumulated, which makes the first update after
@@ -209,6 +221,8 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             terminal,
             render_state,
             encoder,
+            mouse_encoder: None,
+            mouse_encoder_failed: false,
             subscribed: false,
             last_emit: None,
             pty_input,
@@ -314,6 +328,42 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             RenderInput::Reset => {
                 self.terminal.reset();
             }
+            RenderInput::Mouse(input) => {
+                self.mouse_to_pty(&input);
+            }
+        }
+    }
+
+    /// Encode a mouse event against the live tracking mode and push the bytes
+    /// to the PTY. Outside any tracking mode the encoder returns no bytes and
+    /// nothing is sent — the frontend's local selection owns the mouse then.
+    fn mouse_to_pty(&mut self, input: &MouseInput) {
+        if self.mouse_encoder.is_none() && !self.mouse_encoder_failed {
+            match MouseEncoder::new() {
+                Ok(encoder) => self.mouse_encoder = Some(encoder),
+                Err(err) => {
+                    let sid = self.session_id.as_str();
+                    tracing::error!(session_id = sid, error = %err, "mouse encoder init failed; mouse events ignored");
+                    self.mouse_encoder_failed = true;
+                }
+            }
+        }
+        let Some(encoder) = self.mouse_encoder.as_mut() else {
+            return;
+        };
+        let sid = self.session_id.as_str();
+        let bytes = match encoder.encode(&self.terminal, input) {
+            Ok(bytes) => bytes,
+            Err(err) => {
+                tracing::warn!(session_id = sid, error = %err, "mouse encode failed");
+                return;
+            }
+        };
+        if bytes.is_empty() {
+            return;
+        }
+        if let Err(err) = self.pty_input.try_send(bytes) {
+            tracing::debug!(session_id = sid, error = %err, "dropping mouse event; PTY input unavailable");
         }
     }
 
@@ -361,7 +411,8 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             tracing::warn!(session_id = sid, error = %err, "cursor read for frame request failed");
             None
         });
-        let frame = CellFrame::from_cells(sid.to_string(), cells, cursor);
+        let mouse_reporting = self.terminal.mouse_tracking().unwrap_or(false);
+        let frame = CellFrame::from_cells(sid.to_string(), cells, cursor, mouse_reporting);
         // try_send: the requester may have timed out and dropped the receiver;
         // never block the render thread on a gone caller.
         let _ = reply.try_send(frame);
@@ -406,7 +457,8 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             None
         });
 
-        let frame = CellFrame::from_cells(sid.to_string(), cells, cursor);
+        let mouse_reporting = self.terminal.mouse_tracking().unwrap_or(false);
+        let frame = CellFrame::from_cells(sid.to_string(), cells, cursor, mouse_reporting);
         (self.emit)(frame);
 
         if let Err(err) = self.render_state.mark_clean() {
@@ -651,6 +703,36 @@ mod tests {
             .recv_timeout(FRAME_WAIT)
             .expect("reset must push a fresh frame");
         assert_eq!(&*fresh.cells[0].ch, " ", "reset must wipe the grid");
+    }
+
+    #[test]
+    fn mouse_events_reach_the_pty_only_in_tracking_mode() {
+        use mizraj_term::{Mods, MouseAction, MouseButton};
+
+        let (sink, _frames, mut pty_rx) = sink_with_channels();
+        let press = MouseInput {
+            action: MouseAction::Press,
+            button: MouseButton::Left,
+            col: 2,
+            row: 4,
+            mods: Mods {
+                ctrl: false,
+                alt: false,
+                shift: false,
+            },
+        };
+
+        // Outside tracking mode the event encodes to nothing…
+        sink.mouse(press);
+        // …then vim-style tracking turns presses into SGR reports.
+        sink.write(b"\x1b[?1000h\x1b[?1006h");
+        sink.mouse(press);
+
+        assert_eq!(
+            next_pty_bytes(&mut pty_rx),
+            b"\x1b[<0;3;5M",
+            "the first PTY bytes must be the in-mode press (the out-of-mode one sent nothing)"
+        );
     }
 
     #[test]

@@ -4,6 +4,7 @@ pub mod error;
 pub mod handle;
 pub mod id;
 pub mod key;
+pub mod mouse;
 pub mod label;
 pub mod manager;
 pub mod path;

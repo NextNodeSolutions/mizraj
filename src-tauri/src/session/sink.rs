@@ -1,3 +1,5 @@
+use mizraj_term::MouseInput;
+
 use crate::session::cell_frame::CellFrame;
 use crate::session::key::KeyStroke;
 
@@ -57,6 +59,12 @@ pub trait OutputSink: Send + Sync {
     /// the terminal sink acts: its render thread resets the emulator to boot
     /// state and pushes a fresh frame. The child process is not signaled.
     fn reset_terminal(&self) {}
+
+    /// Called when the frontend forwards a mouse event (TP10). Only the
+    /// terminal sink acts: its render thread encodes against the live
+    /// mouse-tracking mode and writes to the PTY — or nothing, outside any
+    /// tracking mode. Same ~1ms budget.
+    fn mouse(&self, _input: MouseInput) {}
 
     /// Called when the user pastes into the session (TP7/TP8). Only the
     /// terminal sink acts: its render thread encodes the payload against the

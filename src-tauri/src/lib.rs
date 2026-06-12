@@ -69,6 +69,7 @@ pub fn run() {
             session::commands::session_paste,
             session::commands::session_write,
             session::commands::session_reset,
+            session::commands::session_mouse,
             session::label::session_label,
         ])
         .run(tauri::generate_context!())

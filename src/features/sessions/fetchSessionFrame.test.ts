@@ -27,6 +27,7 @@ const frame: CellFramePayload = {
 	rows: 1,
 	cells: [],
 	cursor: null,
+	mouse_reporting: false,
 }
 
 describe('fetchSessionFrame', () => {
