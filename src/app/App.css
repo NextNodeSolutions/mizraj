@@ -223,18 +223,6 @@
 	color: var(--text-2);
 }
 
-.tasks-view__origin {
-	flex: 0 0 auto;
-	align-self: flex-start;
-	padding: 0.05rem 0.4rem;
-	border-radius: 999px;
-	background: var(--surface-2);
-	font-size: 0.65rem;
-	letter-spacing: 0.04em;
-	text-transform: uppercase;
-	color: var(--text-2);
-}
-
 .tasks-view__status {
 	flex: 0 0 auto;
 	display: flex;
