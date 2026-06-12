@@ -2,19 +2,20 @@ import { invoke } from '@tauri-apps/api/core'
 import { useEffect } from 'react'
 
 import { agentRunHref, navigate, reviewHref } from '@/app/router'
+import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
 import {
-	DISPLAY_STATUS_LABEL,
-	sessionDisplayStatus,
-} from '@/features/sessions/displayStatus'
-import { sessionLabel } from '@/features/sessions/sessionLabel'
+	sessionLabel,
+	sessionRepoLabel,
+} from '@/features/sessions/sessionLabel'
 import type { SessionState } from '@/features/sessions/sessions'
 import { subscribeToCellFrames } from '@/features/sessions/sessionSubscription'
 import { terminalTail } from '@/features/sessions/terminalTail'
 import { useCellFrame } from '@/features/sessions/useCellFrame'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
+import { StatusTag } from '@/shared/ui/atoms'
 
-const TAIL_LINES = 1
+const TAIL_LINES = 2
 
 type Props = {
 	session: SessionState
@@ -30,37 +31,59 @@ const stopSession = (sessionId: string): void => {
 	})
 }
 
+type TerminalPreviewProps = {
+	tail: ReadonlyArray<string>
+}
+
+// At most TAIL_LINES lines, rendered without a list so no synthetic keys are
+// needed; the blinking caret rides the most recent line.
+const TerminalPreview = ({ tail }: TerminalPreviewProps): React.JSX.Element => (
+	<div className="term mini-term pipeline__term">
+		{tail.length > 1 && <div className="term-line">{tail[0]}</div>}
+		<div className="term-line">
+			{tail.length === 0 ? '…' : tail[tail.length - 1]}
+			<span className="caret" />
+		</div>
+	</div>
+)
+
 export const PipelineSessionCard = ({ session }: Props): React.JSX.Element => {
 	const status = sessionDisplayStatus(session)
 	const frame = useCellFrame(session.id)
 	const tail = terminalTail(frame, TAIL_LINES)
 	const running = status === 'running'
+	//TODO: per-session branch — SessionState has no branch (sessions run
+	// directly in repoPath; worktree.rs spawn_worktree is unused by
+	// session_create and repo_head only resolves the active project).
+	// Rendering sessionRepoLabel(session) as the branch-slot stand-in until
+	// sessions carry a ref_name/worktree.
+	const repoLabel = sessionRepoLabel(session)
 
 	useEffect(() => subscribeToCellFrames(session.id), [session.id])
 
 	return (
 		<article className="pipeline__card" data-status={status}>
 			<div className="pipeline__card-row">
-				<span className="status-dot" data-status={status} />
-				<span className="pipeline__tag" data-status={status}>
-					{DISPLAY_STATUS_LABEL[status]}
-				</span>
+				<StatusTag status={status} />
+				{repoLabel !== null && (
+					<span className="pipeline__branch">{repoLabel}</span>
+				)}
 			</div>
 			<p className="pipeline__title">{sessionLabel(session)}</p>
-			{running && <p className="pipeline__term">{tail[0] ?? '…'}</p>}
+			{running && <TerminalPreview tail={tail} />}
 			<div className="pipeline__card-actions">
 				{status === 'review' ? (
 					<button
 						type="button"
-						className="pipeline__action pipeline__action--primary"
+						className="btn btn-outline btn-sm"
 						onClick={() => navigate(reviewHref())}
 					>
-						Review →
+						Review
 					</button>
 				) : (
 					<button
 						type="button"
-						className="pipeline__action"
+						className="btn btn-outline btn-sm"
 						onClick={() => navigate(agentRunHref(session.id))}
 					>
 						Open
@@ -69,7 +92,7 @@ export const PipelineSessionCard = ({ session }: Props): React.JSX.Element => {
 				{running && (
 					<button
 						type="button"
-						className="pipeline__action"
+						className="btn btn-ghost btn-sm"
 						onClick={() => stopSession(session.id)}
 					>
 						◼ Stop

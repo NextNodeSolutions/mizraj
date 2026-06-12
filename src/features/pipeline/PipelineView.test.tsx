@@ -41,13 +41,46 @@ vi.mock('@/shared/logger', () => ({
 }))
 
 import {
+	cellFramesAtom,
 	endSessionAtom,
 	sessionsAtom,
+	setCellFrameAtom,
 	startSessionAtom,
 } from '@/features/sessions/sessions'
+import type {
+	CellFramePayload,
+	WireCell,
+} from '@/features/sessions/terminalWire'
 import type { Overview } from '@/features/tasks/tasks'
 
 import { PipelineView } from './PipelineView'
+
+const cell = (ch: string): WireCell => ({
+	ch,
+	fg: { kind: 'default' },
+	bg: { kind: 'default' },
+	attrs: 0,
+	wide: 'narrow',
+})
+
+const frameOfLines = (
+	sessionId: string,
+	lines: ReadonlyArray<string>,
+): CellFramePayload => {
+	const cols = Math.max(...lines.map(line => line.length), 1)
+	return {
+		session_id: sessionId,
+		cols,
+		rows: lines.length,
+		cells: lines.flatMap(line =>
+			Array.from({ length: cols }, (_, col) => cell(line[col] ?? ' ')),
+		),
+		cursor: null,
+		mouse_reporting: false,
+		viewport_top: 0,
+		history_total: 0,
+	}
+}
 
 const store = getDefaultStore()
 
@@ -154,6 +187,7 @@ describe('PipelineView', () => {
 
 	beforeEach(() => {
 		store.set(sessionsAtom, {})
+		store.set(cellFramesAtom, {})
 		invokeMock.mockReset()
 		invokeMock.mockImplementation((command: string) => {
 			if (command === 'tasks_overview') return Promise.resolve(OVERVIEW)
@@ -279,6 +313,97 @@ describe('PipelineView', () => {
 		expect(doneCard?.getAttribute('data-done')).toBe('true')
 		expect(doneCard?.querySelector('.tag')?.textContent).toBe('done')
 		expect(doneCard?.textContent).toContain('✓ done')
+	})
+
+	it('shows a status pill and the session repo on session cards', async () => {
+		store.set(startSessionAtom, {
+			id: 'run-1',
+			binary: 'claude',
+			repoPath: '/repo/mizraj',
+		})
+		store.set(startSessionAtom, {
+			id: 'rev-1',
+			binary: 'claude',
+			repoPath: '/repo/mizraj',
+		})
+		store.set(endSessionAtom, { sessionId: 'rev-1', exitCode: 0 })
+		await render()
+
+		const runningCard = column('Running')?.querySelector('.pipeline__card')
+		expect(runningCard?.querySelector('.tag-run')?.textContent).toBe(
+			'running',
+		)
+		expect(
+			runningCard?.querySelector('.pipeline__branch')?.textContent,
+		).toBe('mizraj')
+		const reviewCard = column('Review')?.querySelector('.pipeline__card')
+		expect(reviewCard?.querySelector('.tag-rev')?.textContent).toBe(
+			'needs review',
+		)
+	})
+
+	it('previews the last two terminal lines with a caret on running cards', async () => {
+		store.set(startSessionAtom, {
+			id: 'run-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		store.set(
+			setCellFrameAtom,
+			frameOfLines('run-1', ['pnpm build', 'vite v7', 'done in 2s']),
+		)
+		await render()
+
+		const lines = Array.from(
+			column('Running')?.querySelectorAll('.term-line') ?? [],
+		)
+		expect(lines.map(line => line.textContent)).toEqual([
+			'vite v7',
+			'done in 2s',
+		])
+		expect(lines[0]?.querySelector('.caret')).toBeNull()
+		expect(lines[1]?.querySelector('.caret')).not.toBeNull()
+	})
+
+	it('shows an ellipsis placeholder before the first frame', async () => {
+		store.set(startSessionAtom, {
+			id: 'run-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		await render()
+
+		const lines = Array.from(
+			column('Running')?.querySelectorAll('.term-line') ?? [],
+		)
+		expect(lines).toHaveLength(1)
+		expect(lines[0]?.textContent).toBe('…')
+		expect(lines[0]?.querySelector('.caret')).not.toBeNull()
+	})
+
+	it('gives failed cards a single Open action', async () => {
+		store.set(startSessionAtom, {
+			id: 'fail-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		store.set(endSessionAtom, { sessionId: 'fail-1', exitCode: 2 })
+		await render()
+
+		const failedCard = column('Review')?.querySelector('.pipeline__card')
+		expect(failedCard?.querySelector('.tag-fail')?.textContent).toBe(
+			'failed',
+		)
+		const labels = Array.from(
+			failedCard?.querySelectorAll('button') ?? [],
+		).map(button => button.textContent)
+		expect(labels).toEqual(['Open'])
+
+		const open = failedCard?.querySelector('button')
+		await act(async () => {
+			open?.click()
+		})
+		expect(navigateMock).toHaveBeenCalledWith('/agent-run/fail-1')
 	})
 
 	it('launches an agent from a backlog card', async () => {
