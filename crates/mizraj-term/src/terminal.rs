@@ -2,8 +2,8 @@ use std::ptr::{self, NonNull};
 
 use mizraj_term_sys::{
     ghostty_terminal_free, ghostty_terminal_mode_get, ghostty_terminal_new,
-    ghostty_terminal_resize, ghostty_terminal_vt_write, GhosttyResult_GHOSTTY_SUCCESS,
-    GhosttyTerminal, GhosttyTerminalImpl, GhosttyTerminalOptions,
+    ghostty_terminal_reset, ghostty_terminal_resize, ghostty_terminal_vt_write,
+    GhosttyResult_GHOSTTY_SUCCESS, GhosttyTerminal, GhosttyTerminalImpl, GhosttyTerminalOptions,
 };
 
 use crate::{Result, TermError};
@@ -104,6 +104,16 @@ impl Terminal {
         Ok(())
     }
 
+    /// Full terminal reset (the Ghostty `reset` keybind action): wipes
+    /// screen contents, scrollback, modes and styles back to boot state. The
+    /// child process is not signaled — exactly like Ghostty, the next program
+    /// output simply draws onto the fresh grid.
+    pub fn reset(&mut self) {
+        // SAFETY: `self.handle` is a live handle from `ghostty_terminal_new`
+        // (Drop hasn't run yet, guaranteed by `&mut self`).
+        unsafe { ghostty_terminal_reset(self.handle.as_ptr()) };
+    }
+
     /// Whether the running program switched bracketed-paste mode on (DEC
     /// 2004). Pasted text must then be wrapped in `ESC[200~ … ESC[201~` so
     /// the child can tell a paste from typed input.
@@ -162,6 +172,22 @@ mod tests {
 
         assert!(matches!(err, TermError::Resize(_)));
         // The failed resize must not corrupt the live dimensions.
+        assert_eq!(terminal.rows(), 24);
+        assert_eq!(terminal.cols(), 80);
+    }
+
+    #[test]
+    fn reset_restores_boot_state() {
+        let mut terminal = Terminal::new(24, 80).expect("new terminal");
+        terminal.feed(b"\x1b[?2004h").expect("set bracketed paste");
+        assert!(terminal.bracketed_paste().expect("query on"));
+
+        terminal.reset();
+
+        assert!(
+            !terminal.bracketed_paste().expect("query after reset"),
+            "reset must clear DEC private modes"
+        );
         assert_eq!(terminal.rows(), 24);
         assert_eq!(terminal.cols(), 80);
     }

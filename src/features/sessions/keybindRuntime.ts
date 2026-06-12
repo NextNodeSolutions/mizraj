@@ -20,6 +20,16 @@ export const keybindTableAtom = atom<Keybind[]>([])
 // and paste_from_selection read it, falling back to grid/clipboard.
 export const sessionSelectionAtom = atom<Readonly<Record<string, string>>>({})
 
+// Interactive font-size offset (px ≡ pt here) applied on top of the config's
+// size by increase/decrease_font_size; reset_font_size returns to 0. Kept as a
+// delta so the executor needs no knowledge of the configured base size.
+export const fontSizeDeltaAtom = atom(0)
+
+// Ghostty's clear_screen also nudges the shell to redraw its prompt; a form
+// feed is what ctrl+l sends and every shell answers it with a clear + redraw.
+const FORM_FEED = '\f'
+const ESC = '\u001b'
+
 export type KeybindContext = {
 	sessionId: string
 }
@@ -78,10 +88,40 @@ const pasteFromSelection = (sessionId: string): void => {
 	pasteFromClipboard(sessionId)
 }
 
-// Execute one matched keybind action. The matched key never reaches the PTY —
-// even for actions not wired yet (a bound key must act bound: swallowing
-// ctrl+c that the user bound to copy beats sending SIGINT to their shell).
-// The remaining stubs are filled by the font-size/clear/reset/text/esc slice.
+// Write keybind-injected bytes (text:/esc:/clear_screen) to the PTY verbatim
+// via session_write — no paste encoding, the binding's bytes ARE the input.
+const writeToSession = (sessionId: string, text: string): void => {
+	invoke('session_write', { sessionId, text }).catch((error: unknown) => {
+		const { message, stack } = describeError(error)
+		logger.warn(`keybind write: session_write failed: ${message}`, {
+			scope: 'terminal-input',
+			details: { stack, sessionId },
+		})
+	})
+}
+
+const resetTerminal = (sessionId: string): void => {
+	invoke('session_reset', { sessionId }).catch((error: unknown) => {
+		const { message, stack } = describeError(error)
+		logger.warn(`keybind reset: session_reset failed: ${message}`, {
+			scope: 'terminal-input',
+			details: { stack, sessionId },
+		})
+	})
+}
+
+const shiftFontSize = (delta: number): void => {
+	const store = getDefaultStore()
+	store.set(fontSizeDeltaAtom, store.get(fontSizeDeltaAtom) + delta)
+}
+
+const resetFontSize = (): void => {
+	getDefaultStore().set(fontSizeDeltaAtom, 0)
+}
+
+// Execute one matched keybind action. The matched key never reaches the PTY
+// as a keystroke — a bound key must act bound (swallowing ctrl+c that the
+// user bound to copy beats sending SIGINT to their shell).
 export const executeKeybindAction = (
 	action: KeybindAction,
 	context: KeybindContext,
@@ -103,16 +143,25 @@ export const executeKeybindAction = (
 			pasteFromSelection(context.sessionId)
 			return
 		case 'increase_font_size':
+			shiftFontSize(action.amount)
+			return
 		case 'decrease_font_size':
+			shiftFontSize(-action.amount)
+			return
 		case 'reset_font_size':
+			resetFontSize()
+			return
 		case 'clear_screen':
+			writeToSession(context.sessionId, FORM_FEED)
+			return
 		case 'reset':
+			resetTerminal(context.sessionId)
+			return
 		case 'text':
+			writeToSession(context.sessionId, action.text)
+			return
 		case 'esc':
-			logger.debug(`keybind action not wired yet: ${action.kind}`, {
-				scope: 'terminal-input',
-				details: { sessionId: context.sessionId },
-			})
+			writeToSession(context.sessionId, `${ESC}${action.sequence}`)
 			return
 	}
 }

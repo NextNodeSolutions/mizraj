@@ -13,10 +13,17 @@ import { fetchSessionFrame } from './fetchSessionFrame'
 import { ghosttyConfigEpochAtom } from './ghosttyConfigBridge'
 import type { RenderBundle } from './ghosttyConfigCache'
 import { getRenderBundle } from './ghosttyConfigCache'
+import { fontSizeDeltaAtom } from './keybindRuntime'
 import { cellFramesAtom } from './sessions'
 import { subscribeToCellFrames } from './sessionSubscription'
+import { buildFontTable } from './terminalAttrs'
 import type { TerminalConfig } from './terminalRenderer'
-import { drawFrame, gridForSize, syncBackingStore } from './terminalRenderer'
+import {
+	drawFrame,
+	gridForSize,
+	measureCell,
+	syncBackingStore,
+} from './terminalRenderer'
 import type { CellFramePayload } from './terminalWire'
 
 type TerminalCanvasHandles = {
@@ -98,6 +105,9 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 	// Hot reload (DG3): an on-disk config edit bumps the epoch, tearing the
 	// render scope down and rebuilding it against the fresh config.
 	const configEpoch = useAtomValue(ghosttyConfigEpochAtom)
+	// Interactive font-size keybinds shift this delta; the render scope
+	// re-derives metrics from it without touching the per-appearance cache.
+	const fontSizeDelta = useAtomValue(fontSizeDeltaAtom)
 
 	// Subscription is keyed on the session alone — an appearance flip must not
 	// blink the backend's emission gate, only re-derive the render config below.
@@ -129,7 +139,7 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 				container,
 				canvas,
 				sessionId,
-				bundle,
+				applyFontSizeDelta(bundle, fontSizeDelta, context),
 			)
 		})
 
@@ -137,9 +147,33 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 			cancelled = true
 			teardown?.()
 		}
-	}, [sessionId, appearance, configEpoch])
+	}, [sessionId, appearance, configEpoch, fontSizeDelta])
 
 	return { containerRef, canvasRef }
+}
+
+// The smallest font the canvas can still tile cells with; decrease_font_size
+// keybinds clamp here instead of inverting the grid math.
+const MIN_FONT_SIZE_PX = 4
+
+// Re-derive the size-dependent half of the bundle when the interactive
+// font-size delta is non-zero. The cache stays pristine (keyed by appearance
+// only): font-size steps are rare, the re-measure costs microseconds, and
+// reset_font_size lands back on the cached bundle object untouched.
+const applyFontSizeDelta = (
+	bundle: RenderBundle,
+	delta: number,
+	context: CanvasRenderingContext2D,
+): RenderBundle => {
+	if (delta === 0) return bundle
+	const sizePx = Math.max(MIN_FONT_SIZE_PX, bundle.font.sizePx + delta)
+	const font = { ...bundle.font, sizePx }
+	return {
+		...bundle,
+		font,
+		metrics: measureCell(context, font),
+		fontTable: buildFontTable(font),
+	}
 }
 
 // Wire the cell-frame listener and resize observer for a session against the

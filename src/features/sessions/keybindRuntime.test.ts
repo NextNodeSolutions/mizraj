@@ -32,6 +32,7 @@ vi.mock('@/shared/logger', () => ({
 import { cellFramesAtom } from './sessions'
 import {
 	executeKeybindAction,
+	fontSizeDeltaAtom,
 	sessionSelectionAtom,
 } from './keybindRuntime'
 
@@ -135,5 +136,69 @@ describe('executeKeybindAction', () => {
 			text: 'primary',
 		})
 		expect(readClipboardMock).not.toHaveBeenCalled()
+	})
+
+	it('font-size steps accumulate into the delta and reset clears it', () => {
+		store.set(fontSizeDeltaAtom, 0)
+
+		executeKeybindAction(
+			{ kind: 'increase_font_size', amount: 2 },
+			{ sessionId: 'sess-1' },
+		)
+		executeKeybindAction(
+			{ kind: 'increase_font_size', amount: 1 },
+			{ sessionId: 'sess-1' },
+		)
+		expect(store.get(fontSizeDeltaAtom)).toBe(3)
+
+		executeKeybindAction(
+			{ kind: 'decrease_font_size', amount: 1.5 },
+			{ sessionId: 'sess-1' },
+		)
+		expect(store.get(fontSizeDeltaAtom)).toBe(1.5)
+
+		executeKeybindAction({ kind: 'reset_font_size' }, { sessionId: 'sess-1' })
+		expect(store.get(fontSizeDeltaAtom)).toBe(0)
+	})
+
+	it('clear_screen sends a form feed to the PTY', () => {
+		executeKeybindAction({ kind: 'clear_screen' }, { sessionId: 'sess-1' })
+
+		expect(invokeMock).toHaveBeenCalledWith('session_write', {
+			sessionId: 'sess-1',
+			text: '\f',
+		})
+	})
+
+	it('text payloads are written verbatim', () => {
+		executeKeybindAction(
+			{ kind: 'text', text: 'git status\n' },
+			{ sessionId: 'sess-1' },
+		)
+
+		expect(invokeMock).toHaveBeenCalledWith('session_write', {
+			sessionId: 'sess-1',
+			text: 'git status\n',
+		})
+	})
+
+	it('esc payloads are prefixed with ESC', () => {
+		executeKeybindAction(
+			{ kind: 'esc', sequence: 'b' },
+			{ sessionId: 'sess-1' },
+		)
+
+		expect(invokeMock).toHaveBeenCalledWith('session_write', {
+			sessionId: 'sess-1',
+			text: 'b',
+		})
+	})
+
+	it('reset resets the terminal emulator', () => {
+		executeKeybindAction({ kind: 'reset' }, { sessionId: 'sess-1' })
+
+		expect(invokeMock).toHaveBeenCalledWith('session_reset', {
+			sessionId: 'sess-1',
+		})
 	})
 })

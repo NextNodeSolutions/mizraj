@@ -182,6 +182,19 @@ impl SessionManager {
         Ok(())
     }
 
+    /// Reset the session's terminal emulator to boot state (the Ghostty
+    /// `reset` keybind action). Fans out like [`send_key`]; the terminal sink's
+    /// render thread wipes the grid and pushes a fresh frame. Returns
+    /// `NotFound` for unknown sessions.
+    pub async fn reset_terminal(&self, id: &SessionId) -> Result<(), SessionError> {
+        let state = self.state.read().await;
+        let handle = state
+            .get(id)
+            .ok_or_else(|| SessionError::NotFound(id.to_string()))?;
+        dispatch_to_sinks(handle.sinks(), |sink| sink.reset_terminal()).await;
+        Ok(())
+    }
+
     /// Forward pasted text to the session's terminal sink, which encodes it
     /// against the live bracketed-paste mode and writes it to the PTY (TP7).
     /// Fans out like [`send_key`]; byte-only sinks ignore it. Returns
@@ -998,6 +1011,22 @@ mod tests {
             let id = SessionId::new();
             let err = manager
                 .set_subscribed(&id, true)
+                .await
+                .expect_err("unknown id should fail");
+            match err {
+                SessionError::NotFound(s) => assert_eq!(s, id.to_string()),
+                other => panic!("expected NotFound, got {other:?}"),
+            }
+        });
+    }
+
+    #[test]
+    fn reset_terminal_returns_not_found_for_unknown_id() {
+        block_on(async {
+            let manager = SessionManager::new();
+            let id = SessionId::new();
+            let err = manager
+                .reset_terminal(&id)
                 .await
                 .expect_err("unknown id should fail");
             match err {

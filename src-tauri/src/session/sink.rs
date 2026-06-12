@@ -53,6 +53,11 @@ pub trait OutputSink: Send + Sync {
     /// budget: the snapshot itself happens on the render thread.
     fn frame_request(&self, _reply: FrameReply) {}
 
+    /// Called when the user triggers the Ghostty `reset` keybind action. Only
+    /// the terminal sink acts: its render thread resets the emulator to boot
+    /// state and pushes a fresh frame. The child process is not signaled.
+    fn reset_terminal(&self) {}
+
     /// Called when the user pastes into the session (TP7/TP8). Only the
     /// terminal sink acts: its render thread encodes the payload against the
     /// live bracketed-paste mode (strip unsafe bytes, wrap in `ESC[200~ …` or

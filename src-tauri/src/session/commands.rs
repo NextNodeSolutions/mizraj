@@ -184,6 +184,28 @@ pub async fn session_get_frame(
     manager.request_frame(&session_id).await
 }
 
+/// Write raw UTF-8 bytes to the session's PTY, verbatim — the transport for
+/// keybind-injected payloads (`text:`/`esc:` actions). Unlike `session_paste`
+/// there is no encoding: the binding's bytes ARE the intended input.
+#[tauri::command]
+pub async fn session_write(
+    session_id: SessionId,
+    text: String,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.send_input(&session_id, text.into_bytes()).await
+}
+
+/// Reset the session's terminal emulator to boot state (Ghostty `reset`
+/// keybind action). The child is untouched; the grid repaints fresh.
+#[tauri::command]
+pub async fn session_reset(
+    session_id: SessionId,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.reset_terminal(&session_id).await
+}
+
 /// Paste text into the session: the terminal sink encodes it against the live
 /// bracketed-paste mode (DEC 2004) and writes it to the PTY (TP7/TP8).
 #[tauri::command]

@@ -35,6 +35,7 @@ enum RenderInput {
     SetSubscribed(bool),
     Snapshot(FrameReply),
     Paste(Vec<u8>),
+    Reset,
 }
 
 /// `OutputSink` that turns raw PTY bytes into rendered grid snapshots, and the
@@ -133,6 +134,12 @@ impl OutputSink for TermSink {
         // (DEC 2004) is known.
         if let Ok(tx) = self.tx.lock() {
             let _ = tx.send(RenderInput::Paste(data));
+        }
+    }
+
+    fn reset_terminal(&self) {
+        if let Ok(tx) = self.tx.lock() {
+            let _ = tx.send(RenderInput::Reset);
         }
     }
 }
@@ -303,6 +310,9 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             }
             RenderInput::Paste(data) => {
                 self.paste_to_pty(&data);
+            }
+            RenderInput::Reset => {
+                self.terminal.reset();
             }
         }
     }
@@ -618,6 +628,29 @@ mod tests {
         sink.paste(b"hi".to_vec());
 
         assert_eq!(next_pty_bytes(&mut pty_rx), b"\x1b[200~hi\x1b[201~");
+    }
+
+    #[test]
+    fn reset_wipes_the_grid_and_repaints() {
+        let (sink, frames) = frame_capturing_sink();
+        sink.set_subscribed(true);
+
+        sink.write(b"x");
+        let mut saw_x = false;
+        while let Ok(frame) = frames.recv_timeout(FRAME_WAIT) {
+            if &*frame.cells[0].ch == "x" {
+                saw_x = true;
+                break;
+            }
+        }
+        assert!(saw_x, "the pre-reset grid must show the output");
+
+        sink.reset_terminal();
+
+        let fresh = frames
+            .recv_timeout(FRAME_WAIT)
+            .expect("reset must push a fresh frame");
+        assert_eq!(&*fresh.cells[0].ch, " ", "reset must wipe the grid");
     }
 
     #[test]
