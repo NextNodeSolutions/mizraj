@@ -8,6 +8,7 @@ import { useSettings } from '@/features/settings/settings'
 import { SettingsPanel } from '@/features/settings/SettingsPanel'
 
 import { MainContent } from './MainContent'
+import { Rail } from './Rail'
 import { Toasts } from './Toasts'
 import { TopBar } from './TopBar'
 import { usePaletteTheme } from './usePaletteTheme'
@@ -33,6 +34,7 @@ export function App(): React.JSX.Element {
 					onOpenSettings={() => setPanelOpen(true)}
 				/>
 				<div className="mz-body">
+					<Rail />
 					<MainContent activeProjectPath={activeProjectPath} />
 				</div>
 			</div>
