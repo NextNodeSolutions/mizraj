@@ -7,6 +7,7 @@
 
 mod color;
 mod diagnostic;
+mod keybind;
 mod load;
 mod parse;
 mod resolve;
@@ -14,6 +15,7 @@ mod value;
 
 pub use color::{parse_color, Color, Rgb};
 pub use diagnostic::Diagnostic;
+pub use keybind::{Keybind, KeybindAction, KeybindFlags, KeyChord, KeySpec};
 pub use load::{load, Appearance, LoadOptions};
 pub use parse::{parse, Directive};
 pub use resolve::{resolve, ResolvedConfig};

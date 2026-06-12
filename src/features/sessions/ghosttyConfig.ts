@@ -40,6 +40,54 @@ export type Diagnostic = {
 	message: string
 }
 
+// A trigger key, tagged by matching mode: logical follows the keyboard layout
+// (KeyboardEvent.key), physical the position (KeyboardEvent.code).
+export type KeySpec =
+	| { kind: 'logical'; name: string }
+	| { kind: 'physical'; name: string }
+
+// One key with its modifiers, pressed at once.
+export type KeyChord = {
+	shift: boolean
+	ctrl: boolean
+	alt: boolean
+	super: boolean
+	key: KeySpec
+}
+
+export type KeybindFlags = {
+	global: boolean
+	all: boolean
+	unconsumed: boolean
+	performable: boolean
+}
+
+// The typed action half of a keybind (TP8). `unsupported` carries a verbatim
+// out-of-scope Ghostty action the dispatch must skip (and let the key fall
+// through to the PTY encoder).
+export type KeybindAction =
+	| { kind: 'copy_to_clipboard' }
+	| { kind: 'paste_from_clipboard' }
+	| { kind: 'paste_from_selection' }
+	| { kind: 'select_all' }
+	| { kind: 'increase_font_size'; amount: number }
+	| { kind: 'decrease_font_size'; amount: number }
+	| { kind: 'reset_font_size' }
+	| { kind: 'clear_screen' }
+	| { kind: 'reset' }
+	| { kind: 'text'; text: string }
+	| { kind: 'esc'; sequence: string }
+	| { kind: 'ignore' }
+	| { kind: 'unsupported'; action: string }
+
+// One effective keybinding: chord sequence (length > 1 = leader sequence),
+// flags, action — already folded (rebinds replaced, unbinds removed).
+export type Keybind = {
+	trigger: KeyChord[]
+	flags: KeybindFlags
+	action: KeybindAction
+}
+
 // The effective Ghostty config in the snake_case wire shape emitted by the
 // `load_ghostty_config` Tauri command (src-tauri/src/ghostty.rs). `null`/empty
 // fields mean "use the engine default" — the renderer keeps its own fallback.
@@ -78,6 +126,7 @@ export type GhosttyConfig = {
 	copy_on_select: string | null
 	mouse_hide_while_typing: boolean | null
 	term: string | null
+	keybinds: Keybind[]
 	diagnostics: Diagnostic[]
 }
 
@@ -117,6 +166,7 @@ export const EMPTY_CONFIG: GhosttyConfig = {
 	copy_on_select: null,
 	mouse_hide_while_typing: null,
 	term: null,
+	keybinds: [],
 	diagnostics: [],
 }
 

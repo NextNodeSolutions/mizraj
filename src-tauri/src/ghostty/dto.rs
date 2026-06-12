@@ -5,7 +5,8 @@
 //! host bridge: path resolution + the Tauri command).
 
 use mizraj_config::{
-    Adjustment, Color, CopyOnSelect, CursorStyle, Diagnostic, PaddingAxis, ResolvedConfig,
+    Adjustment, Color, CopyOnSelect, CursorStyle, Diagnostic, Keybind, KeybindAction,
+    KeybindFlags, KeyChord, KeySpec, PaddingAxis, ResolvedConfig,
 };
 use serde::Serialize;
 
@@ -64,6 +65,120 @@ impl From<Diagnostic> for DiagnosticDto {
     }
 }
 
+/// A trigger key, tagged by matching mode (layout-dependent character vs
+/// physical position).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum KeySpecDto {
+    Logical { name: String },
+    Physical { name: String },
+}
+
+impl From<KeySpec> for KeySpecDto {
+    fn from(key: KeySpec) -> Self {
+        match key {
+            KeySpec::Logical(name) => KeySpecDto::Logical { name },
+            KeySpec::Physical(name) => KeySpecDto::Physical { name },
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+struct KeyChordDto {
+    shift: bool,
+    ctrl: bool,
+    alt: bool,
+    #[serde(rename = "super")]
+    super_key: bool,
+    key: KeySpecDto,
+}
+
+impl From<KeyChord> for KeyChordDto {
+    fn from(chord: KeyChord) -> Self {
+        KeyChordDto {
+            shift: chord.shift,
+            ctrl: chord.ctrl,
+            alt: chord.alt,
+            super_key: chord.super_key,
+            key: chord.key.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+struct KeybindFlagsDto {
+    global: bool,
+    all: bool,
+    unconsumed: bool,
+    performable: bool,
+}
+
+impl From<KeybindFlags> for KeybindFlagsDto {
+    fn from(flags: KeybindFlags) -> Self {
+        KeybindFlagsDto {
+            global: flags.global,
+            all: flags.all,
+            unconsumed: flags.unconsumed,
+            performable: flags.performable,
+        }
+    }
+}
+
+/// A keybind action in the wire shape: a tagged union the frontend dispatch
+/// switches on. `unbind` never reaches the wire (consumed by the fold);
+/// `unsupported` carries the raw action so the dispatch skips it knowingly.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum KeybindActionDto {
+    CopyToClipboard,
+    PasteFromClipboard,
+    PasteFromSelection,
+    SelectAll,
+    IncreaseFontSize { amount: f32 },
+    DecreaseFontSize { amount: f32 },
+    ResetFontSize,
+    ClearScreen,
+    Reset,
+    Text { text: String },
+    Esc { sequence: String },
+    Ignore,
+    Unsupported { action: String },
+}
+
+/// One effective keybinding: trigger chord sequence, flags, typed action.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct KeybindDto {
+    trigger: Vec<KeyChordDto>,
+    flags: KeybindFlagsDto,
+    action: KeybindActionDto,
+}
+
+/// `None` for `Unbind` (already consumed by the fold; a defensive skip here
+/// beats a panic on an impossible state).
+fn keybind_dto(keybind: Keybind) -> Option<KeybindDto> {
+    let action = match keybind.action {
+        KeybindAction::CopyToClipboard => KeybindActionDto::CopyToClipboard,
+        KeybindAction::PasteFromClipboard => KeybindActionDto::PasteFromClipboard,
+        KeybindAction::PasteFromSelection => KeybindActionDto::PasteFromSelection,
+        KeybindAction::SelectAll => KeybindActionDto::SelectAll,
+        KeybindAction::IncreaseFontSize(amount) => KeybindActionDto::IncreaseFontSize { amount },
+        KeybindAction::DecreaseFontSize(amount) => KeybindActionDto::DecreaseFontSize { amount },
+        KeybindAction::ResetFontSize => KeybindActionDto::ResetFontSize,
+        KeybindAction::ClearScreen => KeybindActionDto::ClearScreen,
+        KeybindAction::Reset => KeybindActionDto::Reset,
+        KeybindAction::Text(text) => KeybindActionDto::Text { text },
+        KeybindAction::Esc(sequence) => KeybindActionDto::Esc { sequence },
+        KeybindAction::Ignore => KeybindActionDto::Ignore,
+        KeybindAction::Unsupported(action) => KeybindActionDto::Unsupported { action },
+        KeybindAction::Unbind => return None,
+    };
+    Some(KeybindDto {
+        trigger: keybind.trigger.into_iter().map(KeyChordDto::from).collect(),
+        flags: keybind.flags.into(),
+        action,
+    })
+}
+
 /// The effective Ghostty config, in the wire shape the frontend renderer reads.
 /// `None`/empty fields mean "use the engine default" (the renderer keeps its own
 /// fallback). Colors are `#rrggbb` hex (or the `cell-foreground`/`cell-background`
@@ -102,6 +217,7 @@ pub struct GhosttyConfigDto {
     copy_on_select: Option<String>,
     mouse_hide_while_typing: Option<bool>,
     term: Option<String>,
+    keybinds: Vec<KeybindDto>,
     diagnostics: Vec<DiagnosticDto>,
 }
 
@@ -214,6 +330,7 @@ pub(crate) fn build_dto(config: ResolvedConfig) -> GhosttyConfigDto {
             .map(|value| copy_on_select_name(value).to_string()),
         mouse_hide_while_typing: config.mouse_hide_while_typing,
         term: config.term,
+        keybinds: config.keybinds.into_iter().filter_map(keybind_dto).collect(),
         diagnostics,
     }
 }
@@ -287,6 +404,38 @@ mod tests {
     fn forwards_loader_diagnostics() {
         let dto = dto("font-size = enormous");
         assert!(dto.diagnostics.iter().any(|d| d.key == "font-size"));
+    }
+
+    #[test]
+    fn maps_keybinds_with_typed_actions_and_triggers() {
+        let dto = dto(
+            "keybind = global:super+c=copy_to_clipboard\nkeybind = ctrl+a>n=text:next\nkeybind = super+k=new_window",
+        );
+        let json = serde_json::to_value(&dto).expect("serialize");
+
+        assert_eq!(json["keybinds"][0]["flags"]["global"], true);
+        assert_eq!(json["keybinds"][0]["trigger"][0]["super"], true);
+        assert_eq!(
+            json["keybinds"][0]["trigger"][0]["key"],
+            serde_json::json!({ "kind": "logical", "name": "c" })
+        );
+        assert_eq!(
+            json["keybinds"][0]["action"],
+            serde_json::json!({ "kind": "copy_to_clipboard" })
+        );
+
+        // The sequence keeps both chords, the text payload is unescaped.
+        assert_eq!(json["keybinds"][1]["trigger"].as_array().map(Vec::len), Some(2));
+        assert_eq!(
+            json["keybinds"][1]["action"],
+            serde_json::json!({ "kind": "text", "text": "next" })
+        );
+
+        // Out-of-scope actions ride along tagged, for the dispatch to skip.
+        assert_eq!(
+            json["keybinds"][2]["action"],
+            serde_json::json!({ "kind": "unsupported", "action": "new_window" })
+        );
     }
 
     #[test]

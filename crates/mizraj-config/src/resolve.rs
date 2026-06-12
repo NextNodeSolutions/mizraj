@@ -13,6 +13,7 @@ use std::collections::BTreeMap;
 
 use crate::color::{parse_color, Color, Rgb};
 use crate::diagnostic::Diagnostic;
+use crate::keybind::{parse_keybind, Keybind, KeybindAction, KeybindDirective};
 use crate::value::{
     parse_bool, parse_f32, parse_u64, Adjustment, CopyOnSelect, CursorStyle, PaddingAxis,
 };
@@ -60,6 +61,10 @@ pub struct ResolvedConfig {
     pub copy_on_select: Option<CopyOnSelect>,
     pub mouse_hide_while_typing: Option<bool>,
     pub term: Option<String>,
+    /// The effective keybinding table, in declaration order. Rebinding a
+    /// trigger replaces in place, `unbind` removes, `clear` (or an empty
+    /// value) wipes — so this is the post-fold table the dispatch consumes.
+    pub keybinds: Vec<Keybind>,
     /// Problems found while loading/folding the config, kept so the host can
     /// surface them rather than silently dropping bad values.
     pub diagnostics: Vec<Diagnostic>,
@@ -133,7 +138,43 @@ fn apply(config: &mut ResolvedConfig, directive: &Directive) {
         "copy-on-select" => scalar!(copy_on_select, CopyOnSelect::parse),
         "mouse-hide-while-typing" => scalar!(mouse_hide_while_typing, parse_bool),
         "term" => set_string(&mut config.term, value, reset),
+        "keybind" => apply_keybind(config, value, reset),
         _ => {}
+    }
+}
+
+/// Fold one `keybind` directive into the table: accumulate new triggers,
+/// replace a re-bound trigger in place, honor `unbind`/`clear`, and record a
+/// diagnostic (never panic) for malformed directives.
+fn apply_keybind(config: &mut ResolvedConfig, value: &str, reset: bool) {
+    if reset {
+        config.keybinds.clear();
+        return;
+    }
+    match parse_keybind(value) {
+        Ok(KeybindDirective::Clear) => config.keybinds.clear(),
+        Ok(KeybindDirective::Bind(keybind)) => upsert_keybind(&mut config.keybinds, keybind),
+        Err(reason) => config
+            .diagnostics
+            .push(Diagnostic::new("keybind", value, reason)),
+    }
+}
+
+fn upsert_keybind(table: &mut Vec<Keybind>, keybind: Keybind) {
+    let slot = table
+        .iter()
+        .position(|existing| existing.trigger == keybind.trigger);
+
+    if keybind.action == KeybindAction::Unbind {
+        if let Some(index) = slot {
+            table.remove(index);
+        }
+        return;
+    }
+
+    match slot {
+        Some(index) => table[index] = keybind,
+        None => table.push(keybind),
     }
 }
 
@@ -349,6 +390,53 @@ mod tests {
         // A real Ghostty key we don't (yet) honor must not produce a diagnostic.
         let config = resolved("macos-titlebar-style = tabs");
         assert!(config.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn keybind_directives_accumulate_into_a_table() {
+        let config = resolved(
+            "keybind = super+c=copy_to_clipboard\nkeybind = super+v=paste_from_clipboard",
+        );
+        assert_eq!(config.keybinds.len(), 2);
+        assert_eq!(config.keybinds[0].action, KeybindAction::CopyToClipboard);
+        assert_eq!(config.keybinds[1].action, KeybindAction::PasteFromClipboard);
+    }
+
+    #[test]
+    fn rebinding_the_same_trigger_replaces_in_place() {
+        let config = resolved(
+            "keybind = super+c=copy_to_clipboard\nkeybind = super+v=paste_from_clipboard\nkeybind = super+c=select_all",
+        );
+        assert_eq!(config.keybinds.len(), 2);
+        // Replaced in place: original position, new action.
+        assert_eq!(config.keybinds[0].action, KeybindAction::SelectAll);
+    }
+
+    #[test]
+    fn unbind_removes_the_matching_trigger() {
+        let config = resolved("keybind = super+c=copy_to_clipboard\nkeybind = super+c=unbind");
+        assert!(config.keybinds.is_empty());
+        assert!(config.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn keybind_clear_wipes_the_table() {
+        let config = resolved("keybind = super+c=copy_to_clipboard\nkeybind = clear");
+        assert!(config.keybinds.is_empty());
+    }
+
+    #[test]
+    fn empty_keybind_value_resets_the_table() {
+        let config = resolved("keybind = super+c=copy_to_clipboard\nkeybind =");
+        assert!(config.keybinds.is_empty());
+    }
+
+    #[test]
+    fn invalid_keybind_records_a_diagnostic() {
+        let config = resolved("keybind = wat+c=copy_to_clipboard");
+        assert!(config.keybinds.is_empty());
+        assert_eq!(config.diagnostics.len(), 1);
+        assert_eq!(config.diagnostics[0].key, "keybind");
     }
 
     #[test]
