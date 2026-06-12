@@ -41,8 +41,18 @@ export const PipelineView = ({
 					Tasks unavailable: {state.message}
 				</p>
 			)}
-			<div className="pipeline__cols">
-				<PipelineColumn title="Backlog" count={columns.backlog.length}>
+			<div className="pipeline__cols stagger">
+				<PipelineColumn
+					title="Backlog"
+					count={columns.backlog.length}
+					dot="done"
+					si={0}
+				>
+					{columns.backlog.length === 0 && (
+						<p className="pipeline__empty">
+							backlog clear — every task has an agent
+						</p>
+					)}
 					{columns.backlog.map(entry => (
 						<PipelineTaskCard
 							key={entry.task.id}
@@ -55,7 +65,8 @@ export const PipelineView = ({
 				<PipelineColumn
 					title="Running"
 					count={runningCount}
-					status="running"
+					dot="run"
+					si={1}
 				>
 					{columns.runningSessions.map(session => (
 						<PipelineSessionCard
@@ -75,8 +86,14 @@ export const PipelineView = ({
 				<PipelineColumn
 					title="Review"
 					count={columns.endedSessions.length}
-					status="review"
+					dot="rev"
+					si={2}
 				>
+					{columns.endedSessions.length === 0 && (
+						<p className="pipeline__empty">
+							nothing waiting on you
+						</p>
+					)}
 					{columns.endedSessions.map(session => (
 						<PipelineSessionCard
 							key={session.id}
@@ -84,7 +101,12 @@ export const PipelineView = ({
 						/>
 					))}
 				</PipelineColumn>
-				<PipelineColumn title="Done" count={doneCount}>
+				<PipelineColumn
+					title="Done"
+					count={doneCount}
+					dot="done"
+					si={3}
+				>
 					{columns.done.map(entry => (
 						<PipelineTaskCard
 							key={entry.task.id}

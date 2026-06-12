@@ -200,6 +200,51 @@ describe('PipelineView', () => {
 		expect(column('Done')?.textContent).toContain('CSV export')
 	})
 
+	it('marks each column head with its status dot', async () => {
+		await render()
+
+		expect(
+			column('Backlog')?.querySelector('.pipeline__col-head .sdot')
+				?.className,
+		).toBe('sdot sdot-done')
+		expect(
+			column('Running')?.querySelector('.pipeline__col-head .sdot-run'),
+		).not.toBeNull()
+		expect(
+			column('Review')?.querySelector('.pipeline__col-head .sdot-rev'),
+		).not.toBeNull()
+		expect(
+			column('Done')?.querySelector('.pipeline__col-head .sdot-done'),
+		).not.toBeNull()
+	})
+
+	it('staggers the column entrance left to right', async () => {
+		await render()
+
+		const delays = Array.from(
+			container.querySelectorAll<HTMLElement>('.pipeline__col'),
+		).map(col => col.style.animationDelay)
+		expect(delays).toEqual(['0ms', '45ms', '90ms', '135ms'])
+	})
+
+	it('shows idle copy in empty backlog and review columns', async () => {
+		invokeMock.mockImplementation((command: string) =>
+			command === 'tasks_overview'
+				? Promise.resolve({ milestones: [], userTasks: [] })
+				: Promise.resolve(undefined),
+		)
+		await render()
+
+		expect(column('Backlog')?.textContent).toContain(
+			'backlog clear — every task has an agent',
+		)
+		expect(column('Review')?.textContent).toContain(
+			'nothing waiting on you',
+		)
+		expect(column('Running')?.querySelector('.pipeline__empty')).toBeNull()
+		expect(column('Done')?.querySelector('.pipeline__empty')).toBeNull()
+	})
+
 	it('launches an agent from a backlog card', async () => {
 		await render()
 
