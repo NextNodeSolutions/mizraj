@@ -21,6 +21,7 @@ const TERMINAL_TAIL_LINES = 2
 type Props = {
 	session: SessionState
 	now: number
+	style?: React.CSSProperties
 }
 
 // A running or failed agent re-opens its terminal; a cleanly ended one goes
@@ -30,7 +31,11 @@ const cardTarget = (session: SessionState): string =>
 		? reviewHref()
 		: agentRunHref(session.id)
 
-export const AgentCard = ({ session, now }: Props): React.JSX.Element => {
+export const AgentCard = ({
+	session,
+	now,
+	style,
+}: Props): React.JSX.Element => {
 	const status = sessionDisplayStatus(session)
 	const frame = useCellFrame(session.id)
 	const tail = terminalTail(frame, TERMINAL_TAIL_LINES)
@@ -45,6 +50,7 @@ export const AgentCard = ({ session, now }: Props): React.JSX.Element => {
 			type="button"
 			className="agent-card"
 			data-status={status}
+			style={style}
 			onClick={() => navigate(cardTarget(session))}
 		>
 			<span className="agent-card__top">

@@ -72,12 +72,19 @@ const frameOfLines = (
 
 const seedSession = (
 	id: string,
-	overrides: { binary?: string; ended?: { exitCode: number } } = {},
+	overrides: {
+		binary?: string
+		repoPath?: string | null
+		ended?: { exitCode: number }
+	} = {},
 ): void => {
 	store.set(startSessionAtom, {
 		id,
 		binary: overrides.binary ?? 'claude',
-		repoPath: '/Users/me/dev/mizraj',
+		repoPath:
+			overrides.repoPath === undefined
+				? '/Users/me/dev/mizraj'
+				: overrides.repoPath,
 	})
 	if (overrides.ended) {
 		store.set(endSessionAtom, {
@@ -218,6 +225,96 @@ describe('MissionControl', () => {
 
 		expect(cards()).toHaveLength(1)
 		expect(container.textContent).toContain('needs review')
+	})
+
+	it('groups cards per project with the repo name and compacted path', () => {
+		seedSession('run-1', { repoPath: '/Users/me/dev/mizraj' })
+		seedSession('run-2', { repoPath: '/Users/me/dev/api' })
+		render()
+
+		const groups = Array.from(container.querySelectorAll('.proj-group'))
+		expect(groups).toHaveLength(2)
+		const names = groups.map(
+			group => group.querySelector('.proj-name')?.textContent,
+		)
+		expect(names).toContain('mizraj')
+		expect(names).toContain('api')
+		expect(groups[0]?.querySelector('.proj-dir')?.textContent).toContain(
+			'~/dev/',
+		)
+		expect(groups[0]?.getAttribute('data-hue')).not.toBeNull()
+	})
+
+	it('sums each status in the group header, over the whole group', () => {
+		seedSession('run-1')
+		seedSession('run-2')
+		seedSession('done-1', { ended: { exitCode: 0 } })
+		seedSession('fail-1', { ended: { exitCode: 9 } })
+		render()
+
+		const stats = container.querySelector('.proj-stats')
+		expect(stats?.textContent).toContain('2 running')
+		expect(stats?.textContent).toContain('1 review')
+		expect(stats?.textContent).toContain('1 failed')
+	})
+
+	it('folds a project on header click and reopens it on the next', () => {
+		seedSession('run-1')
+		render()
+
+		const head = container.querySelector('.proj-head')
+		expect(head?.getAttribute('aria-expanded')).toBe('true')
+
+		act(() => {
+			head?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		})
+		expect(cards()).toHaveLength(0)
+		expect(
+			container
+				.querySelector('.proj-head')
+				?.getAttribute('aria-expanded'),
+		).toBe('false')
+
+		act(() => {
+			container
+				.querySelector('.proj-head')
+				?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		})
+		expect(cards()).toHaveLength(1)
+	})
+
+	it('launches a claude agent in the project from the header + button, without folding', () => {
+		seedSession('run-1', { repoPath: '/repo/x' })
+		seedSession('loose-1', { repoPath: null })
+		render()
+
+		const addButtons = Array.from(container.querySelectorAll('.proj-add'))
+		// The repo-less bucket cannot host a launch — no cwd to give it.
+		expect(addButtons).toHaveLength(1)
+
+		act(() => {
+			addButtons[0]?.dispatchEvent(
+				new MouseEvent('click', { bubbles: true }),
+			)
+		})
+
+		expect(invokeMock).toHaveBeenCalledWith('session_create', {
+			binary: 'claude',
+			cwd: '/repo/x',
+		})
+		expect(cards().length).toBeGreaterThan(0)
+	})
+
+	it('puts the active project first and the repo-less bucket last', () => {
+		seedSession('loose-1', { repoPath: null })
+		seedSession('busy-1', { repoPath: '/repo/busy' })
+		seedSession('active-1', { repoPath: '/repo/active' })
+		render('/repo/active')
+
+		const names = Array.from(container.querySelectorAll('.proj-name')).map(
+			node => node.textContent,
+		)
+		expect(names).toEqual(['active', 'busy', 'no project'])
 	})
 
 	it('orders running cards before ended ones', () => {

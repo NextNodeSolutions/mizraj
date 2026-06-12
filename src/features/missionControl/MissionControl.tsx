@@ -7,7 +7,8 @@ import type { SessionState } from '@/features/sessions/sessions'
 import { useSessions } from '@/features/sessions/useSessions'
 import { useNow } from '@/shared/useNow'
 
-import { AgentCard } from './AgentCard'
+import { ProjectGroup } from './ProjectGroup'
+import { groupSessionsByRepo, orderProjectGroups } from './projectGroups'
 
 const AGE_REFRESH_MS = 30_000
 
@@ -20,19 +21,8 @@ const FILTERS: ReadonlyArray<{ key: StatusFilter; label: string }> = [
 	{ key: 'failed', label: 'Failed' },
 ]
 
-const STATUS_ORDER: Readonly<Record<SessionDisplayStatus, number>> = {
-	running: 0,
-	review: 1,
-	failed: 2,
-}
-
-// Active work first, then most recently started — the cmux "what's hot" wall.
-const compareCards = (a: SessionState, b: SessionState): number => {
-	const byStatus =
-		STATUS_ORDER[sessionDisplayStatus(a)] -
-		STATUS_ORDER[sessionDisplayStatus(b)]
-	return byStatus !== 0 ? byStatus : b.startedAt - a.startedAt
-}
+const matchesFilter = (session: SessionState, filter: StatusFilter): boolean =>
+	filter === 'all' || sessionDisplayStatus(session) === filter
 
 type Props = {
 	activeProjectPath: string | null
@@ -64,12 +54,19 @@ export const MissionControl = ({
 			: sessions.filter(session => sessionDisplayStatus(session) === key)
 					.length
 
-	const visible = sessions
-		.filter(
-			session =>
-				filter === 'all' || sessionDisplayStatus(session) === filter,
-		)
-		.toSorted(compareCards)
+	const groups = orderProjectGroups(
+		groupSessionsByRepo(sessions),
+		activeProjectPath,
+	)
+	// A group whose every card is filtered out disappears entirely.
+	const visibleGroups = groups
+		.map(group => ({
+			group,
+			visibleSessions: group.sessions.filter(session =>
+				matchesFilter(session, filter),
+			),
+		}))
+		.filter(({ visibleSessions }) => visibleSessions.length > 0)
 
 	return (
 		<section className="mission-control" aria-label="Mission control">
@@ -90,9 +87,15 @@ export const MissionControl = ({
 					</button>
 				))}
 			</div>
-			<div className="mission-control__grid">
-				{visible.map(session => (
-					<AgentCard key={session.id} session={session} now={now} />
+			<div className="mc-projects stagger" key={filter}>
+				{visibleGroups.map(({ group, visibleSessions }, index) => (
+					<ProjectGroup
+						key={group.repoPath ?? 'no-project'}
+						group={group}
+						visibleSessions={visibleSessions}
+						now={now}
+						index={index}
+					/>
 				))}
 			</div>
 		</section>
