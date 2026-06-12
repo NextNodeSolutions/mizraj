@@ -139,13 +139,13 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 					</button>
 				</div>
 			</header>
-			<div className="review__body">
+			<div className="review__body stagger">
 				<ReviewTree
 					files={files}
 					selectedPath={selected?.path ?? null}
 					onSelect={setSelectedPath}
 				/>
-				<div className="review__diff">
+				<div className="panel review__diff">
 					{selectedMeta !== null && (
 						<FileDiff
 							key={selectedMeta.name}

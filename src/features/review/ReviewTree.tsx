@@ -1,11 +1,10 @@
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
+
+import { DiffStat } from '@/shared/ui/atoms'
 
 import type { ReviewFile, ReviewFileChange } from './reviewFiles'
-import {
-	reviewProgress,
-	toggleViewedAtom,
-	viewedFilesAtom,
-} from './viewedFiles'
+import { ViewedCheck } from './ViewedCheck'
+import { reviewProgress, viewedFilesAtom } from './viewedFiles'
 
 const CHANGE_BADGE: Readonly<Record<ReviewFileChange, string>> = {
 	added: 'A',
@@ -28,14 +27,13 @@ export const ReviewTree = ({
 	onSelect,
 }: Props): React.JSX.Element => {
 	const viewed = useAtomValue(viewedFilesAtom)
-	const toggleViewed = useSetAtom(toggleViewedAtom)
 	const progress = reviewProgress(
 		viewed,
 		files.map(file => file.path),
 	)
 
 	return (
-		<nav className="review-tree" aria-label="Changed files">
+		<nav className="panel review-tree" aria-label="Changed files">
 			<div className="review-tree__progress">
 				<span>
 					{progress.viewed} / {progress.total} viewed
@@ -75,25 +73,12 @@ export const ReviewTree = ({
 								<span className="review-tree__name">
 									{fileName(file.path)}
 								</span>
-								<span className="review-tree__stat">
-									<span className="diff-add">
-										+{file.additions}
-									</span>{' '}
-									{file.deletions > 0 && (
-										<span className="diff-del">
-											−{file.deletions}
-										</span>
-									)}
-								</span>
-							</button>
-							<label className="review-tree__viewed">
-								<input
-									type="checkbox"
-									checked={Boolean(viewed[file.path])}
-									aria-label={`Mark ${file.path} viewed`}
-									onChange={() => toggleViewed(file.path)}
+								<DiffStat
+									add={file.additions}
+									del={file.deletions}
 								/>
-							</label>
+							</button>
+							<ViewedCheck path={file.path} />
 						</div>
 					</li>
 				))}

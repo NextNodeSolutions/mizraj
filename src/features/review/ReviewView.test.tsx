@@ -146,18 +146,46 @@ describe('ReviewView', () => {
 		).toBe('src/api/handler.ts')
 	})
 
-	it('viewed checkboxes advance the progress bar', async () => {
+	it('lays the tree, diff and rail out as three staggered panels', async () => {
+		await render()
+
+		const body = container.querySelector('.review__body.stagger')
+		expect(body).not.toBeNull()
+		expect(body?.querySelectorAll(':scope > .panel')).toHaveLength(3)
+	})
+
+	it('viewed check buttons advance the progress bar', async () => {
 		await render()
 
 		expect(container.textContent).toContain('0 / 2 viewed')
-		const checkbox = container.querySelector<HTMLInputElement>(
-			'.review-tree__file input[type="checkbox"]',
+		const check = container.querySelector<HTMLButtonElement>(
+			'.review-tree__file button[aria-label="Mark src/api/limiter.ts viewed"]',
 		)
+		expect(check?.getAttribute('data-done')).toBe('false')
 		await act(async () => {
-			checkbox?.click()
+			check?.click()
 		})
 
 		expect(container.textContent).toContain('1 / 2 viewed')
+		expect(check?.getAttribute('data-done')).toBe('true')
+	})
+
+	it('marking a file viewed does not change the selected file', async () => {
+		await render()
+
+		const check = container.querySelector<HTMLButtonElement>(
+			'.review-tree__file button[aria-label="Mark src/api/handler.ts viewed"]',
+		)
+		expect(check).not.toBeNull()
+		await act(async () => {
+			check?.click()
+		})
+
+		expect(
+			container
+				.querySelector('[data-testid="file-diff-stub"]')
+				?.getAttribute('data-file-name'),
+		).toBe('src/api/limiter.ts')
 	})
 
 	it('disables the composer without a running session in the repo', async () => {

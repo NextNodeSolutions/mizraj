@@ -55,7 +55,7 @@ export const ReviewRail = ({
 	}
 
 	return (
-		<aside className="review-rail" aria-label="Review conversation">
+		<aside className="panel review-rail" aria-label="Review conversation">
 			<div className="review-rail__summary">
 				<h4>Working tree</h4>
 				<p>
