@@ -15,6 +15,7 @@ import {
 	resolveFont,
 } from './ghosttyConfig'
 import { cellFramesAtom } from './sessions'
+import { subscribeToCellFrames } from './sessionSubscription'
 import { buildFontTable } from './terminalAttrs'
 import { buildPalette } from './terminalPalette'
 import type { TerminalConfig } from './terminalRenderer'
@@ -102,6 +103,10 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const canvasRef = useRef<HTMLCanvasElement>(null)
 	const appearance = useAppearance()
+
+	// Subscription is keyed on the session alone — an appearance flip must not
+	// blink the backend's emission gate, only re-derive the render config below.
+	useEffect(() => subscribeToCellFrames(sessionId), [sessionId])
 
 	useEffect(() => {
 		const container = containerRef.current

@@ -172,6 +172,28 @@ pub async fn session_close(
     manager.session_close(&session_id).await
 }
 
+/// Mark the session as watched by a frontend pane: the terminal sink resumes
+/// emitting `agent:cells` frames (and pushes a catch-up frame if output arrived
+/// while hidden). Returns `NotFound` for unknown sessions.
+#[tauri::command]
+pub async fn session_subscribe(
+    session_id: SessionId,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.set_subscribed(&session_id, true).await
+}
+
+/// Mark the session as unwatched: the terminal sink stops snapshotting and
+/// emitting frames while the grid keeps tracking output (TP3). Returns
+/// `NotFound` for unknown sessions.
+#[tauri::command]
+pub async fn session_unsubscribe(
+    session_id: SessionId,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.set_subscribed(&session_id, false).await
+}
+
 #[cfg(test)]
 mod tests {
     use tauri::async_runtime::block_on;

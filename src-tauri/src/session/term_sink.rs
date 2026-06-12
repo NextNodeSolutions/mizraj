@@ -17,14 +17,16 @@ use crate::session::sink::OutputSink;
 pub const AGENT_CELLS_EVENT: &str = "agent:cells";
 
 /// A unit of work for the render thread: VT bytes to parse, a resize to apply,
-/// or a key press to encode. All three travel the same channel so the render
-/// thread processes them in send order — `resize_session` enqueues the resize
-/// BEFORE resizing the PTY, and a key encodes against whatever terminal modes
-/// the preceding bytes established.
+/// a key press to encode, or a subscription flip. All travel the same channel
+/// so the render thread processes them in send order — `resize_session`
+/// enqueues the resize BEFORE resizing the PTY, a key encodes against whatever
+/// terminal modes the preceding bytes established, and a subscribe takes effect
+/// exactly between the writes that precede and follow it.
 enum RenderInput {
     Bytes(Vec<u8>),
     Resize { rows: u16, cols: u16 },
     Key(KeyStroke),
+    SetSubscribed(bool),
 }
 
 /// `OutputSink` that turns raw PTY bytes into rendered grid snapshots, and the
@@ -53,8 +55,24 @@ impl TermSink {
         session_id: SessionId,
         pty_input: PtyInputSender<Vec<u8>>,
     ) -> Self {
+        Self::with_emitter(
+            move |frame| {
+                let _ = app.emit(AGENT_CELLS_EVENT, frame);
+            },
+            session_id,
+            pty_input,
+        )
+    }
+
+    /// Same as [`new`](Self::new) but with the frame transport abstracted: the
+    /// render thread hands every emitted [`CellFrame`] to `emit`. Production
+    /// wraps `app.emit`; tests capture frames on a channel.
+    fn with_emitter<E>(emit: E, session_id: SessionId, pty_input: PtyInputSender<Vec<u8>>) -> Self
+    where
+        E: Fn(CellFrame) + Send + 'static,
+    {
         let (tx, rx) = mpsc::channel::<RenderInput>();
-        thread::spawn(move || render_loop(app, session_id, rx, pty_input));
+        thread::spawn(move || render_loop(emit, session_id, rx, pty_input));
         Self { tx: Mutex::new(tx) }
     }
 }
@@ -84,12 +102,20 @@ impl OutputSink for TermSink {
             let _ = tx.send(RenderInput::Key(stroke));
         }
     }
+
+    fn set_subscribed(&self, subscribed: bool) {
+        // Rides the same ordered channel as bytes, so frames stop (or resume)
+        // exactly at the flip point rather than racing in-flight output.
+        if let Ok(tx) = self.tx.lock() {
+            let _ = tx.send(RenderInput::SetSubscribed(subscribed));
+        }
+    }
 }
 
 /// Own the terminal + render state + key encoder, drain the input channel, and
 /// emit a frame per dirty snapshot until the channel disconnects.
-fn render_loop<R: Runtime>(
-    app: AppHandle<R>,
+fn render_loop<E: Fn(CellFrame)>(
+    emit: E,
     session_id: SessionId,
     rx: Receiver<RenderInput>,
     pty_input: PtyInputSender<Vec<u8>>,
@@ -120,15 +146,25 @@ fn render_loop<R: Runtime>(
         }
     };
 
+    // Frames are emitted only while a frontend pane is subscribed (TP3). The
+    // terminal keeps feeding regardless so its grid stays current; skipped
+    // updates leave the damage accumulated, which makes the first update after
+    // a re-subscribe report dirty and push the whole hidden-era catch-up frame.
+    let mut subscribed = false;
+
     // Block for the next input, then drain whatever else already arrived so one
     // frame covers the whole burst instead of one frame per chunk. A resize in
     // the burst reflows the grid, which RenderState reports as dirty just like
     // new bytes do — so the unified path below emits the reflowed frame too.
     // Keys produce PTY bytes, not grid changes, so they leave the frame clean.
     while let Ok(input) = rx.recv() {
-        apply(&mut terminal, &mut encoder, &pty_input, input, sid);
+        apply(&mut terminal, &mut encoder, &mut subscribed, &pty_input, input, sid);
         while let Ok(more) = rx.try_recv() {
-            apply(&mut terminal, &mut encoder, &pty_input, more, sid);
+            apply(&mut terminal, &mut encoder, &mut subscribed, &pty_input, more, sid);
+        }
+
+        if !subscribed {
+            continue;
         }
 
         let dirty = match render_state.update(&mut terminal) {
@@ -161,7 +197,7 @@ fn render_loop<R: Runtime>(
         });
 
         let frame = CellFrame::from_cells(sid.to_string(), cells, cursor);
-        let _ = app.emit(AGENT_CELLS_EVENT, frame);
+        emit(frame);
 
         if let Err(err) = render_state.mark_clean() {
             tracing::warn!(session_id = sid, error = %err, "render state mark_clean failed");
@@ -172,6 +208,7 @@ fn render_loop<R: Runtime>(
 fn apply(
     terminal: &mut Terminal,
     encoder: &mut Option<KeyEncoder>,
+    subscribed: &mut bool,
     pty_input: &PtyInputSender<Vec<u8>>,
     input: RenderInput,
     session_id: &str,
@@ -192,6 +229,9 @@ fn apply(
                 return;
             };
             encode_key(terminal, encoder, pty_input, &stroke, session_id);
+        }
+        RenderInput::SetSubscribed(value) => {
+            *subscribed = value;
         }
     }
 }
@@ -231,10 +271,77 @@ fn encode_key(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc::RecvTimeoutError;
+    use std::time::Duration;
+
     use super::*;
+
+    /// Long enough for the render thread to feed + snapshot a few bytes,
+    /// short enough to keep negative assertions cheap.
+    const FRAME_WAIT: Duration = Duration::from_millis(500);
+
+    fn frame_capturing_sink() -> (TermSink, Receiver<CellFrame>) {
+        let (frame_tx, frame_rx) = mpsc::channel::<CellFrame>();
+        let (pty_tx, _pty_rx) = tauri::async_runtime::channel::<Vec<u8>>(8);
+        let sink = TermSink::with_emitter(
+            move |frame| {
+                let _ = frame_tx.send(frame);
+            },
+            SessionId::new(),
+            pty_tx,
+        );
+        (sink, frame_rx)
+    }
 
     #[test]
     fn agent_cells_event_name_is_stable() {
         assert_eq!(AGENT_CELLS_EVENT, "agent:cells");
+    }
+
+    #[test]
+    fn emits_no_frame_while_unsubscribed() {
+        let (sink, frames) = frame_capturing_sink();
+
+        sink.write(b"hello");
+
+        assert_eq!(
+            frames.recv_timeout(FRAME_WAIT).err(),
+            Some(RecvTimeoutError::Timeout),
+            "a session nobody watches must not emit cell frames"
+        );
+    }
+
+    #[test]
+    fn subscribing_flushes_output_accumulated_while_hidden() {
+        let (sink, frames) = frame_capturing_sink();
+
+        sink.write(b"hi");
+        sink.set_subscribed(true);
+
+        let frame = frames
+            .recv_timeout(FRAME_WAIT)
+            .expect("subscribing must emit the catch-up frame without new output");
+        let row: String = frame.cells[..2].iter().map(|cell| &*cell.ch).collect();
+        assert_eq!(row, "hi");
+    }
+
+    #[test]
+    fn unsubscribing_stops_emission() {
+        let (sink, frames) = frame_capturing_sink();
+
+        sink.set_subscribed(true);
+        sink.write(b"a");
+        frames
+            .recv_timeout(FRAME_WAIT)
+            .expect("subscribed session emits on write");
+
+        sink.set_subscribed(false);
+        sink.write(b"b");
+
+        assert_eq!(
+            frames.recv_timeout(FRAME_WAIT).err(),
+            Some(RecvTimeoutError::Timeout),
+            "no frames may flow once the last watcher is gone"
+        );
     }
 }

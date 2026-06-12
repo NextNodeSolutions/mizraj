@@ -33,6 +33,12 @@ pub trait OutputSink: Send + Sync {
     /// writing it to the PTY); byte-only sinks ignore it. Same ~1ms budget —
     /// the encode itself happens off-thread on the render thread.
     fn key(&self, _stroke: KeyStroke) {}
+
+    /// Called when a frontend pane starts (`true`) or stops (`false`) watching
+    /// the session (TP3). Only the terminal sink reacts — it gates cell-frame
+    /// emission so an unwatched session costs no snapshot/serialize/IPC work;
+    /// byte-only sinks keep their default no-op. Same ~1ms budget.
+    fn set_subscribed(&self, _subscribed: bool) {}
 }
 
 #[cfg(test)]

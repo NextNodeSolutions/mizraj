@@ -163,6 +163,19 @@ impl SessionManager {
         Ok(())
     }
 
+    /// Flip whether a frontend pane is watching `id` (TP3). Fans out through
+    /// the sink list exactly like [`send_key`]; only the terminal sink acts on
+    /// it (it gates cell-frame emission), byte-only sinks ignore it. Returns
+    /// `NotFound` for unknown sessions.
+    pub async fn set_subscribed(&self, id: &SessionId, subscribed: bool) -> Result<(), SessionError> {
+        let state = self.state.read().await;
+        let handle = state
+            .get(id)
+            .ok_or_else(|| SessionError::NotFound(id.to_string()))?;
+        dispatch_to_sinks(handle.sinks(), |sink| sink.set_subscribed(subscribed)).await;
+        Ok(())
+    }
+
     /// Register an additional [`OutputSink`] on a live session.
     ///
     /// The reader task fans every PTY chunk out to the session's sink list, so
@@ -928,6 +941,73 @@ mod tests {
                 SessionError::NotFound(s) => assert_eq!(s, id.to_string()),
                 other => panic!("expected NotFound, got {other:?}"),
             }
+        });
+    }
+
+    #[test]
+    fn set_subscribed_returns_not_found_for_unknown_id() {
+        block_on(async {
+            let manager = SessionManager::new();
+            let id = SessionId::new();
+            let err = manager
+                .set_subscribed(&id, true)
+                .await
+                .expect_err("unknown id should fail");
+            match err {
+                SessionError::NotFound(s) => assert_eq!(s, id.to_string()),
+                other => panic!("expected NotFound, got {other:?}"),
+            }
+        });
+    }
+
+    #[test]
+    fn set_subscribed_fans_out_to_session_sinks() {
+        // A sink that records every subscription flip, standing in for the
+        // terminal sink whose emission gate consumes them.
+        struct SubscriptionSink(Arc<StdMutex<Vec<bool>>>);
+        impl OutputSink for SubscriptionSink {
+            fn write(&self, _bytes: &[u8]) {}
+            fn set_subscribed(&self, subscribed: bool) {
+                self.0
+                    .lock()
+                    .expect("SubscriptionSink mutex")
+                    .push(subscribed);
+            }
+        }
+
+        block_on(async {
+            let manager = SessionManager::new();
+            let flips = Arc::new(StdMutex::new(Vec::<bool>::new()));
+
+            let (writer_tx, _writer_rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
+            let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> = Arc::new(RwLock::new(vec![
+                Arc::new(SubscriptionSink(Arc::clone(&flips))) as Arc<dyn OutputSink>,
+            ]));
+            let handle = SessionHandle::new(
+                writer_tx,
+                fresh_child(),
+                SessionTasks {
+                    reader: spawn(async { std::future::pending::<()>().await }),
+                    writer: spawn(async { std::future::pending::<()>().await }),
+                    wait: spawn(async { std::future::pending::<ExitStatus>().await }),
+                },
+                sinks,
+                None,
+                None,
+            );
+            let id = SessionId::new();
+            manager.state.write().await.insert(id.clone(), handle);
+
+            manager
+                .set_subscribed(&id, true)
+                .await
+                .expect("set_subscribed on live session");
+            manager
+                .set_subscribed(&id, false)
+                .await
+                .expect("set_subscribed off");
+
+            assert_eq!(*flips.lock().expect("flips mutex"), vec![true, false]);
         });
     }
 
