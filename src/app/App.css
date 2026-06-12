@@ -412,9 +412,9 @@
 	font-size: 0.85rem;
 	font-weight: 600;
 	border-radius: 6px;
-	border: 1px solid var(--color-border-subtle);
-	background: var(--color-accent);
-	color: #fff;
+	border: 1px solid var(--border);
+	background: var(--accent);
+	color: var(--on-accent);
 	box-shadow: none;
 }
 
@@ -427,7 +427,7 @@
 	flex: 1 1 100%;
 	margin: 0;
 	font-size: 0.8rem;
-	color: var(--color-danger, var(--ctp-red));
+	color: var(--c-del);
 }
 
 .tasks-view__group {
@@ -445,7 +445,7 @@
 	font-weight: 600;
 	letter-spacing: 0.05em;
 	text-transform: uppercase;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__count {
@@ -455,9 +455,9 @@
 	min-width: 1.25rem;
 	padding: 0 0.4rem;
 	border-radius: 999px;
-	background: var(--color-surface);
+	background: var(--surface-2);
 	font-size: 0.7rem;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__list {
@@ -474,19 +474,19 @@
 	align-items: flex-start;
 	gap: 0.5rem;
 	padding: 0.5rem 0.6rem;
-	border: 1px solid var(--color-border-subtle);
+	border: 1px solid var(--border);
 	border-radius: 6px;
-	background: var(--color-bg-elevated);
+	background: var(--surface);
 }
 
 .tasks-view__marker {
 	flex: 0 0 auto;
 	font-size: 0.85rem;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__item--done .tasks-view__marker {
-	color: var(--color-accent);
+	color: var(--accent);
 }
 
 .tasks-view__body {
@@ -499,16 +499,16 @@
 
 .tasks-view__title {
 	font-size: 0.9rem;
-	color: var(--color-text);
+	color: var(--text);
 }
 
 .tasks-view__item--done .tasks-view__title {
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__description {
 	font-size: 0.8rem;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__origin {
@@ -516,11 +516,11 @@
 	align-self: flex-start;
 	padding: 0.05rem 0.4rem;
 	border-radius: 999px;
-	background: var(--color-surface);
+	background: var(--surface-2);
 	font-size: 0.65rem;
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__status {
@@ -537,9 +537,9 @@
 	padding: 0.2rem 0.4rem;
 	font-size: 0.75rem;
 	border-radius: 6px;
-	border: 1px solid var(--color-border-subtle);
-	background: var(--color-surface);
-	color: var(--color-text);
+	border: 1px solid var(--border);
+	background: var(--surface-2);
+	color: var(--text);
 	box-shadow: none;
 	cursor: pointer;
 }
@@ -562,9 +562,9 @@
 	padding: 0.2rem 0.5rem;
 	font-size: 0.75rem;
 	border-radius: 6px;
-	border: 1px solid var(--color-border-subtle);
-	background: var(--color-surface);
-	color: var(--color-text);
+	border: 1px solid var(--border);
+	background: var(--surface-2);
+	color: var(--text);
 	box-shadow: none;
 	cursor: pointer;
 }
@@ -589,9 +589,9 @@
 	font-size: 0.85rem;
 	font-weight: 600;
 	border-radius: 6px;
-	border: 1px solid var(--color-border-subtle);
-	background: var(--color-surface);
-	color: var(--color-text);
+	border: 1px solid var(--border);
+	background: var(--surface-2);
+	color: var(--text);
 	box-shadow: none;
 	cursor: pointer;
 }
@@ -603,22 +603,22 @@
 
 .tasks-view__item-error {
 	font-size: 0.75rem;
-	color: var(--color-danger, var(--ctp-red));
+	color: var(--c-del);
 }
 
 .tasks-view__empty {
 	margin: 0;
 	padding: 0.25rem 0.5rem;
 	font-size: 0.85rem;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__empty--error {
-	color: var(--color-danger, var(--ctp-red));
+	color: var(--c-del);
 }
 
 .tasks-view__item--blocked .tasks-view__marker {
-	color: var(--color-danger, var(--ctp-red));
+	color: var(--c-del);
 }
 
 .tasks-view__row-head {
@@ -630,23 +630,23 @@
 
 .tasks-view__identifier {
 	font-size: 0.75rem;
-	font-family: var(--font-mono, monospace);
-	color: var(--color-text-muted);
+	font-family: var(--font-mono);
+	color: var(--text-2);
 }
 
 .tasks-view__size {
 	flex: 0 0 auto;
 	padding: 0.05rem 0.35rem;
 	border-radius: 999px;
-	background: var(--color-surface);
+	background: var(--surface-2);
 	font-size: 0.65rem;
 	letter-spacing: 0.04em;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__blocked-reason {
 	font-size: 0.8rem;
-	color: var(--color-danger, var(--ctp-red));
+	color: var(--c-del);
 }
 
 .tasks-view__user-tasks {
@@ -677,28 +677,28 @@
 .tasks-tree__milestone-id {
 	font-size: 0.95rem;
 	font-weight: 600;
-	color: var(--color-text);
+	color: var(--text);
 }
 
 .tasks-tree__milestone-demo {
 	font-size: 0.85rem;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-tree__badge {
 	flex: 0 0 auto;
 	padding: 0.05rem 0.4rem;
 	border-radius: 999px;
-	background: var(--color-surface);
+	background: var(--surface-2);
 	font-size: 0.65rem;
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-tree__needs {
 	font-size: 0.7rem;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-tree__track {
@@ -706,7 +706,7 @@
 	flex-direction: column;
 	gap: 0.3rem;
 	padding-left: 0.75rem;
-	border-left: 2px solid var(--color-border-subtle);
+	border-left: 2px solid var(--border);
 }
 
 .tasks-tree__track-header {
@@ -718,13 +718,13 @@
 .tasks-tree__track-id {
 	font-size: 0.8rem;
 	font-weight: 600;
-	color: var(--color-text);
+	color: var(--text);
 }
 
 .tasks-tree__track-branch {
 	font-size: 0.75rem;
-	font-family: var(--font-mono, monospace);
-	color: var(--color-text-muted);
+	font-family: var(--font-mono);
+	color: var(--text-2);
 }
 
 .cockpit {
