@@ -86,35 +86,54 @@
 	font-size: var(--fs-sm);
 }
 
+/* ---- card base ---- */
 .pipeline__card {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--r-md);
+	padding: 12px;
 	display: flex;
 	flex-direction: column;
-	gap: 0.4rem;
-	padding: 0.6rem;
-	border: 1px solid var(--color-border-subtle);
-	border-radius: 8px;
-	background: var(--color-bg-elevated);
+	gap: 9px;
+	box-shadow: var(--shadow-1);
+	transition:
+		transform var(--t-med) var(--ease-out),
+		box-shadow var(--t-med),
+		border-color var(--t-med),
+		opacity var(--t-med);
+}
+
+.pipeline__card:hover {
+	transform: translateY(-2px);
+	box-shadow: var(--shadow-2);
+	border-color: color-mix(in srgb, var(--ctp-overlay0) 50%, var(--border));
+}
+
+.pipeline__card[data-done='true'] {
+	opacity: 0.85;
 }
 
 .pipeline__card-row {
 	display: flex;
 	align-items: center;
-	gap: 0.5rem;
+	gap: 8px;
 	min-width: 0;
 }
 
 .pipeline__size {
-	font-size: 0.65rem;
-	padding: 0 0.35rem;
-	border: 1px solid var(--color-border-subtle);
+	font-family: var(--font-mono);
+	font-size: 10px;
+	font-weight: 600;
+	border: 1px solid var(--border-strong);
 	border-radius: 4px;
-	color: var(--color-text-muted);
+	padding: 1px 6px;
+	color: var(--text-2);
 }
 
 .pipeline__branch {
-	font-family: var(--font-mono, monospace);
-	font-size: 0.68rem;
-	color: var(--color-text-muted);
+	font-family: var(--font-mono);
+	font-size: var(--fs-mono-sm);
+	color: var(--text-2);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -141,24 +160,27 @@
 
 .pipeline__title {
 	margin: 0;
-	font-size: 0.85rem;
+	font-size: var(--fs-sm);
+	font-weight: 600;
 	line-height: 1.3;
+	letter-spacing: -0.01em;
 }
 
 .pipeline__card[data-task-status='done'] .pipeline__title {
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .pipeline__blocked {
 	margin: 0;
-	font-size: 0.75rem;
-	color: var(--color-failed);
+	font-size: var(--fs-xs);
+	color: var(--c-del);
 }
 
 .pipeline__done-note {
 	margin: 0;
-	font-size: 0.75rem;
-	color: var(--color-diff-add);
+	font-family: var(--font-mono);
+	font-size: var(--fs-mono-sm);
+	color: var(--c-add);
 }
 
 .pipeline__term {
@@ -176,7 +198,11 @@
 
 .pipeline__card-actions {
 	display: flex;
-	gap: 0.4rem;
+	gap: 7px;
+}
+
+.pipeline__card-actions .btn {
+	flex: 1;
 }
 
 .pipeline__action {

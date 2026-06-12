@@ -245,6 +245,42 @@ describe('PipelineView', () => {
 		expect(column('Done')?.querySelector('.pipeline__empty')).toBeNull()
 	})
 
+	it('renders the track branch as an arrow ref on task cards', async () => {
+		await render()
+
+		const card = Array.from(
+			column('Backlog')?.querySelectorAll('.pipeline__card') ?? [],
+		).find(candidate =>
+			candidate.textContent?.includes('Add rate limiting'),
+		)
+		expect(card?.querySelector('.pipeline__branch')?.textContent).toBe(
+			'→ feat/rate-limit',
+		)
+	})
+
+	it('makes only the first backlog launch primary', async () => {
+		await render()
+
+		const launches = Array.from(
+			column('Backlog')?.querySelectorAll<HTMLButtonElement>('button') ??
+				[],
+		).filter(button => button.textContent?.includes('Launch agent'))
+		expect(launches[0]?.className).toContain('btn-primary')
+		expect(launches[1]?.className).toContain('btn-outline')
+		expect(launches[1]?.className).not.toContain('btn-primary')
+	})
+
+	it('tags done task cards and flags them dimmed', async () => {
+		await render()
+
+		const doneCard = Array.from(
+			column('Done')?.querySelectorAll('.pipeline__card') ?? [],
+		).find(candidate => candidate.textContent?.includes('CSV export'))
+		expect(doneCard?.getAttribute('data-done')).toBe('true')
+		expect(doneCard?.querySelector('.tag')?.textContent).toBe('done')
+		expect(doneCard?.textContent).toContain('✓ done')
+	})
+
 	it('launches an agent from a backlog card', async () => {
 		await render()
 

@@ -53,12 +53,13 @@ export const PipelineView = ({
 							backlog clear — every task has an agent
 						</p>
 					)}
-					{columns.backlog.map(entry => (
+					{columns.backlog.map((entry, index) => (
 						<PipelineTaskCard
 							key={entry.task.id}
 							entry={entry}
 							repoPath={activeProjectPath}
 							onChanged={refetch}
+							isFirst={index === 0}
 						/>
 					))}
 				</PipelineColumn>
