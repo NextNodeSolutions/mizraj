@@ -1,1 +1,41 @@
-/* v2 screen styles — populated by the screen task */
+/* ============================================================
+   FOCUS COCKPIT v2 (/agent-run/:sessionId) — fc-* rules only.
+   Shared classes (.panel, .lrow, .lgroup, .sdot, .term, .btn,
+   .mz-kbd, …) live in src/app/styles/components.css.
+   ============================================================ */
+
+/* ---- 1. left: sessions panel ---- */
+.fc-sess {
+	overflow: hidden;
+}
+.fc-sess .mz-iconbtn {
+	width: 24px;
+	height: 24px;
+}
+.fc-sess .mz-iconbtn svg {
+	width: 12px;
+	height: 12px;
+}
+.fc-sess-list {
+	flex: 1;
+	overflow-y: auto;
+	padding: 6px 8px 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+.fc-sess-list .lrow {
+	text-decoration: none;
+}
+.fc-sess-foot {
+	padding: 9px 14px;
+	border-top: 1px solid var(--border);
+	font-size: var(--fs-xs);
+	color: var(--text-3);
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.fc-sess-foot .mz-kbd {
+	margin-left: 0;
+}
