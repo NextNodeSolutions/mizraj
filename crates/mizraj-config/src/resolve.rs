@@ -11,7 +11,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::color::{parse_color, Color, Rgb};
+use crate::color::{parse_color, parse_plain_color, Color, Rgb};
 use crate::diagnostic::Diagnostic;
 use crate::keybind::{default_keybinds, parse_keybind, Keybind, KeybindAction, KeybindDirective};
 use crate::value::{
@@ -66,8 +66,9 @@ pub struct ResolvedConfig {
     pub macos_option_as_alt: Option<OptionAsAlt>,
     pub term: Option<String>,
     /// The effective keybinding table, in declaration order. Rebinding a
-    /// trigger replaces in place, `unbind` removes, `clear` (or an empty
-    /// value) wipes — so this is the post-fold table the dispatch consumes.
+    /// trigger replaces in place, `unbind` removes, `clear` wipes, and an
+    /// empty value resets to the built-in defaults — so this is the
+    /// post-fold table the dispatch consumes.
     pub keybinds: Vec<Keybind>,
     /// Problems found while loading/folding the config, kept so the host can
     /// surface them rather than silently dropping bad values.
@@ -128,12 +129,14 @@ fn apply(config: &mut ResolvedConfig, directive: &Directive) {
             scalar!(adjust_strikethrough_thickness, Adjustment::parse)
         }
         "adjust-cursor-thickness" => scalar!(adjust_cursor_thickness, Adjustment::parse),
-        "background" => scalar!(background, parse_color),
-        "foreground" => scalar!(foreground, parse_color),
+        // Only the cursor keys accept the cell-relative specials (Ghostty
+        // semantics); every other color key parses with `parse_plain_color`.
+        "background" => scalar!(background, parse_plain_color),
+        "foreground" => scalar!(foreground, parse_plain_color),
         "cursor-color" => scalar!(cursor_color, parse_color),
         "cursor-text" => scalar!(cursor_text, parse_color),
-        "selection-background" => scalar!(selection_background, parse_color),
-        "selection-foreground" => scalar!(selection_foreground, parse_color),
+        "selection-background" => scalar!(selection_background, parse_plain_color),
+        "selection-foreground" => scalar!(selection_foreground, parse_plain_color),
         "palette" => apply_palette(config, value, reset),
         "bold-is-bright" => scalar!(bold_is_bright, parse_bool),
         "background-opacity" => scalar!(background_opacity, parse_f32),
@@ -158,7 +161,9 @@ fn apply(config: &mut ResolvedConfig, directive: &Directive) {
 /// diagnostic (never panic) for malformed directives.
 fn apply_keybind(config: &mut ResolvedConfig, value: &str, reset: bool) {
     if reset {
-        config.keybinds.clear();
+        // `keybind =` resets to the Ghostty DEFAULTS (like every other key's
+        // empty-value reset); only `keybind = clear` empties the table.
+        config.keybinds = default_keybinds();
         return;
     }
     match parse_keybind(value) {
@@ -304,6 +309,28 @@ mod tests {
                 b: 0xf4
             }))
         );
+    }
+
+    #[test]
+    fn cursor_keys_accept_cell_relative_specials() {
+        let config = resolved("cursor-color = cell-foreground\ncursor-text = cell-background");
+        assert_eq!(config.cursor_color, Some(Color::CellForeground));
+        assert_eq!(config.cursor_text, Some(Color::CellBackground));
+        assert!(config.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn non_cursor_color_keys_reject_cell_relative_specials() {
+        let config =
+            resolved("background = cell-foreground\nselection-foreground = cell-background");
+        assert_eq!(config.background, None);
+        assert_eq!(config.selection_foreground, None);
+        assert_eq!(config.diagnostics.len(), 2);
+        assert!(config.diagnostics.iter().any(|d| d.key == "background"));
+        assert!(config
+            .diagnostics
+            .iter()
+            .any(|d| d.key == "selection-foreground"));
     }
 
     #[test]
@@ -494,9 +521,11 @@ mod tests {
     }
 
     #[test]
-    fn empty_keybind_value_resets_the_table() {
-        let config = resolved("keybind = super+c=copy_to_clipboard\nkeybind =");
-        assert!(config.keybinds.is_empty());
+    fn empty_keybind_value_resets_the_table_to_defaults() {
+        // Reset restores the built-in defaults — distinct from `clear`,
+        // which empties the table.
+        let config = resolved("keybind = clear\nkeybind = super+x=select_all\nkeybind =");
+        assert_eq!(config.keybinds, default_keybinds());
     }
 
     #[test]

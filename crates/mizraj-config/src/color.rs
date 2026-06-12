@@ -42,7 +42,19 @@ pub enum Color {
     CellBackground,
 }
 
-/// Parse a color value. Returns `None` for input that is neither hex, a special,
+/// Parse a color value for keys other than `cursor-color`/`cursor-text`.
+/// Ghostty only accepts the `cell-foreground`/`cell-background` specials on
+/// those two keys, so here they parse to `None` (→ diagnostic) instead of a
+/// value the renderer cannot honor.
+pub fn parse_plain_color(value: &str) -> Option<Color> {
+    match parse_color(value)? {
+        Color::CellForeground | Color::CellBackground => None,
+        color => Some(color),
+    }
+}
+
+/// Parse a color value, specials included (so: only for `cursor-color` /
+/// `cursor-text`). Returns `None` for input that is neither hex, a special,
 /// nor a plausible color name, so the caller records a diagnostic.
 pub fn parse_color(value: &str) -> Option<Color> {
     match value {
@@ -102,6 +114,28 @@ mod tests {
     fn parses_cell_relative_specials() {
         assert_eq!(parse_color("cell-foreground"), Some(Color::CellForeground));
         assert_eq!(parse_color("cell-background"), Some(Color::CellBackground));
+    }
+
+    #[test]
+    fn plain_color_rejects_cell_relative_specials() {
+        assert_eq!(parse_plain_color("cell-foreground"), None);
+        assert_eq!(parse_plain_color("cell-background"), None);
+    }
+
+    #[test]
+    fn plain_color_still_accepts_hex_and_names() {
+        assert_eq!(
+            parse_plain_color("#282c34"),
+            Some(Color::Rgb(Rgb {
+                r: 0x28,
+                g: 0x2c,
+                b: 0x34
+            }))
+        );
+        assert_eq!(
+            parse_plain_color("red"),
+            Some(Color::Named("red".to_string()))
+        );
     }
 
     #[test]

@@ -46,16 +46,28 @@ pub fn load(options: &LoadOptions) -> ResolvedConfig {
     // them (e.g. both `config` and `config.ghostty`) is parsed once, not twice —
     // double-parsing would double-count accumulating keys (font-family, palette).
     let mut visited = HashSet::new();
+    // The chain of files currently being expanded, to tell a real include
+    // cycle (path is on this stack) apart from a harmless diamond include
+    // (already visited, but fully expanded).
+    let mut stack = Vec::new();
 
     for path in &options.config_files {
         if path.exists() {
-            expand_file(path, &mut directives, &mut diagnostics, &mut visited);
+            expand_file(
+                path,
+                &mut directives,
+                &mut diagnostics,
+                &mut visited,
+                &mut stack,
+            );
         }
     }
 
     // A theme is a base layer: prepend its directives so the user's own keys,
-    // which come later in load order, override it.
+    // which come later in load order, override it. An empty `theme =` is the
+    // standard empty-value reset — "no theme", never a lookup.
     let theme = last_value(&directives, "theme")
+        .filter(|value| !value.trim().is_empty())
         .and_then(|value| load_theme(&value, options, &mut diagnostics));
     if let Some(mut theme_directives) = theme {
         theme_directives.append(&mut directives);
@@ -73,16 +85,24 @@ fn expand_file(
     out: &mut Vec<Directive>,
     diagnostics: &mut Vec<Diagnostic>,
     visited: &mut HashSet<PathBuf>,
+    stack: &mut Vec<PathBuf>,
 ) {
     let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-    if !visited.insert(canonical) {
-        diagnostics.push(Diagnostic::new(
-            "config-file",
-            path.display().to_string(),
-            "include cycle ignored",
-        ));
+    if !visited.insert(canonical.clone()) {
+        // Already loaded once. On the current expansion stack it is a real
+        // cycle worth reporting; otherwise it's a diamond include — the file
+        // was fully expanded earlier, so skip it silently (re-parsing would
+        // double-count accumulating keys).
+        if stack.contains(&canonical) {
+            diagnostics.push(Diagnostic::new(
+                "config-file",
+                path.display().to_string(),
+                "include cycle ignored",
+            ));
+        }
         return;
     }
+    stack.push(canonical);
 
     let content = match fs::read_to_string(path) {
         Ok(content) => content,
@@ -92,6 +112,7 @@ fn expand_file(
                 path.display().to_string(),
                 format!("could not read: {err}"),
             ));
+            stack.pop();
             return;
         }
     };
@@ -113,7 +134,7 @@ fn expand_file(
         };
         let include_path = resolve_path(parent, raw);
         if include_path.exists() {
-            expand_file(&include_path, out, diagnostics, visited);
+            expand_file(&include_path, out, diagnostics, visited, stack);
         } else if !optional {
             diagnostics.push(Diagnostic::new(
                 "config-file",
@@ -122,6 +143,7 @@ fn expand_file(
             ));
         }
     }
+    stack.pop();
 }
 
 /// Resolve and parse the theme file for a `theme = …` value (`name`, an absolute
@@ -314,6 +336,24 @@ mod tests {
     }
 
     #[test]
+    fn diamond_include_is_skipped_silently() {
+        let dir = tempdir().expect("tempdir");
+        let main = dir.path().join("config");
+        let left = dir.path().join("left.conf");
+        let right = dir.path().join("right.conf");
+        let shared = dir.path().join("shared.conf");
+        write(&main, "config-file = left.conf\nconfig-file = right.conf").expect("write");
+        write(&left, "config-file = shared.conf").expect("write");
+        write(&right, "config-file = shared.conf").expect("write");
+        write(&shared, "font-family = Diamond").expect("write");
+
+        let resolved = load(&options(vec![main], vec![]));
+        // Loaded once, and a diamond is NOT a cycle: zero diagnostics.
+        assert_eq!(resolved.font_family, vec!["Diamond"]);
+        assert!(resolved.diagnostics.is_empty());
+    }
+
+    #[test]
     fn include_cycle_is_broken_with_a_diagnostic() {
         let dir = tempdir().expect("tempdir");
         let a = dir.path().join("a.conf");
@@ -394,6 +434,22 @@ mod tests {
 
         let resolved = load(&options(vec![config], vec![dir.path().join("themes")]));
         assert!(resolved.diagnostics.iter().any(|d| d.key == "theme"));
+    }
+
+    #[test]
+    fn empty_theme_value_means_no_theme_and_no_diagnostic() {
+        let dir = tempdir().expect("tempdir");
+        let themes = dir.path().join("themes");
+        std::fs::create_dir(&themes).expect("mkdir");
+        write(themes.join("Nord"), "background = #2e3440").expect("write");
+        let config = dir.path().join("config");
+        // The later `theme =` resets the key: no theme applied, no diagnostic
+        // (notably no "Is a directory" from joining an empty name onto a dir).
+        write(&config, "theme = Nord\ntheme =").expect("write");
+
+        let resolved = load(&options(vec![config], vec![themes]));
+        assert_eq!(resolved.background, None);
+        assert!(resolved.diagnostics.is_empty());
     }
 
     #[test]

@@ -33,7 +33,8 @@ const BOM: char = '\u{FEFF}';
 /// Rules (mirroring Ghostty): whitespace around `=` is ignored; `#` comments are
 /// honored only on their own line (a `#` inside a value is literal); blank lines
 /// are ignored; the value may be wrapped in one pair of double quotes; an empty
-/// value is a reset; a line without `=` (or with an empty key) is ignored. Only
+/// value is a reset; a bare key without `=` is treated as `key = ` (an empty
+/// value, per Ghostty); a line with an empty key is ignored. Only
 /// the first `=` splits key from value, so a value may itself contain `=`
 /// (`palette = 0=#1d1f21`, `keybind = ctrl+a=new_split:right`).
 pub fn parse(content: &str) -> Vec<Directive> {
@@ -47,7 +48,9 @@ fn parse_line(raw_line: &str) -> Option<Directive> {
     if line.is_empty() || line.starts_with('#') {
         return None;
     }
-    let (raw_key, raw_value) = line.split_once('=')?;
+    // A bare key (`bold-is-bright` alone on a line) is `key = ` in Ghostty:
+    // an empty value, i.e. the key's implicit default/reset.
+    let (raw_key, raw_value) = line.split_once('=').unwrap_or((line, ""));
     let key = raw_key.trim();
     if key.is_empty() {
         return None;
@@ -159,8 +162,14 @@ mod tests {
     }
 
     #[test]
-    fn ignores_lines_without_equals_or_empty_key() {
-        assert_eq!(parse("not a directive"), vec![]);
+    fn bare_key_without_equals_is_an_empty_value() {
+        let parsed = parse("bold-is-bright");
+        assert_eq!(parsed, vec![directive("bold-is-bright", "")]);
+        assert!(parsed[0].is_reset());
+    }
+
+    #[test]
+    fn ignores_empty_key() {
         assert_eq!(parse("= orphan value"), vec![]);
     }
 

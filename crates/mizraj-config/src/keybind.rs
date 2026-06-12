@@ -355,35 +355,40 @@ fn font_step(param: Option<&str>) -> Result<f32, &'static str> {
 }
 
 /// Process Zig string-literal escapes, the syntax Ghostty documents for
-/// `text:` payloads: `\n \r \t \\ \' \" \xNN \u{NNNN}`.
+/// `text:` payloads: `\n \r \t \\ \' \" \xNN \u{NNNN}`. `\xNN` is a raw byte
+/// (Zig semantics), so the payload accumulates as bytes and is validated as
+/// UTF-8 once at the end — `\xc3\xa9` is "é", a lone `\xff` is an error.
 fn unescape_text(raw: &str) -> Result<String, &'static str> {
-    let mut out = String::with_capacity(raw.len());
+    let mut out = Vec::with_capacity(raw.len());
     let mut chars = raw.chars();
     while let Some(ch) = chars.next() {
         if ch != '\\' {
-            out.push(ch);
+            out.extend_from_slice(ch.encode_utf8(&mut [0; 4]).as_bytes());
             continue;
         }
         match chars.next() {
-            Some('n') => out.push('\n'),
-            Some('r') => out.push('\r'),
-            Some('t') => out.push('\t'),
-            Some('\\') => out.push('\\'),
-            Some('\'') => out.push('\''),
-            Some('"') => out.push('"'),
+            Some('n') => out.push(b'\n'),
+            Some('r') => out.push(b'\r'),
+            Some('t') => out.push(b'\t'),
+            Some('\\') => out.push(b'\\'),
+            Some('\'') => out.push(b'\''),
+            Some('"') => out.push(b'"'),
             Some('x') => out.push(parse_hex_escape(&mut chars)?),
-            Some('u') => out.push(parse_unicode_escape(&mut chars)?),
+            Some('u') => out.extend_from_slice(
+                parse_unicode_escape(&mut chars)?
+                    .encode_utf8(&mut [0; 4])
+                    .as_bytes(),
+            ),
             _ => return Err("unknown escape in text: payload"),
         }
     }
-    Ok(out)
+    String::from_utf8(out).map_err(|_| "text: payload is not valid UTF-8")
 }
 
-fn parse_hex_escape(chars: &mut std::str::Chars) -> Result<char, &'static str> {
+fn parse_hex_escape(chars: &mut std::str::Chars) -> Result<u8, &'static str> {
     let high = chars.next().ok_or("truncated \\x escape")?;
     let low = chars.next().ok_or("truncated \\x escape")?;
-    let byte = u8::from_str_radix(&format!("{high}{low}"), 16).map_err(|_| "invalid \\x escape")?;
-    Ok(byte as char)
+    u8::from_str_radix(&format!("{high}{low}"), 16).map_err(|_| "invalid \\x escape")
 }
 
 fn parse_unicode_escape(chars: &mut std::str::Chars) -> Result<char, &'static str> {
@@ -495,6 +500,21 @@ mod tests {
             bind(r"ctrl+t=text:line\nnext\ttab \x41 \u{1F600}").action,
             KeybindAction::Text("line\nnext\ttab A 😀".to_string())
         );
+    }
+
+    #[test]
+    fn hex_escapes_are_raw_utf8_bytes() {
+        // Zig semantics: `\xc3\xa9` is the two-byte UTF-8 encoding of "é",
+        // not two separate codepoints.
+        assert_eq!(
+            bind(r"ctrl+e=text:\xc3\xa9").action,
+            KeybindAction::Text("é".to_string())
+        );
+    }
+
+    #[test]
+    fn invalid_utf8_from_hex_escapes_is_rejected() {
+        assert!(parse_keybind(r"ctrl+e=text:\xff").is_err());
     }
 
     #[test]
