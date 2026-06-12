@@ -6,10 +6,16 @@ export const Toasts = (): React.JSX.Element => {
 	const toasts = useAtomValue(toastsAtom)
 
 	return (
-		<div className="toast-viewport" role="status" aria-live="polite">
+		<div className="toast-viewport">
 			{toasts.map(toast => (
-				<div key={toast.id} className="toast">
-					{toast.message}
+				<div
+					key={toast.id}
+					className="toast"
+					data-show="true"
+					role="status"
+				>
+					<span className="tk">✓</span>
+					<span>{toast.message}</span>
 				</div>
 			))}
 		</div>

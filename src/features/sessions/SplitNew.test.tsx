@@ -56,9 +56,9 @@ describe('SplitNew', () => {
 		container.querySelector<HTMLButtonElement>('.mz-split-main')
 
 	it('spawns the default shell from the main button, pending meanwhile', async () => {
-		let releaseShell = (): void => {}
+		let releaseShell: ((shell: string) => void) | undefined
 		const shellResolved = new Promise<string>(resolve => {
-			releaseShell = () => resolve('/bin/zsh')
+			releaseShell = resolve
 		})
 		invokeMock.mockImplementation(command =>
 			command === 'session_default_shell'
@@ -75,7 +75,7 @@ describe('SplitNew', () => {
 		expect(mainButton()?.disabled).toBe(true)
 
 		await act(async () => {
-			releaseShell()
+			releaseShell?.('/bin/zsh')
 		})
 
 		expect(invokeMock).toHaveBeenCalledWith('session_create', {
