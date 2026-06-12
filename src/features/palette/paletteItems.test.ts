@@ -41,32 +41,74 @@ const PLAN: PlanEntry = {
 	mtime: 0,
 }
 
-describe('buildPaletteItems', () => {
-	it('always offers the screens', () => {
-		const items = buildPaletteItems({
-			sessions: [],
-			plans: [],
-			activeProjectPath: null,
-		})
-
-		const screens = items.filter(item => item.group === 'Go to')
-		expect(screens.map(item => item.label)).toEqual([
-			'Mission Control',
-			'Pipeline',
-			'Plans',
-			'Tasks',
-			'Diff review',
-		])
+const build = (
+	overrides: Partial<Parameters<typeof buildPaletteItems>[0]> = {},
+): ReturnType<typeof buildPaletteItems> =>
+	buildPaletteItems({
+		sessions: [],
+		plans: [],
+		activeProjectPath: null,
+		activeSessionId: null,
+		...overrides,
 	})
 
-	it('lists each session with its status as a jump target', () => {
-		const items = buildPaletteItems({
+describe('buildPaletteItems', () => {
+	it('orders the groups agents, review, plans, go to, actions', () => {
+		const items = build({
 			sessions: [
 				session('run-1'),
 				session('done-1', { status: 'ended', exitCode: 0 }),
 			],
-			plans: [],
-			activeProjectPath: null,
+			plans: [PLAN],
+			activeProjectPath: '/repo',
+		})
+
+		const groupSequence = items
+			.map(item => item.group)
+			.filter((group, index, groups) => groups[index - 1] !== group)
+		expect(groupSequence).toEqual([
+			'Agents',
+			'Review',
+			'Plans',
+			'Go to',
+			'Actions',
+		])
+	})
+
+	it('always offers the screens with their chord hints', () => {
+		const screens = build().filter(item => item.group === 'Go to')
+
+		expect(screens.map(item => [item.label, item.hint])).toEqual([
+			['Mission Control', '⌘1'],
+			['Cockpit', '⌘2'],
+			['Pipeline board', '⌘3'],
+			['Plans', '⌘4'],
+			['Diff review', '⌘5'],
+			['Tasks', undefined],
+		])
+	})
+
+	it('sends the cockpit screen to the target session', () => {
+		window.history.pushState({}, '', '/')
+		const items = build({
+			sessions: [session('sess-7')],
+			activeSessionId: 'sess-7',
+		})
+
+		items
+			.filter(item => item.group === 'Go to')
+			.find(item => item.label === 'Cockpit')
+			?.run()
+
+		expect(window.location.pathname).toBe('/agent-run/sess-7')
+	})
+
+	it('lists each session with its status as a jump target', () => {
+		const items = build({
+			sessions: [
+				session('run-1'),
+				session('done-1', { status: 'ended', exitCode: 0 }),
+			],
 		})
 
 		const agents = items.filter(item => item.group === 'Agents')
@@ -75,12 +117,35 @@ describe('buildPaletteItems', () => {
 		expect(agents[1]?.hint).toBe('needs review')
 	})
 
-	it('lists plans and interviews', () => {
-		const items = buildPaletteItems({
-			sessions: [],
-			plans: [PLAN],
-			activeProjectPath: null,
+	it('labels agents with their repo when known', () => {
+		const items = build({
+			sessions: [session('run-1', { repoPath: '/Users/me/dev/mizraj' })],
 		})
+
+		expect(items.find(item => item.group === 'Agents')?.label).toBe(
+			'claude — mizraj',
+		)
+	})
+
+	it('surfaces ended-clean sessions as review entries', () => {
+		window.history.pushState({}, '', '/')
+		const items = build({
+			sessions: [
+				session('run-1'),
+				session('done-1', { status: 'ended', exitCode: 0 }),
+			],
+		})
+
+		const review = items.filter(item => item.group === 'Review')
+		expect(review).toHaveLength(1)
+		expect(review[0]?.label).toBe('claude — needs review')
+
+		review[0]?.run()
+		expect(window.location.pathname).toBe('/review')
+	})
+
+	it('lists plans and interviews', () => {
+		const items = build({ plans: [PLAN] })
 
 		expect(items.find(item => item.group === 'Plans')?.label).toBe(
 			'Auth hardening',
@@ -88,28 +153,22 @@ describe('buildPaletteItems', () => {
 	})
 
 	it('offers launch actions only with an active project', () => {
-		const without = buildPaletteItems({
-			sessions: [],
-			plans: [],
-			activeProjectPath: null,
-		})
-		expect(without.some(item => item.group === 'Actions')).toBe(false)
+		expect(build().some(item => item.group === 'Actions')).toBe(false)
 
-		const withProject = buildPaletteItems({
-			sessions: [],
-			plans: [],
-			activeProjectPath: '/repo',
-		})
+		const withProject = build({ activeProjectPath: '/repo' })
 		expect(
 			withProject
 				.filter(item => item.group === 'Actions')
-				.map(item => item.label),
-		).toEqual(['New agent', 'New terminal'])
+				.map(item => [item.label, item.hint]),
+		).toEqual([
+			['New agent…', '↵'],
+			['New terminal', undefined],
+		])
 	})
 })
 
 describe('filterPaletteItems', () => {
-	const items = buildPaletteItems({
+	const items = build({
 		sessions: [session('run-1')],
 		plans: [PLAN],
 		activeProjectPath: '/repo',
@@ -127,7 +186,7 @@ describe('filterPaletteItems', () => {
 	it('matches on the group name too', () => {
 		const found = filterPaletteItems(items, 'actions')
 		expect(found.map(item => item.label)).toEqual([
-			'New agent',
+			'New agent…',
 			'New terminal',
 		])
 	})

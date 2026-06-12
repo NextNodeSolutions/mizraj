@@ -9,6 +9,7 @@ import {
 	tasksHref,
 } from '@/app/router'
 import type { PlanEntry } from '@/features/plans/plans'
+import { cockpitTargetHref } from '@/features/sessions/cockpitTarget'
 import {
 	DISPLAY_STATUS_LABEL,
 	sessionDisplayStatus,
@@ -17,7 +18,10 @@ import {
 	launchSession,
 	launchShellSession,
 } from '@/features/sessions/launchSession'
-import { sessionLabel } from '@/features/sessions/sessionLabel'
+import {
+	sessionLabel,
+	sessionRepoLabel,
+} from '@/features/sessions/sessionLabel'
 import type { SessionState } from '@/features/sessions/sessions'
 
 export type PaletteItem = {
@@ -33,45 +37,37 @@ type BuildArgs = {
 	sessions: ReadonlyArray<SessionState>
 	plans: ReadonlyArray<PlanEntry>
 	activeProjectPath: string | null
+	activeSessionId: string | null
 }
-
-const screenItems = (): ReadonlyArray<PaletteItem> => [
-	{
-		group: 'Go to',
-		label: 'Mission Control',
-		hint: 'A',
-		run: () => navigate(missionControlHref()),
-	},
-	{
-		group: 'Go to',
-		label: 'Pipeline',
-		hint: 'C',
-		run: () => navigate(pipelineHref()),
-	},
-	{
-		group: 'Go to',
-		label: 'Plans',
-		hint: 'D',
-		run: () => navigate(plansIndexHref()),
-	},
-	{ group: 'Go to', label: 'Tasks', run: () => navigate(tasksHref()) },
-	{
-		group: 'Go to',
-		label: 'Diff review',
-		hint: 'E',
-		run: () => navigate(reviewHref()),
-	},
-]
 
 const sessionItems = (
 	sessions: ReadonlyArray<SessionState>,
 ): ReadonlyArray<PaletteItem> =>
-	sessions.map(session => ({
-		group: 'Agents',
-		label: sessionLabel(session),
-		hint: DISPLAY_STATUS_LABEL[sessionDisplayStatus(session)],
-		run: () => navigate(agentRunHref(session.id)),
-	}))
+	sessions.map(session => {
+		const repo = sessionRepoLabel(session)
+		return {
+			group: 'Agents',
+			label:
+				repo === null
+					? sessionLabel(session)
+					: `${sessionLabel(session)} — ${repo}`,
+			hint: DISPLAY_STATUS_LABEL[sessionDisplayStatus(session)],
+			run: () => navigate(agentRunHref(session.id)),
+		}
+	})
+
+// TODO(review-branches): list real reviewable branches instead of
+// ended-clean sessions once get_diff takes a branch/worktree argument.
+const reviewItems = (
+	sessions: ReadonlyArray<SessionState>,
+): ReadonlyArray<PaletteItem> =>
+	sessions
+		.filter(session => sessionDisplayStatus(session) === 'review')
+		.map(session => ({
+			group: 'Review',
+			label: `${sessionLabel(session)} — needs review`,
+			run: () => navigate(reviewHref()),
+		}))
 
 const planItems = (
 	plans: ReadonlyArray<PlanEntry>,
@@ -83,6 +79,40 @@ const planItems = (
 		run: () => navigate(planRouteHref(entry)),
 	}))
 
+const screenItems = (cockpitHref: string): ReadonlyArray<PaletteItem> => [
+	{
+		group: 'Go to',
+		label: 'Mission Control',
+		hint: '⌘1',
+		run: () => navigate(missionControlHref()),
+	},
+	{
+		group: 'Go to',
+		label: 'Cockpit',
+		hint: '⌘2',
+		run: () => navigate(cockpitHref),
+	},
+	{
+		group: 'Go to',
+		label: 'Pipeline board',
+		hint: '⌘3',
+		run: () => navigate(pipelineHref()),
+	},
+	{
+		group: 'Go to',
+		label: 'Plans',
+		hint: '⌘4',
+		run: () => navigate(plansIndexHref()),
+	},
+	{
+		group: 'Go to',
+		label: 'Diff review',
+		hint: '⌘5',
+		run: () => navigate(reviewHref()),
+	},
+	{ group: 'Go to', label: 'Tasks', run: () => navigate(tasksHref()) },
+]
+
 const actionItems = (
 	activeProjectPath: string | null,
 ): ReadonlyArray<PaletteItem> => {
@@ -90,7 +120,8 @@ const actionItems = (
 	return [
 		{
 			group: 'Actions',
-			label: 'New agent',
+			label: 'New agent…',
+			hint: '↵',
 			run: () => {
 				void launchSession({
 					binary: AGENT_BINARY,
@@ -109,17 +140,20 @@ const actionItems = (
 }
 
 /**
- * Everything ⌘K can reach, grouped: screens, live sessions, plan documents
- * and launch actions (the latter only when a project is active).
+ * Everything ⌘K can reach, grouped in the design's order: live sessions,
+ * sessions awaiting review, plan documents, screens, then launch actions
+ * (the latter only when a project is active).
  */
 export const buildPaletteItems = ({
 	sessions,
 	plans,
 	activeProjectPath,
+	activeSessionId,
 }: BuildArgs): ReadonlyArray<PaletteItem> => [
-	...screenItems(),
 	...sessionItems(sessions),
+	...reviewItems(sessions),
 	...planItems(plans),
+	...screenItems(cockpitTargetHref(sessions, activeSessionId)),
 	...actionItems(activeProjectPath),
 ]
 

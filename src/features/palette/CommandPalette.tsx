@@ -1,7 +1,8 @@
-import { useAtom } from 'jotai'
-import { useEffect, useState } from 'react'
+import { useAtom, useAtomValue } from 'jotai'
+import { useEffect, useRef, useState } from 'react'
 
 import { usePlans } from '@/features/plans/plans'
+import { activeSessionIdAtom } from '@/features/sessions/sessions'
 import { useSessions } from '@/features/sessions/useSessions'
 
 import { paletteOpenAtom } from './palette'
@@ -17,15 +18,22 @@ const isToggleChord = (event: KeyboardEvent): boolean =>
 
 export const CommandPalette = ({
 	activeProjectPath,
-}: Props): React.JSX.Element | null => {
+}: Props): React.JSX.Element => {
 	const [open, setOpen] = useAtom(paletteOpenAtom)
 	const sessions = useSessions()
+	const activeSessionId = useAtomValue(activeSessionIdAtom)
 	const plansState = usePlans(activeProjectPath)
 	const [query, setQuery] = useState('')
 	const [selection, setSelection] = useState(0)
+	const inputRef = useRef<HTMLInputElement>(null)
 
 	const plans = plansState.status === 'ready' ? plansState.data : []
-	const items = buildPaletteItems({ sessions, plans, activeProjectPath })
+	const items = buildPaletteItems({
+		sessions,
+		plans,
+		activeProjectPath,
+		activeSessionId,
+	})
 	const filtered = filterPaletteItems(items, query)
 	const selected = Math.min(selection, Math.max(0, filtered.length - 1))
 
@@ -33,6 +41,9 @@ export const CommandPalette = ({
 		setOpen(false)
 		setQuery('')
 		setSelection(0)
+		// The component stays mounted: hand the keyboard back so the hidden
+		// input never swallows keystrokes meant for the terminal.
+		inputRef.current?.blur()
 	}
 
 	const run = (item: PaletteItem | undefined): void => {
@@ -49,7 +60,11 @@ export const CommandPalette = ({
 			if (isToggleChord(event)) {
 				event.preventDefault()
 				event.stopPropagation()
-				setOpen(current => !current)
+				if (open) {
+					close()
+				} else {
+					setOpen(true)
+				}
 				return
 			}
 			if (!open) return
@@ -81,41 +96,55 @@ export const CommandPalette = ({
 			})
 	})
 
-	if (!open) return null
+	// Mounted-but-hidden component (the data-open transition needs a live
+	// element): focus is the one thing that must follow the open state.
+	useEffect(() => {
+		if (open) inputRef.current?.focus()
+	}, [open])
+
+	const openAttr = open ? 'true' : 'false'
 
 	return (
 		<>
 			<div
-				className="palette-backdrop"
+				className="pal-back"
+				data-open={openAttr}
 				role="presentation"
 				onClick={close}
 			/>
-			<div className="palette" role="dialog" aria-label="Command palette">
+			<div
+				className="palette"
+				data-open={openAttr}
+				role="dialog"
+				aria-label="Command palette"
+			>
 				<input
-					autoFocus
+					ref={inputRef}
 					type="text"
 					value={query}
-					placeholder="Search agents, plans, screens…"
+					placeholder="Search agents, plans, actions…"
 					onChange={event => {
 						setQuery(event.target.value)
 						setSelection(0)
 					}}
 				/>
-				{filtered.length === 0 ? (
-					<p className="palette__empty">No matches.</p>
-				) : (
-					<ul role="listbox" aria-label="Results">
-						{filtered.map((item, index) => (
-							<PaletteRow
-								key={`${item.group}:${item.label}`}
-								item={item}
-								previous={filtered[index - 1]}
-								active={index === selected}
-								onRun={run}
-							/>
-						))}
-					</ul>
-				)}
+				<ul className="pal-list" role="listbox" aria-label="Results">
+					{filtered.length === 0 && (
+						<li className="pal-empty" role="presentation">
+							no results for “{query}”
+						</li>
+					)}
+					{filtered.map((item, index) => (
+						<PaletteRow
+							key={`${item.group}:${item.label}`}
+							item={item}
+							previous={filtered[index - 1]}
+							active={index === selected}
+							onHover={() => setSelection(index)}
+							onRun={run}
+						/>
+					))}
+				</ul>
 			</div>
 		</>
 	)
@@ -125,6 +154,7 @@ type RowProps = {
 	item: PaletteItem
 	previous: PaletteItem | undefined
 	active: boolean
+	onHover: () => void
 	onRun: (item: PaletteItem) => void
 }
 
@@ -132,19 +162,25 @@ const PaletteRow = ({
 	item,
 	previous,
 	active,
+	onHover,
 	onRun,
 }: RowProps): React.JSX.Element => (
 	<>
 		{item.group !== previous?.group && (
-			<div className="palette__group" role="presentation">
+			<li className="pal-group" role="presentation">
 				{item.group}
-			</div>
+			</li>
 		)}
-		<li role="option" aria-selected={active} onClick={() => onRun(item)}>
-			{item.label}
-			{item.hint !== undefined && (
-				<span className="palette__hint">{item.hint}</span>
-			)}
+		<li
+			className="pal-item"
+			role="option"
+			aria-selected={active}
+			data-on={active ? 'true' : 'false'}
+			onMouseEnter={onHover}
+			onClick={() => onRun(item)}
+		>
+			<span>{item.label}</span>
+			{item.hint !== undefined && <span className="pk">{item.hint}</span>}
 		</li>
 	</>
 )

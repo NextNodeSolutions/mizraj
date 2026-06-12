@@ -27,7 +27,11 @@ vi.mock('@/shared/logger', () => ({
 	},
 }))
 
-import { sessionsAtom, startSessionAtom } from '@/features/sessions/sessions'
+import {
+	activeSessionIdAtom,
+	sessionsAtom,
+	startSessionAtom,
+} from '@/features/sessions/sessions'
 
 import { CommandPalette } from './CommandPalette'
 import { paletteOpenAtom } from './palette'
@@ -50,6 +54,7 @@ describe('CommandPalette', () => {
 
 	beforeEach(() => {
 		store.set(sessionsAtom, {})
+		store.set(activeSessionIdAtom, null)
 		store.set(paletteOpenAtom, false)
 		invokeMock.mockReset()
 		invokeMock.mockResolvedValue([])
@@ -72,51 +77,15 @@ describe('CommandPalette', () => {
 		})
 	}
 
-	it('stays hidden until summoned', async () => {
-		await render()
+	const palette = (): Element | null => container.querySelector('.palette')
 
-		expect(container.querySelector('.palette')).toBeNull()
-	})
-
-	it('opens on cmd+K and claims the shortcut', async () => {
-		await render()
-
-		let event: KeyboardEvent | undefined
-		await act(async () => {
-			event = pressGlobal({ key: 'k', metaKey: true })
-		})
-
-		expect(container.querySelector('.palette')).not.toBeNull()
-		expect(event?.defaultPrevented).toBe(true)
-		expect(document.activeElement).toBe(
-			container.querySelector('.palette input'),
-		)
-	})
-
-	it('closes on Escape', async () => {
-		await render()
+	const open = async (): Promise<void> => {
 		await act(async () => {
 			pressGlobal({ key: 'k', metaKey: true })
 		})
+	}
 
-		await act(async () => {
-			pressGlobal({ key: 'Escape' })
-		})
-
-		expect(container.querySelector('.palette')).toBeNull()
-	})
-
-	it('filters as the user types', async () => {
-		store.set(startSessionAtom, {
-			id: 'sess-1',
-			binary: 'claude',
-			repoPath: '/repo',
-		})
-		await render()
-		await act(async () => {
-			pressGlobal({ key: 'k', metaKey: true })
-		})
-
+	const type = async (value: string): Promise<void> => {
 		const input =
 			container.querySelector<HTMLInputElement>('.palette input')
 		await act(async () => {
@@ -124,22 +93,89 @@ describe('CommandPalette', () => {
 				window.HTMLInputElement.prototype,
 				'value',
 			)?.set
-			setter?.call(input, 'pipeline')
+			setter?.call(input, value)
 			input?.dispatchEvent(new Event('input', { bubbles: true }))
 		})
+	}
 
-		const labels = Array.from(
-			container.querySelectorAll('.palette li'),
-		).map(item => item.firstChild?.textContent)
-		expect(labels).toEqual(['Pipeline'])
+	it('stays mounted but closed until summoned', async () => {
+		await render()
+
+		expect(palette()?.getAttribute('data-open')).toBe('false')
+		expect(
+			container.querySelector('.pal-back')?.getAttribute('data-open'),
+		).toBe('false')
+	})
+
+	it('opens on cmd+K, claims the shortcut and focuses the input', async () => {
+		await render()
+
+		let event: KeyboardEvent | undefined
+		await act(async () => {
+			event = pressGlobal({ key: 'k', metaKey: true })
+		})
+
+		expect(palette()?.getAttribute('data-open')).toBe('true')
+		expect(event?.defaultPrevented).toBe(true)
+		expect(document.activeElement).toBe(
+			container.querySelector('.palette input'),
+		)
+	})
+
+	it('closes on Escape and returns the keyboard', async () => {
+		await render()
+		await open()
+
+		await act(async () => {
+			pressGlobal({ key: 'Escape' })
+		})
+
+		expect(palette()?.getAttribute('data-open')).toBe('false')
+		expect(document.activeElement).not.toBe(
+			container.querySelector('.palette input'),
+		)
+	})
+
+	it('filters as the user types', async () => {
+		await render()
+		await open()
+
+		await type('pipeline')
+
+		const labels = Array.from(container.querySelectorAll('.pal-item')).map(
+			item => item.firstChild?.textContent,
+		)
+		expect(labels).toEqual(['Pipeline board'])
+	})
+
+	it('shows the design empty copy when nothing matches', async () => {
+		await render()
+		await open()
+
+		await type('zzz')
+
+		expect(container.querySelector('.pal-empty')?.textContent).toBe(
+			'no results for “zzz”',
+		)
+	})
+
+	it('groups items under their section heading', async () => {
+		await render()
+		await open()
+
+		const groups = Array.from(container.querySelectorAll('.pal-group')).map(
+			group => group.textContent,
+		)
+		expect(groups).toEqual(['Go to', 'Actions'])
 	})
 
 	it('runs the selected item with Enter and closes', async () => {
 		await render()
-		await act(async () => {
-			pressGlobal({ key: 'k', metaKey: true })
-		})
+		await open()
 
+		await act(async () => {
+			pressGlobal({ key: 'ArrowDown' })
+		})
 		await act(async () => {
 			pressGlobal({ key: 'ArrowDown' })
 		})
@@ -148,17 +184,39 @@ describe('CommandPalette', () => {
 		})
 
 		expect(window.location.pathname).toBe('/pipeline')
-		expect(container.querySelector('.palette')).toBeNull()
+		expect(palette()?.getAttribute('data-open')).toBe('false')
+	})
+
+	it('moves the selection with the pointer', async () => {
+		store.set(startSessionAtom, {
+			id: 'sess-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		await render()
+		await open()
+
+		const items = Array.from(
+			container.querySelectorAll<HTMLElement>('.pal-item'),
+		)
+		expect(items[0]?.getAttribute('data-on')).toBe('true')
+
+		await act(async () => {
+			items[2]?.dispatchEvent(
+				new MouseEvent('mouseover', { bubbles: true }),
+			)
+		})
+
+		expect(items[2]?.getAttribute('data-on')).toBe('true')
+		expect(items[0]?.getAttribute('data-on')).toBe('false')
 	})
 
 	it('runs an item on click', async () => {
 		await render()
-		await act(async () => {
-			pressGlobal({ key: 'k', metaKey: true })
-		})
+		await open()
 
 		const tasks = Array.from(
-			container.querySelectorAll<HTMLElement>('.palette li'),
+			container.querySelectorAll<HTMLElement>('.pal-item'),
 		).find(item => item.textContent?.includes('Tasks'))
 		await act(async () => {
 			tasks?.click()
@@ -169,14 +227,12 @@ describe('CommandPalette', () => {
 
 	it('closes when the backdrop is clicked', async () => {
 		await render()
-		await act(async () => {
-			pressGlobal({ key: 'k', metaKey: true })
-		})
+		await open()
 
 		await act(async () => {
-			container.querySelector<HTMLElement>('.palette-backdrop')?.click()
+			container.querySelector<HTMLElement>('.pal-back')?.click()
 		})
 
-		expect(container.querySelector('.palette')).toBeNull()
+		expect(palette()?.getAttribute('data-open')).toBe('false')
 	})
 })
