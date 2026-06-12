@@ -1,43 +1,10 @@
 import { openPalette } from '@/features/palette/palette'
 import { ProjectPicker } from '@/features/projects/ProjectPicker'
-import { NewTerminalButton } from '@/features/sessions/NewTerminalButton'
-import { RunAgentButton } from '@/features/sessions/RunAgentButton'
+import { SplitNew } from '@/features/sessions/SplitNew'
+import { IconGear } from '@/shared/ui/icons'
 
-import {
-	matchMissionControlRoute,
-	matchPipelineRoute,
-	matchPlanRoute,
-	matchPlansIndexRoute,
-	matchTasksRoute,
-	missionControlHref,
-	navigate,
-	pipelineHref,
-	plansIndexHref,
-	tasksHref,
-	usePathname,
-} from './router'
-
-type NavItem = {
-	label: string
-	href: string
-	isActive: (pathname: string) => boolean
-}
-
-const NAV_ITEMS: ReadonlyArray<NavItem> = [
-	{
-		label: 'Mission Control',
-		href: missionControlHref(),
-		isActive: matchMissionControlRoute,
-	},
-	{ label: 'Pipeline', href: pipelineHref(), isActive: matchPipelineRoute },
-	{
-		label: 'Plans',
-		href: plansIndexHref(),
-		isActive: pathname =>
-			matchPlansIndexRoute(pathname) || matchPlanRoute(pathname) !== null,
-	},
-	{ label: 'Tasks', href: tasksHref(), isActive: matchTasksRoute },
-]
+import { missionControlHref, navigate } from './router'
+import { StatusCluster } from './StatusCluster'
 
 type Props = {
 	activeProjectPath: string | null
@@ -45,70 +12,45 @@ type Props = {
 	onOpenSettings: () => void
 }
 
+// Navigation lives in the left rail; the topbar carries identity, scope,
+// the live status cluster and the launch actions.
 export const TopBar = ({
 	activeProjectPath,
 	onSelectProject,
 	onOpenSettings,
-}: Props): React.JSX.Element => {
-	const pathname = usePathname()
-
-	return (
-		<header className="top-bar">
-			<button
-				type="button"
-				className="top-bar__brand"
-				onClick={() => navigate(missionControlHref())}
-			>
-				<span className="top-bar__glyph" aria-hidden="true">
-					M
-				</span>
-				<h1>Mizraj</h1>
-			</button>
-			<nav className="top-bar__nav" aria-label="Screens">
-				{NAV_ITEMS.map(item => (
-					<a
-						key={item.href}
-						className="top-bar__nav-link"
-						href={item.href}
-						aria-current={
-							item.isActive(pathname) ? 'page' : undefined
-						}
-						onClick={event => {
-							event.preventDefault()
-							navigate(item.href)
-						}}
-					>
-						{item.label}
-					</a>
-				))}
-			</nav>
-			<div className="top-bar__actions">
-				<button
-					type="button"
-					className="top-bar__jump"
-					onClick={openPalette}
-				>
-					Jump to… <kbd>⌘K</kbd>
-				</button>
-				<ProjectPicker
-					activeProjectPath={activeProjectPath}
-					onSelect={onSelectProject}
-				/>
-				{activeProjectPath !== null && (
-					<>
-						<RunAgentButton repoPath={activeProjectPath} />
-						<NewTerminalButton repoPath={activeProjectPath} />
-					</>
-				)}
-				<button
-					type="button"
-					className="settings-trigger"
-					aria-label="Open settings"
-					onClick={onOpenSettings}
-				>
-					⚙
-				</button>
-			</div>
-		</header>
-	)
-}
+}: Props): React.JSX.Element => (
+	<header className="mz-topbar">
+		<button
+			type="button"
+			className="mz-brand"
+			onClick={() => navigate(missionControlHref())}
+		>
+			<span className="mz-glyph" aria-hidden="true">
+				M
+			</span>
+			<span>Mizraj</span>
+		</button>
+		<ProjectPicker
+			activeProjectPath={activeProjectPath}
+			onSelect={onSelectProject}
+		/>
+		<span className="mz-topbar-sep" />
+		<StatusCluster />
+		<span className="mz-spacer" />
+		<button type="button" className="mz-cmdk" onClick={openPalette}>
+			<span>Jump to…</span>
+			<span className="mz-kbd">⌘K</span>
+		</button>
+		{activeProjectPath !== null && (
+			<SplitNew repoPath={activeProjectPath} />
+		)}
+		<button
+			type="button"
+			className="mz-iconbtn"
+			aria-label="Settings"
+			onClick={onOpenSettings}
+		>
+			<IconGear />
+		</button>
+	</header>
+)

@@ -1,3 +1,4 @@
+import { getDefaultStore } from 'jotai'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
@@ -20,13 +21,20 @@ vi.mock('@/shared/logger', () => ({
 	},
 }))
 
+import { paletteOpenAtom } from '@/features/palette/palette'
+import { sessionsAtom } from '@/features/sessions/sessions'
+
 import { TopBar } from './TopBar'
+
+const store = getDefaultStore()
 
 describe('TopBar', () => {
 	let container: HTMLDivElement
 	let root: Root
 
 	beforeEach(() => {
+		store.set(sessionsAtom, {})
+		store.set(paletteOpenAtom, false)
 		window.history.pushState({}, '', '/')
 		container = document.createElement('div')
 		document.body.appendChild(container)
@@ -59,7 +67,7 @@ describe('TopBar', () => {
 		window.history.pushState({}, '', '/tasks')
 		render()
 
-		const brand = container.querySelector<HTMLElement>('.top-bar__brand')
+		const brand = container.querySelector<HTMLElement>('.mz-brand')
 		expect(brand?.textContent).toContain('Mizraj')
 		act(() => {
 			brand?.click()
@@ -68,49 +76,65 @@ describe('TopBar', () => {
 		expect(window.location.pathname).toBe('/')
 	})
 
-	it('marks the current screen in the nav', () => {
+	it('scopes mission control to all projects on the repo button', () => {
 		render()
 
-		const current = container.querySelector('[aria-current="page"]')
-		expect(current?.textContent).toBe('Mission Control')
+		const scope = container.querySelector('.mz-proj')
+		expect(scope?.textContent).toContain('scope')
+		expect(scope?.textContent).toContain('all projects')
 	})
 
-	it('navigates to tasks from the nav', () => {
+	it('names the active repo on every other route', () => {
+		window.history.pushState({}, '', '/plans')
 		render()
 
-		const tasks = Array.from(
-			container.querySelectorAll<HTMLElement>('.top-bar__nav-link'),
-		).find(link => link.textContent === 'Tasks')
-		act(() => {
-			tasks?.click()
-		})
-
-		expect(window.location.pathname).toBe('/tasks')
+		const scope = container.querySelector('.mz-proj')
+		expect(scope?.textContent).toContain('repo')
+		expect(scope?.querySelector('b')?.textContent).toBe('mizraj')
 	})
 
-	it('shows the active repo name on the project pill', () => {
-		render()
-
-		expect(
-			container.querySelector('.project-picker')?.textContent,
-		).toContain('mizraj')
-	})
-
-	it('offers agent and terminal launchers only with a project', () => {
+	it('invites choosing a repo when none is active', () => {
 		render({ activeProjectPath: null })
 
-		expect(container.querySelector('.run-agent-button')).toBeNull()
-
-		render()
-		expect(container.querySelector('.run-agent-button')).not.toBeNull()
+		expect(container.querySelector('.mz-proj')?.textContent).toBe(
+			'Choose repo',
+		)
 	})
 
-	it('opens settings through its trigger', () => {
+	it('summons the palette from the jump button', () => {
+		render()
+
+		act(() => {
+			container.querySelector<HTMLElement>('.mz-cmdk')?.click()
+		})
+
+		expect(store.get(paletteOpenAtom)).toBe(true)
+	})
+
+	it('counts sessions in the status cluster', () => {
+		render()
+
+		expect(container.querySelector('.mz-status')).not.toBeNull()
+	})
+
+	it('offers the split launcher only with a project', () => {
+		render({ activeProjectPath: null })
+		expect(container.querySelector('.mz-split-wrap')).toBeNull()
+
+		render()
+		expect(container.querySelector('.mz-split-wrap')).not.toBeNull()
+	})
+
+	it('opens settings through the gear', () => {
 		const onOpenSettings = vi.fn()
 		render({ onOpenSettings })
 
 		act(() => {
-			container.querySelector<HTMLElement>('.settings-trigger')?.click()
+			container
+				.querySelector<HTMLElement>(
+					'.mz-iconbtn[aria-label="Settings"]',
+				)
+				?.click()
 		})
 
 		expect(onOpenSettings).toHaveBeenCalledTimes(1)

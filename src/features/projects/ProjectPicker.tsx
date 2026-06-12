@@ -1,5 +1,6 @@
 import { open } from '@tauri-apps/plugin-dialog'
 
+import { matchMissionControlRoute, usePathname } from '@/app/router'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
@@ -11,10 +12,40 @@ type Props = {
 const repoName = (path: string): string =>
 	path.split('/').findLast(segment => segment !== '') ?? path
 
+type ScopeLabelProps = {
+	activeProjectPath: string | null
+	onMissionRoute: boolean
+}
+
+// TODO(multi-project): mission control is single-repo today; the
+// 'all projects' scope label is aspirational until multi-project lands.
+const ScopeLabel = ({
+	activeProjectPath,
+	onMissionRoute,
+}: ScopeLabelProps): React.JSX.Element => {
+	if (activeProjectPath === null) return <>Choose repo</>
+	if (onMissionRoute) {
+		return (
+			<>
+				<span>scope</span> <b>all projects</b>{' '}
+				<span className="carat">▾</span>
+			</>
+		)
+	}
+	return (
+		<>
+			<span>repo</span> <b>{repoName(activeProjectPath)}</b>{' '}
+			<span className="carat">▾</span>
+		</>
+	)
+}
+
 export const ProjectPicker = ({
 	activeProjectPath,
 	onSelect,
 }: Props): React.JSX.Element => {
+	const pathname = usePathname()
+
 	const handleClick = (): void => {
 		open({ directory: true })
 			.then(selected => {
@@ -33,18 +64,14 @@ export const ProjectPicker = ({
 	return (
 		<button
 			type="button"
-			className="project-picker"
+			className="mz-proj"
 			title={activeProjectPath ?? undefined}
 			onClick={handleClick}
 		>
-			{activeProjectPath === null ? (
-				'Choose repo'
-			) : (
-				<>
-					<span className="project-picker__hint">repo</span>{' '}
-					<b>{repoName(activeProjectPath)}</b> ▾
-				</>
-			)}
+			<ScopeLabel
+				activeProjectPath={activeProjectPath}
+				onMissionRoute={matchMissionControlRoute(pathname)}
+			/>
 		</button>
 	)
 }
