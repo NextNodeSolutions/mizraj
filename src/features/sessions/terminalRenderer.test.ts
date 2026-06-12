@@ -527,6 +527,7 @@ const configWith = (overrides: Partial<TerminalConfig>): TerminalConfig => ({
 	backgroundAlpha: 1,
 	boldIsBright: false,
 	cursor: cursorConfigWith({}),
+	selection: { background: null, foreground: null },
 	...overrides,
 })
 
@@ -876,6 +877,75 @@ const glyphCell = (ch: string): WireCell => ({
 	bg: { kind: 'default' },
 	attrs: 0,
 	wide: 'narrow',
+})
+
+describe('drawFrame selection', () => {
+	const selectionOf = (col: number, row: number): DrawFrameOptions => ({
+		selection: { anchor: { col, row }, head: { col, row } },
+	})
+
+	it('paints a selected cell with the configured selection colors', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+
+		drawFrame(
+			context,
+			oneCellFrame(defaultColorCell),
+			INTEGRAL_METRICS,
+			configWith({
+				selection: { background: '#123456', foreground: '#abcdef' },
+			}),
+			fontTable,
+			selectionOf(0, 0),
+		)
+
+		const cellBg = paints.find(
+			p => p.op === 'rect' && p.fillStyle === '#123456',
+		)
+		const glyph = paints.find(p => p.op === 'text')
+		expect(cellBg).toBeDefined()
+		expect(glyph?.fillStyle).toBe('#abcdef')
+	})
+
+	it('falls back to reverse video without configured selection colors', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+
+		drawFrame(
+			context,
+			oneCellFrame(defaultColorCell),
+			INTEGRAL_METRICS,
+			configWith({}),
+			fontTable,
+			selectionOf(0, 0),
+		)
+
+		const cellBg = paints.find(
+			p => p.op === 'rect' && p.fillStyle === LATTE_FG,
+		)
+		const glyph = paints.find(p => p.op === 'text')
+		expect(cellBg).toBeDefined()
+		expect(glyph?.fillStyle).toBe(LATTE_BG)
+	})
+
+	it('leaves cells outside the selection untouched', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+
+		drawFrame(
+			context,
+			oneCellFrame(defaultColorCell),
+			INTEGRAL_METRICS,
+			configWith({
+				selection: { background: '#123456', foreground: '#abcdef' },
+			}),
+			fontTable,
+			{ selection: { anchor: { col: 3, row: 2 }, head: { col: 5, row: 2 } } },
+		)
+
+		const glyph = paints.find(p => p.op === 'text')
+		expect(glyph?.fillStyle).toBe(LATTE_FG)
+	})
 })
 
 describe('drawFrame cursor', () => {

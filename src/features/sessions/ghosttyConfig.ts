@@ -170,6 +170,45 @@ export const EMPTY_CONFIG: GhosttyConfig = {
 	diagnostics: [],
 }
 
+// selection-background/-foreground for the renderer. The cell-foreground/
+// cell-background sentinels need per-cell resolution the canvas pass doesn't
+// do yet — they fall back to reverse video like an absent key.
+export type SelectionColors = {
+	background: string | null
+	foreground: string | null
+}
+
+const CELL_COLOR_SENTINELS = new Set(['cell-foreground', 'cell-background'])
+
+const plainColor = (value: string | null): string | null =>
+	value !== null && !CELL_COLOR_SENTINELS.has(value) ? value : null
+
+export const resolveSelectionColors = (
+	config: GhosttyConfig,
+): SelectionColors => ({
+	background: plainColor(config.selection_background),
+	foreground: plainColor(config.selection_foreground),
+})
+
+// window-padding-x/y as CSS padding around the canvas (Ghostty defaults both
+// axes to 2). x = left/right, y = top/bottom; window-padding-balance is not
+// honored yet (it redistributes the sub-cell leftover, a cosmetic refinement).
+export type TerminalPadding = {
+	top: number
+	right: number
+	bottom: number
+	left: number
+}
+
+const DEFAULT_WINDOW_PADDING = 2
+
+export const resolvePadding = (config: GhosttyConfig): TerminalPadding => ({
+	top: config.window_padding_y?.start ?? DEFAULT_WINDOW_PADDING,
+	bottom: config.window_padding_y?.end ?? DEFAULT_WINDOW_PADDING,
+	left: config.window_padding_x?.start ?? DEFAULT_WINDOW_PADDING,
+	right: config.window_padding_x?.end ?? DEFAULT_WINDOW_PADDING,
+})
+
 export type Appearance = 'light' | 'dark'
 
 // The backend command never throws (bad config rides along in `diagnostics`),

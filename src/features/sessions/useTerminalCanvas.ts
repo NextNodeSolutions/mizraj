@@ -8,13 +8,25 @@ import { describeError, isSessionError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
 import type { GhosttyConfig } from './ghosttyConfig'
-import { resolveBackgroundAlpha, resolveCursor } from './ghosttyConfig'
+import {
+	resolveBackgroundAlpha,
+	resolveCursor,
+	resolvePadding,
+	resolveSelectionColors,
+} from './ghosttyConfig'
 import { fetchSessionFrame } from './fetchSessionFrame'
 import { ghosttyConfigEpochAtom } from './ghosttyConfigBridge'
 import type { RenderBundle } from './ghosttyConfigCache'
 import { getRenderBundle } from './ghosttyConfigCache'
-import { fontSizeDeltaAtom } from './keybindRuntime'
+import { writeClipboardText } from './clipboard'
+import { fontSizeDeltaAtom, sessionSelectionAtom } from './keybindRuntime'
 import { cellFramesAtom } from './sessions'
+import {
+	cellAtPoint,
+	extractSelectionText,
+	normalizeSelection,
+} from './terminalMouse'
+import type { CellPoint, SelectionRange } from './terminalMouse'
 import { subscribeToCellFrames } from './sessionSubscription'
 import { buildFontTable } from './terminalAttrs'
 import type { TerminalConfig } from './terminalRenderer'
@@ -198,19 +210,31 @@ const startRendering = (
 		backgroundAlpha: resolveBackgroundAlpha(ghosttyConfig),
 		cursor: resolveCursor(ghosttyConfig),
 		boldIsBright: ghosttyConfig.bold_is_bright ?? false,
+		selection: resolveSelectionColors(ghosttyConfig),
 	}
+
+	// window-padding renders as container padding: the canvas (and so the
+	// pixel->cell math) stays padding-free, and the ResizeObserver's
+	// contentRect shrinks automatically.
+	const padding = resolvePadding(ghosttyConfig)
+	container.style.padding = `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`
 
 	let cssWidth = 0
 	let cssHeight = 0
 	let lastGrid: { cols: number; rows: number } | null = null
 	let lastFrame: CellFramePayload | null = null
 	let blinkOn = true
+	// Mouse selection (TP9): the anchor is set on press, the normalized range
+	// drives the paint highlight, and the release extracts/copies the text.
+	let selection: SelectionRange | null = null
+	let dragAnchor: CellPoint | null = null
 
 	const paint = (): void => {
 		if (!lastFrame) return
 		syncBackingStore(canvas, context, cssWidth, cssHeight)
 		drawFrame(context, lastFrame, metrics, config, fontTable, {
 			cursorBlinkOn: blinkOn,
+			selection,
 		})
 	}
 
@@ -263,6 +287,68 @@ const startRendering = (
 	const initial = container.getBoundingClientRect()
 	onResize(initial.width, initial.height)
 
+	const cellFromEvent = (event: MouseEvent): CellPoint | null => {
+		if (!lastGrid) return null
+		const rect = canvas.getBoundingClientRect()
+		return cellAtPoint(
+			event.clientX - rect.left,
+			event.clientY - rect.top,
+			metrics,
+			lastGrid,
+		)
+	}
+
+	// Ghostty copies on select unless copy-on-select=false; both remaining
+	// variants land on the OS clipboard here (no separate primary buffer).
+	const copyOnSelect = ghosttyConfig.copy_on_select !== 'disabled'
+
+	const finalizeSelection = (): void => {
+		const store = getDefaultStore()
+		const selections = store.get(sessionSelectionAtom)
+		if (selection && lastFrame) {
+			const text = extractSelectionText(lastFrame, selection)
+			store.set(sessionSelectionAtom, {
+				...selections,
+				[sessionId]: text,
+			})
+			if (copyOnSelect && text) void writeClipboardText(text)
+			return
+		}
+		// A plain click clears any stale selection for this session.
+		if (sessionId in selections) {
+			const { [sessionId]: _cleared, ...rest } = selections
+			store.set(sessionSelectionAtom, rest)
+		}
+	}
+
+	const onMouseDown = (event: MouseEvent): void => {
+		if (event.button !== 0) return
+		const cell = cellFromEvent(event)
+		if (!cell) return
+		dragAnchor = cell
+		selection = null
+		paint()
+	}
+
+	const onMouseMove = (event: MouseEvent): void => {
+		if (!dragAnchor) return
+		const cell = cellFromEvent(event)
+		if (!cell) return
+		selection = normalizeSelection({ anchor: dragAnchor, head: cell })
+		paint()
+	}
+
+	const onMouseUp = (event: MouseEvent): void => {
+		if (event.button !== 0 || !dragAnchor) return
+		dragAnchor = null
+		finalizeSelection()
+	}
+
+	// Press starts on the canvas; the drag may travel (and release) anywhere.
+	canvas.addEventListener('mousedown', onMouseDown)
+	window.addEventListener('mousemove', onMouseMove)
+	window.addEventListener('mouseup', onMouseUp)
+
 	// store.sub doesn't fire on subscribe, so paint any frame the global bridge
 	// already buffered before this pane mounted (now that cssWidth/cssHeight are set).
 	consumeSessionFrame()
@@ -281,6 +367,9 @@ const startRendering = (
 		stopped = true
 		clearInterval(blinkTimer)
 		observer.disconnect()
+		canvas.removeEventListener('mousedown', onMouseDown)
+		window.removeEventListener('mousemove', onMouseMove)
+		window.removeEventListener('mouseup', onMouseUp)
 		unsubscribe()
 	}
 }

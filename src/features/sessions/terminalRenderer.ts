@@ -1,6 +1,8 @@
 import type { ResolvedCursor, ResolvedFont } from './ghosttyConfig'
 import { applyAdjustment } from './ghosttyConfig'
 import { ATTR_TABLE, decodeAttrs, fontCss, fontFor } from './terminalAttrs'
+import { isCellSelected } from './terminalMouse'
+import type { SelectionRange } from './terminalMouse'
 import type { TerminalColors } from './terminalPalette'
 import { brightenForBold, resolveColor } from './terminalPalette'
 import type {
@@ -39,6 +41,9 @@ export type TerminalConfig = {
 	backgroundAlpha: number
 	boldIsBright: boolean
 	cursor: ResolvedCursor
+	/// selection-background/-foreground from the config; null falls back to
+	/// reverse video (swap the cell's resolved colors), Ghostty's default.
+	selection: { background: string | null; foreground: string | null }
 }
 
 type CellMetrics = {
@@ -102,6 +107,7 @@ const drawCell = (
 	rect: CellRect,
 	config: TerminalConfig,
 	fontTable: readonly string[],
+	selected: boolean,
 ): void => {
 	const attrs = ATTR_TABLE[cell.attrs] ?? decodeAttrs(cell.attrs)
 	// Reverse video swaps the cell's two colors AND the theme defaults each falls
@@ -110,12 +116,12 @@ const drawCell = (
 	// of a blank) — back to a normal cell, painting an invisible block. Swapping
 	// the fallbacks too makes it resolve to foreground-on-background, matching
 	// native Ghostty.
-	const background = resolveColor(
+	const resolvedBackground = resolveColor(
 		attrs.reverse ? cell.fg : cell.bg,
 		attrs.reverse ? config.colors.foreground : config.colors.background,
 		config.palette,
 	)
-	const foreground = resolveColor(
+	const resolvedForeground = resolveColor(
 		brightenForBold(
 			attrs.reverse ? cell.bg : cell.fg,
 			attrs.bold,
@@ -124,6 +130,14 @@ const drawCell = (
 		attrs.reverse ? config.colors.background : config.colors.foreground,
 		config.palette,
 	)
+	// A selected cell takes the configured selection colors; without them the
+	// classic reverse video (swap) keeps the highlight visible on any theme.
+	const background = selected
+		? (config.selection.background ?? resolvedForeground)
+		: resolvedBackground
+	const foreground = selected
+		? (config.selection.foreground ?? resolvedBackground)
+		: resolvedForeground
 
 	// background-opacity dims the cell's background fill only; the glyph and any
 	// underline/strike below stay fully opaque so text never washes out.
@@ -265,7 +279,12 @@ const drawCursor = (
 
 // `cursorBlinkOn` is the blink phase for this paint (the caller's timer toggles
 // it): a blinking cursor is drawn only while it is on, a steady cursor always.
-export type DrawFrameOptions = { cursorBlinkOn?: boolean }
+// `selection` must already be normalized (anchor before head in stream order —
+// normalizeSelection in terminalMouse); per-cell highlight rides drawCell.
+export type DrawFrameOptions = {
+	cursorBlinkOn?: boolean
+	selection?: SelectionRange | null
+}
 
 export const drawFrame = (
 	context: CanvasRenderingContext2D,
@@ -277,6 +296,7 @@ export const drawFrame = (
 ): void => {
 	clearToBackground(context, config.colors.background, config.backgroundAlpha)
 	context.textBaseline = 'top'
+	const selection = options.selection ?? null
 
 	for (let row = 0; row < frame.rows; row += 1) {
 		for (let col = 0; col < frame.cols; col += 1) {
@@ -290,6 +310,7 @@ export const drawFrame = (
 				cellRect(col, row, metrics, span),
 				config,
 				fontTable,
+				selection ? isCellSelected(col, row, selection) : false,
 			)
 		}
 	}
