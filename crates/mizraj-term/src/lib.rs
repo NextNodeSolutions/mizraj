@@ -2,11 +2,13 @@ use thiserror::Error;
 
 mod cells;
 mod key;
+mod paste;
 mod render_state;
 mod terminal;
 
 pub use cells::{Attrs, Cell, CellWidth, Cells, Color};
 pub use key::{KeyEncoder, Mods};
+pub use paste::encode_paste;
 pub use render_state::{Cursor, CursorShape, Dirty, RenderState};
 pub use terminal::Terminal;
 
@@ -22,4 +24,8 @@ pub enum TermError {
     Resize(String),
     #[error("key encode failed: {0}")]
     Encode(String),
+    #[error("mode query failed: {0}")]
+    Mode(String),
+    #[error("paste encode failed: {0}")]
+    Paste(String),
 }

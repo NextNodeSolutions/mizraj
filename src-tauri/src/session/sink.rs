@@ -52,6 +52,13 @@ pub trait OutputSink: Send + Sync {
     /// caller's timeout handles a session with no terminal sink. Same ~1ms
     /// budget: the snapshot itself happens on the render thread.
     fn frame_request(&self, _reply: FrameReply) {}
+
+    /// Called when the user pastes into the session (TP7/TP8). Only the
+    /// terminal sink acts: its render thread encodes the payload against the
+    /// live bracketed-paste mode (strip unsafe bytes, wrap in `ESC[200~ …` or
+    /// convert newlines) and writes the result to the PTY. Same ~1ms budget —
+    /// the encode happens off-thread.
+    fn paste(&self, _data: Vec<u8>) {}
 }
 
 #[cfg(test)]

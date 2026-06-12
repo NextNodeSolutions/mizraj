@@ -1,12 +1,16 @@
 use std::ptr::{self, NonNull};
 
 use mizraj_term_sys::{
-    ghostty_terminal_free, ghostty_terminal_new, ghostty_terminal_resize,
-    ghostty_terminal_vt_write, GhosttyResult_GHOSTTY_SUCCESS, GhosttyTerminal, GhosttyTerminalImpl,
-    GhosttyTerminalOptions,
+    ghostty_terminal_free, ghostty_terminal_mode_get, ghostty_terminal_new,
+    ghostty_terminal_resize, ghostty_terminal_vt_write, GhosttyResult_GHOSTTY_SUCCESS,
+    GhosttyTerminal, GhosttyTerminalImpl, GhosttyTerminalOptions,
 };
 
 use crate::{Result, TermError};
+
+/// DEC private mode 2004 (bracketed paste), packed per `modes.h`: bits 0–14
+/// carry the value, bit 15 is the ANSI flag (0 = DEC private mode).
+const MODE_BRACKETED_PASTE: u16 = 2004;
 
 const DEFAULT_MAX_SCROLLBACK: usize = 10_000;
 
@@ -100,6 +104,25 @@ impl Terminal {
         Ok(())
     }
 
+    /// Whether the running program switched bracketed-paste mode on (DEC
+    /// 2004). Pasted text must then be wrapped in `ESC[200~ … ESC[201~` so
+    /// the child can tell a paste from typed input.
+    pub fn bracketed_paste(&self) -> Result<bool> {
+        let mut value = false;
+        // SAFETY: `self.handle` is a live handle from `ghostty_terminal_new`
+        // (Drop hasn't run yet, guaranteed by `&self`); the out pointer
+        // targets a local that outlives the call.
+        let result = unsafe {
+            ghostty_terminal_mode_get(self.handle.as_ptr(), MODE_BRACKETED_PASTE, &mut value)
+        };
+        if result != GhosttyResult_GHOSTTY_SUCCESS {
+            return Err(TermError::Mode(format!(
+                "ghostty_terminal_mode_get(2004) returned {result}"
+            )));
+        }
+        Ok(value)
+    }
+
     /// Raw handle for FFI calls that need the terminal pointer (RenderState).
     pub(crate) fn raw_handle(&self) -> *mut GhosttyTerminalImpl {
         self.handle.as_ptr()
@@ -141,5 +164,17 @@ mod tests {
         // The failed resize must not corrupt the live dimensions.
         assert_eq!(terminal.rows(), 24);
         assert_eq!(terminal.cols(), 80);
+    }
+
+    #[test]
+    fn bracketed_paste_follows_the_vt_stream() {
+        let mut terminal = Terminal::new(24, 80).expect("new terminal");
+        assert!(!terminal.bracketed_paste().expect("query off"));
+
+        terminal.feed(b"\x1b[?2004h").expect("set 2004");
+        assert!(terminal.bracketed_paste().expect("query on"));
+
+        terminal.feed(b"\x1b[?2004l").expect("reset 2004");
+        assert!(!terminal.bracketed_paste().expect("query off again"));
     }
 }

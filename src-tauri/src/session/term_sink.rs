@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use mizraj_term::{Dirty, KeyEncoder, RenderState, Terminal};
+use mizraj_term::{encode_paste, Dirty, KeyEncoder, RenderState, Terminal};
 use tauri::async_runtime::Sender as PtyInputSender;
 use tauri::{AppHandle, Emitter, Runtime};
 
@@ -34,6 +34,7 @@ enum RenderInput {
     Key(KeyStroke),
     SetSubscribed(bool),
     Snapshot(FrameReply),
+    Paste(Vec<u8>),
 }
 
 /// `OutputSink` that turns raw PTY bytes into rendered grid snapshots, and the
@@ -124,6 +125,14 @@ impl OutputSink for TermSink {
         // the reply unanswered and the caller's timeout reports it.
         if let Ok(tx) = self.tx.lock() {
             let _ = tx.send(RenderInput::Snapshot(reply));
+        }
+    }
+
+    fn paste(&self, data: Vec<u8>) {
+        // Encoded on the render thread, where the live bracketed-paste mode
+        // (DEC 2004) is known.
+        if let Ok(tx) = self.tx.lock() {
+            let _ = tx.send(RenderInput::Paste(data));
         }
     }
 }
@@ -292,6 +301,33 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             RenderInput::Snapshot(reply) => {
                 self.reply_snapshot(&reply);
             }
+            RenderInput::Paste(data) => {
+                self.paste_to_pty(&data);
+            }
+        }
+    }
+
+    /// Encode pasted text against the live bracketed-paste mode and push it to
+    /// the PTY. Same best-effort delivery as keystrokes: a full input queue or
+    /// closed channel drops the paste rather than stalling the render thread.
+    fn paste_to_pty(&mut self, data: &[u8]) {
+        let sid = self.session_id.as_str();
+        let bracketed = self.terminal.bracketed_paste().unwrap_or_else(|err| {
+            tracing::warn!(session_id = sid, error = %err, "bracketed-paste query failed; pasting plain");
+            false
+        });
+        let encoded = match encode_paste(data, bracketed) {
+            Ok(encoded) => encoded,
+            Err(err) => {
+                tracing::warn!(session_id = sid, error = %err, "paste encode failed; dropping paste");
+                return;
+            }
+        };
+        if encoded.is_empty() {
+            return;
+        }
+        if let Err(err) = self.pty_input.try_send(encoded) {
+            tracing::debug!(session_id = sid, error = %err, "dropping paste; PTY input unavailable");
         }
     }
 
@@ -414,8 +450,17 @@ mod tests {
     const FRAME_WAIT: Duration = Duration::from_millis(500);
 
     fn frame_capturing_sink() -> (TermSink, Receiver<CellFrame>) {
+        let (sink, frame_rx, _pty_rx) = sink_with_channels();
+        (sink, frame_rx)
+    }
+
+    fn sink_with_channels() -> (
+        TermSink,
+        Receiver<CellFrame>,
+        tauri::async_runtime::Receiver<Vec<u8>>,
+    ) {
         let (frame_tx, frame_rx) = mpsc::channel::<CellFrame>();
-        let (pty_tx, _pty_rx) = tauri::async_runtime::channel::<Vec<u8>>(8);
+        let (pty_tx, pty_rx) = tauri::async_runtime::channel::<Vec<u8>>(8);
         let sink = TermSink::with_emitter(
             move |frame| {
                 let _ = frame_tx.send(frame);
@@ -423,7 +468,15 @@ mod tests {
             SessionId::new(),
             pty_tx,
         );
-        (sink, frame_rx)
+        (sink, frame_rx, pty_rx)
+    }
+
+    fn next_pty_bytes(pty_rx: &mut tauri::async_runtime::Receiver<Vec<u8>>) -> Vec<u8> {
+        tauri::async_runtime::block_on(async {
+            tokio::time::timeout(FRAME_WAIT, pty_rx.recv()).await
+        })
+        .expect("pty bytes within the wait")
+        .expect("pty channel open")
     }
 
     #[test]
@@ -546,6 +599,25 @@ mod tests {
             }
         }
         assert!(saw_z, "live frames must keep flowing after a pull");
+    }
+
+    #[test]
+    fn paste_converts_newlines_when_bracketed_mode_is_off() {
+        let (sink, _frames, mut pty_rx) = sink_with_channels();
+
+        sink.paste(b"a\nb".to_vec());
+
+        assert_eq!(next_pty_bytes(&mut pty_rx), b"a\rb");
+    }
+
+    #[test]
+    fn paste_wraps_in_markers_once_the_child_enables_bracketed_mode() {
+        let (sink, _frames, mut pty_rx) = sink_with_channels();
+
+        sink.write(b"\x1b[?2004h");
+        sink.paste(b"hi".to_vec());
+
+        assert_eq!(next_pty_bytes(&mut pty_rx), b"\x1b[200~hi\x1b[201~");
     }
 
     #[test]

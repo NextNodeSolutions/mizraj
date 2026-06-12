@@ -182,6 +182,19 @@ impl SessionManager {
         Ok(())
     }
 
+    /// Forward pasted text to the session's terminal sink, which encodes it
+    /// against the live bracketed-paste mode and writes it to the PTY (TP7).
+    /// Fans out like [`send_key`]; byte-only sinks ignore it. Returns
+    /// `NotFound` for unknown sessions.
+    pub async fn paste(&self, id: &SessionId, data: Vec<u8>) -> Result<(), SessionError> {
+        let state = self.state.read().await;
+        let handle = state
+            .get(id)
+            .ok_or_else(|| SessionError::NotFound(id.to_string()))?;
+        dispatch_to_sinks(handle.sinks(), |sink| sink.paste(data.clone())).await;
+        Ok(())
+    }
+
     /// Pull the session's current grid as a [`CellFrame`] (TP1: a pane paints
     /// its first frame from this snapshot instead of staying blank until the
     /// next output). Fans the request out like [`send_key`]; the terminal
@@ -985,6 +998,22 @@ mod tests {
             let id = SessionId::new();
             let err = manager
                 .set_subscribed(&id, true)
+                .await
+                .expect_err("unknown id should fail");
+            match err {
+                SessionError::NotFound(s) => assert_eq!(s, id.to_string()),
+                other => panic!("expected NotFound, got {other:?}"),
+            }
+        });
+    }
+
+    #[test]
+    fn paste_returns_not_found_for_unknown_id() {
+        block_on(async {
+            let manager = SessionManager::new();
+            let id = SessionId::new();
+            let err = manager
+                .paste(&id, b"hello".to_vec())
                 .await
                 .expect_err("unknown id should fail");
             match err {

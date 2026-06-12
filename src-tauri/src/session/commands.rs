@@ -184,6 +184,17 @@ pub async fn session_get_frame(
     manager.request_frame(&session_id).await
 }
 
+/// Paste text into the session: the terminal sink encodes it against the live
+/// bracketed-paste mode (DEC 2004) and writes it to the PTY (TP7/TP8).
+#[tauri::command]
+pub async fn session_paste(
+    session_id: SessionId,
+    text: String,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    manager.paste(&session_id, text.into_bytes()).await
+}
+
 /// Mark the session as watched by a frontend pane: the terminal sink resumes
 /// emitting `agent:cells` frames (and pushes a catch-up frame if output arrived
 /// while hidden). Returns `NotFound` for unknown sessions.
