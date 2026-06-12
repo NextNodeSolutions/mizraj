@@ -60,6 +60,76 @@ describe('coalesceTextRuns', () => {
 		expect(runs.map(r => r.text)).toEqual(['a', 'b', 'c'])
 	})
 
+	it('joins and breaks correctly for every fg color kind pair', () => {
+		const indexed1: WireColor = { kind: 'indexed', idx: 1 }
+		const indexed2: WireColor = { kind: 'indexed', idx: 2 }
+		const rgbRed: WireColor = { kind: 'rgb', r: 255, g: 0, b: 0 }
+		const rgbRedCopy: WireColor = { kind: 'rgb', r: 255, g: 0, b: 0 }
+		const rgbBlue: WireColor = { kind: 'rgb', r: 0, g: 0, b: 255 }
+
+		const cases: {
+			name: string
+			a: WireColor
+			b: WireColor
+			joined: boolean
+		}[] = [
+			{
+				name: 'default/default',
+				a: { kind: 'default' },
+				b: { kind: 'default' },
+				joined: true,
+			},
+			{
+				name: 'indexed same idx',
+				a: indexed1,
+				b: indexed1,
+				joined: true,
+			},
+			{
+				name: 'indexed different idx',
+				a: indexed1,
+				b: indexed2,
+				joined: false,
+			},
+			{
+				name: 'rgb same channels',
+				a: rgbRed,
+				b: rgbRedCopy,
+				joined: true,
+			},
+			{
+				name: 'rgb different channels',
+				a: rgbRed,
+				b: rgbBlue,
+				joined: false,
+			},
+			{
+				name: 'default vs indexed',
+				a: { kind: 'default' },
+				b: indexed1,
+				joined: false,
+			},
+			{
+				name: 'default vs rgb',
+				a: { kind: 'default' },
+				b: rgbRed,
+				joined: false,
+			},
+			{ name: 'indexed vs rgb', a: indexed1, b: rgbRed, joined: false },
+		]
+
+		for (const { name, a, b, joined } of cases) {
+			const runs = coalesceTextRuns(
+				frame([cell('a', { fg: a }), cell('b', { fg: b })]),
+				noSelection,
+			)
+			expect(
+				runs.map(r => r.text),
+				name,
+			).toEqual(joined ? ['ab'] : ['a', 'b'])
+		}
+	})
+
 	it('isolates wide glyphs in their own run and skips spacers', () => {
 		const runs = coalesceTextRuns(
 			frame([

@@ -134,9 +134,11 @@ export const THEME_TOKEN_KEYS = [
 // overrides only a few indices still yields a full, theme-coherent accent set.
 // Returns null when the config carries no background, i.e. there is no theme to
 // apply and the caller must leave Catppuccin untouched. Pure: no DOM, no IO.
+export type ThemeTokenKey = (typeof THEME_TOKEN_KEYS)[number]
+
 export const ghosttyThemeTokens = (
 	config: GhosttyConfig,
-): Record<string, string> | null => {
+): Record<ThemeTokenKey, string> | null => {
 	const background = config.background
 	if (background === null) return null
 

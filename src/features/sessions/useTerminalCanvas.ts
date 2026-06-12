@@ -166,9 +166,6 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 	// Hot reload (DG3): an on-disk config edit bumps the epoch, tearing the
 	// render scope down and rebuilding it against the fresh config.
 	const configEpoch = useAtomValue(ghosttyConfigEpochAtom)
-	// Interactive font-size keybinds shift this delta; the render scope
-	// re-derives metrics from it without touching the per-appearance cache.
-	const fontSizeDelta = useAtomValue(fontSizeDeltaAtom)
 
 	// Subscription is keyed on the session alone — an appearance flip must not
 	// blink the backend's emission gate, only re-derive the render config below.
@@ -200,7 +197,7 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 				container,
 				canvas,
 				sessionId,
-				applyFontSizeDelta(bundle, fontSizeDelta, context),
+				bundle,
 			)
 		})
 
@@ -208,7 +205,7 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 			cancelled = true
 			teardown?.()
 		}
-	}, [sessionId, appearance, configEpoch, fontSizeDelta])
+	}, [sessionId, appearance, configEpoch])
 
 	return { containerRef, canvasRef }
 }
@@ -221,7 +218,8 @@ const MIN_FONT_SIZE_PX = 4
 // font-size delta is non-zero. The cache stays pristine (keyed by appearance
 // only): font-size steps are rare, the re-measure costs microseconds, and
 // reset_font_size lands back on the cached bundle object untouched.
-const applyFontSizeDelta = (
+// Exported for tests — the hook itself has no other unit-testable seam.
+export const applyFontSizeDelta = (
 	bundle: RenderBundle,
 	delta: number,
 	context: CanvasRenderingContext2D,
@@ -251,7 +249,22 @@ const startRendering = (
 	sessionId: string,
 	bundle: RenderBundle,
 ): (() => void) => {
-	const { config: ghosttyConfig, font, metrics, fontTable, palette } = bundle
+	const { config: ghosttyConfig, palette } = bundle
+	const store = getDefaultStore()
+
+	// Interactive font-size keybinds (increase/decrease/reset_font_size) shift
+	// the delta atom. The size-dependent pieces — font, cell metrics, font
+	// table — live in mutable bindings re-derived from the pristine bundle on
+	// each delta change, so a mid-selection ctrl+= re-measures and repaints
+	// WITHOUT tearing the render scope down (selection, hover, drag, listeners
+	// and observer all survive).
+	let appliedDelta = store.get(fontSizeDeltaAtom)
+	let { font, metrics, fontTable } = applyFontSizeDelta(
+		bundle,
+		appliedDelta,
+		context,
+	)
+
 	const config: TerminalConfig = {
 		colors: resolveTerminalColors(canvas, ghosttyConfig),
 		font,
@@ -304,7 +317,24 @@ const startRendering = (
 		propagateResize(sessionId, cols, rows)
 	}
 
-	const store = getDefaultStore()
+	// A delta change re-derives the sized pieces in place, then reflows: the
+	// grid math reruns against the new metrics (onResize dedupes and notifies
+	// the backend when cols/rows actually move) and the current frame repaints
+	// at the new size. Interaction state is untouched.
+	const onFontSizeDelta = (): void => {
+		const delta = store.get(fontSizeDeltaAtom)
+		if (delta === appliedDelta) return
+		appliedDelta = delta
+		const sized = applyFontSizeDelta(bundle, delta, context)
+		font = sized.font
+		metrics = sized.metrics
+		fontTable = sized.fontTable
+		config.font = font
+		onResize(cssWidth, cssHeight)
+		paint()
+	}
+
+	const unsubscribeFontSize = store.sub(fontSizeDeltaAtom, onFontSizeDelta)
 
 	const applyFrame = (frame: CellFramePayload): void => {
 		lastFrame = frame
@@ -356,7 +386,6 @@ const startRendering = (
 	const copyOnSelect = ghosttyConfig.copy_on_select !== 'disabled'
 
 	const finalizeSelection = (): void => {
-		const store = getDefaultStore()
 		const selections = store.get(sessionSelectionAtom)
 		if (selection && lastFrame) {
 			const text = extractSelectionText(lastFrame, selection)
@@ -540,6 +569,7 @@ const startRendering = (
 		window.removeEventListener('mousemove', onMouseMove)
 		window.removeEventListener('mouseup', onMouseUp)
 		canvas.removeEventListener('wheel', onWheel)
+		unsubscribeFontSize()
 		unsubscribe()
 	}
 }

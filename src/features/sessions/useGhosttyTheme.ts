@@ -8,13 +8,18 @@ import { ghosttyConfigEpochAtom } from './ghosttyConfigBridge'
 import { ghosttyThemeTokens, THEME_TOKEN_KEYS } from './ghosttyTheme'
 import { keybindTableAtom, optionAsAltAtom } from './keybindRuntime'
 
+const clearThemeTokens = (style: CSSStyleDeclaration): void => {
+	for (const name of THEME_TOKEN_KEYS) style.removeProperty(name)
+}
+
 // Synchronizes <html>'s inline theme variables with the resolved Ghostty theme.
 // This is a legitimate external-system sync (the document is outside React's
-// tree): the effect fetches the config for the current appearance, clears any
-// previously written theme tokens, then writes the fresh set when a theme is
-// present. The async fetch is guarded so a late resolution never paints a
-// torn-down (appearance-changed) scope. Mount once near the top of App.
-// Re-runs when the on-disk config changes (epoch bump = hot reload).
+// tree): the effect fetches the config for the current appearance and swaps in
+// the fresh token set ONLY once it resolves — re-runs (appearance flip, epoch
+// bump = hot reload) never strip the live tokens up front, so there is no
+// one-round-trip flash of stylesheet defaults. The async fetch is guarded so a
+// late resolution never paints a torn-down (appearance-changed) scope; tokens
+// are removed only on unmount. Mount once near the top of App.
 export const useGhosttyTheme = (): void => {
 	const appearance = useAppearance()
 	const configEpoch = useAtomValue(ghosttyConfigEpochAtom)
@@ -25,18 +30,16 @@ export const useGhosttyTheme = (): void => {
 		let cancelled = false
 		const { style } = document.documentElement
 
-		const clearThemeTokens = (): void => {
-			for (const name of THEME_TOKEN_KEYS) style.removeProperty(name)
-		}
-
 		void loadGhosttyConfig(appearance).then(config => {
 			if (cancelled) return
 			// The input router's matcher follows this table; seeding it here
 			// keeps every app-level config consumer on one load path.
 			seedKeybindTable(config.keybinds)
 			seedOptionAsAlt(resolveOptionAsAlt(config))
-			clearThemeTokens()
 			const tokens = ghosttyThemeTokens(config)
+			// Replace, don't clear-then-fetch: the previous tokens stay live
+			// until this fresh set lands (or the config carries no theme).
+			clearThemeTokens(style)
 			if (!tokens) return
 			for (const [name, value] of Object.entries(tokens)) {
 				style.setProperty(name, value)
@@ -45,7 +48,11 @@ export const useGhosttyTheme = (): void => {
 
 		return () => {
 			cancelled = true
-			clearThemeTokens()
 		}
 	}, [appearance, configEpoch, seedKeybindTable, seedOptionAsAlt])
+
+	// Token removal belongs to UNMOUNT only; tying it to the fetch effect above
+	// would strip the live theme on every re-run while the replacement is still
+	// in flight.
+	useEffect(() => () => clearThemeTokens(document.documentElement.style), [])
 }

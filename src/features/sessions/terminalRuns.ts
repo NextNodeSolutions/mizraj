@@ -1,4 +1,4 @@
-import type { CellFramePayload, WireCell } from './terminalWire'
+import type { CellFramePayload, WireCell, WireColor } from './terminalWire'
 
 // A horizontal stretch of same-style cells drawn with ONE fillText, so the
 // font shaper sees the whole string and can form ligatures (TP15). Only the
@@ -23,8 +23,22 @@ const isBlank = (cell: WireCell): boolean => cell.ch === ' ' || cell.ch === ''
 const standsAlone = (cell: WireCell): boolean =>
 	cell.wide === 'wide' || [...cell.ch].length > 1
 
+// Structural WireColor equality. Hot path (every adjacent cell pair, every
+// frame), so it compares discriminant + per-variant fields directly instead of
+// serializing — allocation-free and exhaustive over the union.
+const sameColor = (a: WireColor, b: WireColor): boolean => {
+	switch (a.kind) {
+		case 'default':
+			return b.kind === 'default'
+		case 'indexed':
+			return b.kind === 'indexed' && a.idx === b.idx
+		case 'rgb':
+			return b.kind === 'rgb' && a.r === b.r && a.g === b.g && a.b === b.b
+	}
+}
+
 const sameStyle = (a: WireCell, b: WireCell): boolean =>
-	a.attrs === b.attrs && JSON.stringify(a.fg) === JSON.stringify(b.fg)
+	a.attrs === b.attrs && sameColor(a.fg, b.fg)
 
 type OpenRun = {
 	startCol: number
