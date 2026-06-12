@@ -433,6 +433,37 @@ describe('PipelineView', () => {
 		expect(navigateMock).toHaveBeenCalledWith('/agent-run/fail-1')
 	})
 
+	it('keeps the primary Approve on the first review card past failed ones', async () => {
+		store.set(startSessionAtom, {
+			id: 'fail-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		store.set(endSessionAtom, { sessionId: 'fail-1', exitCode: 2 })
+		store.set(startSessionAtom, {
+			id: 'rev-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		store.set(endSessionAtom, { sessionId: 'rev-1', exitCode: 0 })
+		store.set(startSessionAtom, {
+			id: 'rev-2',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		store.set(endSessionAtom, { sessionId: 'rev-2', exitCode: 0 })
+		await render()
+
+		const approves = Array.from(
+			column('Review')?.querySelectorAll<HTMLButtonElement>('button') ??
+				[],
+		).filter(button => button.textContent?.includes('Approve'))
+		expect(approves).toHaveLength(2)
+		expect(approves[0]?.className).toContain('btn-primary')
+		expect(approves[1]?.className).toContain('btn-outline')
+		expect(approves[1]?.className).not.toContain('btn-primary')
+	})
+
 	it('shows the working-tree diff totals on ended-session cards', async () => {
 		store.set(startSessionAtom, {
 			id: 'rev-1',

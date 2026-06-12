@@ -19,6 +19,8 @@ export const StatusCluster = (): React.JSX.Element => {
 
 	// TODO(subagents): surface the Claude subagent count ('+N sub' chip)
 	// when the backend reports a subagent feed per session.
+	// TODO(merged): no merge tracking; omit the merged filter/count in shell
+	// surfaces until the backend records merged branches.
 	return (
 		<div className="mz-status">
 			<button

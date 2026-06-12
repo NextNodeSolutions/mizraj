@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useDiff } from '@/features/diff/useDiff'
 import { diffTotals, reviewFilesFromPatch } from '@/features/review/reviewFiles'
 import type { DiffTotals } from '@/features/review/reviewFiles'
+import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
 import { useSessions } from '@/features/sessions/useSessions'
 import { useTasks } from '@/features/tasks/tasks'
 import { pushToast } from '@/shared/toasts'
@@ -75,6 +76,12 @@ export const PipelineView = ({
 	const runningCount =
 		columns.runningSessions.length + columns.inProgressTasks.length
 	const doneCount = columns.doneSessions.length + columns.done.length
+	// The column mixes review and failed cards; the primary Approve belongs to
+	// the first card that actually offers one.
+	const firstReviewId =
+		columns.endedSessions.find(
+			session => sessionDisplayStatus(session) === 'review',
+		)?.id ?? null
 
 	return (
 		<section className="pipeline" aria-label="Pipeline">
@@ -139,12 +146,12 @@ export const PipelineView = ({
 							nothing waiting on you
 						</p>
 					)}
-					{columns.endedSessions.map((session, index) => (
+					{columns.endedSessions.map(session => (
 						<PipelineSessionCard
 							key={session.id}
 							session={session}
 							stat={reviewStat}
-							isFirst={index === 0}
+							isFirst={session.id === firstReviewId}
 							onApprove={() => approve(session.id)}
 						/>
 					))}
