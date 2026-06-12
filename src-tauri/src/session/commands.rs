@@ -14,12 +14,12 @@ use crate::session::id::SessionId;
 use crate::session::key::KeyStroke;
 use crate::session::manager::SessionManager;
 use crate::session::mouse::MouseEventDto;
-use mizraj_term::ScrollViewport;
-use serde::Deserialize;
 use crate::session::path;
 use crate::session::sink::OutputSink;
 use crate::session::tauri_sink::TauriEventSink;
 use crate::session::term_sink::TermSink;
+use mizraj_term::ScrollViewport;
+use serde::Deserialize;
 
 fn session_ref_name(session_id: &str) -> String {
     format!("refs/mizraj/sessions/{session_id}")
@@ -251,8 +251,12 @@ pub async fn session_scroll(
         // the sink via terminal.rows() would need a new variant. The frontend
         // already knows its grid (it drives resize), so pages are sent as
         // deltas from there; these arms guard direct CLI/tooling calls.
-        ScrollRequestDto::PageUp => ScrollViewport::Delta(-(i32::from(crate::session::pty::DEFAULT_ROWS) as isize - 1)),
-        ScrollRequestDto::PageDown => ScrollViewport::Delta(i32::from(crate::session::pty::DEFAULT_ROWS) as isize - 1),
+        ScrollRequestDto::PageUp => {
+            ScrollViewport::Delta(-(i32::from(crate::session::pty::DEFAULT_ROWS) as isize - 1))
+        }
+        ScrollRequestDto::PageDown => {
+            ScrollViewport::Delta(i32::from(crate::session::pty::DEFAULT_ROWS) as isize - 1)
+        }
     };
     manager.scroll(&session_id, to).await
 }

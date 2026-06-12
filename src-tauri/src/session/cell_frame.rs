@@ -210,7 +210,8 @@ mod tests {
             ],
         };
 
-        let frame = CellFrame::from_cells("sess-1".to_string(), cells, None, FrameContext::default());
+        let frame =
+            CellFrame::from_cells("sess-1".to_string(), cells, None, FrameContext::default());
 
         assert_eq!(frame.session_id, "sess-1");
         assert_eq!(frame.rows, 1);
@@ -297,8 +298,13 @@ mod tests {
             visible: true,
         });
 
-        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells, cursor, FrameContext::default()))
-            .expect("serialize CellFrame");
+        let json = serde_json::to_value(CellFrame::from_cells(
+            "s".to_string(),
+            cells,
+            cursor,
+            FrameContext::default(),
+        ))
+        .expect("serialize CellFrame");
 
         assert_eq!(json["cursor"]["x"], 3);
         assert_eq!(json["cursor"]["y"], 2);
@@ -330,8 +336,13 @@ mod tests {
             ],
         };
 
-        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells, None, FrameContext::default()))
-            .expect("serialize CellFrame");
+        let json = serde_json::to_value(CellFrame::from_cells(
+            "s".to_string(),
+            cells,
+            None,
+            FrameContext::default(),
+        ))
+        .expect("serialize CellFrame");
 
         assert_eq!(json["cells"][0]["wide"], "wide");
         assert_eq!(json["cells"][1]["wide"], "spacer_tail");
@@ -412,7 +423,8 @@ mod tests {
         let cells = render_state.snapshot().expect("snapshot");
         let cursor = render_state.cursor().expect("cursor");
 
-        let frame = CellFrame::from_cells("sess".to_string(), cells, cursor, FrameContext::default());
+        let frame =
+            CellFrame::from_cells("sess".to_string(), cells, cursor, FrameContext::default());
         let drawn = frame.cursor.expect("cursor present in viewport");
 
         assert_eq!(drawn.x, 2);

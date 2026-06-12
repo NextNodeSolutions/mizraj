@@ -174,7 +174,11 @@ impl SessionManager {
     /// the sink list exactly like [`send_key`]; only the terminal sink acts on
     /// it (it gates cell-frame emission), byte-only sinks ignore it. Returns
     /// `NotFound` for unknown sessions.
-    pub async fn set_subscribed(&self, id: &SessionId, subscribed: bool) -> Result<(), SessionError> {
+    pub async fn set_subscribed(
+        &self,
+        id: &SessionId,
+        subscribed: bool,
+    ) -> Result<(), SessionError> {
         let state = self.state.read().await;
         let handle = state
             .get(id)

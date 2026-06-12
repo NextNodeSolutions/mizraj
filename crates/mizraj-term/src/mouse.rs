@@ -17,14 +17,13 @@ use mizraj_term_sys::{
     ghostty_mouse_event_clear_button, ghostty_mouse_event_free, ghostty_mouse_event_new,
     ghostty_mouse_event_set_action, ghostty_mouse_event_set_button, ghostty_mouse_event_set_mods,
     ghostty_mouse_event_set_position, GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_MOTION,
-    GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_PRESS,
-    GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_RELEASE,
+    GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_PRESS, GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_RELEASE,
     GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_FIVE, GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_FOUR,
     GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_LEFT, GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_MIDDLE,
-    GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_RIGHT,
-    GhosttyMouseEncoderImpl, GhosttyMouseEncoderOption_GHOSTTY_MOUSE_ENCODER_OPT_SIZE,
-    GhosttyMouseEncoderSize, GhosttyMouseEventImpl, GhosttyMousePosition,
-    GhosttyResult_GHOSTTY_OUT_OF_SPACE, GhosttyResult_GHOSTTY_SUCCESS,
+    GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_RIGHT, GhosttyMouseEncoderImpl,
+    GhosttyMouseEncoderOption_GHOSTTY_MOUSE_ENCODER_OPT_SIZE, GhosttyMouseEncoderSize,
+    GhosttyMouseEventImpl, GhosttyMousePosition, GhosttyResult_GHOSTTY_OUT_OF_SPACE,
+    GhosttyResult_GHOSTTY_SUCCESS,
 };
 
 use crate::{Mods, Result, TermError, Terminal};
@@ -134,12 +133,18 @@ impl MouseEncoder {
         self.sync_size(terminal);
 
         let (action, button) = match input.action {
-            MouseAction::Press => (GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_PRESS, Some(input.button)),
+            MouseAction::Press => (
+                GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_PRESS,
+                Some(input.button),
+            ),
             MouseAction::Release => (
                 GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_RELEASE,
                 Some(input.button),
             ),
-            MouseAction::Motion => (GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_MOTION, Some(input.button)),
+            MouseAction::Motion => (
+                GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_MOTION,
+                Some(input.button),
+            ),
             // Wheel ticks are encoded as presses of buttons four/five, the VT
             // convention every protocol shares.
             MouseAction::WheelUp => (GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_PRESS, None),
@@ -259,7 +264,10 @@ mod tests {
         let (mut encoder, terminal) = encoder_and_terminal(b"");
 
         let bytes = encoder
-            .encode(&terminal, &input(MouseAction::Press, MouseButton::Left, 0, 0))
+            .encode(
+                &terminal,
+                &input(MouseAction::Press, MouseButton::Left, 0, 0),
+            )
             .expect("encode");
 
         assert!(bytes.is_empty(), "tracking off must produce no bytes");
@@ -271,7 +279,10 @@ mod tests {
         let (mut encoder, terminal) = encoder_and_terminal(b"\x1b[?1000h\x1b[?1006h");
 
         let press = encoder
-            .encode(&terminal, &input(MouseAction::Press, MouseButton::Left, 2, 4))
+            .encode(
+                &terminal,
+                &input(MouseAction::Press, MouseButton::Left, 2, 4),
+            )
             .expect("encode press");
         assert_eq!(press, b"\x1b[<0;3;5M");
 
@@ -289,7 +300,10 @@ mod tests {
         let (mut encoder, terminal) = encoder_and_terminal(b"\x1b[?1000h\x1b[?1006h");
 
         let up = encoder
-            .encode(&terminal, &input(MouseAction::WheelUp, MouseButton::None, 0, 0))
+            .encode(
+                &terminal,
+                &input(MouseAction::WheelUp, MouseButton::None, 0, 0),
+            )
             .expect("encode wheel up");
         assert_eq!(up, b"\x1b[<64;1;1M");
 

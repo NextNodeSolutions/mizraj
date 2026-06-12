@@ -121,8 +121,8 @@ pub fn scrollback_lines() -> usize {
     let Some(limit_bytes) = config.scrollback_limit else {
         return mizraj_term::DEFAULT_MAX_SCROLLBACK_LINES;
     };
-    let lines = (limit_bytes / SCROLLBACK_BYTES_PER_LINE)
-        .clamp(SCROLLBACK_MIN_LINES, SCROLLBACK_MAX_LINES);
+    let lines =
+        (limit_bytes / SCROLLBACK_BYTES_PER_LINE).clamp(SCROLLBACK_MIN_LINES, SCROLLBACK_MAX_LINES);
     usize::try_from(lines).unwrap_or(mizraj_term::DEFAULT_MAX_SCROLLBACK_LINES)
 }
 

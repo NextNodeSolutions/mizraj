@@ -88,7 +88,10 @@ mod tests {
 
     #[test]
     fn empty_paste_encodes_to_just_the_markers_when_bracketed() {
-        assert_eq!(encode_paste(b"", true).expect("encode"), b"\x1b[200~\x1b[201~");
+        assert_eq!(
+            encode_paste(b"", true).expect("encode"),
+            b"\x1b[200~\x1b[201~"
+        );
         assert_eq!(encode_paste(b"", false).expect("encode"), b"");
     }
 }

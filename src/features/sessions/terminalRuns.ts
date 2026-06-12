@@ -63,7 +63,11 @@ export const coalesceTextRuns = (
 
 		for (let col = 0; col < frame.cols; col += 1) {
 			const cell = frame.cells[row * frame.cols + col]
-			if (!cell || cell.wide === 'spacer_tail' || cell.wide === 'spacer_head') {
+			if (
+				!cell ||
+				cell.wide === 'spacer_tail' ||
+				cell.wide === 'spacer_head'
+			) {
 				continue
 			}
 			const selected = isSelected(col, row)

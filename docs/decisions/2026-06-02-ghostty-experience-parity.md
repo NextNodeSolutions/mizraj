@@ -120,7 +120,7 @@ embedded pane does not own.
 
 - **M0 Foundation** — the 5 items above.
 - **M1 Themes & colors** — palette/bg/fg/theme/light-dark/bold-is-bright/opacity.
-- **M2 Font & text** — family+variants, size, adjust-cell-*, then wide-char + grapheme
+- **M2 Font & text** — family+variants, size, adjust-cell-\*, then wide-char + grapheme
   correctness (wire fields).
 - **M3 Cursor** — wire cursor state; draw pass; style/blink/color/invert/opacity.
 - **M4 Keybindings** — dispatch layer (+ `super`, `physical:`, sequences); copy/paste/select-all,

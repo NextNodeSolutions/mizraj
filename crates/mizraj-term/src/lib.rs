@@ -13,7 +13,7 @@ pub use key::{KeyEncoder, Mods};
 pub use mouse::{MouseAction, MouseButton, MouseEncoder, MouseInput};
 pub use paste::encode_paste;
 pub use render_state::{Cursor, CursorShape, Dirty, RenderState};
-pub use terminal::{ScrollbarState, ScrollViewport, Terminal, DEFAULT_MAX_SCROLLBACK_LINES};
+pub use terminal::{ScrollViewport, ScrollbarState, Terminal, DEFAULT_MAX_SCROLLBACK_LINES};
 
 pub type Result<T> = std::result::Result<T, TermError>;
 

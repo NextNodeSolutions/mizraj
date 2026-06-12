@@ -29,12 +29,12 @@ vi.mock('@/shared/logger', () => ({
 	},
 }))
 
-import { cellFramesAtom } from './sessions'
 import {
 	executeKeybindAction,
 	fontSizeDeltaAtom,
 	sessionSelectionAtom,
 } from './keybindRuntime'
+import { cellFramesAtom } from './sessions'
 
 const store = getDefaultStore()
 
@@ -160,7 +160,10 @@ describe('executeKeybindAction', () => {
 		)
 		expect(store.get(fontSizeDeltaAtom)).toBe(1.5)
 
-		executeKeybindAction({ kind: 'reset_font_size' }, { sessionId: 'sess-1' })
+		executeKeybindAction(
+			{ kind: 'reset_font_size' },
+			{ sessionId: 'sess-1' },
+		)
 		expect(store.get(fontSizeDeltaAtom)).toBe(0)
 	})
 

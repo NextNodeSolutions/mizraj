@@ -52,7 +52,11 @@ describe('extractGridText', () => {
 
 	it('skips wide-cell spacers so CJK copies once', () => {
 		const text = extractGridText(
-			frame(3, 1, [cell('世', 'wide'), cell('', 'spacer_tail'), cell('!')]),
+			frame(3, 1, [
+				cell('世', 'wide'),
+				cell('', 'spacer_tail'),
+				cell('!'),
+			]),
 		)
 
 		expect(text).toBe('世!')

@@ -1,12 +1,11 @@
 use std::ptr::{self, NonNull};
 
 use mizraj_term_sys::{
-    ghostty_terminal_free, ghostty_terminal_get, ghostty_terminal_mode_get,
-    ghostty_terminal_new, ghostty_terminal_reset, ghostty_terminal_resize,
-    ghostty_terminal_scroll_viewport, ghostty_terminal_vt_write, GhosttyString,
-    GhosttyResult_GHOSTTY_SUCCESS, GhosttyTerminal, GhosttyTerminalImpl,
+    ghostty_terminal_free, ghostty_terminal_get, ghostty_terminal_mode_get, ghostty_terminal_new,
+    ghostty_terminal_reset, ghostty_terminal_resize, ghostty_terminal_scroll_viewport,
+    ghostty_terminal_vt_write, GhosttyResult_GHOSTTY_SUCCESS, GhosttyString, GhosttyTerminal,
     GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_SCROLLBAR,
-    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_TITLE, GhosttyTerminalOptions,
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_TITLE, GhosttyTerminalImpl, GhosttyTerminalOptions,
     GhosttyTerminalScrollViewport, GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_BOTTOM,
     GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_DELTA,
     GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_TOP,
@@ -287,8 +286,7 @@ impl Terminal {
         // SAFETY: `self.handle` is a live handle from `ghostty_terminal_new`
         // (Drop hasn't run yet, guaranteed by `&self`); the out pointer
         // targets a local that outlives the call.
-        let result =
-            unsafe { ghostty_terminal_mode_get(self.handle.as_ptr(), mode, &mut value) };
+        let result = unsafe { ghostty_terminal_mode_get(self.handle.as_ptr(), mode, &mut value) };
         if result != GhosttyResult_GHOSTTY_SUCCESS {
             return Err(TermError::Mode(format!(
                 "ghostty_terminal_mode_get({mode}) returned {result}"
