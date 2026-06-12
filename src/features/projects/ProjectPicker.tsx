@@ -4,10 +4,17 @@ import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
 type Props = {
+	activeProjectPath: string | null
 	onSelect: (path: string) => void
 }
 
-export const ProjectPicker = ({ onSelect }: Props): React.JSX.Element => {
+const repoName = (path: string): string =>
+	path.split('/').findLast(segment => segment !== '') ?? path
+
+export const ProjectPicker = ({
+	activeProjectPath,
+	onSelect,
+}: Props): React.JSX.Element => {
 	const handleClick = (): void => {
 		open({ directory: true })
 			.then(selected => {
@@ -24,8 +31,20 @@ export const ProjectPicker = ({ onSelect }: Props): React.JSX.Element => {
 	}
 
 	return (
-		<button type="button" className="project-picker" onClick={handleClick}>
-			Choose repo
+		<button
+			type="button"
+			className="project-picker"
+			title={activeProjectPath ?? undefined}
+			onClick={handleClick}
+		>
+			{activeProjectPath === null ? (
+				'Choose repo'
+			) : (
+				<>
+					<span className="project-picker__hint">repo</span>{' '}
+					<b>{repoName(activeProjectPath)}</b> ▾
+				</>
+			)}
 		</button>
 	)
 }
