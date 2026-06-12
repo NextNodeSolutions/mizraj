@@ -19,11 +19,18 @@ const AGE_REFRESH_MS = 30_000
 
 // TODO(backend): merge tracking — no merged state; the 4th chip filters
 // 'failed' instead of design's 'Done'
-const CHIPS: ReadonlyArray<{ key: MissionFilter; label: string }> = [
-	{ key: 'all', label: 'All' },
-	{ key: 'running', label: 'Running' },
-	{ key: 'review', label: 'Needs review' },
-	{ key: 'failed', label: 'Failed' },
+const FILTER_LABEL: Readonly<Record<MissionFilter, string>> = {
+	all: 'All',
+	running: 'Running',
+	review: 'Needs review',
+	failed: 'Failed',
+}
+
+const CHIP_ORDER: ReadonlyArray<MissionFilter> = [
+	'all',
+	'running',
+	'review',
+	'failed',
 ]
 
 const chipHref = (key: MissionFilter): string =>
@@ -37,6 +44,14 @@ const countByStatus = (
 	status: MissionControlFilter,
 ): number =>
 	sessions.filter(session => sessionDisplayStatus(session) === status).length
+
+// Shared by the populated screen and its zero-session state.
+const MissionControlHead = (): React.JSX.Element => (
+	<div className="view-head">
+		<h2>Mission Control</h2>
+		<span className="vh-sub">every agent, across every project</span>
+	</div>
+)
 
 type Props = {
 	activeProjectPath: string | null
@@ -53,8 +68,9 @@ export const MissionControl = ({
 
 	if (sessions.length === 0) {
 		return (
-			<section className="mission-control" aria-label="Mission control">
-				<div className="mission-control__empty">
+			<section className="mc-wrap" aria-label="Mission control">
+				<MissionControlHead />
+				<div className="mc-empty">
 					<p>No agents yet.</p>
 					{activeProjectPath !== null && (
 						<RunAgentButton repoPath={activeProjectPath} />
@@ -83,14 +99,9 @@ export const MissionControl = ({
 
 	return (
 		<section className="mc-wrap" aria-label="Mission control">
-			<div className="view-head">
-				<h2>Mission Control</h2>
-				<span className="vh-sub">
-					every agent, across every project
-				</span>
-			</div>
+			<MissionControlHead />
 			<div className="mc-filters">
-				{CHIPS.map(({ key, label }) => (
+				{CHIP_ORDER.map(key => (
 					<button
 						key={key}
 						type="button"
@@ -99,7 +110,7 @@ export const MissionControl = ({
 						onClick={() => navigate(chipHref(key))}
 					>
 						{key === 'running' && <SDot s="run" />}
-						<span>{label}</span>
+						<span>{FILTER_LABEL[key]}</span>
 						<b>{countFor(key)}</b>
 					</button>
 				))}
@@ -108,18 +119,33 @@ export const MissionControl = ({
 					{groups.length} projects · {countFor('running')} agents live
 				</span>
 			</div>
-			{/* key={filter}: a filter switch remounts the wall and replays the stagger */}
-			<div className="mc-projects stagger" key={filter}>
-				{visibleGroups.map(({ group, visibleSessions }, index) => (
-					<ProjectGroup
-						key={group.repoPath ?? 'no-project'}
-						group={group}
-						visibleSessions={visibleSessions}
-						now={now}
-						index={index}
-					/>
-				))}
-			</div>
+			{visibleGroups.length === 0 ? (
+				<div className="mc-empty mc-empty--filter">
+					<p>
+						Nothing {FILTER_LABEL[filter].toLowerCase()} right now.
+					</p>
+					<button
+						type="button"
+						className="chip"
+						onClick={() => navigate(missionControlHref())}
+					>
+						Show all <b>{sessions.length}</b>
+					</button>
+				</div>
+			) : (
+				/* key={filter}: a filter switch remounts the wall and replays the stagger */
+				<div className="mc-projects stagger" key={filter}>
+					{visibleGroups.map(({ group, visibleSessions }, index) => (
+						<ProjectGroup
+							key={group.repoPath ?? 'no-project'}
+							group={group}
+							visibleSessions={visibleSessions}
+							now={now}
+							index={index}
+						/>
+					))}
+				</div>
+			)}
 		</section>
 	)
 }

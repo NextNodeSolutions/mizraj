@@ -145,6 +145,35 @@ describe('MissionControl', () => {
 		expect(container.querySelector('.run-agent-button')).toBeNull()
 	})
 
+	it('keeps the screen title above the empty state, without filters', () => {
+		render()
+
+		expect(container.querySelector('.view-head h2')?.textContent).toBe(
+			'Mission Control',
+		)
+		expect(container.querySelector('.mc-filters')).toBeNull()
+		expect(container.querySelector('.mc-empty')).not.toBeNull()
+	})
+
+	it('offers a reset chip when the filter hides every agent', () => {
+		seedSession('run-1')
+		window.history.replaceState({}, '', '/?filter=failed')
+		render()
+
+		expect(cards()).toHaveLength(0)
+		const empty = container.querySelector('.mc-empty--filter')
+		expect(empty?.textContent).toContain('Nothing failed right now.')
+
+		const resetChip = empty?.querySelector('.chip')
+		expect(resetChip?.textContent).toContain('Show all')
+		expect(resetChip?.textContent).toContain('1')
+
+		act(() => {
+			resetChip?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		})
+		expect(navigateMock).toHaveBeenCalledWith('/')
+	})
+
 	it('renders one card per session with its derived status', () => {
 		seedSession('run-1')
 		seedSession('done-1', { ended: { exitCode: 0 } })
