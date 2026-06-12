@@ -88,8 +88,16 @@ impl MouseEncoder {
                 "ghostty_mouse_event_new returned {result}"
             )));
         }
-        let event = NonNull::new(event_raw)
-            .ok_or_else(|| TermError::Init("ghostty_mouse_event_new returned NULL".into()))?;
+        let event = match NonNull::new(event_raw) {
+            Some(p) => p,
+            None => {
+                // SAFETY: encoder is live and not used after this free.
+                unsafe { ghostty_mouse_encoder_free(encoder.as_ptr()) };
+                return Err(TermError::Init(
+                    "ghostty_mouse_event_new returned NULL".into(),
+                ));
+            }
+        };
 
         Ok(Self { encoder, event })
     }

@@ -556,7 +556,8 @@ impl<E: Fn(CellFrame), T: Fn(Option<String>)> RenderLoop<E, T> {
         match scrollbar {
             Some(bar) => FrameContext {
                 mouse_reporting,
-                viewport_top: bar.total.saturating_sub(bar.offset + bar.len),
+                // Chained saturating subs: `offset + len` itself could overflow.
+                viewport_top: bar.total.saturating_sub(bar.offset).saturating_sub(bar.len),
                 history_total: bar.total.saturating_sub(bar.len),
             },
             None => FrameContext {

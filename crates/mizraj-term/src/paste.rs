@@ -87,6 +87,20 @@ mod tests {
     }
 
     #[test]
+    fn bracket_terminator_injection_is_neutralized_when_bracketed() {
+        // A pasted `ESC[201~` must not survive: it would close the bracket
+        // early and let the rest of the payload run as keystrokes.
+        let encoded = encode_paste(b"safe\x1b[201~rm -rf /\n", true).expect("encode");
+        assert!(encoded.starts_with(b"\x1b[200~"), "got {encoded:?}");
+        assert!(encoded.ends_with(b"\x1b[201~"), "got {encoded:?}");
+        let interior = &encoded[6..encoded.len() - 6];
+        assert!(
+            !interior.contains(&0x1b),
+            "payload ESC must be stripped inside the bracket, got {encoded:?}"
+        );
+    }
+
+    #[test]
     fn empty_paste_encodes_to_just_the_markers_when_bracketed() {
         assert_eq!(
             encode_paste(b"", true).expect("encode"),
