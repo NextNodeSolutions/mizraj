@@ -5,11 +5,32 @@ import { useMemo } from 'react'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
+/**
+ * Where a remark anchors in the diff: a file, optionally narrowed to one
+ * line of one side — the shape the diff pane needs to place annotations.
+ */
+export type ReviewRef = {
+	path: string
+	line: number | null
+	side: 'additions' | 'deletions' | null
+}
+
 export type ReviewMessage = {
 	id: number
 	text: string
-	/** The file the remark anchors to, when sent from a file's diff. */
-	ref: string | null
+	/** The anchor the remark was sent from, when any. */
+	ref: ReviewRef | null
+}
+
+/** Human form of a ref: `src/api/handler.ts · line 14`, or just the path. */
+export const reviewRefLabel = (ref: ReviewRef): string =>
+	ref.line === null ? ref.path : `${ref.path} · line ${ref.line}`
+
+// The agent receives the anchor inline ("[src/api/handler.ts:14] …") since
+// the pasted text is all the context it gets.
+const refPrefix = (ref: ReviewRef | null): string => {
+	if (ref === null) return ''
+	return ref.line === null ? `[${ref.path}] ` : `[${ref.path}:${ref.line}] `
 }
 
 type ConversationsMap = Readonly<Record<string, ReadonlyArray<ReviewMessage>>>
@@ -24,7 +45,7 @@ type SendArgs = {
 	sessionId: string
 	repoPath: string
 	text: string
-	ref: string | null
+	ref: ReviewRef | null
 }
 
 /**
@@ -40,7 +61,10 @@ export const sendToAgent = async ({
 	ref,
 }: SendArgs): Promise<boolean> => {
 	try {
-		await invoke('session_paste', { sessionId, text })
+		await invoke('session_paste', {
+			sessionId,
+			text: `${refPrefix(ref)}${text}`,
+		})
 		await invoke('session_write', { sessionId, text: '\r' })
 	} catch (error: unknown) {
 		const { message, stack } = describeError(error)

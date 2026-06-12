@@ -3,7 +3,11 @@ import { useState } from 'react'
 import { useSessions } from '@/features/sessions/useSessions'
 import { pushToast } from '@/shared/toasts'
 
-import { sendToAgent, useConversation } from './agentConversation'
+import {
+	reviewRefLabel,
+	sendToAgent,
+	useConversation,
+} from './agentConversation'
 import { pickAgentSession } from './pickAgentSession'
 import type { DiffTotals } from './reviewFiles'
 
@@ -34,7 +38,10 @@ export const ReviewRail = ({
 			sessionId: target.id,
 			repoPath,
 			text,
-			ref: selectedPath,
+			ref:
+				selectedPath === null
+					? null
+					: { path: selectedPath, line: null, side: null },
 		})
 			.then(sent => {
 				if (!sent) {
@@ -69,7 +76,7 @@ export const ReviewRail = ({
 							<li key={message.id} className="review-rail__msg">
 								{message.ref !== null && (
 									<span className="review-rail__ref">
-										↳ {message.ref}
+										↳ {reviewRefLabel(message.ref)}
 									</span>
 								)}
 								<span>{message.text}</span>

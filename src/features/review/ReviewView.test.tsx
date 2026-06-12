@@ -182,7 +182,7 @@ describe('ReviewView', () => {
 
 		expect(invokeMock).toHaveBeenCalledWith('session_paste', {
 			sessionId: 'agent-1',
-			text: 'gère aussi le cas null',
+			text: '[src/api/limiter.ts] gère aussi le cas null',
 		})
 		expect(invokeMock).toHaveBeenCalledWith('session_write', {
 			sessionId: 'agent-1',
