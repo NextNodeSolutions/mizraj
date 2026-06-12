@@ -79,6 +79,7 @@ vi.mock('@pierre/diffs/react', () => {
 	return { FileDiff }
 })
 
+import { navigate, reviewHref } from '@/app/router'
 import {
 	cellFramesAtom,
 	sessionsAtom,
@@ -157,6 +158,7 @@ describe('ReviewView', () => {
 			root.unmount()
 		})
 		container.remove()
+		window.history.pushState({}, '', '/')
 	})
 
 	const render = async (repoPath: string | null = '/repo'): Promise<void> => {
@@ -521,6 +523,40 @@ describe('ReviewView', () => {
 		expect(container.querySelector('.review-rail__ctx')?.textContent).toBe(
 			'↳ src/api/handler.ts',
 		)
+	})
+
+	it('preselects the deep-linked file from the route search', async () => {
+		window.history.pushState({}, '', reviewHref('src/api/handler.ts'))
+		await render()
+
+		expect(
+			container
+				.querySelector('[data-testid="file-diff-stub"]')
+				?.getAttribute('data-file-name'),
+		).toBe('src/api/handler.ts')
+		expect(
+			container.querySelector('.review-tree__file[aria-current="true"]')
+				?.textContent,
+		).toContain('handler.ts')
+	})
+
+	it('follows a review deep link while mounted', async () => {
+		await render()
+		expect(
+			container
+				.querySelector('[data-testid="file-diff-stub"]')
+				?.getAttribute('data-file-name'),
+		).toBe('src/api/limiter.ts')
+
+		await act(async () => {
+			navigate(reviewHref('src/api/handler.ts'))
+		})
+
+		expect(
+			container
+				.querySelector('[data-testid="file-diff-stub"]')
+				?.getAttribute('data-file-name'),
+		).toBe('src/api/handler.ts')
 	})
 
 	it('reports a clean working tree', async () => {

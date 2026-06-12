@@ -1,3 +1,10 @@
+/* ============================================================
+   Diff Review v2 — header strip over three floating panels
+   (tree / diff / rail). Consumes the shared v2 tokens and the
+   components.css primitives (.panel/.btn/.stagger/.sdot/.stat);
+   only review-scoped rules live here.
+   ============================================================ */
+
 .review {
 	display: flex;
 	flex-direction: column;
@@ -9,12 +16,12 @@
 .review--empty {
 	align-items: center;
 	justify-content: center;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .review--empty p {
 	margin: 0;
-	font-size: 0.95rem;
+	font-size: var(--fs-body);
 }
 
 /* ---- header ---- */
@@ -503,7 +510,7 @@
 }
 
 .review-rail__hint {
-	margin: 0 0 0.5rem;
+	margin: 0 0 6px;
 	font-size: var(--fs-sm);
 	color: var(--text-2);
 }

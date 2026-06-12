@@ -2,6 +2,7 @@ import { parsePatchFiles } from '@pierre/diffs'
 import type { FileDiffMetadata } from '@pierre/diffs'
 import { useMemo, useRef, useState } from 'react'
 
+import { parseReviewFile, useLocationSearch } from '@/app/router'
 import { useDiff } from '@/features/diff/useDiff'
 import { pushToast } from '@/shared/toasts'
 import { useLayoutToggle } from '@/shared/useLayoutToggle'
@@ -81,11 +82,26 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 		() => reviewFilesFromParsed(parsedFiles),
 		[parsedFiles],
 	)
-	const [selectedPath, setSelectedPath] = useState<string | null>(null)
+	const search = useLocationSearch()
+	const requestedFile = parseReviewFile(search)
+	const [selectedPath, setSelectedPath] = useState<string | null>(
+		requestedFile,
+	)
 	// A "+ comment" click narrows the composer to one line; it only applies
 	// while its file stays selected, so switching files falls back to a
 	// file-level context without an effect.
 	const [commentAnchor, setCommentAnchor] = useState<ReviewRef | null>(null)
+	// Cockpit deep links (reviewHref(path)) re-target the selection on every
+	// search change — the render-time adjust keeps it effect-free, and a path
+	// missing from the parsed set simply falls back to the first file below.
+	const [appliedSearch, setAppliedSearch] = useState(search)
+	if (search !== appliedSearch) {
+		setAppliedSearch(search)
+		if (requestedFile !== null) {
+			setSelectedPath(requestedFile)
+			setCommentAnchor(null)
+		}
+	}
 	const { layout, toggleLayout, diffStyle } = useLayoutToggle()
 	const composeRef = useRef<HTMLTextAreaElement>(null)
 	const thread = useConversation(activeProjectPath)
