@@ -132,6 +132,27 @@ describe('PlansView', () => {
 		expect(frame?.getAttribute('src')).toBe('plan://plan/auth-hardening')
 	})
 
+	it('crowns the open document with its title and kind tag', async () => {
+		window.history.pushState({}, '', '/plans/plan/auth-hardening')
+		await render()
+
+		expect(container.querySelector('h1')?.textContent).toBe(
+			'Auth hardening',
+		)
+		expect(container.querySelector('.pl-doc-head .tag')?.textContent).toBe(
+			'plan',
+		)
+	})
+
+	it('describes the open plan in the meta line', async () => {
+		window.history.pushState({}, '', '/plans/plan/auth-hardening')
+		await render()
+
+		expect(container.querySelector('.pl-doc-meta')?.textContent).toContain(
+			'auth-hardening · updated 2h ago',
+		)
+	})
+
 	it('marks the open plan in the list', async () => {
 		window.history.pushState({}, '', '/plans/plan/auth-hardening')
 		await render()

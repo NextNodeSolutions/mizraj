@@ -1,12 +1,8 @@
 import { navigate, planRouteHref, usePathname } from '@/app/router'
 import { IconDoc } from '@/shared/ui/icons'
-import { useNow } from '@/shared/useNow'
 
 import type { PlanEntry, PlanKind, PlansState } from './plans'
-import { usePlans } from './plans'
 import { updatedLabel } from './updatedLabel'
-
-const AGE_REFRESH_MS = 30_000
 
 const SECTIONS: ReadonlyArray<{ title: string; kind: PlanKind }> = [
 	{ title: 'Plans', kind: 'plan' },
@@ -18,7 +14,8 @@ const defaultSelect = (entry: PlanEntry): void => {
 }
 
 type Props = {
-	repoPath: string | null
+	state: PlansState
+	nowMs: number
 	onSelect?: (entry: PlanEntry) => void
 }
 
@@ -119,13 +116,12 @@ const renderState = (
 	)
 }
 
-export const PlansMenu = ({ repoPath, onSelect }: Props): React.JSX.Element => {
-	const state = usePlans(repoPath)
-	const nowMs = useNow(AGE_REFRESH_MS)
-	const handleSelect = onSelect ?? defaultSelect
-	return (
-		<nav className="pl-list" aria-label="Plans and interviews">
-			{renderState(state, nowMs, handleSelect)}
-		</nav>
-	)
-}
+export const PlansMenu = ({
+	state,
+	nowMs,
+	onSelect,
+}: Props): React.JSX.Element => (
+	<nav className="pl-list" aria-label="Plans and interviews">
+		{renderState(state, nowMs, onSelect ?? defaultSelect)}
+	</nav>
+)

@@ -6,7 +6,9 @@ import { matchPlanRoute, usePathname } from '@/app/router'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
-import { PlanPanel } from './PlanPanel'
+import { buildPlanDoc } from './planDoc'
+import { PlanPaper } from './PlanPaper'
+import type { PlanEntry } from './plans'
 
 type ResolvedPlan = { url: string }
 
@@ -17,7 +19,20 @@ type Resolution =
 
 const planKey = ({ kind, slug }: PlanRoute): string => `${kind}/${slug}`
 
-export const PlanView = (): React.JSX.Element => {
+const matchingEntry = (
+	plans: ReadonlyArray<PlanEntry>,
+	route: PlanRoute,
+): PlanEntry | null =>
+	plans.find(
+		entry => entry.kind === route.kind && entry.slug === route.slug,
+	) ?? null
+
+type Props = {
+	plans: ReadonlyArray<PlanEntry>
+	nowMs: number
+}
+
+export const PlanView = ({ plans, nowMs }: Props): React.JSX.Element => {
 	const pathname = usePathname()
 	const route = matchPlanRoute(pathname)
 	const [resolution, setResolution] = useState<Resolution>({
@@ -56,25 +71,31 @@ export const PlanView = (): React.JSX.Element => {
 	}, [routeKind, routeSlug])
 
 	if (!route) {
-		return <p className="plan-view__empty">Select a plan from the list.</p>
+		return <p className="pl-doc-empty">Select a plan from the list.</p>
 	}
 	if (resolution.status === 'loading') {
 		return (
-			<p className="plan-view__empty" role="status" aria-live="polite">
+			<p className="pl-doc-empty" role="status" aria-live="polite">
 				Loading plan…
 			</p>
 		)
 	}
 	if (resolution.status === 'error') {
 		return (
-			<p
-				className="plan-view__empty plan-view__empty--error"
-				role="alert"
-			>
+			<p className="pl-doc-empty" role="alert">
 				Plan unavailable: {resolution.message}
 			</p>
 		)
 	}
-	const key = planKey(route)
-	return <PlanPanel key={key} src={resolution.url} title={key} />
+	return (
+		<PlanPaper
+			key={planKey(route)}
+			doc={buildPlanDoc(
+				route,
+				resolution.url,
+				matchingEntry(plans, route),
+				nowMs,
+			)}
+		/>
+	)
 }
