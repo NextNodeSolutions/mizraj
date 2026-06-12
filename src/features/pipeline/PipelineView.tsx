@@ -1,5 +1,9 @@
 import { useAtomValue } from 'jotai'
+import { useMemo } from 'react'
 
+import { useDiff } from '@/features/diff/useDiff'
+import { diffTotals, reviewFilesFromPatch } from '@/features/review/reviewFiles'
+import type { DiffTotals } from '@/features/review/reviewFiles'
 import { useSessions } from '@/features/sessions/useSessions'
 import { useTasks } from '@/features/tasks/tasks'
 
@@ -13,12 +17,27 @@ type Props = {
 	activeProjectPath: string | null
 }
 
+// The active project's working-tree totals — the same diff the Review screen
+// opens, so it is identical on every review card.
+//TODO: per-session diff stats — needs a session/branch-scoped diff command
+// (mizraj_vcs::diff_session exists in the crate but is not exposed as a Tauri
+// command)
+const useWorkingTreeTotals = (repoPath: string | null): DiffTotals | null => {
+	const { state } = useDiff(repoPath)
+	const patch = state.status === 'ready' ? state.data.patch : null
+	return useMemo(
+		() => (patch === null ? null : diffTotals(reviewFilesFromPatch(patch))),
+		[patch],
+	)
+}
+
 export const PipelineView = ({
 	activeProjectPath,
 }: Props): React.JSX.Element => {
 	const { state, refetch } = useTasks(activeProjectPath)
 	const sessions = useSessions()
 	const approvedSessionIds = useAtomValue(approvedSessionIdsAtom)
+	const reviewStat = useWorkingTreeTotals(activeProjectPath)
 
 	if (activeProjectPath === null) {
 		return (
@@ -99,6 +118,7 @@ export const PipelineView = ({
 						<PipelineSessionCard
 							key={session.id}
 							session={session}
+							stat={reviewStat}
 						/>
 					))}
 				</PipelineColumn>

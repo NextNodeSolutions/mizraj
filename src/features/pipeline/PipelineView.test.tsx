@@ -84,6 +84,27 @@ const frameOfLines = (
 
 const store = getDefaultStore()
 
+const PATCH = [
+	'diff --git a/a.ts b/a.ts',
+	'new file mode 100644',
+	'index 0000000..1111111',
+	'--- /dev/null',
+	'+++ b/a.ts',
+	'@@ -0,0 +1,3 @@',
+	'+one',
+	'+two',
+	'+three',
+	'diff --git a/b.ts b/b.ts',
+	'index 1111111..2222222 100644',
+	'--- a/b.ts',
+	'+++ b/b.ts',
+	'@@ -1,2 +1,2 @@',
+	' keep',
+	'-old',
+	'+new',
+	'',
+].join('\n')
+
 const OVERVIEW: Overview = {
 	milestones: [
 		{
@@ -192,6 +213,7 @@ describe('PipelineView', () => {
 		invokeMock.mockImplementation((command: string) => {
 			if (command === 'tasks_overview') return Promise.resolve(OVERVIEW)
 			if (command === 'session_create') return Promise.resolve('sess-9')
+			if (command === 'get_diff') return Promise.resolve({ patch: PATCH })
 			return Promise.resolve(undefined)
 		})
 		navigateMock.mockReset()
@@ -262,11 +284,13 @@ describe('PipelineView', () => {
 	})
 
 	it('shows idle copy in empty backlog and review columns', async () => {
-		invokeMock.mockImplementation((command: string) =>
-			command === 'tasks_overview'
-				? Promise.resolve({ milestones: [], userTasks: [] })
-				: Promise.resolve(undefined),
-		)
+		invokeMock.mockImplementation((command: string) => {
+			if (command === 'tasks_overview') {
+				return Promise.resolve({ milestones: [], userTasks: [] })
+			}
+			if (command === 'get_diff') return Promise.resolve({ patch: '' })
+			return Promise.resolve(undefined)
+		})
 		await render()
 
 		expect(column('Backlog')?.textContent).toContain(
@@ -404,6 +428,42 @@ describe('PipelineView', () => {
 			open?.click()
 		})
 		expect(navigateMock).toHaveBeenCalledWith('/agent-run/fail-1')
+	})
+
+	it('shows the working-tree diff totals on ended-session cards', async () => {
+		store.set(startSessionAtom, {
+			id: 'rev-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		store.set(endSessionAtom, { sessionId: 'rev-1', exitCode: 0 })
+		await render()
+
+		const reviewCard = column('Review')?.querySelector('.pipeline__card')
+		expect(reviewCard?.querySelector('.stat')?.textContent).toBe(
+			'+4 −1 · 2 files',
+		)
+	})
+
+	it('hides the diff stat while the diff is unavailable', async () => {
+		invokeMock.mockImplementation((command: string) => {
+			if (command === 'tasks_overview') return Promise.resolve(OVERVIEW)
+			if (command === 'get_diff') {
+				return Promise.reject(new Error('not a repo'))
+			}
+			return Promise.resolve(undefined)
+		})
+		store.set(startSessionAtom, {
+			id: 'rev-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		store.set(endSessionAtom, { sessionId: 'rev-1', exitCode: 0 })
+		await render()
+
+		expect(
+			column('Review')?.querySelector('.pipeline__card .stat'),
+		).toBeNull()
 	})
 
 	it('launches an agent from a backlog card', async () => {

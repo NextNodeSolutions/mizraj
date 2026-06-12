@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useEffect } from 'react'
 
 import { agentRunHref, navigate, reviewHref } from '@/app/router'
+import type { DiffTotals } from '@/features/review/reviewFiles'
 import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
 import {
 	sessionLabel,
@@ -13,12 +14,14 @@ import { terminalTail } from '@/features/sessions/terminalTail'
 import { useCellFrame } from '@/features/sessions/useCellFrame'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
-import { StatusTag } from '@/shared/ui/atoms'
+import { DiffStat, StatusTag } from '@/shared/ui/atoms'
 
 const TAIL_LINES = 2
 
 type Props = {
 	session: SessionState
+	/** Working-tree diff totals, shown on ended cards (null while loading). */
+	stat?: DiffTotals | null
 }
 
 const stopSession = (sessionId: string): void => {
@@ -47,7 +50,10 @@ const TerminalPreview = ({ tail }: TerminalPreviewProps): React.JSX.Element => (
 	</div>
 )
 
-export const PipelineSessionCard = ({ session }: Props): React.JSX.Element => {
+export const PipelineSessionCard = ({
+	session,
+	stat = null,
+}: Props): React.JSX.Element => {
 	const status = sessionDisplayStatus(session)
 	const frame = useCellFrame(session.id)
 	const tail = terminalTail(frame, TAIL_LINES)
@@ -71,6 +77,13 @@ export const PipelineSessionCard = ({ session }: Props): React.JSX.Element => {
 			</div>
 			<p className="pipeline__title">{sessionLabel(session)}</p>
 			{running && <TerminalPreview tail={tail} />}
+			{!running && stat !== null && (
+				<DiffStat
+					add={stat.additions}
+					del={stat.deletions}
+					files={stat.files}
+				/>
+			)}
 			<div className="pipeline__card-actions">
 				{status === 'review' ? (
 					<button
