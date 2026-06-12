@@ -87,6 +87,48 @@ pub(crate) enum KeybindDirective {
     Bind(Keybind),
 }
 
+/// The built-in bindings Ghostty ships for the parity scope, expressed in the
+/// directive grammar so they fold through the exact same path as user keys
+/// (which therefore override, `unbind` or `clear` them like Ghostty does).
+/// Platform split mirrors Ghostty: super on macOS, ctrl+shift elsewhere.
+#[cfg(target_os = "macos")]
+const DEFAULT_BINDINGS: &[&str] = &[
+    "super+c=copy_to_clipboard",
+    "super+v=paste_from_clipboard",
+    "super+a=select_all",
+    "super+plus=increase_font_size:1",
+    "super+equal=increase_font_size:1",
+    "super+minus=decrease_font_size:1",
+    "super+zero=reset_font_size",
+    "super+k=clear_screen",
+    "shift+insert=paste_from_selection",
+];
+
+#[cfg(not(target_os = "macos"))]
+const DEFAULT_BINDINGS: &[&str] = &[
+    "ctrl+shift+c=copy_to_clipboard",
+    "ctrl+shift+v=paste_from_clipboard",
+    "ctrl+shift+a=select_all",
+    "ctrl+plus=increase_font_size:1",
+    "ctrl+equal=increase_font_size:1",
+    "ctrl+minus=decrease_font_size:1",
+    "ctrl+zero=reset_font_size",
+    "shift+insert=paste_from_selection",
+];
+
+/// The default table every fold starts from. Parsed from the literal grammar
+/// above; a broken literal is a programmer error caught by the unit tests, so
+/// it is skipped (never panics) rather than surfaced to users.
+pub(crate) fn default_keybinds() -> Vec<Keybind> {
+    DEFAULT_BINDINGS
+        .iter()
+        .filter_map(|binding| match parse_keybind(binding) {
+            Ok(KeybindDirective::Bind(keybind)) => Some(keybind),
+            _ => None,
+        })
+        .collect()
+}
+
 pub(crate) fn parse_keybind(value: &str) -> Result<KeybindDirective, &'static str> {
     if value == "clear" {
         return Ok(KeybindDirective::Clear);

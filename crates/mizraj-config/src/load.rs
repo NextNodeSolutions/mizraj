@@ -400,6 +400,11 @@ mod tests {
     fn missing_config_files_yield_defaults_without_diagnostics() {
         let dir = tempdir().expect("tempdir");
         let resolved = load(&options(vec![dir.path().join("absent")], vec![]));
-        assert_eq!(resolved, ResolvedConfig::default());
+        // The pristine config: everything at engine default, the keybind table
+        // seeded with Ghostty's built-ins, zero diagnostics.
+        assert!(resolved.diagnostics.is_empty());
+        assert_eq!(resolved.font_family, Vec::<String>::new());
+        assert_eq!(resolved.background, None);
+        assert!(!resolved.keybinds.is_empty(), "built-in keybinds expected");
     }
 }

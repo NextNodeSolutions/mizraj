@@ -409,7 +409,7 @@ mod tests {
     #[test]
     fn maps_keybinds_with_typed_actions_and_triggers() {
         let dto = dto(
-            "keybind = global:super+c=copy_to_clipboard\nkeybind = ctrl+a>n=text:next\nkeybind = super+k=new_window",
+            "keybind = clear\nkeybind = global:super+c=copy_to_clipboard\nkeybind = ctrl+a>n=text:next\nkeybind = super+k=new_window",
         );
         let json = serde_json::to_value(&dto).expect("serialize");
 

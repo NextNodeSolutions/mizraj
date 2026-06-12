@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 
 use crate::color::{parse_color, Color, Rgb};
 use crate::diagnostic::Diagnostic;
-use crate::keybind::{parse_keybind, Keybind, KeybindAction, KeybindDirective};
+use crate::keybind::{default_keybinds, parse_keybind, Keybind, KeybindAction, KeybindDirective};
 use crate::value::{
     parse_bool, parse_f32, parse_u64, Adjustment, CopyOnSelect, CursorStyle, PaddingAxis,
 };
@@ -71,8 +71,13 @@ pub struct ResolvedConfig {
 }
 
 /// Fold directives into the effective config, in load order (last writer wins).
+/// The keybind table starts from Ghostty's built-in defaults, so user
+/// directives override/unbind/clear them exactly like in Ghostty.
 pub fn resolve(directives: &[Directive]) -> ResolvedConfig {
-    let mut config = ResolvedConfig::default();
+    let mut config = ResolvedConfig {
+        keybinds: default_keybinds(),
+        ..ResolvedConfig::default()
+    };
     for directive in directives {
         apply(&mut config, directive);
     }
@@ -244,6 +249,7 @@ fn apply_palette(config: &mut ResolvedConfig, value: &str, reset: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::keybind::KeySpec;
     use crate::parse;
 
     fn resolved(content: &str) -> ResolvedConfig {
@@ -392,10 +398,53 @@ mod tests {
         assert!(config.diagnostics.is_empty());
     }
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_default_keybinds_exist_without_any_directive() {
+        let config = resolved("");
+        let copy = config
+            .keybinds
+            .iter()
+            .find(|bind| bind.action == KeybindAction::CopyToClipboard)
+            .expect("super+c -> copy must be a default");
+        assert!(copy.trigger[0].super_key);
+        assert!(config
+            .keybinds
+            .iter()
+            .any(|bind| bind.action == KeybindAction::SelectAll));
+        assert!(config
+            .keybinds
+            .iter()
+            .any(|bind| bind.action == KeybindAction::ClearScreen));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn user_keybind_overrides_the_matching_default() {
+        let config = resolved("keybind = super+c=select_all");
+        let supers_c: Vec<_> = config
+            .keybinds
+            .iter()
+            .filter(|bind| {
+                bind.trigger.len() == 1
+                    && bind.trigger[0].super_key
+                    && bind.trigger[0].key == KeySpec::Logical("c".to_string())
+            })
+            .collect();
+        assert_eq!(supers_c.len(), 1, "rebinding must replace, not duplicate");
+        assert_eq!(supers_c[0].action, KeybindAction::SelectAll);
+    }
+
+    #[test]
+    fn keybind_clear_wipes_the_defaults_too() {
+        let config = resolved("keybind = clear");
+        assert!(config.keybinds.is_empty());
+    }
+
     #[test]
     fn keybind_directives_accumulate_into_a_table() {
         let config = resolved(
-            "keybind = super+c=copy_to_clipboard\nkeybind = super+v=paste_from_clipboard",
+            "keybind = clear\nkeybind = super+c=copy_to_clipboard\nkeybind = super+v=paste_from_clipboard",
         );
         assert_eq!(config.keybinds.len(), 2);
         assert_eq!(config.keybinds[0].action, KeybindAction::CopyToClipboard);
@@ -405,7 +454,7 @@ mod tests {
     #[test]
     fn rebinding_the_same_trigger_replaces_in_place() {
         let config = resolved(
-            "keybind = super+c=copy_to_clipboard\nkeybind = super+v=paste_from_clipboard\nkeybind = super+c=select_all",
+            "keybind = clear\nkeybind = super+c=copy_to_clipboard\nkeybind = super+v=paste_from_clipboard\nkeybind = super+c=select_all",
         );
         assert_eq!(config.keybinds.len(), 2);
         // Replaced in place: original position, new action.
@@ -414,15 +463,10 @@ mod tests {
 
     #[test]
     fn unbind_removes_the_matching_trigger() {
-        let config = resolved("keybind = super+c=copy_to_clipboard\nkeybind = super+c=unbind");
+        let config =
+            resolved("keybind = clear\nkeybind = super+c=copy_to_clipboard\nkeybind = super+c=unbind");
         assert!(config.keybinds.is_empty());
         assert!(config.diagnostics.is_empty());
-    }
-
-    #[test]
-    fn keybind_clear_wipes_the_table() {
-        let config = resolved("keybind = super+c=copy_to_clipboard\nkeybind = clear");
-        assert!(config.keybinds.is_empty());
     }
 
     #[test]
@@ -433,7 +477,7 @@ mod tests {
 
     #[test]
     fn invalid_keybind_records_a_diagnostic() {
-        let config = resolved("keybind = wat+c=copy_to_clipboard");
+        let config = resolved("keybind = clear\nkeybind = wat+c=copy_to_clipboard");
         assert!(config.keybinds.is_empty());
         assert_eq!(config.diagnostics.len(), 1);
         assert_eq!(config.diagnostics[0].key, "keybind");
