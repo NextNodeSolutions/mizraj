@@ -56,9 +56,7 @@ export const PlanView = (): React.JSX.Element => {
 	}, [routeKind, routeSlug])
 
 	if (!route) {
-		return (
-			<p className="plan-view__empty">Select a plan from the sidebar.</p>
-		)
+		return <p className="plan-view__empty">Select a plan from the list.</p>
 	}
 	if (resolution.status === 'loading') {
 		return (
