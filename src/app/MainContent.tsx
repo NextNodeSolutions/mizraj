@@ -1,6 +1,6 @@
 import { MissionControl } from '@/features/missionControl/MissionControl'
 import { PipelineView } from '@/features/pipeline/PipelineView'
-import { PlanView } from '@/features/plans/PlanView'
+import { PlansView } from '@/features/plans/PlansView'
 import { ReviewView } from '@/features/review/ReviewView'
 import { AgentRun } from '@/features/sessions/AgentRun'
 import { TasksView } from '@/features/tasks/TasksView'
@@ -43,5 +43,6 @@ export const MainContent = ({
 	if (matchTasksRoute(pathname)) {
 		return <TasksView repoPath={activeProjectPath} />
 	}
-	return <PlanView />
+	// Plans deep links and the bare /plans index both land here.
+	return <PlansView activeProjectPath={activeProjectPath} />
 }

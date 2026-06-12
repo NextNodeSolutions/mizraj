@@ -1,4 +1,4 @@
-import { navigate, planRouteHref } from '@/app/router'
+import { navigate, planRouteHref, usePathname } from '@/app/router'
 
 import type { PlanEntry, PlanKind, PlansState } from './plans'
 import { usePlans } from './plans'
@@ -27,32 +27,40 @@ const PlansMenuSection = ({
 	title,
 	entries,
 	onSelect,
-}: SectionProps): React.JSX.Element => (
-	<section className="plans-menu__section">
-		<h3 className="plans-menu__heading">{title}</h3>
-		{entries.length === 0 ? (
-			<p className="plans-menu__empty">None yet.</p>
-		) : (
-			<ul className="plans-menu__list">
-				{entries.map(entry => (
-					<li key={`${entry.kind}:${entry.slug}`}>
-						<a
-							className="plans-menu__link"
-							href={planRouteHref(entry)}
-							onClick={event => {
-								event.preventDefault()
-								onSelect(entry)
-							}}
-							title={entry.slug}
-						>
-							{entry.title}
-						</a>
-					</li>
-				))}
-			</ul>
-		)}
-	</section>
-)
+}: SectionProps): React.JSX.Element => {
+	const pathname = usePathname()
+	return (
+		<section className="plans-menu__section">
+			<h3 className="plans-menu__heading">{title}</h3>
+			{entries.length === 0 ? (
+				<p className="plans-menu__empty">None yet.</p>
+			) : (
+				<ul className="plans-menu__list">
+					{entries.map(entry => (
+						<li key={`${entry.kind}:${entry.slug}`}>
+							<a
+								className="plans-menu__link"
+								href={planRouteHref(entry)}
+								aria-current={
+									planRouteHref(entry) === pathname
+										? 'page'
+										: undefined
+								}
+								onClick={event => {
+									event.preventDefault()
+									onSelect(entry)
+								}}
+								title={entry.slug}
+							>
+								{entry.title}
+							</a>
+						</li>
+					))}
+				</ul>
+			)}
+		</section>
+	)
+}
 
 const renderState = (
 	state: PlansState,
