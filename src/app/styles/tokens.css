@@ -104,6 +104,9 @@ html[data-theme='latte'] {
 	--term-bg: #f4f5f9;
 	--term-border: color-mix(in srgb, var(--ctp-surface1) 50%, transparent);
 	--glow-alpha: 0.16;
+	/* Light theme: near-white crust cannot ink a visible shadow — the design's
+	   latte literal (76 79 105) is exactly latte text. */
+	--shadow-ink: var(--ctp-text);
 }
 
 /* ============================================================
@@ -152,6 +155,7 @@ html[data-theme='frappe'] {
 	--term-border: color-mix(in srgb, var(--ctp-surface0) 60%, transparent);
 	--glow-alpha: 0.28;
 	--on-accent-theme: var(--ctp-crust);
+	--shadow-ink: var(--ctp-crust);
 }
 
 /* ============================================================
@@ -200,6 +204,7 @@ html[data-theme='macchiato'] {
 	--term-border: color-mix(in srgb, var(--ctp-surface0) 60%, transparent);
 	--glow-alpha: 0.3;
 	--on-accent-theme: var(--ctp-crust);
+	--shadow-ink: var(--ctp-crust);
 }
 
 /* ============================================================
@@ -248,6 +253,7 @@ html[data-theme='mocha'] {
 	--term-border: color-mix(in srgb, var(--ctp-surface0) 60%, transparent);
 	--glow-alpha: 0.3;
 	--on-accent-theme: var(--ctp-crust);
+	--shadow-ink: var(--ctp-crust);
 }
 
 /* ============================================================
@@ -276,57 +282,58 @@ html[data-theme] {
 
 	/* Layered soft-depth shadows. Deviation from the design (which inked
 	   them with a per-theme --shadow-rgb literal): each layer mixes from
-	   --ctp-crust so a Ghostty theme that overrides the --ctp-* ramp inline
-	   re-inks the shadows automatically — no TS emission needed. */
+	   --shadow-ink — text on light themes, crust on dark, both on the
+	   Ghostty-overridable ramp so themed configs re-ink shadows with no TS
+	   emission. */
 	--shadow-1:
 		0 1px 2px
 			color-mix(
 				in srgb,
-				var(--ctp-crust) calc(7% * var(--elev)),
+				var(--shadow-ink) calc(7% * var(--elev)),
 				transparent
 			),
 		0 2px 8px
 			color-mix(
 				in srgb,
-				var(--ctp-crust) calc(5% * var(--elev)),
+				var(--shadow-ink) calc(5% * var(--elev)),
 				transparent
 			);
 	--shadow-2:
 		0 1px 2px
 			color-mix(
 				in srgb,
-				var(--ctp-crust) calc(8% * var(--elev)),
+				var(--shadow-ink) calc(8% * var(--elev)),
 				transparent
 			),
 		0 4px 14px
 			color-mix(
 				in srgb,
-				var(--ctp-crust) calc(8% * var(--elev)),
+				var(--shadow-ink) calc(8% * var(--elev)),
 				transparent
 			),
 		0 12px 32px
 			color-mix(
 				in srgb,
-				var(--ctp-crust) calc(7% * var(--elev)),
+				var(--shadow-ink) calc(7% * var(--elev)),
 				transparent
 			);
 	--shadow-3:
 		0 2px 4px
 			color-mix(
 				in srgb,
-				var(--ctp-crust) calc(10% * var(--elev)),
+				var(--shadow-ink) calc(10% * var(--elev)),
 				transparent
 			),
 		0 10px 28px
 			color-mix(
 				in srgb,
-				var(--ctp-crust) calc(12% * var(--elev)),
+				var(--shadow-ink) calc(12% * var(--elev)),
 				transparent
 			),
 		0 28px 70px
 			color-mix(
 				in srgb,
-				var(--ctp-crust) calc(14% * var(--elev)),
+				var(--shadow-ink) calc(14% * var(--elev)),
 				transparent
 			);
 }

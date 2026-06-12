@@ -171,6 +171,16 @@
 	overflow-y: auto;
 	padding: 8px 0;
 }
+.fc-diffs .diff-panel__placeholder {
+	margin: 0;
+	padding: var(--sp-panel);
+	color: var(--text-3);
+	font-size: var(--fs-sm);
+	text-align: center;
+}
+.fc-diffs .diff-panel__placeholder--error {
+	color: var(--c-del);
+}
 
 /* ---- no-session cockpit (/agent-run) ---- */
 .fc-empty {

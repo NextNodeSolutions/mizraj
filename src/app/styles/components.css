@@ -2,7 +2,7 @@
    MIZRAJ — shared v2 component styles (soft depth × terminal-native)
    Ported verbatim from the design system, with these adaptations:
    - shadows that the design inked with rgb(var(--shadow-rgb)/…) are
-     expressed as color-mix over --ctp-crust (see tokens.css);
+     expressed as color-mix over --shadow-ink (see tokens.css);
    - .branch drops the design's letter-spacing (it breaks ligatures in
      mono fonts);
    - .sdot-fail / .tag-fail cover the app's real 'failed' status axis;
@@ -112,7 +112,7 @@ button {
 		0 1px 3px
 			color-mix(
 				in srgb,
-				var(--ctp-crust) calc(25% * var(--elev)),
+				var(--shadow-ink) calc(25% * var(--elev)),
 				transparent
 			),
 		inset 0 1px 0 rgb(255 255 255 / 0.25);
@@ -407,7 +407,7 @@ button {
 		0 1px 2px
 			color-mix(
 				in srgb,
-				var(--ctp-crust) calc(20% * var(--elev)),
+				var(--shadow-ink) calc(20% * var(--elev)),
 				transparent
 			),
 		inset 0 1px 0 rgb(255 255 255 / 0.18);
