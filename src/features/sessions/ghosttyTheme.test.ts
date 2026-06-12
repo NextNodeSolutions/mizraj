@@ -212,6 +212,65 @@ describe('ghosttyThemeTokens', () => {
 		})
 	})
 
+	describe('v2 surface tokens', () => {
+		it('derives the v2 surface steps between base and surface0', () => {
+			const tokens = ghosttyThemeTokens(latteConfig([]))
+
+			expect(tokens?.['--surface-2']).toBe(
+				'color-mix(in srgb, var(--gx-background) 93%, var(--gx-foreground))',
+			)
+			expect(tokens?.['--surface-hi']).toBe(
+				'color-mix(in srgb, var(--gx-background) 90%, var(--gx-foreground))',
+			)
+		})
+
+		it('paints the v2 terminal chrome from the theme background', () => {
+			const tokens = ghosttyThemeTokens(latteConfig([]))
+
+			expect(tokens?.['--term-bg']).toBe(LATTE_BG)
+			expect(tokens?.['--term-border']).toBe(
+				'color-mix(in srgb, var(--gx-background) 82%, var(--gx-foreground))',
+			)
+		})
+
+		it('softens the glow on a light background and deepens it on a dark one', () => {
+			const lightTokens = ghosttyThemeTokens(latteConfig([]))
+			const darkTokens = ghosttyThemeTokens({
+				...EMPTY_CONFIG,
+				background: '#1e1e2e',
+			})
+
+			expect(lightTokens?.['--glow-alpha']).toBe('0.16')
+			expect(darkTokens?.['--glow-alpha']).toBe('0.3')
+		})
+
+		it('treats an unparseable background as dark for the glow, like the contrast fallback', () => {
+			const tokens = ghosttyThemeTokens({
+				...EMPTY_CONFIG,
+				background: 'rgb(20, 20, 20)',
+			})
+
+			expect(tokens?.['--glow-alpha']).toBe('0.3')
+		})
+
+		it('inks on-accent with a near-crust mix on a dark background only', () => {
+			const darkTokens = ghosttyThemeTokens({
+				...EMPTY_CONFIG,
+				background: '#1e1e2e',
+			})
+			const lightTokens = ghosttyThemeTokens(latteConfig([]))
+
+			expect(darkTokens?.['--on-accent-theme']).toBe(
+				'color-mix(in srgb, var(--gx-background) 92%, var(--gx-foreground))',
+			)
+			// Absent on light: --on-accent falls back to its #ffffff default.
+			expect(lightTokens).not.toBeNull()
+			expect(
+				Object.keys(lightTokens ?? {}).includes('--on-accent-theme'),
+			).toBe(false)
+		})
+	})
+
 	describe('semantic surfaces and overlays', () => {
 		it('derives surfaces and borders as color-mix steps off the bg/fg pair', () => {
 			const tokens = ghosttyThemeTokens(latteConfig([]))
@@ -269,14 +328,26 @@ describe('ghosttyThemeTokens', () => {
 		})
 	})
 
-	it('emits exactly the keys declared in THEME_TOKEN_KEYS so cleanup cannot drift', () => {
-		const tokens = ghosttyThemeTokens(latteConfig(FULL_PALETTE))
+	it('emits exactly the keys declared in THEME_TOKEN_KEYS on a dark background so cleanup cannot drift', () => {
+		const tokens = ghosttyThemeTokens({
+			...EMPTY_CONFIG,
+			background: '#1e1e2e',
+		})
 
 		expect(tokens).not.toBeNull()
 		expect(new Set(Object.keys(tokens ?? {}))).toEqual(
 			new Set(THEME_TOKEN_KEYS),
 		)
 		expect(Object.keys(tokens ?? {})).toHaveLength(THEME_TOKEN_KEYS.length)
+	})
+
+	it('emits every declared key except the dark-only on-accent on a light background', () => {
+		const tokens = ghosttyThemeTokens(latteConfig(FULL_PALETTE))
+		const expectedKeys = new Set<string>(THEME_TOKEN_KEYS)
+		expectedKeys.delete('--on-accent-theme')
+
+		expect(tokens).not.toBeNull()
+		expect(new Set(Object.keys(tokens ?? {}))).toEqual(expectedKeys)
 	})
 
 	it('has no duplicate property names in THEME_TOKEN_KEYS', () => {

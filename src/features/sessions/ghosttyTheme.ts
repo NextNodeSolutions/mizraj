@@ -1,5 +1,5 @@
 import type { GhosttyConfig } from './ghosttyConfig'
-import { contrastColor } from './ghosttyThemeColors'
+import { contrastColor, isLightBackground } from './ghosttyThemeColors'
 import { buildPalette } from './terminalPalette'
 
 // Which ANSI palette index feeds each app/Catppuccin accent. The normal hues
@@ -63,6 +63,21 @@ const BORDER_BG_WEIGHT = 82
 const BORDER_SUBTLE_BG_WEIGHT = 88
 const MUTED_TEXT_BG_WEIGHT = RAMP_SUBTEXT0
 
+// v2 surface steps (tokens.css vocabulary): --surface-2 sits between base
+// (100) and surface0 (88); --surface-hi is the brightest raised surface.
+const SURFACE_2_BG_WEIGHT = 93
+const SURFACE_HI_BG_WEIGHT = 90
+// v2 terminal chrome border (--term-bg is the background verbatim).
+const TERM_BORDER_BG_WEIGHT = 82
+// v2 status glows breathe deeper on dark backgrounds (tokens.css ships the
+// same 0.16 light / 0.3 dark pair on its static palettes).
+const GLOW_ALPHA_LIGHT = '0.16'
+const GLOW_ALPHA_DARK = '0.3'
+// v2 on-accent ink on dark themes: near-crust, like the static dark palettes
+// alias --on-accent-theme to their crust. Light themes do NOT emit it — the
+// stylesheet's --on-accent then falls back to #ffffff.
+const ON_ACCENT_BG_WEIGHT = 92
+
 const HOVER_TRANSPARENT_WEIGHT = 92
 const ACTIVE_TRANSPARENT_WEIGHT = 86
 const BACKDROP_TRANSPARENT_WEIGHT = 55
@@ -107,6 +122,12 @@ export const THEME_TOKEN_KEYS = [
 	'--ctp-sky',
 	'--ctp-sapphire',
 	'--ctp-blue',
+	'--surface-2',
+	'--surface-hi',
+	'--term-bg',
+	'--term-border',
+	'--glow-alpha',
+	'--on-accent-theme',
 	'--color-bg',
 	'--color-bg-elevated',
 	'--color-surface',
@@ -136,15 +157,24 @@ export const THEME_TOKEN_KEYS = [
 // apply and the caller must leave Catppuccin untouched. Pure: no DOM, no IO.
 export type ThemeTokenKey = (typeof THEME_TOKEN_KEYS)[number]
 
+// Every key is emitted unconditionally except --on-accent-theme: it only
+// exists on dark backgrounds (a light theme wants --on-accent's #ffffff
+// fallback). THEME_TOKEN_KEYS still lists it so cleanup always removes it.
+export type ThemeTokens = Record<
+	Exclude<ThemeTokenKey, '--on-accent-theme'>,
+	string
+> & { '--on-accent-theme'?: string }
+
 export const ghosttyThemeTokens = (
 	config: GhosttyConfig,
-): Record<ThemeTokenKey, string> | null => {
+): ThemeTokens | null => {
 	const background = config.background
 	if (background === null) return null
 
 	const foreground = config.foreground ?? contrastColor(background)
 	const palette = buildPalette(config.palette)
 	const colorAt = (index: number): string => palette[index] ?? foreground
+	const lightBackground = isLightBackground(background)
 
 	return {
 		'--gx-background': background,
@@ -179,6 +209,18 @@ export const ghosttyThemeTokens = (
 		'--ctp-sky': colorAt(PALETTE_BRIGHT_CYAN),
 		'--ctp-sapphire': colorAt(PALETTE_CYAN),
 		'--ctp-blue': colorAt(PALETTE_BLUE),
+
+		'--surface-2': mixBackgroundToForeground(SURFACE_2_BG_WEIGHT),
+		'--surface-hi': mixBackgroundToForeground(SURFACE_HI_BG_WEIGHT),
+		'--term-bg': background,
+		'--term-border': mixBackgroundToForeground(TERM_BORDER_BG_WEIGHT),
+		'--glow-alpha': lightBackground ? GLOW_ALPHA_LIGHT : GLOW_ALPHA_DARK,
+		...(lightBackground
+			? {}
+			: {
+					'--on-accent-theme':
+						mixBackgroundToForeground(ON_ACCENT_BG_WEIGHT),
+				}),
 
 		'--color-bg': background,
 		'--color-bg-elevated': mixBackgroundToForeground(ELEVATED_BG_WEIGHT),
