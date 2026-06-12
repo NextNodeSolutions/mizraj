@@ -41,6 +41,18 @@ export const buildPlanDoc = (
 })
 
 /**
+ * The plan an interview produced, when one is listed.
+ */
+// TODO: interview->plan linkage missing; using slug-suffix heuristic (plan '2026-05-15-mizraj' matches interview 'mizraj') until the backend exposes the generated plan id
+export const generatedPlanFor = (
+	plans: ReadonlyArray<PlanEntry>,
+	interviewSlug: string,
+): PlanEntry | null =>
+	plans.find(
+		entry => entry.kind === 'plan' && entry.slug.endsWith(interviewSlug),
+	) ?? null
+
+/**
  * Extend a doc meta line with what the milestones section will show below —
  * only meaningful when that section renders (plan docs, non-empty overview).
  */

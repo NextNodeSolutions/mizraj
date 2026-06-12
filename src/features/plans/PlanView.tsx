@@ -101,6 +101,7 @@ export const PlanView = ({
 				matchingEntry(plans, route),
 				nowMs,
 			)}
+			plans={plans}
 			repoPath={repoPath}
 		/>
 	)

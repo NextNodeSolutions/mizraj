@@ -1,13 +1,13 @@
-import { navigate, pipelineHref } from '@/app/router'
+import { navigate, pipelineHref, planRouteHref } from '@/app/router'
 import type { MilestoneGroup } from '@/features/tasks/tasks'
 import { useTasks } from '@/features/tasks/tasks'
 
 import { LaunchPlanAgentsButton } from './LaunchPlanAgentsButton'
 import type { PlanDoc } from './planDoc'
-import { appendOverviewCounts } from './planDoc'
+import { appendOverviewCounts, generatedPlanFor } from './planDoc'
 import { PlanMilestones } from './PlanMilestones'
 import { PlanPanel } from './PlanPanel'
-import type { PlanKind } from './plans'
+import type { PlanEntry, PlanKind } from './plans'
 
 const KIND_TAG_CLASS: Readonly<Record<PlanKind, string>> = {
 	plan: 'tag tag-rev',
@@ -16,6 +16,7 @@ const KIND_TAG_CLASS: Readonly<Record<PlanKind, string>> = {
 
 type Props = {
 	doc: PlanDoc
+	plans: ReadonlyArray<PlanEntry>
 	repoPath: string | null
 }
 
@@ -25,13 +26,19 @@ type Props = {
  * overview. Mounted keyed by kind/slug so switching docs replays the stagger.
  */
 // TODO: native intro/Q&A rendering needs structured plan/interview data; today the doc body is the plan:// iframe
-export const PlanPaper = ({ doc, repoPath }: Props): React.JSX.Element => {
+export const PlanPaper = ({
+	doc,
+	plans,
+	repoPath,
+}: Props): React.JSX.Element => {
 	// TODO: no plan->milestones linkage in backend; tasks_overview is per-project, shown for the active project regardless of which plan doc is open
 	const tasks = useTasks(repoPath)
 	const milestones: ReadonlyArray<MilestoneGroup> =
 		doc.kind === 'plan' && tasks.state.status === 'ready'
 			? tasks.state.data.milestones
 			: []
+	const generatedPlan =
+		doc.kind === 'interview' ? generatedPlanFor(plans, doc.slug) : null
 	return (
 		<div className="pl-doc">
 			<div className="pl-paper stagger">
@@ -56,6 +63,19 @@ export const PlanPaper = ({ doc, repoPath }: Props): React.JSX.Element => {
 							onClick={() => navigate(pipelineHref())}
 						>
 							Open in Pipeline
+						</button>
+					</div>
+				)}
+				{generatedPlan !== null && (
+					<div className="pl-actions">
+						<button
+							type="button"
+							className="btn btn-primary"
+							onClick={() =>
+								navigate(planRouteHref(generatedPlan))
+							}
+						>
+							→ Open generated plan
 						</button>
 					</div>
 				)}

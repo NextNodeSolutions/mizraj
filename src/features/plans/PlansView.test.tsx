@@ -199,11 +199,13 @@ describe('PlansView', () => {
 	})
 
 	type ServeOptions = {
+		entries?: typeof PLAN_ENTRIES
 		overview?: OverviewFixture
 		spawn?: () => Promise<string>
 	}
 
 	const serveOverview = (options: ServeOptions = {}): void => {
+		const entries = options.entries ?? PLAN_ENTRIES
 		const overview = options.overview ?? OVERVIEW
 		let nextSession = 0
 		const spawn =
@@ -213,7 +215,7 @@ describe('PlansView', () => {
 				return Promise.resolve(`session-${nextSession}`)
 			})
 		invokeMock.mockImplementation((command: string) => {
-			if (command === 'list_plans') return Promise.resolve(PLAN_ENTRIES)
+			if (command === 'list_plans') return Promise.resolve(entries)
 			if (command === 'resolve_plan')
 				return Promise.resolve({ url: 'plan://plan/auth-hardening' })
 			if (command === 'tasks_overview') return Promise.resolve(overview)
@@ -252,6 +254,58 @@ describe('PlansView', () => {
 			.map(toast => toast.message)
 		expect(messages).toContain('2 agents launched from this plan')
 		expect(window.location.pathname).toBe('/')
+	})
+
+	it('opens the generated plan from its interview', async () => {
+		serveOverview({
+			entries: [
+				{
+					kind: 'plan',
+					slug: '2026-05-15-auth-hardening',
+					title: 'Auth hardening',
+					url: 'plan://plan/2026-05-15-auth-hardening',
+					mtime: nowSeconds - SECONDS_PER_HOUR,
+				},
+				{
+					kind: 'interview',
+					slug: 'auth-hardening',
+					title: 'Auth hardening — interview',
+					url: 'plan://interview/auth-hardening',
+					mtime: nowSeconds - SECONDS_PER_HOUR,
+				},
+			],
+		})
+		window.history.pushState({}, '', '/plans/interview/auth-hardening')
+		await render()
+
+		const button = Array.from(container.querySelectorAll('button')).find(
+			candidate => candidate.textContent?.includes('Open generated plan'),
+		)
+		await act(async () => {
+			button?.click()
+		})
+
+		expect(window.location.pathname).toBe(
+			'/plans/plan/2026-05-15-auth-hardening',
+		)
+	})
+
+	it('hides the generated-plan action when no plan matches', async () => {
+		serveOverview({
+			entries: [
+				{
+					kind: 'interview',
+					slug: 'orphan',
+					title: 'Orphan — interview',
+					url: 'plan://interview/orphan',
+					mtime: nowSeconds - SECONDS_PER_HOUR,
+				},
+			],
+		})
+		window.history.pushState({}, '', '/plans/interview/orphan')
+		await render()
+
+		expect(container.textContent).not.toContain('Open generated plan')
 	})
 
 	it('opens the pipeline from the plan actions', async () => {
