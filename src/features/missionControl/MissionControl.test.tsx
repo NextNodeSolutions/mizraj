@@ -4,6 +4,8 @@ import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as RouterModule from '@/app/router'
+
 const { invokeMock, navigateMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
 	navigateMock: vi.fn(),
@@ -13,10 +15,11 @@ vi.mock('@tauri-apps/api/core', () => ({
 	invoke: invokeMock,
 }))
 
-vi.mock('@/app/router', () => ({
+// Only navigate is faked: hrefs, parseMissionFilter and useLocationSearch
+// stay real so the URL remains the single source of truth in tests too.
+vi.mock('@/app/router', async importOriginal => ({
+	...(await importOriginal<typeof RouterModule>()),
 	navigate: navigateMock,
-	agentRunHref: (sessionId: string) => `/agent-run/${sessionId}`,
-	reviewHref: () => '/review',
 }))
 
 vi.mock('@/shared/logger', () => ({
@@ -104,6 +107,7 @@ describe('MissionControl', () => {
 		invokeMock.mockReset()
 		invokeMock.mockResolvedValue(undefined)
 		navigateMock.mockReset()
+		window.history.replaceState({}, '', '/')
 		container = document.createElement('div')
 		document.body.appendChild(container)
 		root = createRoot(container)
@@ -240,14 +244,14 @@ describe('MissionControl', () => {
 		expect(navigateMock).toHaveBeenCalledWith('/review')
 	})
 
-	it('filter chips narrow the grid to one status', () => {
+	it('filter chips deep-link the status into the URL', () => {
 		seedSession('run-1')
 		seedSession('done-1', { ended: { exitCode: 0 } })
 		render()
 
-		const reviewChip = Array.from(
-			container.querySelectorAll('.mission-control__chip'),
-		).find(chip => chip.textContent?.includes('Needs review'))
+		const reviewChip = Array.from(container.querySelectorAll('.chip')).find(
+			chip => chip.textContent?.includes('Needs review'),
+		)
 		expect(reviewChip).toBeDefined()
 
 		act(() => {
@@ -256,8 +260,48 @@ describe('MissionControl', () => {
 			)
 		})
 
+		expect(navigateMock).toHaveBeenCalledWith('/?filter=review')
+	})
+
+	it('the URL filter narrows the wall and lights its chip', () => {
+		seedSession('run-1')
+		seedSession('done-1', { ended: { exitCode: 0 } })
+		window.history.replaceState({}, '', '/?filter=review')
+		render()
+
 		expect(cards()).toHaveLength(1)
-		expect(container.textContent).toContain('needs review')
+		expect(cards()[0]?.getAttribute('data-status')).toBe('review')
+		const activeChip = container.querySelector('.chip[data-on="true"]')
+		expect(activeChip?.textContent).toContain('Needs review')
+	})
+
+	it('counts every chip over all sessions, not the filtered view', () => {
+		seedSession('run-1')
+		seedSession('done-1', { ended: { exitCode: 0 } })
+		window.history.replaceState({}, '', '/?filter=review')
+		render()
+
+		const chipTexts = Array.from(container.querySelectorAll('.chip')).map(
+			chip => chip.textContent,
+		)
+		expect(chipTexts).toContain('All2')
+		expect(chipTexts).toContain('Running1')
+		expect(chipTexts).toContain('Needs review1')
+		expect(chipTexts).toContain('Failed0')
+	})
+
+	it('heads the screen with its title and the live scope line', () => {
+		seedSession('run-1', { repoPath: '/repo/x' })
+		seedSession('run-2', { repoPath: '/repo/y' })
+		seedSession('done-1', { repoPath: '/repo/x', ended: { exitCode: 0 } })
+		render()
+
+		expect(container.querySelector('.view-head h2')?.textContent).toBe(
+			'Mission Control',
+		)
+		expect(container.querySelector('.mc-scope')?.textContent).toBe(
+			'2 projects · 2 agents live',
+		)
 	})
 
 	it('groups cards per project with the repo name and compacted path', () => {
