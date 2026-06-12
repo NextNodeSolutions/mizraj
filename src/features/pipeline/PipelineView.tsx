@@ -1,6 +1,9 @@
+import { useAtomValue } from 'jotai'
+
 import { useSessions } from '@/features/sessions/useSessions'
 import { useTasks } from '@/features/tasks/tasks'
 
+import { approvedSessionIdsAtom } from './approvedSessions'
 import { PipelineColumn } from './PipelineColumn'
 import { pipelineColumns } from './pipelineColumns'
 import { PipelineSessionCard } from './PipelineSessionCard'
@@ -15,6 +18,7 @@ export const PipelineView = ({
 }: Props): React.JSX.Element => {
 	const { state, refetch } = useTasks(activeProjectPath)
 	const sessions = useSessions()
+	const approvedSessionIds = useAtomValue(approvedSessionIdsAtom)
 
 	if (activeProjectPath === null) {
 		return (
@@ -25,9 +29,10 @@ export const PipelineView = ({
 	}
 
 	const overview = state.status === 'ready' ? state.data : null
-	const columns = pipelineColumns(overview, sessions)
+	const columns = pipelineColumns(overview, sessions, approvedSessionIds)
 	const runningCount =
 		columns.runningSessions.length + columns.inProgressTasks.length
+	const doneCount = columns.doneSessions.length + columns.done.length
 
 	return (
 		<section className="pipeline" aria-label="Pipeline">
@@ -79,7 +84,7 @@ export const PipelineView = ({
 						/>
 					))}
 				</PipelineColumn>
-				<PipelineColumn title="Done" count={columns.done.length}>
+				<PipelineColumn title="Done" count={doneCount}>
 					{columns.done.map(entry => (
 						<PipelineTaskCard
 							key={entry.task.id}

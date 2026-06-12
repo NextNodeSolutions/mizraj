@@ -57,6 +57,8 @@ const overview = (
 	userTasks: user,
 })
 
+const NONE_APPROVED: ReadonlySet<string> = new Set()
+
 describe('pipelineColumns', () => {
 	it('routes tasks and sessions to their columns', () => {
 		const columns = pipelineColumns(
@@ -69,6 +71,7 @@ describe('pipelineColumns', () => {
 				[task('u', 'backlog')],
 			),
 			[session('run', 'running'), session('rev', 'ended', 0)],
+			NONE_APPROVED,
 		)
 
 		expect(columns.backlog.map(entry => entry.task.id)).toEqual(['a', 'u'])
@@ -80,10 +83,22 @@ describe('pipelineColumns', () => {
 		expect(columns.done.map(entry => entry.task.id)).toEqual(['c'])
 	})
 
+	it('moves approved ended sessions from review to done', () => {
+		const columns = pipelineColumns(
+			null,
+			[session('kept', 'ended', 0), session('merged', 'ended', 0)],
+			new Set(['merged']),
+		)
+
+		expect(columns.endedSessions.map(s => s.id)).toEqual(['kept'])
+		expect(columns.doneSessions.map(s => s.id)).toEqual(['merged'])
+	})
+
 	it('keeps blocked tasks visible in the backlog', () => {
 		const columns = pipelineColumns(
 			overview([task('x', 'blocked')], []),
 			[],
+			NONE_APPROVED,
 		)
 
 		expect(columns.backlog.map(entry => entry.task.id)).toEqual(['x'])
@@ -93,13 +108,18 @@ describe('pipelineColumns', () => {
 		const columns = pipelineColumns(
 			overview([task('a', 'backlog')], []),
 			[],
+			NONE_APPROVED,
 		)
 
 		expect(columns.backlog[0]?.branch).toBe('feat/x')
 	})
 
 	it('handles a missing overview', () => {
-		const columns = pipelineColumns(null, [session('run', 'running')])
+		const columns = pipelineColumns(
+			null,
+			[session('run', 'running')],
+			NONE_APPROVED,
+		)
 
 		expect(columns.backlog).toEqual([])
 		expect(columns.runningSessions.map(s => s.id)).toEqual(['run'])

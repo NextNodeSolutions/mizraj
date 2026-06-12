@@ -12,6 +12,7 @@ export type PipelineColumns = {
 	inProgressTasks: ReadonlyArray<TaskEntry>
 	runningSessions: ReadonlyArray<SessionState>
 	endedSessions: ReadonlyArray<SessionState>
+	doneSessions: ReadonlyArray<SessionState>
 	done: ReadonlyArray<TaskEntry>
 }
 
@@ -34,20 +35,28 @@ const byStatus = (
  * Project the task tree and the live session set onto the four pipeline
  * columns. Blocked tasks stay in the backlog (visible, not actionable);
  * ended sessions land in Review whatever their exit — the card's status
- * badge tells review from failure.
+ * badge tells review from failure — until they are approved, which moves
+ * them to Done as `doneSessions`.
  */
 export const pipelineColumns = (
 	overview: Overview | null,
 	sessions: ReadonlyArray<SessionState>,
+	approvedSessionIds: ReadonlySet<string>,
 ): PipelineColumns => {
 	const entries = overview === null ? [] : flattenEntries(overview)
+	const ended = sessions.filter(session => session.status === 'ended')
 	return {
 		backlog: byStatus(entries, ['backlog', 'blocked']),
 		inProgressTasks: byStatus(entries, ['in_progress']),
 		runningSessions: sessions.filter(
 			session => session.status === 'running',
 		),
-		endedSessions: sessions.filter(session => session.status === 'ended'),
+		endedSessions: ended.filter(
+			session => !approvedSessionIds.has(session.id),
+		),
+		doneSessions: ended.filter(session =>
+			approvedSessionIds.has(session.id),
+		),
 		done: byStatus(entries, ['done']),
 	}
 }
