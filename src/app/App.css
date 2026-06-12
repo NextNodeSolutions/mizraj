@@ -1,4 +1,5 @@
 @import './Toasts.css';
+@import '../features/missionControl/MissionControl.css';
 
 /* Bundled fallback fonts — parity with Ghostty's embedded JetBrains Mono +
  * Nerd symbols: when the user's configured font-family is missing (or lacks
@@ -86,6 +87,14 @@
 	--color-backdrop: rgba(76, 79, 105, 0.45);
 	--shadow-elevated: 0 20px 60px rgba(76, 79, 105, 0.25);
 	--shadow-input: 0 2px 2px rgba(76, 79, 105, 0.15);
+
+	/* Session display-status hues + diff stats — follow the Catppuccin
+	   palette per theme via the --ctp-* indirection. */
+	--color-running: var(--ctp-green);
+	--color-review: var(--ctp-yellow);
+	--color-failed: var(--ctp-red);
+	--color-diff-add: var(--ctp-green);
+	--color-diff-del: var(--ctp-red);
 
 	/* Terminal default colors — what a cell's `Color::Default` resolves to.
 	   Single source of truth: the canvas renderer reads these via

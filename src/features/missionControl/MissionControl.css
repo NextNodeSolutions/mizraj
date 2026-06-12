@@ -1,0 +1,211 @@
+.mission-control {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	height: 100%;
+}
+
+.mission-control__empty {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 0.75rem;
+	color: var(--color-text-muted);
+}
+
+.mission-control__empty p {
+	margin: 0;
+	font-size: 0.95rem;
+}
+
+.mission-control__filters {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.mission-control__chip {
+	padding: 0.3rem 0.8rem;
+	font-size: 0.85rem;
+	border: 1px solid var(--color-border-subtle);
+	border-radius: 999px;
+	background: transparent;
+	color: var(--color-text-muted);
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.mission-control__chip b {
+	font-weight: 600;
+	color: var(--color-text-muted);
+}
+
+.mission-control__chip:hover {
+	border-color: var(--color-border);
+	color: var(--color-text);
+}
+
+.mission-control__chip[aria-pressed='true'] {
+	border-color: var(--color-accent);
+	background: var(--color-active-overlay);
+	color: var(--color-text);
+}
+
+.mission-control__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+	gap: 1rem;
+	align-content: start;
+	overflow-y: auto;
+}
+
+.agent-card {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0.6rem;
+	padding: 0.85rem;
+	border: 1px solid var(--color-border-subtle);
+	border-radius: 10px;
+	background: var(--color-bg-elevated);
+	color: var(--color-text);
+	text-align: left;
+	font-size: 0.9rem;
+	cursor: pointer;
+	box-shadow: none;
+	transition:
+		border-color 0.12s ease,
+		transform 0.12s ease;
+}
+
+.agent-card:hover {
+	border-color: var(--color-accent);
+	transform: translateY(-2px);
+}
+
+.agent-card[data-status='review'] {
+	border-color: color-mix(in srgb, var(--color-review) 45%, transparent);
+}
+
+.agent-card__top {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-width: 0;
+}
+
+.agent-card__tag {
+	font-size: 0.65rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	padding: 0.05rem 0.5rem;
+	border: 1px solid var(--color-border);
+	border-radius: 999px;
+	color: var(--color-text-muted);
+}
+
+.agent-card__tag[data-status='running'] {
+	color: var(--color-running);
+	border-color: color-mix(in srgb, var(--color-running) 50%, transparent);
+}
+
+.agent-card__tag[data-status='review'] {
+	color: var(--color-review);
+	border-color: color-mix(in srgb, var(--color-review) 50%, transparent);
+}
+
+.agent-card__tag[data-status='failed'] {
+	color: var(--color-failed);
+	border-color: color-mix(in srgb, var(--color-failed) 50%, transparent);
+}
+
+.agent-card__repo {
+	margin-left: auto;
+	font-family: var(--font-mono, monospace);
+	font-size: 0.7rem;
+	color: var(--color-text-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-card__title {
+	font-size: 0.95rem;
+	font-weight: 600;
+	line-height: 1.3;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-card__term {
+	display: block;
+	padding: 0.5rem 0.65rem;
+	border-radius: 6px;
+	background: var(--terminal-bg);
+	color: var(--terminal-fg);
+	font-family: var(--font-mono, monospace);
+	font-size: 0.72rem;
+	line-height: 1.55;
+	white-space: pre-line;
+	overflow: hidden;
+	min-height: 2.6em;
+}
+
+.agent-card__foot {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.agent-card__age {
+	font-size: 0.75rem;
+	color: var(--color-text-muted);
+}
+
+.agent-card__cta {
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: var(--color-accent);
+}
+
+/* Shared status dot — agent cards, cockpit session rows, pipeline cards. */
+.status-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex: none;
+	background: var(--color-text-muted);
+}
+
+.status-dot[data-status='running'] {
+	background: var(--color-running);
+	animation: status-pulse 1.8s infinite;
+}
+
+.status-dot[data-status='review'] {
+	background: var(--color-review);
+}
+
+.status-dot[data-status='failed'] {
+	background: var(--color-failed);
+}
+
+@keyframes status-pulse {
+	0% {
+		box-shadow: 0 0 0 0
+			color-mix(in srgb, var(--color-running) 55%, transparent);
+	}
+
+	70% {
+		box-shadow: 0 0 0 6px transparent;
+	}
+
+	100% {
+		box-shadow: 0 0 0 0 transparent;
+	}
+}
