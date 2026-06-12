@@ -153,16 +153,49 @@ describe('MissionControl', () => {
 		expect(container.textContent).toContain('failed')
 	})
 
-	it('shows the live terminal tail on a card', () => {
+	it('shows the live terminal tail on a card, cursor on the last line', () => {
 		seedSession('run-1')
 		store.set(cellFramesAtom, {
 			'run-1': frameOfLines('run-1', ['pnpm test', '14 passing']),
 		})
 		render()
 
-		const term = container.querySelector('.agent-card__term')
-		expect(term?.textContent).toContain('pnpm test')
-		expect(term?.textContent).toContain('14 passing')
+		const lines = Array.from(
+			container.querySelectorAll('.mini-term .term-line'),
+		)
+		expect(lines[0]?.textContent).toContain('pnpm test')
+		expect(lines[1]?.textContent).toContain('14 passing')
+		expect(lines[1]?.querySelector('.caret')).not.toBeNull()
+	})
+
+	it('shows a waiting prompt while a running card has no output yet', () => {
+		seedSession('run-1')
+		render()
+
+		const term = container.querySelector('.mini-term')
+		expect(term?.textContent).toContain('waiting for output…')
+		expect(term?.querySelector('.caret')).not.toBeNull()
+	})
+
+	it('renders a review card with idle lines, no cursor, and a review CTA', () => {
+		seedSession('done-1', { ended: { exitCode: 0 } })
+		render()
+
+		const term = container.querySelector('.mini-term')
+		expect(term?.textContent).toContain('done')
+		expect(term?.textContent).toContain('⚑ waiting for your review')
+		expect(term?.querySelector('.caret')).toBeNull()
+		expect(container.querySelector('.gobtn')?.textContent).toBe('Review →')
+	})
+
+	it('renders a failed card with its exit code, no cursor', () => {
+		seedSession('fail-1', { ended: { exitCode: 9 } })
+		render()
+
+		const term = container.querySelector('.mini-term')
+		expect(term?.textContent).toContain('✗ exited with code 9')
+		expect(term?.textContent).toContain('open to inspect the terminal')
+		expect(term?.querySelector('.caret')).toBeNull()
 	})
 
 	it('subscribes each visible session to cell frames and releases on unmount', () => {
