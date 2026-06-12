@@ -1,4 +1,3 @@
-import { agentRunHref, navigate } from '@/app/router'
 import { writeClipboardText } from '@/features/sessions/clipboard'
 import { spawnSession } from '@/features/sessions/launchSession'
 import type { Task } from '@/features/tasks/tasks'
@@ -22,22 +21,23 @@ export const taskPrompt = (task: Task): string =>
 
 /**
  * One-click "Launch agent" on a backlog card: spawn an agent session in the
- * repo, flag the task in progress, arm the clipboard with the task prompt
- * (session_create has no initial-prompt channel, so the user pastes it as
- * the agent's first message) and open the cockpit. A failed spawn leaves
- * the task untouched and reports false.
+ * repo, flag the task in progress and arm the clipboard with the task
+ * prompt. No navigation — the board stays visible so the user watches the
+ * card move into Running. A failed spawn leaves the task untouched and
+ * reports null; success reports the new session id so the view can mark
+ * its card fresh.
  */
 export const launchTaskAgent = async (
 	task: Task,
 	repoPath: string,
-): Promise<boolean> => {
+): Promise<string | null> => {
 	const sessionId = await spawnSession({
 		binary: AGENT_BINARY,
 		repoPath,
 	})
 	if (sessionId === null) {
 		pushToast('Agent launch failed — see logs')
-		return false
+		return null
 	}
 
 	await updateTask({
@@ -46,8 +46,10 @@ export const launchTaskAgent = async (
 		description: task.description,
 		status: 'in_progress',
 	})
+	//TODO: session_create has no initial-prompt channel — launchTaskAgent arms
+	// the clipboard with taskPrompt(task) and the toast tells the user to paste
+	// (existing v1 behavior, kept in v2).
 	await writeClipboardText(taskPrompt(task))
 	pushToast('Agent launched — task prompt is in your clipboard')
-	navigate(agentRunHref(sessionId))
-	return true
+	return sessionId
 }

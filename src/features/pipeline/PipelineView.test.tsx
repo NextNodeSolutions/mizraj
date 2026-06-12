@@ -219,7 +219,9 @@ describe('PipelineView', () => {
 			'tasks_update',
 			expect.objectContaining({ id: 'task-backlog' }),
 		)
-		expect(navigateMock).toHaveBeenCalledWith('/agent-run/sess-9')
+		// v2 drops the cockpit redirect: the board stays visible so the card
+		// is seen moving into Running.
+		expect(navigateMock).not.toHaveBeenCalled()
 	})
 
 	it('keeps a blocked card visible but not launchable', async () => {

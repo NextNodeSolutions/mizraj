@@ -56,8 +56,8 @@ export const PipelineTaskCard = ({
 					disabled={blocked || repoPath === null}
 					onClick={() => {
 						if (repoPath === null) return
-						void launchTaskAgent(task, repoPath).then(launched => {
-							if (launched) onChanged()
+						void launchTaskAgent(task, repoPath).then(sessionId => {
+							if (sessionId !== null) onChanged()
 						})
 					}}
 				>

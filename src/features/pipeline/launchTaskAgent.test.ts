@@ -80,16 +80,16 @@ describe('launchTaskAgent', () => {
 		writeTextMock.mockResolvedValue(undefined)
 	})
 
-	it('spawns the agent, flags the task in progress, arms the prompt and opens the cockpit', async () => {
+	it('spawns the agent, flags the task in progress, arms the prompt and stays on the board', async () => {
 		invokeMock.mockImplementation((command: string) =>
 			command === 'session_create'
 				? Promise.resolve('sess-9')
 				: Promise.resolve({ ...TASK, status: 'in_progress' }),
 		)
 
-		const launched = await launchTaskAgent(TASK, '/repo')
+		const sessionId = await launchTaskAgent(TASK, '/repo')
 
-		expect(launched).toBe(true)
+		expect(sessionId).toBe('sess-9')
 		expect(invokeMock).toHaveBeenCalledWith('session_create', {
 			binary: 'claude',
 			cwd: '/repo',
@@ -101,15 +101,15 @@ describe('launchTaskAgent', () => {
 			status: 'in_progress',
 		})
 		expect(writeTextMock).toHaveBeenCalledWith(taskPrompt(TASK))
-		expect(navigateMock).toHaveBeenCalledWith('/agent-run/sess-9')
+		expect(navigateMock).not.toHaveBeenCalled()
 	})
 
 	it('aborts without flagging the task when the spawn fails', async () => {
 		invokeMock.mockRejectedValue(new Error('no claude on PATH'))
 
-		const launched = await launchTaskAgent(TASK, '/repo')
+		const sessionId = await launchTaskAgent(TASK, '/repo')
 
-		expect(launched).toBe(false)
+		expect(sessionId).toBe(null)
 		expect(invokeMock).not.toHaveBeenCalledWith(
 			'tasks_update',
 			expect.anything(),
