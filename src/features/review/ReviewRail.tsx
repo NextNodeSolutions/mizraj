@@ -1,5 +1,7 @@
 import { useState } from 'react'
 
+import { terminalTail } from '@/features/sessions/terminalTail'
+import { useCellFrame } from '@/features/sessions/useCellFrame'
 import { useSessions } from '@/features/sessions/useSessions'
 import { pushToast } from '@/shared/toasts'
 
@@ -29,6 +31,10 @@ export const ReviewRail = ({
 	const [draft, setDraft] = useState('')
 	const [sending, setSending] = useState(false)
 	const target = pickAgentSession(sessions, repoPath)
+	// What the agent is showing right now — only when its frame is cached
+	// (the session was subscribed at least once); absent otherwise.
+	const targetFrame = useCellFrame(target?.id ?? '')
+	const [tailLine] = terminalTail(targetFrame, 1)
 
 	const submit = (): void => {
 		const text = draft.trim()
@@ -57,15 +63,23 @@ export const ReviewRail = ({
 	return (
 		<aside className="panel review-rail" aria-label="Review conversation">
 			<div className="review-rail__summary">
-				<h4>Working tree</h4>
+				<h4>WHAT THE AGENT DID</h4>
+				{/* TODO: agent-produced run summary — no backend command exposes one yet. */}
 				<p>
 					{totals.files} files ·{' '}
-					<span className="diff-add">+{totals.additions}</span>{' '}
-					<span className="diff-del">−{totals.deletions}</span>
+					<span className="add">+{totals.additions}</span>{' '}
+					<span className="del">−{totals.deletions}</span> in the
+					working tree
 				</p>
+				{tailLine !== undefined && (
+					<p className="review-rail__tail">{tailLine}</p>
+				)}
+				{/* TODO: tests status badge — needs a backend command reporting
+				    the branch's test run (.test-badge CSS is ready). */}
 			</div>
-			<div className="review-rail__thread">
-				<h4>Conversation</h4>
+			<div className="review-rail__thread" aria-label="Conversation">
+				{/* TODO: agent reply messages in thread (terminal output is not
+				    parsed into conversation turns) — every bubble is ours. */}
 				{thread.length === 0 ? (
 					<p className="review-rail__hint">
 						Review is a conversation — ask the agent to iterate.
@@ -73,13 +87,23 @@ export const ReviewRail = ({
 				) : (
 					<ul>
 						{thread.map(message => (
-							<li key={message.id} className="review-rail__msg">
-								{message.ref !== null && (
-									<span className="review-rail__ref">
-										↳ {reviewRefLabel(message.ref)}
-									</span>
-								)}
-								<span>{message.text}</span>
+							<li
+								key={message.id}
+								className="review-rail__msg"
+								data-me="true"
+							>
+								<span className="who">
+									You
+									{message.ref !== null && (
+										<>
+											{' · '}
+											<span className="ref">
+												{reviewRefLabel(message.ref)}
+											</span>
+										</>
+									)}
+								</span>
+								<span className="txt">{message.text}</span>
 							</li>
 						))}
 					</ul>
@@ -95,18 +119,27 @@ export const ReviewRail = ({
 					ref={composeRef}
 					value={draft}
 					disabled={target === null || sending}
-					placeholder="Ask the agent for a change…"
+					placeholder="Ask the agent for a change… (e.g. handle the null case too)"
 					onChange={event => setDraft(event.target.value)}
+					onKeyDown={event => {
+						if (
+							event.key === 'Enter' &&
+							(event.metaKey || event.ctrlKey)
+						) {
+							event.preventDefault()
+							submit()
+						}
+					}}
 				/>
 				<div className="review-rail__compose-row">
 					{selectedPath !== null && (
-						<span className="review-rail__ref">
+						<span className="review-rail__ctx">
 							↳ {selectedPath}
 						</span>
 					)}
 					<button
 						type="button"
-						className="review-rail__send"
+						className="btn btn-sm btn-primary review-rail__send"
 						disabled={
 							target === null || sending || draft.trim() === ''
 						}

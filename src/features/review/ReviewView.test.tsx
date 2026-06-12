@@ -41,7 +41,13 @@ vi.mock('@pierre/diffs/react', () => {
 	return { FileDiff }
 })
 
-import { sessionsAtom, startSessionAtom } from '@/features/sessions/sessions'
+import {
+	cellFramesAtom,
+	sessionsAtom,
+	setCellFrameAtom,
+	startSessionAtom,
+} from '@/features/sessions/sessions'
+import type { CellFramePayload } from '@/features/sessions/terminalWire'
 import { toastsAtom } from '@/shared/toasts'
 
 import { conversationsAtom } from './agentConversation'
@@ -49,6 +55,23 @@ import { ReviewView } from './ReviewView'
 import { viewedFilesAtom } from './viewedFiles'
 
 const store = getDefaultStore()
+
+const frameFor = (sessionId: string, text: string): CellFramePayload => ({
+	session_id: sessionId,
+	cols: [...text].length,
+	rows: 1,
+	cells: [...text].map(ch => ({
+		ch,
+		fg: { kind: 'default' },
+		bg: { kind: 'default' },
+		attrs: 0,
+		wide: 'narrow',
+	})),
+	cursor: null,
+	mouse_reporting: false,
+	viewport_top: 0,
+	history_total: 0,
+})
 
 const PATCH = [
 	'diff --git a/src/api/limiter.ts b/src/api/limiter.ts',
@@ -76,6 +99,7 @@ describe('ReviewView', () => {
 
 	beforeEach(() => {
 		store.set(sessionsAtom, {})
+		store.set(cellFramesAtom, {})
 		store.set(viewedFilesAtom, {})
 		store.set(conversationsAtom, {})
 		store.set(toastsAtom, [])
@@ -209,6 +233,33 @@ describe('ReviewView', () => {
 		).toBe('src/api/limiter.ts')
 	})
 
+	it('summarizes the working tree in the rail card', async () => {
+		await render()
+
+		const summary = container.querySelector('.review-rail__summary')
+		expect(summary?.querySelector('h4')?.textContent).toBe(
+			'WHAT THE AGENT DID',
+		)
+		expect(summary?.textContent).toContain(
+			'2 files · +3 −1 in the working tree',
+		)
+		expect(container.querySelector('.review-rail__tail')).toBeNull()
+	})
+
+	it('appends the picked agent terminal tail when a frame is cached', async () => {
+		store.set(startSessionAtom, {
+			id: 'agent-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		store.set(setCellFrameAtom, frameFor('agent-1', '✓ build passed'))
+		await render()
+
+		expect(
+			container.querySelector('.review-rail__tail')?.textContent,
+		).toContain('✓ build passed')
+	})
+
 	it('disables the composer without a running session in the repo', async () => {
 		await render()
 
@@ -250,10 +301,57 @@ describe('ReviewView', () => {
 			sessionId: 'agent-1',
 			text: '\r',
 		})
-		expect(
-			container.querySelector('.review-rail__thread')?.textContent,
-		).toContain('gère aussi le cas null')
+		const message = container.querySelector(
+			'.review-rail__thread .review-rail__msg',
+		)
+		expect(message?.getAttribute('data-me')).toBe('true')
+		expect(message?.querySelector('.who')?.textContent).toContain('You')
+		expect(message?.querySelector('.ref')?.textContent).toBe(
+			'src/api/limiter.ts',
+		)
+		expect(message?.querySelector('.txt')?.textContent).toBe(
+			'gère aussi le cas null',
+		)
+		// The design drops the thread heading; a11y keeps the aria-label.
+		expect(container.querySelector('.review-rail__thread h4')).toBeNull()
 		expect(textarea?.value).toBe('')
+	})
+
+	it('submits the draft with Cmd+Enter from the composer', async () => {
+		store.set(startSessionAtom, {
+			id: 'agent-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		await render()
+
+		const textarea = container.querySelector('textarea')
+		expect(textarea?.placeholder).toBe(
+			'Ask the agent for a change… (e.g. handle the null case too)',
+		)
+		await act(async () => {
+			const setter = Object.getOwnPropertyDescriptor(
+				window.HTMLTextAreaElement.prototype,
+				'value',
+			)?.set
+			setter?.call(textarea, 'ship it')
+			textarea?.dispatchEvent(new Event('input', { bubbles: true }))
+		})
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent('keydown', {
+					key: 'Enter',
+					metaKey: true,
+					bubbles: true,
+					cancelable: true,
+				}),
+			)
+		})
+
+		expect(invokeMock).toHaveBeenCalledWith('session_paste', {
+			sessionId: 'agent-1',
+			text: '[src/api/limiter.ts] ship it',
+		})
 	})
 
 	it('request changes focuses the composer and prompts via toast', async () => {
