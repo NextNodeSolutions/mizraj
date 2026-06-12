@@ -10,6 +10,7 @@ use portable_pty::PtySize;
 use tauri::async_runtime::{channel, spawn, spawn_blocking, Mutex, Receiver, RwLock, Sender};
 use tokio::time::timeout;
 
+use crate::session::cell_frame::CellFrame;
 use crate::session::error::SessionError;
 use crate::session::handle::{SessionHandle, SessionTasks};
 use crate::session::id::SessionId;
@@ -18,6 +19,11 @@ use crate::session::pty::{self, PtySession};
 use crate::session::sink::OutputSink;
 
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(2);
+
+/// How long a frame pull may wait for the render thread before reporting the
+/// session frameless. The snapshot itself is microseconds; the budget covers a
+/// render thread busy waiting out a pacing window.
+const FRAME_REQUEST_TIMEOUT: Duration = Duration::from_millis(500);
 
 const INPUT_CHANNEL_CAPACITY: usize = 64;
 const PTY_READ_BUFFER_SIZE: usize = 4096;
@@ -174,6 +180,34 @@ impl SessionManager {
             .ok_or_else(|| SessionError::NotFound(id.to_string()))?;
         dispatch_to_sinks(handle.sinks(), |sink| sink.set_subscribed(subscribed)).await;
         Ok(())
+    }
+
+    /// Pull the session's current grid as a [`CellFrame`] (TP1: a pane paints
+    /// its first frame from this snapshot instead of staying blank until the
+    /// next output). Fans the request out like [`send_key`]; the terminal
+    /// sink's render thread answers on the reply channel. Returns `NotFound`
+    /// for unknown sessions and `FrameUnavailable` when no terminal sink
+    /// replies within [`FRAME_REQUEST_TIMEOUT`] (no terminal sink attached, or
+    /// its render thread is gone).
+    pub async fn request_frame(&self, id: &SessionId) -> Result<CellFrame, SessionError> {
+        let (reply_tx, mut reply_rx) = channel::<CellFrame>(1);
+        {
+            let state = self.state.read().await;
+            let handle = state
+                .get(id)
+                .ok_or_else(|| SessionError::NotFound(id.to_string()))?;
+            dispatch_to_sinks(handle.sinks(), |sink| sink.frame_request(reply_tx.clone())).await;
+        }
+        // Drop our own sender so `recv` resolves to None as soon as every sink
+        // discarded its clone (the no-terminal-sink case fails fast instead of
+        // burning the whole timeout).
+        drop(reply_tx);
+
+        match timeout(FRAME_REQUEST_TIMEOUT, reply_rx.recv()).await {
+            Ok(Some(frame)) => Ok(frame),
+            Ok(None) => Err(SessionError::FrameUnavailable(id.to_string())),
+            Err(_elapsed) => Err(SessionError::FrameUnavailable(id.to_string())),
+        }
     }
 
     /// Register an additional [`OutputSink`] on a live session.
@@ -956,6 +990,58 @@ mod tests {
             match err {
                 SessionError::NotFound(s) => assert_eq!(s, id.to_string()),
                 other => panic!("expected NotFound, got {other:?}"),
+            }
+        });
+    }
+
+    #[test]
+    fn request_frame_returns_not_found_for_unknown_id() {
+        block_on(async {
+            let manager = SessionManager::new();
+            let id = SessionId::new();
+            let err = manager
+                .request_frame(&id)
+                .await
+                .expect_err("unknown id should fail");
+            match err {
+                SessionError::NotFound(s) => assert_eq!(s, id.to_string()),
+                other => panic!("expected NotFound, got {other:?}"),
+            }
+        });
+    }
+
+    #[test]
+    fn request_frame_reports_frame_unavailable_without_a_terminal_sink() {
+        block_on(async {
+            let manager = SessionManager::new();
+
+            let (writer_tx, _writer_rx) = channel::<Vec<u8>>(INPUT_CHANNEL_CAPACITY);
+            // Only a byte sink: nobody answers frame requests.
+            let sinks: Arc<RwLock<Vec<Arc<dyn OutputSink>>>> = Arc::new(RwLock::new(vec![
+                Arc::new(VecSink::new()) as Arc<dyn OutputSink>,
+            ]));
+            let handle = SessionHandle::new(
+                writer_tx,
+                fresh_child(),
+                SessionTasks {
+                    reader: spawn(async { std::future::pending::<()>().await }),
+                    writer: spawn(async { std::future::pending::<()>().await }),
+                    wait: spawn(async { std::future::pending::<ExitStatus>().await }),
+                },
+                sinks,
+                None,
+                None,
+            );
+            let id = SessionId::new();
+            manager.state.write().await.insert(id.clone(), handle);
+
+            let err = manager
+                .request_frame(&id)
+                .await
+                .expect_err("a session with no terminal sink has no frame");
+            match err {
+                SessionError::FrameUnavailable(s) => assert_eq!(s, id.to_string()),
+                other => panic!("expected FrameUnavailable, got {other:?}"),
             }
         });
     }

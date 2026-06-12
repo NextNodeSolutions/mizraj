@@ -26,6 +26,9 @@ pub enum SessionError {
 
     #[error("failed to resize pty: {0}")]
     Resize(String),
+
+    #[error("no terminal frame available for session: {0}")]
+    FrameUnavailable(String),
 }
 
 impl Serialize for SessionError {
@@ -66,6 +69,10 @@ impl Serialize for SessionError {
             SessionError::Resize(message) => {
                 map.serialize_entry("kind", "resize")?;
                 map.serialize_entry("message", message)?;
+            }
+            SessionError::FrameUnavailable(id) => {
+                map.serialize_entry("kind", "frame_unavailable")?;
+                map.serialize_entry("session_id", id)?;
             }
         }
         map.end()
@@ -117,6 +124,16 @@ mod tests {
         let err = SessionError::Database("constraint failed".into());
         let json = serde_json::to_string(&err).expect("serialize");
         assert_eq!(json, r#"{"kind":"database","message":"constraint failed"}"#);
+    }
+
+    #[test]
+    fn serializes_frame_unavailable_with_kind_and_session_id() {
+        let err = SessionError::FrameUnavailable("01H8XYZ".into());
+        let json = serde_json::to_string(&err).expect("serialize");
+        assert_eq!(
+            json,
+            r#"{"kind":"frame_unavailable","session_id":"01H8XYZ"}"#
+        );
     }
 
     #[test]

@@ -11,7 +11,7 @@ use crate::session::cell_frame::CellFrame;
 use crate::session::id::SessionId;
 use crate::session::key::KeyStroke;
 use crate::session::pty::{DEFAULT_COLS, DEFAULT_ROWS};
-use crate::session::sink::OutputSink;
+use crate::session::sink::{FrameReply, OutputSink};
 
 /// Single global event carrying a grid snapshot per render frame (D4). The
 /// `session_id` rides in the [`CellFrame`] payload, mirroring `agent:output`.
@@ -33,6 +33,7 @@ enum RenderInput {
     Resize { rows: u16, cols: u16 },
     Key(KeyStroke),
     SetSubscribed(bool),
+    Snapshot(FrameReply),
 }
 
 /// `OutputSink` that turns raw PTY bytes into rendered grid snapshots, and the
@@ -114,6 +115,15 @@ impl OutputSink for TermSink {
         // exactly at the flip point rather than racing in-flight output.
         if let Ok(tx) = self.tx.lock() {
             let _ = tx.send(RenderInput::SetSubscribed(subscribed));
+        }
+    }
+
+    fn frame_request(&self, reply: FrameReply) {
+        // Ordered like everything else: the reply reflects every write that
+        // preceded the request. A dropped channel (render thread gone) leaves
+        // the reply unanswered and the caller's timeout reports it.
+        if let Ok(tx) = self.tx.lock() {
+            let _ = tx.send(RenderInput::Snapshot(reply));
         }
     }
 }
@@ -279,7 +289,36 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             RenderInput::SetSubscribed(value) => {
                 self.subscribed = value;
             }
+            RenderInput::Snapshot(reply) => {
+                self.reply_snapshot(&reply);
+            }
         }
+    }
+
+    /// Serialize the current grid into `reply` (TP1: the pane pulls its first
+    /// frame on mount instead of waiting for output). Subscription does not
+    /// gate the pull — it's an explicit request. The render state is synced
+    /// first so the reply reflects everything fed so far, but it is NOT marked
+    /// clean: the pull stays read-only for the live-emission bookkeeping (at
+    /// worst the next live frame repeats the same content).
+    fn reply_snapshot(&mut self, reply: &FrameReply) {
+        self.refresh_dirty();
+        let sid = self.session_id.as_str();
+        let cells = match self.render_state.snapshot() {
+            Ok(cells) => cells,
+            Err(err) => {
+                tracing::warn!(session_id = sid, error = %err, "snapshot for frame request failed");
+                return;
+            }
+        };
+        let cursor = self.render_state.cursor().unwrap_or_else(|err| {
+            tracing::warn!(session_id = sid, error = %err, "cursor read for frame request failed");
+            None
+        });
+        let frame = CellFrame::from_cells(sid.to_string(), cells, cursor);
+        // try_send: the requester may have timed out and dropped the receiver;
+        // never block the render thread on a gone caller.
+        let _ = reply.try_send(frame);
     }
 
     fn drain(&mut self, rx: &Receiver<RenderInput>) {
@@ -465,6 +504,48 @@ mod tests {
             row, "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyy!",
             "the final frame must carry the burst's last byte"
         );
+    }
+
+    #[test]
+    fn frame_request_returns_the_current_grid_without_subscription() {
+        let (sink, _frames) = frame_capturing_sink();
+        sink.write(b"hi");
+
+        let (reply_tx, mut reply_rx) = tauri::async_runtime::channel::<CellFrame>(1);
+        sink.frame_request(reply_tx);
+
+        let frame = tauri::async_runtime::block_on(async {
+            tokio::time::timeout(FRAME_WAIT, reply_rx.recv()).await
+        })
+        .expect("frame request must be answered within the wait")
+        .expect("reply channel must carry a frame");
+
+        let row: String = frame.cells[..2].iter().map(|cell| &*cell.ch).collect();
+        assert_eq!(row, "hi", "the pulled frame must reflect prior writes");
+    }
+
+    #[test]
+    fn frame_request_leaves_the_live_flow_untouched() {
+        let (sink, frames) = frame_capturing_sink();
+        sink.set_subscribed(true);
+
+        let (reply_tx, mut reply_rx) = tauri::async_runtime::channel::<CellFrame>(1);
+        sink.frame_request(reply_tx);
+        tauri::async_runtime::block_on(async {
+            tokio::time::timeout(FRAME_WAIT, reply_rx.recv()).await
+        })
+        .expect("frame request answered")
+        .expect("reply carries a frame");
+
+        sink.write(b"z");
+        let mut saw_z = false;
+        while let Ok(frame) = frames.recv_timeout(FRAME_WAIT) {
+            if &*frame.cells[0].ch == "z" {
+                saw_z = true;
+                break;
+            }
+        }
+        assert!(saw_z, "live frames must keep flowing after a pull");
     }
 
     #[test]

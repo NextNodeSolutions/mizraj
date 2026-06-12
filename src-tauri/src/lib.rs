@@ -60,6 +60,7 @@ pub fn run() {
             session::commands::session_close,
             session::commands::session_subscribe,
             session::commands::session_unsubscribe,
+            session::commands::session_get_frame,
             session::label::session_label,
         ])
         .run(tauri::generate_context!())

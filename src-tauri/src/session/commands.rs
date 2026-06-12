@@ -8,6 +8,7 @@ use tauri::async_runtime::Sender;
 use tauri::{AppHandle, Runtime};
 
 use crate::db::Db;
+use crate::session::cell_frame::CellFrame;
 use crate::session::error::SessionError;
 use crate::session::id::SessionId;
 use crate::session::key::KeyStroke;
@@ -170,6 +171,17 @@ pub async fn session_close(
     manager: tauri::State<'_, SessionManager>,
 ) -> Result<(), SessionError> {
     manager.session_close(&session_id).await
+}
+
+/// Pull the session's current grid as a [`CellFrame`] (TP1). A pane invokes
+/// this right after subscribing so it paints immediately — even when the
+/// session has been idle — instead of staying blank until the next output.
+#[tauri::command]
+pub async fn session_get_frame(
+    session_id: SessionId,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<CellFrame, SessionError> {
+    manager.request_frame(&session_id).await
 }
 
 /// Mark the session as watched by a frontend pane: the terminal sink resumes

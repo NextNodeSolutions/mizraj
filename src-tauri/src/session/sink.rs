@@ -1,4 +1,10 @@
+use crate::session::cell_frame::CellFrame;
 use crate::session::key::KeyStroke;
+
+/// Reply channel for an on-demand frame snapshot (TP1). Capacity 1: the
+/// terminal sink's render thread `try_send`s exactly one frame, the requesting
+/// command awaits it with a timeout.
+pub type FrameReply = tauri::async_runtime::Sender<CellFrame>;
 
 /// Per-session terminal endpoint: the PTY reader fans out every output chunk to
 /// all registered sinks (D4: channel sink for the live UI, scrollback sink for
@@ -39,6 +45,13 @@ pub trait OutputSink: Send + Sync {
     /// emission so an unwatched session costs no snapshot/serialize/IPC work;
     /// byte-only sinks keep their default no-op. Same ~1ms budget.
     fn set_subscribed(&self, _subscribed: bool) {}
+
+    /// Called when the frontend pulls the current grid on mount (TP1). Only
+    /// the terminal sink replies — its render thread serializes the live grid
+    /// into the reply channel; byte-only sinks keep the default no-op and the
+    /// caller's timeout handles a session with no terminal sink. Same ~1ms
+    /// budget: the snapshot itself happens on the render thread.
+    fn frame_request(&self, _reply: FrameReply) {}
 }
 
 #[cfg(test)]

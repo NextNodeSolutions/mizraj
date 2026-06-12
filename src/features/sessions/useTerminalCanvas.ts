@@ -14,6 +14,7 @@ import {
 	resolveCursor,
 	resolveFont,
 } from './ghosttyConfig'
+import { fetchSessionFrame } from './fetchSessionFrame'
 import { cellFramesAtom } from './sessions'
 import { subscribeToCellFrames } from './sessionSubscription'
 import { buildFontTable } from './terminalAttrs'
@@ -239,7 +240,18 @@ const startRendering = (
 	// already buffered before this pane mounted (now that cssWidth/cssHeight are set).
 	consumeSessionFrame()
 
+	// Seed the first paint by pulling the current grid (TP1): an idle session
+	// emits nothing on its own, so without this an unbuffered pane would stay
+	// blank until the next output. Anything that landed meanwhile (bridge
+	// buffer, catch-up frame, live flow) is at least as fresh — the pull only
+	// fills a still-empty pane, and never one that has been torn down.
+	let stopped = false
+	void fetchSessionFrame(sessionId).then(frame => {
+		if (frame && !stopped && !lastFrame) applyFrame(frame)
+	})
+
 	return () => {
+		stopped = true
 		clearInterval(blinkTimer)
 		observer.disconnect()
 		unsubscribe()
