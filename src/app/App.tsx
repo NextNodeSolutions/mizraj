@@ -4,6 +4,7 @@ import './App.css'
 import { PlansMenu } from '@/features/plans/PlansMenu'
 import { useActiveProject } from '@/features/projects/activeProject'
 import { ProjectPicker } from '@/features/projects/ProjectPicker'
+import { NewTerminalButton } from '@/features/sessions/NewTerminalButton'
 import { RunAgentButton } from '@/features/sessions/RunAgentButton'
 import { SessionSidebar } from '@/features/sessions/SessionSidebar'
 import { useGhosttyTheme } from '@/features/sessions/useGhosttyTheme'
@@ -50,7 +51,10 @@ export function App(): React.JSX.Element {
 				<div className="top-bar__actions">
 					<ProjectPicker onSelect={settings.setLastProjectPath} />
 					{activeProjectPath !== null && (
-						<RunAgentButton repoPath={activeProjectPath} />
+						<>
+							<RunAgentButton repoPath={activeProjectPath} />
+							<NewTerminalButton repoPath={activeProjectPath} />
+						</>
 					)}
 					<button
 						type="button"

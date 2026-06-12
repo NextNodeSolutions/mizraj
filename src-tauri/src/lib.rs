@@ -59,6 +59,7 @@ pub fn run() {
             tasks::tasks_update,
             plans::protocol::resolve_plan,
             session::commands::session_create,
+            session::commands::session_default_shell,
             session::commands::session_resize,
             session::commands::session_key,
             session::commands::session_close,

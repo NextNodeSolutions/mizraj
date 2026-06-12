@@ -1,12 +1,6 @@
-import { invoke } from '@tauri-apps/api/core'
-import { useSetAtom } from 'jotai'
 import { useState } from 'react'
 
-import { agentRunHref, navigate } from '@/app/router'
-import { describeError } from '@/shared/errors'
-import { logger } from '@/shared/logger'
-
-import { startSessionAtom } from './sessions'
+import { launchSession } from './launchSession'
 
 type Props = {
 	repoPath: string
@@ -20,28 +14,12 @@ export const RunAgentButton = ({
 	binary = DEFAULT_BINARY,
 }: Props): React.JSX.Element => {
 	const [pending, setPending] = useState(false)
-	const registerSession = useSetAtom(startSessionAtom)
 
 	const handleClick = (): void => {
 		setPending(true)
-		invoke<string>('session_create', { binary, cwd: repoPath })
-			.then(sessionId => {
-				registerSession(sessionId)
-				navigate(agentRunHref(sessionId))
-			})
-			.catch((error: unknown) => {
-				const { message, stack } = describeError(error)
-				logger.error(
-					`RunAgentButton: session_create failed: ${message}`,
-					{
-						scope: 'run-agent',
-						details: { stack, repoPath, binary },
-					},
-				)
-			})
-			.finally(() => {
-				setPending(false)
-			})
+		void launchSession({ binary, repoPath }).finally(() => {
+			setPending(false)
+		})
 	}
 
 	return (

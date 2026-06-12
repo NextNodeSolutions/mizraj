@@ -17,6 +17,9 @@ export type SessionStatus = 'running' | 'ended'
 
 export type SessionState = {
 	id: string
+	/// The spawned program ('claude' for agent runs, the user's shell for
+	/// plain terminals) — what the sidebar labels the session with.
+	binary: string
 	output: ReadonlyArray<OutputChunk>
 	status: SessionStatus
 	exitCode: number | null
@@ -43,17 +46,23 @@ type SessionsMap = Readonly<Record<string, SessionState>>
 
 export const sessionsAtom = atom<SessionsMap>({})
 
-export const startSessionAtom = atom(null, (get, set, sessionId: string) => {
-	set(sessionsAtom, {
-		...get(sessionsAtom),
-		[sessionId]: {
-			id: sessionId,
-			output: [],
-			status: 'running',
-			exitCode: null,
-		},
-	})
-})
+type StartSessionArgs = { id: string; binary: string }
+
+export const startSessionAtom = atom(
+	null,
+	(get, set, { id, binary }: StartSessionArgs) => {
+		set(sessionsAtom, {
+			...get(sessionsAtom),
+			[id]: {
+				id,
+				binary,
+				output: [],
+				status: 'running',
+				exitCode: null,
+			},
+		})
+	},
+)
 
 type AppendOutputArgs = { sessionId: string; chunk: OutputChunk }
 

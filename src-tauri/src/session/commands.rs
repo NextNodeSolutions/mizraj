@@ -184,6 +184,13 @@ pub async fn session_get_frame(
     manager.request_frame(&session_id).await
 }
 
+/// The user's preferred shell ($SHELL, with a platform fallback) — what the
+/// frontend spawns for a plain terminal session, no agent involved.
+#[tauri::command]
+pub fn session_default_shell() -> String {
+    path::default_shell()
+}
+
 /// Write raw UTF-8 bytes to the session's PTY, verbatim — the transport for
 /// keybind-injected payloads (`text:`/`esc:` actions). Unlike `session_paste`
 /// there is no encoding: the binding's bytes ARE the intended input.

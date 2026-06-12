@@ -30,10 +30,11 @@ describe('sessions atoms', () => {
 	})
 
 	it('startSessionAtom registers a fresh session with empty output and running status', () => {
-		store.set(startSessionAtom, 'sess-a')
+		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
 
 		expect(store.get(sessionsAtom)['sess-a']).toEqual({
 			id: 'sess-a',
+			binary: 'claude',
 			output: [],
 			status: 'running',
 			exitCode: null,
@@ -41,7 +42,7 @@ describe('sessions atoms', () => {
 	})
 
 	it('appendOutputAtom pushes chunks in order onto the matching session', () => {
-		store.set(startSessionAtom, 'sess-a')
+		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
 		store.set(appendOutputAtom, {
 			sessionId: 'sess-a',
 			chunk: { kind: 'stdout', text: 'hello ' },
@@ -68,7 +69,7 @@ describe('sessions atoms', () => {
 	})
 
 	it('endSessionAtom flips status to ended and stores the exit code', () => {
-		store.set(startSessionAtom, 'sess-a')
+		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
 		store.set(endSessionAtom, { sessionId: 'sess-a', exitCode: 0 })
 
 		const session = store.get(sessionsAtom)['sess-a']
@@ -82,7 +83,7 @@ describe('sessions atoms', () => {
 			seen.push(store.get(sessionsAtom))
 		})
 
-		store.set(startSessionAtom, 'sess-a')
+		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
 		store.set(appendOutputAtom, {
 			sessionId: 'sess-a',
 			chunk: { kind: 'stdout', text: 'hi' },
@@ -145,7 +146,7 @@ describe('startAgentEventsBridge', () => {
 		startAgentEventsBridge()
 		const handler = getCapturedHandler()
 
-		store.set(startSessionAtom, 'sess-a')
+		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
 		handler({
 			payload: { session_id: 'sess-a', kind: 'stderr', text: 'boom' },
 		})
@@ -171,7 +172,7 @@ describe('startAgentEventsBridge', () => {
 		startAgentEventsBridge()
 		const handler = getCapturedEndHandler()
 
-		store.set(startSessionAtom, 'sess-a')
+		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
 		handler({ payload: { session_id: 'sess-a', exit_code: 0 } })
 
 		const session = store.get(sessionsAtom)['sess-a']
@@ -195,7 +196,7 @@ describe('startAgentEventsBridge', () => {
 		startAgentEventsBridge()
 		const handler = getCapturedCellsHandler()
 
-		store.set(startSessionAtom, 'sess-a')
+		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
 		const frame: CellFramePayload = {
 			session_id: 'sess-a',
 			cols: 2,
