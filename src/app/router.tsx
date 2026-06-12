@@ -6,6 +6,8 @@ import { PLAN_KINDS } from '@/features/plans/plans'
 const PLANS_PATH_ROOT = 'plans'
 const AGENT_RUN_PATH_ROOT = 'agent-run'
 const TASKS_PATH_ROOT = 'tasks'
+const PIPELINE_PATH_ROOT = 'pipeline'
+const REVIEW_PATH_ROOT = 'review'
 const PLAN_KIND_SET: ReadonlySet<string> = new Set(PLAN_KINDS)
 const PLAN_ROUTE_SEGMENTS = 3
 const AGENT_RUN_ROUTE_SEGMENTS = 2
@@ -23,6 +25,14 @@ export const agentRunHref = (sessionId: string): string =>
 	`/${AGENT_RUN_PATH_ROOT}/${sessionId}`
 
 export const tasksHref = (): string => `/${TASKS_PATH_ROOT}`
+
+export const missionControlHref = (): string => '/'
+
+export const pipelineHref = (): string => `/${PIPELINE_PATH_ROOT}`
+
+export const reviewHref = (): string => `/${REVIEW_PATH_ROOT}`
+
+export const plansIndexHref = (): string => `/${PLANS_PATH_ROOT}`
 
 const isPlanRoute = (
 	segments: ReadonlyArray<string>,
@@ -54,10 +64,25 @@ export const matchAgentRunRoute = (pathname: string): AgentRunRoute | null => {
 		: null
 }
 
-export const matchTasksRoute = (pathname: string): boolean => {
+const isSingleSegment = (pathname: string, root: string): boolean => {
 	const segments = pathname.split('/').filter(Boolean)
-	return segments.length === 1 && segments[0] === TASKS_PATH_ROOT
+	return segments.length === 1 && segments[0] === root
 }
+
+export const matchTasksRoute = (pathname: string): boolean =>
+	isSingleSegment(pathname, TASKS_PATH_ROOT)
+
+export const matchMissionControlRoute = (pathname: string): boolean =>
+	pathname.split('/').filter(Boolean).length === 0
+
+export const matchPipelineRoute = (pathname: string): boolean =>
+	isSingleSegment(pathname, PIPELINE_PATH_ROOT)
+
+export const matchReviewRoute = (pathname: string): boolean =>
+	isSingleSegment(pathname, REVIEW_PATH_ROOT)
+
+export const matchPlansIndexRoute = (pathname: string): boolean =>
+	isSingleSegment(pathname, PLANS_PATH_ROOT)
 
 export const navigate = (href: string): void => {
 	if (window.location.pathname === href) return
