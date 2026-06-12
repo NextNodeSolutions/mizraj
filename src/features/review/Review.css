@@ -34,14 +34,6 @@
 	flex: none;
 }
 
-/* BranchChip restyled by context to the design's .branch (no letter-spacing:
-   tracking on mono text kills ligatures). */
-.review__top .branch-chip {
-	font-family: var(--font-mono);
-	font-size: var(--fs-mono-sm);
-	color: var(--text-2);
-}
-
 .review__title {
 	margin: 0;
 	font-size: 15px;
@@ -219,10 +211,12 @@
 	background: var(--fill-add);
 }
 
+/* Yellow, not peach: the design keeps M/R badges distinct from the
+   review-status hue (--c-rev). */
 .review-tree__badge[data-change='modified'],
 .review-tree__badge[data-change='renamed'] {
-	color: var(--c-rev);
-	background: var(--fill-rev);
+	color: var(--c-warn);
+	background: color-mix(in srgb, var(--c-warn) 15%, transparent);
 }
 
 .review-tree__badge[data-change='deleted'] {
