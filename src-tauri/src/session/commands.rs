@@ -245,12 +245,10 @@ pub async fn session_scroll(
         ScrollRequestDto::Delta { rows } => {
             // Saturate out-of-range i64 deltas to isize bounds instead of
             // silently dropping them to 0 — the scroll still goes the right way.
-            ScrollViewport::Delta(isize::try_from(rows).unwrap_or_else(|_| {
-                if rows < 0 {
-                    isize::MIN
-                } else {
-                    isize::MAX
-                }
+            ScrollViewport::Delta(isize::try_from(rows).unwrap_or(if rows < 0 {
+                isize::MIN
+            } else {
+                isize::MAX
             }))
         }
         // The render thread knows the live height; a page is expressed as a

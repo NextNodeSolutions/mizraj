@@ -21,10 +21,13 @@ use mizraj_term_sys::{
 
 use crate::{Result, TermError};
 
+/// Callback receiving the bytes libghostty wants written back to the PTY.
+pub type PtyWriter = Box<dyn FnMut(&[u8]) + 'static>;
+
 /// The boxed state `OPT_USERDATA` points at. One per terminal; freed by
 /// [`drop_callbacks`] after the terminal itself is freed.
 pub(crate) struct TerminalCallbacks {
-    writer: Box<dyn FnMut(&[u8]) + 'static>,
+    writer: PtyWriter,
 }
 
 /// Ghostty's own device identity: a VT220 (conformance 62) with ANSI color
@@ -81,7 +84,7 @@ unsafe extern "C" fn device_attributes_trampoline(
 /// [`drop_callbacks`].
 pub(crate) fn install_pty_writer(
     handle: NonNull<GhosttyTerminalImpl>,
-    writer: Box<dyn FnMut(&[u8]) + 'static>,
+    writer: PtyWriter,
 ) -> Result<*mut TerminalCallbacks> {
     let userdata = Box::into_raw(Box::new(TerminalCallbacks { writer }));
 

@@ -171,9 +171,9 @@ et corrigées.
   (ResolvedCursor.blink) ; non défini, Ghostty clignote out-of-box mais le wire
   libghostty rapporte le curseur jamais stylé comme block+steady
   (indistinguable d'un DECSCUSR 2). Heuristique `cursorBlinks` : config explicite
-  > frame blink > (block steady = défaut → clignote ; bar/underline steady =
-  DECSCUSR 4/6 délibéré → fixe). Écart : un DECSCUSR 2 explicite clignote quand
-  même. Le timer de blink suit la même résolution que drawFrame.
+    > frame blink > (block steady = défaut → clignote ; bar/underline steady =
+    > DECSCUSR 4/6 délibéré → fixe). Écart : un DECSCUSR 2 explicite clignote quand
+    > même. Le timer de blink suit la même résolution que drawFrame.
 - **macos-option-as-alt honoré** (parsé crate→DTO→atom) avec tracking gauche/
   droite du modificateur (location au keydown/keyup, reset au blur). Côté méta :
   alt:true + text:null (l'encodeur dérive ESC-x du code physique, pas du

@@ -259,7 +259,6 @@ fn apply_palette(config: &mut ResolvedConfig, value: &str, reset: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keybind::KeySpec;
     use crate::parse;
 
     fn resolved(content: &str) -> ResolvedConfig {
@@ -369,8 +368,8 @@ mod tests {
     #[test]
     fn indexed_palette_reset_clears_one_index() {
         let config = resolved("palette = 0=#000000\npalette = 1=#ffffff\npalette = 0=");
-        assert!(config.palette.get(&0).is_none());
-        assert!(config.palette.get(&1).is_some());
+        assert!(!config.palette.contains_key(&0));
+        assert!(config.palette.contains_key(&1));
     }
 
     #[test]
@@ -478,7 +477,7 @@ mod tests {
             .filter(|bind| {
                 bind.trigger.len() == 1
                     && bind.trigger[0].super_key
-                    && bind.trigger[0].key == KeySpec::Logical("c".to_string())
+                    && bind.trigger[0].key == crate::keybind::KeySpec::Logical("c".to_string())
             })
             .collect();
         assert_eq!(supers_c.len(), 1, "rebinding must replace, not duplicate");

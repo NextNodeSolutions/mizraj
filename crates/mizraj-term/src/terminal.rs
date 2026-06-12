@@ -12,7 +12,7 @@ use mizraj_term_sys::{
     GhosttyTerminalScrollViewportValue, GhosttyTerminalScrollbar,
 };
 
-use crate::device::{drop_callbacks, install_pty_writer, TerminalCallbacks};
+use crate::device::{drop_callbacks, install_pty_writer, PtyWriter, TerminalCallbacks};
 use crate::{Result, TermError};
 
 /// DEC private mode 2004 (bracketed paste), packed per `modes.h`: bits 0–14
@@ -160,7 +160,7 @@ impl Terminal {
     /// during `feed`, on the thread that owns this terminal. DA queries get
     /// Ghostty's device identity (VT220 + ANSI color). Installing twice
     /// replaces the previous writer.
-    pub fn set_pty_writer(&mut self, writer: Box<dyn FnMut(&[u8]) + 'static>) -> Result<()> {
+    pub fn set_pty_writer(&mut self, writer: PtyWriter) -> Result<()> {
         let userdata = install_pty_writer(self.handle, writer)?;
         let previous = self.callbacks;
         self.callbacks = userdata;

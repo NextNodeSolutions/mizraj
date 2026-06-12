@@ -8,6 +8,8 @@ mod paste;
 mod render_state;
 mod terminal;
 
+pub use device::PtyWriter;
+
 pub use cells::{Attrs, Cell, CellWidth, Cells, Color};
 pub use key::{KeyEncoder, Mods};
 pub use mouse::{MouseAction, MouseButton, MouseEncoder, MouseInput};
