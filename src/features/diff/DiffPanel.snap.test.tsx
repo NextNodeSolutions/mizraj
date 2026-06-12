@@ -16,20 +16,31 @@ vi.mock('@tauri-apps/api/window', () => ({
 	}),
 }))
 
-vi.mock('@pierre/diffs/react', () => {
-	type StubProps = {
-		fileDiff: { name: string }
-		options: { diffStyle: string }
-	}
-	const FileDiff = ({ fileDiff, options }: StubProps): JSX.Element => (
-		<div
-			data-testid="file-diff-stub"
-			data-file-name={fileDiff.name}
-			data-diff-style={options.diffStyle}
-		/>
-	)
-	return { FileDiff }
-})
+vi.mock('@/app/router', () => ({
+	navigate: vi.fn(),
+	reviewHref: (file?: string) =>
+		file === undefined
+			? '/review'
+			: `/review?file=${encodeURIComponent(file)}`,
+}))
+
+type FileDiffStubProps = {
+	fileDiff: { name: string }
+	options: { diffStyle: string }
+}
+
+const FileDiffStub = vi.hoisted(
+	() =>
+		({ fileDiff, options }: FileDiffStubProps): JSX.Element => (
+			<div
+				data-testid="file-diff-stub"
+				data-file-name={fileDiff.name}
+				data-diff-style={options.diffStyle}
+			/>
+		),
+)
+
+vi.mock('@pierre/diffs/react', () => ({ FileDiff: FileDiffStub }))
 
 import { DiffPanel } from './DiffPanel'
 
@@ -68,24 +79,10 @@ describe('DiffPanel snapshot', () => {
 		})
 	}
 
-	it('renders the split layout (default)', async () => {
+	it('renders the dock with file rows and a unified preview', async () => {
 		await mount()
 		expect(container.innerHTML).toMatchInlineSnapshot(
-			`"<div class="diff-panel"><div class="diff-panel__toolbar" role="toolbar" aria-label="Diff panel"><button type="button" class="diff-panel__layout-toggle" aria-pressed="false">Stacked view</button></div><div class="diff-panel__container"><div data-testid="file-diff-stub" data-file-name="foo.ts" data-diff-style="split"></div></div></div>"`,
-		)
-	})
-
-	it('renders the stacked layout after toggling', async () => {
-		await mount()
-		const toggle = container.querySelector<HTMLButtonElement>(
-			'.diff-panel__layout-toggle',
-		)
-		expect(toggle).not.toBeNull()
-		await act(async () => {
-			toggle?.click()
-		})
-		expect(container.innerHTML).toMatchInlineSnapshot(
-			`"<div class="diff-panel"><div class="diff-panel__toolbar" role="toolbar" aria-label="Diff panel"><button type="button" class="diff-panel__layout-toggle" aria-pressed="true">Split view</button></div><div class="diff-panel__container"><div data-testid="file-diff-stub" data-file-name="foo.ts" data-diff-style="unified"></div></div></div>"`,
+			`"<aside class="panel fc-diffs" aria-label="Diffs"><header class="panel-head"><h3>Diffs</h3><span class="ph-count">1 files</span><span class="mz-spacer"></span><button type="button" class="btn btn-sm btn-outline">Open review ↗</button></header><div class="fc-dfiles"><button type="button" class="dfile" data-on="true"><span class="nm">foo.ts</span><span class="stat"><span class="add">+1</span> <span class="del">−1</span></span></button></div><div class="fc-dhunk"><div data-testid="file-diff-stub" data-file-name="foo.ts" data-diff-style="unified"></div></div></aside>"`,
 		)
 	})
 })

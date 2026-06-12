@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
 
-import { navigate, reviewHref } from '@/app/router'
 import { DiffPanel } from '@/features/diff/DiffPanel'
 import { repoHeadLabel, useRepoHead } from '@/features/projects/repoHead'
 import { describeError } from '@/shared/errors'
@@ -100,17 +99,7 @@ export const AgentRun = ({
 					<SplitTreeView rootId={sessionId} />
 				</div>
 			</div>
-			<aside className="cockpit__diffs" aria-label="Diffs">
-				<DiffPanel repoPath={session?.repoPath ?? null}>
-					<button
-						type="button"
-						className="cockpit__open-review"
-						onClick={() => navigate(reviewHref())}
-					>
-						Open review ↗
-					</button>
-				</DiffPanel>
-			</aside>
+			<DiffPanel repoPath={session?.repoPath ?? null} />
 		</div>
 	)
 }

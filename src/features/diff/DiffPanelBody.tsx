@@ -1,17 +1,20 @@
 import type { ResourceState } from '@/shared/repoResource'
-import type { DiffStyle } from '@/shared/useLayoutToggle'
 
 import { DiffPanelPlaceholder } from './DiffPanelPlaceholder'
-import { DiffPanelView } from './DiffPanelView'
 
 type Props = {
 	state: ResourceState<{ patch: string }>
-	diffStyle: DiffStyle
+	/** What the dock shows once a non-empty patch is ready. */
+	children: React.ReactNode
 }
 
+/**
+ * Maps the diff resource onto the dock's placeholder states and only lets
+ * `children` (file list + preview) through for a ready, non-empty patch.
+ */
 export const DiffPanelBody = ({
 	state,
-	diffStyle,
+	children,
 }: Props): React.JSX.Element => {
 	if (state.status === 'idle') {
 		return (
@@ -41,5 +44,5 @@ export const DiffPanelBody = ({
 			</DiffPanelPlaceholder>
 		)
 	}
-	return <DiffPanelView patch={state.data.patch} diffStyle={diffStyle} />
+	return <>{children}</>
 }

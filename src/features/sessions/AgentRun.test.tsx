@@ -22,7 +22,10 @@ vi.mock('@tauri-apps/api/window', () => ({
 vi.mock('@/app/router', () => ({
 	navigate: navigateMock,
 	agentRunHref: (sessionId: string) => `/agent-run/${sessionId}`,
-	reviewHref: () => '/review',
+	reviewHref: (file?: string) =>
+		file === undefined
+			? '/review'
+			: `/review?file=${encodeURIComponent(file)}`,
 }))
 
 vi.mock('@/shared/logger', () => ({
@@ -122,7 +125,9 @@ describe('AgentRun cockpit', () => {
 				?.querySelector('[data-testid="terminal-stub"]')
 				?.getAttribute('data-root'),
 		).toBe('sess-1')
-		expect(wrap?.querySelector('.diff-panel')).not.toBeNull()
+		expect(
+			wrap?.querySelector('aside.panel.fc-diffs[aria-label="Diffs"]'),
+		).not.toBeNull()
 	})
 
 	it('labels the terminal tab with the active repo branch and status dot', async () => {
