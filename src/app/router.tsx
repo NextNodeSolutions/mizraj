@@ -107,6 +107,8 @@ export const matchReviewRoute = (pathname: string): boolean =>
 export const matchPlansIndexRoute = (pathname: string): boolean =>
 	isSingleSegment(pathname, PLANS_PATH_ROOT)
 
+// TODO(route-restore): the app always boots at '/'; persist the last
+// pathname+search via the settings store and restore it after settings.ready.
 export const navigate = (href: string): void => {
 	// Compare the full location (path + query) so '/?filter=running' is a
 	// real navigation from '/', and re-navigating it is still a no-op.

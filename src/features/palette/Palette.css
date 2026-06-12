@@ -1,5 +1,5 @@
 /* v2 palette: every rule (.pal-back, .palette[data-open], .pal-list,
  * .pal-group, .pal-item, .pk, .pal-empty) lives in the shared layer,
  * src/app/styles/components.css. This file only hosts palette-specific
- * additions; the v1 .palette-*/.top-bar__jump styles are gone with the
+ * additions; the v1 palette and .top-bar__jump styles are gone with the
  * markup that consumed them. */
