@@ -8,25 +8,15 @@ import { describeError, isSessionError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
 import type { GhosttyConfig } from './ghosttyConfig'
-import {
-	loadGhosttyConfig,
-	resolveBackgroundAlpha,
-	resolveCursor,
-	resolveFont,
-} from './ghosttyConfig'
+import { resolveBackgroundAlpha, resolveCursor } from './ghosttyConfig'
 import { fetchSessionFrame } from './fetchSessionFrame'
 import { ghosttyConfigEpochAtom } from './ghosttyConfigBridge'
+import type { RenderBundle } from './ghosttyConfigCache'
+import { getRenderBundle } from './ghosttyConfigCache'
 import { cellFramesAtom } from './sessions'
 import { subscribeToCellFrames } from './sessionSubscription'
-import { buildFontTable } from './terminalAttrs'
-import { buildPalette } from './terminalPalette'
 import type { TerminalConfig } from './terminalRenderer'
-import {
-	drawFrame,
-	gridForSize,
-	measureCell,
-	syncBackingStore,
-} from './terminalRenderer'
+import { drawFrame, gridForSize, syncBackingStore } from './terminalRenderer'
 import type { CellFramePayload } from './terminalWire'
 
 type TerminalCanvasHandles = {
@@ -123,21 +113,23 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 
 		// The cell-frame listener and resize observer can only be wired once the
 		// font is known, because cell metrics (and thus the grid the backend
-		// resizes to) depend on it. The config fetch is async, so a `cancelled`
+		// resizes to) depend on it. The bundle resolves from the per-appearance
+		// cache (TP4) — instant on a session switch, an actual load only on the
+		// first mount or after a hot reload. Still async, so a `cancelled`
 		// guard drops a late resolution onto a torn-down scope: the effect may
-		// re-run (sessionId/appearance change) or unmount before it lands. The
-		// torn-down listener/observer are released by the returned cleanup.
+		// re-run (sessionId/appearance/config change) or unmount before it
+		// lands. The torn-down listener/observer are released by the cleanup.
 		let cancelled = false
 		let teardown: (() => void) | null = null
 
-		void loadGhosttyConfig(appearance).then(ghosttyConfig => {
+		void getRenderBundle(appearance, context).then(bundle => {
 			if (cancelled) return
 			teardown = startRendering(
 				context,
 				container,
 				canvas,
 				sessionId,
-				ghosttyConfig,
+				bundle,
 			)
 		})
 
@@ -150,33 +142,30 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 	return { containerRef, canvasRef }
 }
 
-// Wire the cell-frame listener and resize observer for a session against a
-// resolved Ghostty config, returning a teardown that releases both. Split out of
+// Wire the cell-frame listener and resize observer for a session against the
+// cached render bundle, returning a teardown that releases both. Split out of
 // the effect so the effect body stays wiring + cleanup (it only awaits the
-// config and delegates); the resize/hold-frame architecture and the
-// once-per-config derivations (font metrics, font table, color palette) live
-// here, where the config is finally available.
+// bundle and delegates). Config-only derivations (font, metrics, font table,
+// palette) arrive precomputed in the bundle (TP4); only the pane-coupled
+// pieces — CSS-var color fallbacks, cursor, background alpha — are derived
+// here, per mount.
 const startRendering = (
 	context: CanvasRenderingContext2D,
 	container: HTMLDivElement,
 	canvas: HTMLCanvasElement,
 	sessionId: string,
-	ghosttyConfig: GhosttyConfig,
+	bundle: RenderBundle,
 ): (() => void) => {
-	const font = resolveFont(ghosttyConfig)
+	const { config: ghosttyConfig, font, metrics, fontTable, palette } = bundle
 	const config: TerminalConfig = {
 		colors: resolveTerminalColors(canvas, ghosttyConfig),
 		font,
-		palette: buildPalette(ghosttyConfig.palette),
+		palette,
 		backgroundAlpha: resolveBackgroundAlpha(ghosttyConfig),
 		cursor: resolveCursor(ghosttyConfig),
 		boldIsBright: ghosttyConfig.bold_is_bright ?? false,
 	}
 
-	// Metrics, the per-attrs font table and the 256-entry color palette depend
-	// only on the config, so they are built once here rather than per frame.
-	const metrics = measureCell(context, font)
-	const fontTable = buildFontTable(font)
 	let cssWidth = 0
 	let cssHeight = 0
 	let lastGrid: { cols: number; rows: number } | null = null
