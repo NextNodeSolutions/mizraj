@@ -1,3 +1,4 @@
+import { openPalette } from '@/features/palette/palette'
 import { ProjectPicker } from '@/features/projects/ProjectPicker'
 import { NewTerminalButton } from '@/features/sessions/NewTerminalButton'
 import { RunAgentButton } from '@/features/sessions/RunAgentButton'
@@ -82,6 +83,13 @@ export const TopBar = ({
 				))}
 			</nav>
 			<div className="top-bar__actions">
+				<button
+					type="button"
+					className="top-bar__jump"
+					onClick={openPalette}
+				>
+					Jump to… <kbd>⌘K</kbd>
+				</button>
 				<ProjectPicker
 					activeProjectPath={activeProjectPath}
 					onSelect={onSelectProject}

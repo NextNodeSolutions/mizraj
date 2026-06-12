@@ -1,0 +1,111 @@
+.palette-backdrop {
+	position: fixed;
+	inset: 0;
+	background: var(--color-backdrop);
+	z-index: 100;
+}
+
+.palette {
+	position: fixed;
+	top: 14vh;
+	left: 50%;
+	transform: translateX(-50%);
+	width: min(34rem, 92vw);
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--color-border);
+	border-radius: 12px;
+	background: var(--color-bg-elevated);
+	box-shadow: var(--shadow-elevated);
+	overflow: hidden;
+	z-index: 101;
+}
+
+.palette input {
+	width: 100%;
+	padding: 0.85rem 1rem;
+	font-size: 0.95rem;
+	border: none;
+	border-bottom: 1px solid var(--color-border-subtle);
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+}
+
+.palette input:focus {
+	border-color: var(--color-border-subtle);
+}
+
+.palette ul {
+	list-style: none;
+	margin: 0;
+	padding: 0.4rem;
+	max-height: 44vh;
+	overflow-y: auto;
+}
+
+.palette li {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.5rem 0.7rem;
+	border-radius: 8px;
+	font-size: 0.88rem;
+	cursor: pointer;
+}
+
+.palette li:hover,
+.palette li[aria-selected='true'] {
+	background: var(--color-active-overlay);
+}
+
+.palette__hint {
+	margin-left: auto;
+	font-size: 0.7rem;
+	color: var(--color-text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.palette__group {
+	padding: 0.5rem 0.7rem 0.15rem;
+	font-size: 0.65rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--color-text-muted);
+}
+
+.palette__empty {
+	margin: 0;
+	padding: 0.9rem 1rem;
+	font-size: 0.85rem;
+	color: var(--color-text-muted);
+}
+
+.top-bar__jump {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.3rem 0.8rem;
+	font-size: 0.8rem;
+	border: 1px solid var(--color-border-subtle);
+	border-radius: 8px;
+	background: transparent;
+	color: var(--color-text-muted);
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.top-bar__jump:hover {
+	border-color: var(--color-border);
+	color: var(--color-text);
+}
+
+.top-bar__jump kbd {
+	font-family: var(--font-mono, monospace);
+	font-size: 0.65rem;
+	padding: 0 0.3rem;
+	border: 1px solid var(--color-border-subtle);
+	border-radius: 4px;
+}

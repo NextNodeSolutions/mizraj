@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import './App.css'
+import { CommandPalette } from '@/features/palette/CommandPalette'
 import { useActiveProject } from '@/features/projects/activeProject'
 import { useGhosttyTheme } from '@/features/sessions/useGhosttyTheme'
 import { useSettings } from '@/features/settings/settings'
@@ -40,6 +41,7 @@ export function App(): React.JSX.Element {
 				onClose={() => setPanelOpen(false)}
 				settings={settings}
 			/>
+			<CommandPalette activeProjectPath={activeProjectPath} />
 			<Toasts />
 		</main>
 	)
