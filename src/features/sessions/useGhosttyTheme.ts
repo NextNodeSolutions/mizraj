@@ -3,10 +3,10 @@ import { useEffect } from 'react'
 
 import { useAppearance } from '@/features/settings/settings'
 
-import { loadGhosttyConfig } from './ghosttyConfig'
+import { loadGhosttyConfig, resolveOptionAsAlt } from './ghosttyConfig'
 import { ghosttyConfigEpochAtom } from './ghosttyConfigBridge'
 import { ghosttyThemeTokens, THEME_TOKEN_KEYS } from './ghosttyTheme'
-import { keybindTableAtom } from './keybindRuntime'
+import { keybindTableAtom, optionAsAltAtom } from './keybindRuntime'
 
 // Synchronizes <html>'s inline theme variables with the resolved Ghostty theme.
 // This is a legitimate external-system sync (the document is outside React's
@@ -19,6 +19,7 @@ export const useGhosttyTheme = (): void => {
 	const appearance = useAppearance()
 	const configEpoch = useAtomValue(ghosttyConfigEpochAtom)
 	const seedKeybindTable = useSetAtom(keybindTableAtom)
+	const seedOptionAsAlt = useSetAtom(optionAsAltAtom)
 
 	useEffect(() => {
 		let cancelled = false
@@ -33,6 +34,7 @@ export const useGhosttyTheme = (): void => {
 			// The input router's matcher follows this table; seeding it here
 			// keeps every app-level config consumer on one load path.
 			seedKeybindTable(config.keybinds)
+			seedOptionAsAlt(resolveOptionAsAlt(config))
 			clearThemeTokens()
 			const tokens = ghosttyThemeTokens(config)
 			if (!tokens) return
@@ -45,5 +47,5 @@ export const useGhosttyTheme = (): void => {
 			cancelled = true
 			clearThemeTokens()
 		}
-	}, [appearance, configEpoch, seedKeybindTable])
+	}, [appearance, configEpoch, seedKeybindTable, seedOptionAsAlt])
 }

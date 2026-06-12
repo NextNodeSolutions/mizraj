@@ -15,8 +15,10 @@ mod value;
 
 pub use color::{parse_color, Color, Rgb};
 pub use diagnostic::Diagnostic;
-pub use keybind::{Keybind, KeybindAction, KeybindFlags, KeyChord, KeySpec};
+pub use keybind::{
+    KeyChord, KeySpec, Keybind, KeybindAction, KeybindFlags, SplitDirection, SplitFocus,
+};
 pub use load::{load, Appearance, LoadOptions};
 pub use parse::{parse, Directive};
 pub use resolve::{resolve, ResolvedConfig};
-pub use value::{Adjustment, CopyOnSelect, CursorStyle, PaddingAxis};
+pub use value::{Adjustment, CopyOnSelect, CursorStyle, OptionAsAlt, PaddingAxis};

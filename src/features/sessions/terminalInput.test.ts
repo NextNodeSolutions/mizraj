@@ -7,7 +7,10 @@ const deps = {
 	activeSessionId: vi.fn<() => string | null>(),
 	feed: vi.fn(),
 	execute: vi.fn(),
+	canPerform: vi.fn<() => boolean>(),
 	propagate: vi.fn(),
+	altIsMeta: vi.fn<() => boolean>(),
+	composerActive: vi.fn<() => boolean>(),
 }
 
 const keydown = (overrides: Partial<RoutedKeydown>): RoutedKeydown => ({
@@ -27,13 +30,17 @@ describe('createKeydownRoute', () => {
 		deps.activeSessionId.mockReset().mockReturnValue('sess-1')
 		deps.feed.mockReset().mockReturnValue({ kind: 'pass' })
 		deps.execute.mockReset()
+		deps.canPerform.mockReset().mockReturnValue(true)
 		deps.propagate.mockReset()
+		deps.altIsMeta.mockReset().mockReturnValue(false)
+		deps.composerActive.mockReset().mockReturnValue(false)
 	})
 
 	it('executes a matched binding and sends nothing to the PTY', () => {
 		deps.feed.mockReturnValue({
 			kind: 'action',
 			action: { kind: 'copy_to_clipboard' },
+			performable: false,
 		})
 		const route = createKeydownRoute(deps)
 		const event = keydown({ key: 'c', metaKey: true })
@@ -46,6 +53,22 @@ describe('createKeydownRoute', () => {
 		)
 		expect(deps.propagate).not.toHaveBeenCalled()
 		expect(event.preventDefault).toHaveBeenCalled()
+	})
+
+	it('lets a non-actionable performable binding fall through to the PTY', () => {
+		deps.feed.mockReturnValue({
+			kind: 'action',
+			action: { kind: 'goto_split', focus: 'left' },
+			performable: true,
+		})
+		deps.canPerform.mockReturnValue(false)
+		const route = createKeydownRoute(deps)
+		const event = keydown({ key: 'h', code: 'KeyH', altKey: true })
+
+		route(event)
+
+		expect(deps.execute).not.toHaveBeenCalled()
+		expect(deps.propagate).toHaveBeenCalled()
 	})
 
 	it('propagates an unbound key to the PTY as before', () => {
@@ -105,5 +128,99 @@ describe('createKeydownRoute', () => {
 
 		expect(deps.feed).not.toHaveBeenCalled()
 		expect(deps.propagate).not.toHaveBeenCalled()
+	})
+
+	it('leaves a dead key to the composer (no bytes, no preventDefault)', () => {
+		const route = createKeydownRoute(deps)
+		const event = keydown({ key: 'Dead', code: 'Quote' })
+
+		route(event)
+
+		expect(deps.propagate).not.toHaveBeenCalled()
+		expect(event.preventDefault).not.toHaveBeenCalled()
+	})
+
+	it('skips mid-composition keydowns entirely', () => {
+		const route = createKeydownRoute(deps)
+		const event = keydown({ key: ' ', code: 'Space', isComposing: true })
+
+		route(event)
+
+		expect(deps.feed).not.toHaveBeenCalled()
+		expect(deps.propagate).not.toHaveBeenCalled()
+		expect(event.preventDefault).not.toHaveBeenCalled()
+	})
+
+	it('hands printable keys to the focused composer untouched', () => {
+		deps.composerActive.mockReturnValue(true)
+		const route = createKeydownRoute(deps)
+		const event = keydown({ key: 'x', code: 'KeyX' })
+
+		route(event)
+
+		expect(deps.propagate).not.toHaveBeenCalled()
+		expect(event.preventDefault).not.toHaveBeenCalled()
+	})
+
+	it('sends option-composed characters as plain text when option is not alt', () => {
+		// macos-option-as-alt unset: option+5 on AZERTY composes "{".
+		const route = createKeydownRoute(deps)
+		const event = keydown({ key: '{', code: 'Digit5', altKey: true })
+
+		route(event)
+
+		expect(deps.propagate).toHaveBeenCalledWith('sess-1', {
+			code: 'Digit5',
+			text: '{',
+			ctrl: false,
+			alt: false,
+			shift: false,
+		})
+	})
+
+	it('encodes option as alt with the logical key when configured', () => {
+		deps.altIsMeta.mockReturnValue(true)
+		const route = createKeydownRoute(deps)
+		// The composed text (ƒ) must NOT ride along: the encoder derives ESC f
+		// from the physical code, like Ghostty with macos-option-as-alt.
+		const event = keydown({ key: 'ƒ', code: 'KeyF', altKey: true })
+
+		route(event)
+
+		expect(deps.propagate).toHaveBeenCalledWith('sess-1', {
+			code: 'KeyF',
+			text: null,
+			ctrl: false,
+			alt: true,
+			shift: false,
+		})
+		expect(event.preventDefault).toHaveBeenCalled()
+	})
+
+	it('still routes ctrl chords and non-printable keys around the composer', () => {
+		deps.composerActive.mockReturnValue(true)
+		const route = createKeydownRoute(deps)
+
+		const ctrl = keydown({ key: 'c', ctrlKey: true })
+		route(ctrl)
+		expect(deps.propagate).toHaveBeenLastCalledWith('sess-1', {
+			code: 'KeyC',
+			text: 'c',
+			ctrl: true,
+			alt: false,
+			shift: false,
+		})
+		expect(ctrl.preventDefault).toHaveBeenCalled()
+
+		const enter = keydown({ key: 'Enter', code: 'Enter' })
+		route(enter)
+		expect(deps.propagate).toHaveBeenLastCalledWith('sess-1', {
+			code: 'Enter',
+			text: null,
+			ctrl: false,
+			alt: false,
+			shift: false,
+		})
+		expect(enter.preventDefault).toHaveBeenCalled()
 	})
 })

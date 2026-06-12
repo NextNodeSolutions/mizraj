@@ -1,12 +1,12 @@
 import type { ResolvedCursor, ResolvedFont } from './ghosttyConfig'
 import { applyAdjustment } from './ghosttyConfig'
 import { ATTR_TABLE, decodeAttrs, fontCss, fontFor } from './terminalAttrs'
+import type { GridLink } from './terminalLinks'
 import { isCellSelected } from './terminalMouse'
 import type { SelectionRange } from './terminalMouse'
-import type { GridLink } from './terminalLinks'
-import { coalesceTextRuns } from './terminalRuns'
 import type { TerminalColors } from './terminalPalette'
 import { brightenForBold, resolveColor } from './terminalPalette'
+import { coalesceTextRuns } from './terminalRuns'
 import type {
 	CellFramePayload,
 	WireCell,
@@ -155,12 +155,19 @@ const drawCell = (
 	const attrs = ATTR_TABLE[cell.attrs] ?? decodeAttrs(cell.attrs)
 	const { background, foreground } = resolveCellColors(cell, config, selected)
 
-	// background-opacity dims the cell's background fill only; the glyph and any
-	// underline/strike below stay fully opaque so text never washes out.
-	context.globalAlpha = config.backgroundAlpha
-	context.fillStyle = background
-	context.fillRect(rect.x, rect.y, rect.width, rect.height)
-	context.globalAlpha = FULL_ALPHA
+	// Default-background cells are already covered by clearToBackground; skipping
+	// their fill avoids re-compositing the alpha layer (a wash at opacity < 1)
+	// and cuts the per-frame fillRect count by the grid's blank majority.
+	const paintsBackground =
+		selected || attrs.reverse || cell.bg.kind !== 'default'
+	if (paintsBackground) {
+		// background-opacity dims the cell's background fill only; the glyph and
+		// any underline/strike below stay fully opaque so text never washes out.
+		context.globalAlpha = config.backgroundAlpha
+		context.fillStyle = background
+		context.fillRect(rect.x, rect.y, rect.width, rect.height)
+		context.globalAlpha = FULL_ALPHA
+	}
 
 	if (attrs.underline) {
 		context.fillStyle = foreground
@@ -285,6 +292,71 @@ const drawCursor = (
 	context.globalAlpha = FULL_ALPHA
 }
 
+// The grid tiles at cellWidth but fillText advances at the font's natural
+// width; with adjust-cell-width (or a fallback font) the two diverge and a
+// single-run fillText drifts cumulatively off the grid — the cursor then sits
+// visibly right of the text. Within this tolerance the run is drawn in one
+// call (shaper ligatures intact); beyond it the advance is corrected.
+const RUN_DRIFT_TOLERANCE_PX = 0.5
+
+// Draw one run's text so each character lands on its grid column. Three paths,
+// fastest first: a matching natural advance draws the whole run (ligatures
+// form, zero extra cost); a mismatch is absorbed into letterSpacing when the
+// engine supports it (ligatures survive, advance == cellWidth); else each char
+// is placed at its own cell x — Ghostty's per-cell placement, minus shaping.
+const fillRunText = (
+	context: CanvasRenderingContext2D,
+	text: string,
+	startCol: number,
+	rect: { x: number; y: number },
+	metrics: CellMetrics,
+): void => {
+	const chars = [...text]
+	if (chars.length <= 1) {
+		context.fillText(text, rect.x, rect.y)
+		return
+	}
+	const natural = context.measureText(text).width
+	const target = chars.length * metrics.cellWidth
+	if (Math.abs(natural - target) <= RUN_DRIFT_TOLERANCE_PX) {
+		context.fillText(text, rect.x, rect.y)
+		return
+	}
+	// letterSpacing (Safari 17.4+/WKWebView) absorbs the mismatch while the
+	// shaper still sees the whole run; engines without it place per character.
+	// Reflect.has, not `in`: lib.dom types the property unconditionally, so an
+	// `in` check would narrow the no-support branch to `never`.
+	if (Reflect.has(context, 'letterSpacing')) {
+		context.letterSpacing = `${(target - natural) / chars.length}px`
+		context.fillText(text, rect.x, rect.y)
+		context.letterSpacing = '0px'
+		return
+	}
+	for (const [index, char] of chars.entries()) {
+		context.fillText(
+			char,
+			Math.round((startCol + index) * metrics.cellWidth),
+			rect.y,
+		)
+	}
+}
+
+// Whether the cursor blinks for this frame. An explicit cursor-style-blink
+// rules. Unset, Ghostty blinks the never-styled default cursor — but
+// libghostty's wire collapses that default to block+steady, identical to an
+// explicit DECSCUSR 2. The heuristic: a steady BLOCK reads as the default
+// (blinks), a steady bar/underline as a deliberate DECSCUSR 4/6 (stays
+// steady). Deviation for explicit steady-block requests, noted in the
+// implementation notes.
+export const cursorBlinks = (
+	config: TerminalConfig,
+	cursor: WireCursor,
+): boolean => {
+	if (config.cursor.blink !== null) return config.cursor.blink
+	if (cursor.blink) return true
+	return cursor.style === 'block'
+}
+
 // `cursorBlinkOn` is the blink phase for this paint (the caller's timer toggles
 // it): a blinking cursor is drawn only while it is on, a steady cursor always.
 // `selection` must already be normalized (anchor before head in stream order —
@@ -338,7 +410,7 @@ export const drawFrame = (
 		context.globalAlpha = attrs.dim ? DIM_ALPHA : FULL_ALPHA
 		context.fillStyle = foreground
 		context.font = glyphFont(run.cell, config, fontTable)
-		context.fillText(run.text, rect.x, rect.y)
+		fillRunText(context, run.text, run.startCol, rect, metrics)
 		context.globalAlpha = FULL_ALPHA
 	}
 
@@ -358,7 +430,11 @@ export const drawFrame = (
 
 	const cursor = frame.cursor
 	const blinkOn = options.cursorBlinkOn ?? true
-	if (cursor && cursor.visible && (!cursor.blink || blinkOn)) {
+	if (
+		cursor &&
+		cursor.visible &&
+		(!cursorBlinks(config, cursor) || blinkOn)
+	) {
 		const cellUnder = frame.cells[cursor.y * frame.cols + cursor.x]
 		drawCursor(context, cursor, cellUnder, metrics, config, fontTable)
 	}

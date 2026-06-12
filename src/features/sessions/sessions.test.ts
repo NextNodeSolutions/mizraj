@@ -30,11 +30,16 @@ describe('sessions atoms', () => {
 	})
 
 	it('startSessionAtom registers a fresh session with empty output and running status', () => {
-		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
+		store.set(startSessionAtom, {
+			id: 'sess-a',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
 
 		expect(store.get(sessionsAtom)['sess-a']).toEqual({
 			id: 'sess-a',
 			binary: 'claude',
+			repoPath: '/repo',
 			title: null,
 			output: [],
 			status: 'running',
@@ -43,7 +48,11 @@ describe('sessions atoms', () => {
 	})
 
 	it('appendOutputAtom pushes chunks in order onto the matching session', () => {
-		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
+		store.set(startSessionAtom, {
+			id: 'sess-a',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
 		store.set(appendOutputAtom, {
 			sessionId: 'sess-a',
 			chunk: { kind: 'stdout', text: 'hello ' },
@@ -70,7 +79,11 @@ describe('sessions atoms', () => {
 	})
 
 	it('endSessionAtom flips status to ended and stores the exit code', () => {
-		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
+		store.set(startSessionAtom, {
+			id: 'sess-a',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
 		store.set(endSessionAtom, { sessionId: 'sess-a', exitCode: 0 })
 
 		const session = store.get(sessionsAtom)['sess-a']
@@ -84,7 +97,11 @@ describe('sessions atoms', () => {
 			seen.push(store.get(sessionsAtom))
 		})
 
-		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
+		store.set(startSessionAtom, {
+			id: 'sess-a',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
 		store.set(appendOutputAtom, {
 			sessionId: 'sess-a',
 			chunk: { kind: 'stdout', text: 'hi' },
@@ -147,7 +164,11 @@ describe('startAgentEventsBridge', () => {
 		startAgentEventsBridge()
 		const handler = getCapturedHandler()
 
-		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
+		store.set(startSessionAtom, {
+			id: 'sess-a',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
 		handler({
 			payload: { session_id: 'sess-a', kind: 'stderr', text: 'boom' },
 		})
@@ -173,7 +194,11 @@ describe('startAgentEventsBridge', () => {
 		startAgentEventsBridge()
 		const handler = getCapturedEndHandler()
 
-		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
+		store.set(startSessionAtom, {
+			id: 'sess-a',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
 		handler({ payload: { session_id: 'sess-a', exit_code: 0 } })
 
 		const session = store.get(sessionsAtom)['sess-a']
@@ -197,7 +222,11 @@ describe('startAgentEventsBridge', () => {
 		startAgentEventsBridge()
 		const handler = getCapturedCellsHandler()
 
-		store.set(startSessionAtom, { id: 'sess-a', binary: 'claude' })
+		store.set(startSessionAtom, {
+			id: 'sess-a',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
 		const frame: CellFramePayload = {
 			session_id: 'sess-a',
 			cols: 2,
@@ -205,8 +234,8 @@ describe('startAgentEventsBridge', () => {
 			cells: [],
 			cursor: null,
 			mouse_reporting: false,
-	viewport_top: 0,
-	history_total: 0,
+			viewport_top: 0,
+			history_total: 0,
 		}
 		handler({ payload: frame })
 
@@ -226,8 +255,8 @@ describe('startAgentEventsBridge', () => {
 				cells: [],
 				cursor: null,
 				mouse_reporting: false,
-	viewport_top: 0,
-	history_total: 0,
+				viewport_top: 0,
+				history_total: 0,
 			},
 		})
 

@@ -87,6 +87,29 @@ impl PaddingAxis {
     }
 }
 
+/// Which Option key (if any) acts as Alt/Meta on macOS
+/// (`macos-option-as-alt`). When an Option side is NOT alt, it composes layout
+/// characters (the macOS default) instead of sending ESC-prefixed sequences.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OptionAsAlt {
+    True,
+    False,
+    Left,
+    Right,
+}
+
+impl OptionAsAlt {
+    pub(crate) fn parse(value: &str) -> Option<OptionAsAlt> {
+        match value {
+            "true" => Some(OptionAsAlt::True),
+            "false" => Some(OptionAsAlt::False),
+            "left" => Some(OptionAsAlt::Left),
+            "right" => Some(OptionAsAlt::Right),
+            _ => None,
+        }
+    }
+}
+
 pub(crate) fn parse_bool(value: &str) -> Option<bool> {
     match value {
         "true" => Some(true),

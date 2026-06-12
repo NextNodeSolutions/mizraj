@@ -5,6 +5,7 @@ import { App } from '@/app/App'
 import { ErrorBoundary } from '@/app/ErrorBoundary'
 import { startGhosttyConfigBridge } from '@/features/sessions/ghosttyConfigBridge'
 import { startAgentEventsBridge } from '@/features/sessions/sessions'
+import { startSplitLifecycle } from '@/features/sessions/splitLayout'
 import { startTerminalInputRouter } from '@/features/sessions/terminalInput'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
@@ -40,6 +41,7 @@ logger.info('Frontend bootstrapping')
 
 startAgentEventsBridge()
 startGhosttyConfigBridge()
+startSplitLifecycle()
 startTerminalInputRouter()
 
 type ReactErrorInfo = { componentStack?: string | null }

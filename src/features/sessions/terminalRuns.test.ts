@@ -3,10 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { coalesceTextRuns } from './terminalRuns'
 import type { CellFramePayload, WireCell, WireColor } from './terminalWire'
 
-const cell = (
-	ch: string,
-	overrides: Partial<WireCell> = {},
-): WireCell => ({
+const cell = (ch: string, overrides: Partial<WireCell> = {}): WireCell => ({
 	ch,
 	fg: { kind: 'default' },
 	bg: { kind: 'default' },

@@ -9,7 +9,7 @@ Démarré le 2026-06-12. Périmètre : M11→M17 du plan + terminal sans Claude 
   `~/Development/nextnode/agent-cockpit` vers `~/Development/tools/mizraj`. Les build
   scripts (tauri) et les binaires de test (`mizraj-vcs`, via `env!("CARGO_MANIFEST_DIR")`
   figé à la compilation) référençaient l'ancien chemin. Fix : `cargo clean -p tauri -p
-  mizraj -p mizraj-vcs`. Si d'autres erreurs « No such file or directory …
+mizraj -p mizraj-vcs`. Si d'autres erreurs « No such file or directory …
   agent-cockpit… » apparaissent, même remède sur le crate concerné.
 - **`pnpm lint` (oxlint racine) crashe** (« process terminated abnormally, possibly out
   of memory ») alors que `pnpm exec oxlint src` passe en 114 ms. Le scan racine avale
@@ -143,13 +143,75 @@ Démarré le 2026-06-12. Périmètre : M11→M17 du plan + terminal sans Claude 
   (`resolveCellColors`) entre passe per-cell et passe runs — zéro divergence
   possible reverse-video/bold-is-bright/sélection.
 
+## 2026-06-12 — Retours feel : composer IME, drift, blink, option-as-alt, splits
+
+Cinq plaintes utilisateur (apostrophe→espace, curseur décalé qui dérive, pas de
+clignotement, frappe « sale », pas de splits option+n/v) — toutes reproduites
+et corrigées.
+
+- **Apostrophe / dead keys : composer caché.** Layout réel = US-International-PC
+  où `'` est une touche MORTE : keydown porte `key="Dead"`, text=null, l'encodeur
+  n'émet rien, et l'espace de commit partait en espace littéral. Le router seul ne
+  peut pas composer (pas de contexte texte) ; ajout d'un textarea caché (le
+  « composer », pattern xterm.js) qui détient le focus quand rien d'interactif ne
+  l'a : l'OS y déroule dead keys / press-and-hold / IME, `beforeinput`
+  (insertText, preventDefault) et `compositionend` livrent le texte commité,
+  envoyé scalaire par scalaire à l'encodeur (`code:"Unidentified"`). Les keydown
+  `isComposing` sont ignorés. `insertReplacementText` (accent press-and-hold)
+  approximé backspace+texte. Préedit non affiché dans la grille (écart mineur).
+- **Drift du curseur : passe runs corrigée.** `adjust-cell-width = 5%` (config
+  réel) fait diverger l'avance naturelle de fillText de la grille → ~1 cellule
+  tous les 20 caractères, exactement le « padding qui grandit » rapporté. La
+  passe glyphes mesure désormais chaque run : avance conforme → un seul fillText
+  (ligatures intactes) ; écart > 0.5px → `letterSpacing` (WKWebView 17.4+,
+  ligatures conservées, alignement exact) ; sans letterSpacing → placement
+  caractère par caractère aux x de cellule. La note M17 « dérive sub-pixel à
+  surveiller » était fausse dès qu'un adjust-cell-width existe.
+- **Blink par défaut.** `cursor-style-blink` est maintenant consommé
+  (ResolvedCursor.blink) ; non défini, Ghostty clignote out-of-box mais le wire
+  libghostty rapporte le curseur jamais stylé comme block+steady
+  (indistinguable d'un DECSCUSR 2). Heuristique `cursorBlinks` : config explicite
+  > frame blink > (block steady = défaut → clignote ; bar/underline steady =
+  DECSCUSR 4/6 délibéré → fixe). Écart : un DECSCUSR 2 explicite clignote quand
+  même. Le timer de blink suit la même résolution que drawFrame.
+- **macos-option-as-alt honoré** (parsé crate→DTO→atom) avec tracking gauche/
+  droite du modificateur (location au keydown/keyup, reset au blur). Côté méta :
+  alt:true + text:null (l'encodeur dérive ESC-x du code physique, pas du
+  caractère composé) ; côté compose : la touche va au composer (ou part en texte
+  brut alt:false si focus perdu). Matcher : un chord alt+lettre accepte le match
+  PHYSIQUE quand macOS transforme la touche en "Dead"/caractère composé
+  (option+n → key "Dead" code KeyN) — sans ça les binds option+n/v ne matchaient
+  jamais sur mac.
+- **Splits.** `new_split:dir` / `goto_split:dir` / `close_surface` parsés
+  (mizraj-config), exécutés côté front : arbre binaire 50/50 par vue routée
+  (`splitTreesAtom`, leaves = sessions), SplitTreeView récursif, pane inactif
+  dimé (unfocused-split-opacity générique 0.8). new_split spawn le shell par
+  défaut dans le repoPath de la session source (stocké au launch). goto_split
+  directionnel = vraie marche spatiale dans l'arbre ; previous/next = ordre DFS.
+  `performable:` enfin honoré : goto_split sans voisin laisse la touche filer au
+  PTY (le commentaire du config utilisateur — Neovim — décrit exactement ça).
+  AGENT_END retire la feuille (listener dédié, dépendances unidirectionnelles).
+  Écarts : `auto` = right (pas d'aspect pixel à ce niveau), resize_split non
+  supporté (tombe au PTY), ratios fixes.
+- **Perf frappe** : les fillRect de fond default-bg sont sautés (le clear couvre
+  déjà, et ne pas recomposer l'alpha 0.95 deux fois est PLUS correct) — ~90% de
+  fillRect en moins par frame sur une grille creuse. Le gros poste restant est le
+  payload JSON plein-grille par frame (IPC) ; si la latence se fait encore sentir,
+  c'est le prochain chantier (delta de lignes sales côté Rust).
+
 ## Récap des écarts au plan (à lire avant review)
 
 1. **M14 scrollback-limit en lignes** (FFI), pas en octets — ÷80 clampé.
 2. **M16 sans transport OSC8** — détection d'URL seulement.
 3. **M17 sans font-feature-settings** — ligatures par shaping natif du canvas.
 4. **clear_screen ne vide pas le scrollback** (form feed seulement).
-5. **Flags keybind global/all/performable** parsés mais sans effet spécifique.
-6. **Abonnement frames = bool par session** (pas refcount) — un seul pane par
-   session aujourd'hui.
+5. **Flags keybind global/all/unconsumed** parsés mais sans effet spécifique ;
+   `performable` est honoré depuis les splits (2026-06-12).
+6. **Abonnement frames = bool par session** (pas refcount) — un pane par
+   session reste vrai avec les splits (chaque pane est sa propre session).
 7. **M7.A.05 (hot-reload) réalisé pendant M11** (manquait, prérequis du cache).
+8. **Blink : DECSCUSR 2 (steady block) clignote** — le wire ne distingue pas le
+   curseur jamais stylé ; voir l'heuristique `cursorBlinks`.
+9. **Préedit IME non rendu** (le commit arrive d'un coup) ; accents
+   press-and-hold remplacés par backspace+texte.
+10. **Splits : auto=right, ratios fixes, resize_split non supporté.**

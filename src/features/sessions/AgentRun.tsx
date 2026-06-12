@@ -5,7 +5,7 @@ import { DiffPanel } from '@/features/diff/DiffPanel'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
-import { TerminalPane } from './TerminalPane'
+import { SplitTreeView } from './SplitTreeView'
 import { useSession } from './useSession'
 
 type Props = {
@@ -48,7 +48,7 @@ export const AgentRun = ({ sessionId }: Props): React.JSX.Element => {
 				Stop
 			</button>
 			<div className="agent-run__log">
-				<TerminalPane sessionId={sessionId} />
+				<SplitTreeView rootId={sessionId} />
 			</div>
 			{!diffOpen && (
 				<button

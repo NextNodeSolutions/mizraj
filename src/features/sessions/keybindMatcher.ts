@@ -13,11 +13,13 @@ export type KeyInput = {
 
 // What a keydown means once matched against the table:
 // - action: a binding completed — execute it, the key never reaches the PTY
+//   (`performable` rides along: such a binding only consumes the key when the
+//   action can actually run — the router checks and falls through otherwise)
 // - pending: a leader sequence is underway — consume the key and wait
 // - abort: a sequence was interrupted — the interrupting key is swallowed
 // - pass: no binding involved — encode to the PTY as usual
 export type MatchResult =
-	| { kind: 'action'; action: KeybindAction }
+	| { kind: 'action'; action: KeybindAction; performable: boolean }
 	| { kind: 'pending' }
 	| { kind: 'abort' }
 	| { kind: 'pass' }
@@ -154,9 +156,22 @@ const chordMatches = (chord: KeyChord, input: KeyInput): boolean => {
 	const keyMatches =
 		chord.key.kind === 'physical'
 			? physicalMatches(chord.key.name, input.code)
-			: logicalMatches(chord.key.name, input.key)
+			: logicalMatches(chord.key.name, input.key) ||
+				altObscuresKey(chord, input)
 	return keyMatches && shiftMatches(chord, input)
 }
+
+// macOS Option turns many keydowns into dead keys (option+n → key "Dead") or
+// composed characters (option+f → "ƒ"), hiding the logical key an alt binding
+// names. Ghostty matches such bindings against the UNMODIFIED key via layout
+// introspection; the closest webview equivalent is the physical position, so
+// an alt chord whose logical name is also a known physical key accepts the
+// position match.
+const altObscuresKey = (chord: KeyChord, input: KeyInput): boolean =>
+	chord.alt &&
+	chord.key.kind === 'logical' &&
+	chord.key.name in PHYSICAL_CODES &&
+	physicalMatches(chord.key.name, input.code)
 
 // Build a matcher over the folded table. Bindings whose action is out of the
 // parity scope are dropped here so their keys fall through (`pass`) instead of
@@ -197,7 +212,11 @@ export const createKeybindMatcher = (table: Keybind[]): KeybindMatcher => {
 			)
 			if (complete) {
 				reset()
-				return { kind: 'action', action: complete.action }
+				return {
+					kind: 'action',
+					action: complete.action,
+					performable: complete.flags.performable,
+				}
 			}
 
 			depth += 1

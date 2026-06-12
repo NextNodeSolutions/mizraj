@@ -423,14 +423,27 @@ type Paint = {
 	width: number
 	height: number
 	text?: string
+	/// The context's letterSpacing at paint time (letterSpacing doubles only).
+	spacing?: string
 }
 
-const recordingContext = (): {
+type RecordingOptions = {
+	/// Natural glyph advance per character reported by measureText; defaults
+	/// to the grid's cellWidth so runs take the single-fillText fast path.
+	advancePerChar?: number
+	/// Expose a letterSpacing property, like a Safari 17.4+ context.
+	letterSpacing?: boolean
+}
+
+const recordingContext = (
+	options: RecordingOptions = {},
+): {
 	context: CanvasRenderingContext2D
 	paints: Paint[]
 } => {
 	const paints: Paint[] = []
 	const state = { fillStyle: '', strokeStyle: '', globalAlpha: 1 }
+	const spacingState = { value: '0px' }
 	const context = {
 		canvas: { width: 800, height: 600 },
 		set fillStyle(value: string) {
@@ -480,13 +493,34 @@ const recordingContext = (): {
 				width: 0,
 				height: 0,
 				text,
+				...(options.letterSpacing
+					? { spacing: spacingState.value }
+					: {}),
 			})
 		},
+		measureText(text: string) {
+			return {
+				width:
+					[...text].length *
+					(options.advancePerChar ?? INTEGRAL_METRICS.cellWidth),
+			}
+		},
+	}
+	if (options.letterSpacing) {
+		// defineProperty, not spread: spreading accessors copies their current
+		// VALUE, silently disconnecting the setter the renderer writes to.
+		Object.defineProperty(context, 'letterSpacing', {
+			get: () => spacingState.value,
+			set: (value: string) => {
+				spacingState.value = value
+			},
+		})
 	}
 	// @ts-expect-error - deliberate partial CanvasRenderingContext2D double;
 	// jsdom cannot provide a real 2d context, and drawFrame touches only the
 	// members faked here (fill/stroke style + globalAlpha + lineWidth setters,
-	// save/restore/setTransform, fillRect/strokeRect/fillText, canvas dimensions).
+	// save/restore/setTransform, fillRect/strokeRect/fillText/measureText,
+	// canvas dimensions).
 	return { context, paints }
 }
 
@@ -519,6 +553,7 @@ const cursorConfigWith = (
 	color: null,
 	textColor: null,
 	style: null,
+	blink: null,
 	opacity: 1,
 	...overrides,
 })
@@ -747,10 +782,12 @@ describe('drawFrame background-opacity', () => {
 	})
 })
 
+// An explicit (indexed) background: default-bg cells no longer paint a fill
+// (the canvas clear covers them), and this test asserts the painted SPAN.
 const wideCell = (ch: string): WireCell => ({
 	ch,
 	fg: { kind: 'default' },
-	bg: { kind: 'default' },
+	bg: { kind: 'indexed', idx: 1 },
 	attrs: 0,
 	wide: 'wide',
 })
@@ -774,8 +811,8 @@ describe('drawFrame wide cells and graphemes', () => {
 			cells: [wideCell('中'), spacerTailCell],
 			cursor: null,
 			mouse_reporting: false,
-	viewport_top: 0,
-	history_total: 0,
+			viewport_top: 0,
+			history_total: 0,
 		}
 
 		drawFrame(context, frame, INTEGRAL_METRICS, configWith({}), fontTable)
@@ -814,8 +851,8 @@ describe('drawFrame wide cells and graphemes', () => {
 				cells: [spacer],
 				cursor: null,
 				mouse_reporting: false,
-	viewport_top: 0,
-	history_total: 0,
+				viewport_top: 0,
+				history_total: 0,
 			}
 
 			drawFrame(
@@ -850,8 +887,8 @@ describe('drawFrame wide cells and graphemes', () => {
 			cells: [clusterCell],
 			cursor: null,
 			mouse_reporting: false,
-	viewport_top: 0,
-	history_total: 0,
+			viewport_top: 0,
+			history_total: 0,
 		}
 
 		drawFrame(context, frame, INTEGRAL_METRICS, configWith({}), fontTable)
@@ -889,6 +926,62 @@ const glyphCell = (ch: string): WireCell => ({
 	bg: { kind: 'default' },
 	attrs: 0,
 	wide: 'narrow',
+})
+
+// The user-visible drift bug: with adjust-cell-width (or a fallback font) the
+// natural advance diverges from cellWidth, and a whole-run fillText walks off
+// the grid — the cursor ends up cells to the right of the text. The run pass
+// must keep every character on its own column.
+describe('drawFrame run drift correction', () => {
+	const threeCellFrame = (): CellFramePayload => ({
+		session_id: 'sess-1',
+		cols: 3,
+		rows: 1,
+		cells: [glyphCell('a'), glyphCell('b'), glyphCell('c')],
+		cursor: null,
+		mouse_reporting: false,
+		viewport_top: 0,
+		history_total: 0,
+	})
+
+	const drawWith = (
+		options: Parameters<typeof recordingContext>[0],
+	): Paint[] => {
+		const { context, paints } = recordingContext(options)
+		drawFrame(
+			context,
+			threeCellFrame(),
+			INTEGRAL_METRICS,
+			configWith({}),
+			buildFontTable(resolveFont(EMPTY_CONFIG)),
+		)
+		return paints.filter(p => p.op === 'text')
+	}
+
+	it('draws a matching-advance run with a single shaped fillText', () => {
+		const texts = drawWith({})
+
+		expect(texts).toHaveLength(1)
+		expect(texts[0]).toMatchObject({ text: 'abc', x: 0 })
+	})
+
+	it('absorbs an advance mismatch into letterSpacing when available', () => {
+		// 7px natural vs 8px cells: 1px missing per char.
+		const texts = drawWith({ advancePerChar: 7, letterSpacing: true })
+
+		expect(texts).toHaveLength(1)
+		expect(texts[0]).toMatchObject({ text: 'abc', x: 0, spacing: '1px' })
+	})
+
+	it('falls back to per-cell placement without letterSpacing support', () => {
+		const texts = drawWith({ advancePerChar: 7 })
+
+		expect(texts.map(p => ({ text: p.text, x: p.x }))).toEqual([
+			{ text: 'a', x: 0 },
+			{ text: 'b', x: 8 },
+			{ text: 'c', x: 16 },
+		])
+	})
 })
 
 describe('drawFrame selection', () => {
@@ -952,7 +1045,12 @@ describe('drawFrame selection', () => {
 				selection: { background: '#123456', foreground: '#abcdef' },
 			}),
 			fontTable,
-			{ selection: { anchor: { col: 3, row: 2 }, head: { col: 5, row: 2 } } },
+			{
+				selection: {
+					anchor: { col: 3, row: 2 },
+					head: { col: 5, row: 2 },
+				},
+			},
 		)
 
 		const glyph = paints.find(p => p.op === 'text')
@@ -972,7 +1070,12 @@ describe('drawFrame hovered link', () => {
 			configWith({}),
 			fontTable,
 			{
-				hoveredLink: { url: 'https://a.dev', row: 0, startCol: 0, endCol: 0 },
+				hoveredLink: {
+					url: 'https://a.dev',
+					row: 0,
+					startCol: 0,
+					endCol: 0,
+				},
 			},
 		)
 
@@ -1005,8 +1108,8 @@ describe('drawFrame cursor', () => {
 			cells: [cell],
 			cursor,
 			mouse_reporting: false,
-	viewport_top: 0,
-	history_total: 0,
+			viewport_top: 0,
+			history_total: 0,
 		}
 		drawFrame(
 			context,
@@ -1118,30 +1221,63 @@ describe('drawFrame cursor', () => {
 		expect(cursor?.alpha).toBe(0.5)
 	})
 
-	// Visibility = visible AND (steady OR blink-phase-on). The truth table:
+	// Visibility = visible AND (steady OR blink-phase-on). The default (no
+	// cursor-style-blink, never-styled block) blinks like Ghostty out of the
+	// box; an explicit DECSCUSR steady bar/underline stays steady; the config
+	// key overrides everything.
 	it.each([
 		{
-			label: 'blinking cursor hidden during the off phase',
+			label: 'frame-blinking cursor hidden during the off phase',
+			style: 'bar' as const,
 			blink: true,
+			configBlink: null,
 			blinkOn: false,
 			drawn: false,
 		},
 		{
-			label: 'blinking cursor shown during the on phase',
+			label: 'frame-blinking cursor shown during the on phase',
+			style: 'bar' as const,
 			blink: true,
+			configBlink: null,
 			blinkOn: true,
 			drawn: true,
 		},
 		{
-			label: 'steady cursor shown regardless of phase',
+			label: 'the default block cursor blinks out of the box',
+			style: 'block' as const,
 			blink: false,
+			configBlink: null,
+			blinkOn: false,
+			drawn: false,
+		},
+		{
+			label: 'a DECSCUSR steady bar stays drawn through the off phase',
+			style: 'bar' as const,
+			blink: false,
+			configBlink: null,
 			blinkOn: false,
 			drawn: true,
 		},
-	])('$label', ({ blink, blinkOn, drawn }) => {
+		{
+			label: 'cursor-style-blink=false pins the default block steady',
+			style: 'block' as const,
+			blink: false,
+			configBlink: false,
+			blinkOn: false,
+			drawn: true,
+		},
+		{
+			label: 'cursor-style-blink=true blinks a steady bar',
+			style: 'bar' as const,
+			blink: false,
+			configBlink: true,
+			blinkOn: false,
+			drawn: false,
+		},
+	])('$label', ({ style, blink, configBlink, blinkOn, drawn }) => {
 		const cursor = cursorPaints(
-			cursorAt('block', true, blink),
-			cursorConfigWith({}),
+			cursorAt(style, true, blink),
+			cursorConfigWith({ blink: configBlink }),
 			{ cursorBlinkOn: blinkOn },
 		).find(p => p.fillStyle === LATTE_FG)
 
@@ -1192,8 +1328,18 @@ describe('resolveCursor', () => {
 			color: null,
 			textColor: null,
 			style: null,
+			blink: null,
 			opacity: 1,
 		})
+	})
+
+	it('carries cursor-style-blink through verbatim', () => {
+		expect(
+			resolveCursor({ ...EMPTY_CONFIG, cursor_style_blink: false }).blink,
+		).toBe(false)
+		expect(
+			resolveCursor({ ...EMPTY_CONFIG, cursor_style_blink: true }).blink,
+		).toBe(true)
 	})
 
 	it('passes a hex cursor-color through', () => {

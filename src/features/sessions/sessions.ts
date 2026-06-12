@@ -20,6 +20,9 @@ export type SessionState = {
 	/// The spawned program ('claude' for agent runs, the user's shell for
 	/// plain terminals) — what the sidebar labels the session with.
 	binary: string
+	/// The repo the session was launched in — what a split spawned from this
+	/// session inherits as its working directory.
+	repoPath: string | null
 	/// The OSC 0/2 title the program set, when any — overrides the derived
 	/// label while present (TP13).
 	title: string | null
@@ -56,16 +59,17 @@ type SessionsMap = Readonly<Record<string, SessionState>>
 
 export const sessionsAtom = atom<SessionsMap>({})
 
-type StartSessionArgs = { id: string; binary: string }
+type StartSessionArgs = { id: string; binary: string; repoPath: string | null }
 
 export const startSessionAtom = atom(
 	null,
-	(get, set, { id, binary }: StartSessionArgs) => {
+	(get, set, { id, binary, repoPath }: StartSessionArgs) => {
 		set(sessionsAtom, {
 			...get(sessionsAtom),
 			[id]: {
 				id,
 				binary,
+				repoPath,
 				title: null,
 				output: [],
 				status: 'running',
@@ -227,9 +231,12 @@ export const startAgentEventsBridge = (): void => {
 		store.set(setCellFrameAtom, frame)
 	})
 
-	forwardSessionEvent<TitlePayload>(AGENT_TITLE_EVENT, ({ session_id, title }) => {
-		store.set(setSessionTitleAtom, { sessionId: session_id, title })
-	})
+	forwardSessionEvent<TitlePayload>(
+		AGENT_TITLE_EVENT,
+		({ session_id, title }) => {
+			store.set(setSessionTitleAtom, { sessionId: session_id, title })
+		},
+	)
 }
 
 // Test-only escape hatch so suites can verify idempotency from a clean slate.

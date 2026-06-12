@@ -45,6 +45,55 @@ pub struct KeybindFlags {
     pub performable: bool,
 }
 
+/// Where `new_split` places the new pane relative to the focused one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SplitDirection {
+    Right,
+    Down,
+    Left,
+    Up,
+    /// Split along the longer axis of the focused pane (Ghostty's default).
+    Auto,
+}
+
+impl SplitDirection {
+    fn parse(value: &str) -> Option<SplitDirection> {
+        match value {
+            "right" => Some(SplitDirection::Right),
+            "down" => Some(SplitDirection::Down),
+            "left" => Some(SplitDirection::Left),
+            "up" => Some(SplitDirection::Up),
+            "auto" => Some(SplitDirection::Auto),
+            _ => None,
+        }
+    }
+}
+
+/// Which neighbor `goto_split` moves focus to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SplitFocus {
+    Previous,
+    Next,
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+impl SplitFocus {
+    fn parse(value: &str) -> Option<SplitFocus> {
+        match value {
+            "previous" => Some(SplitFocus::Previous),
+            "next" => Some(SplitFocus::Next),
+            "left" => Some(SplitFocus::Left),
+            "right" => Some(SplitFocus::Right),
+            "up" => Some(SplitFocus::Up),
+            "down" => Some(SplitFocus::Down),
+            _ => None,
+        }
+    }
+}
+
 /// The action half of a binding, typed for the parity scope (TP8).
 #[derive(Debug, Clone, PartialEq)]
 pub enum KeybindAction {
@@ -65,6 +114,12 @@ pub enum KeybindAction {
     ScrollToBottom,
     ScrollPageUp,
     ScrollPageDown,
+    /// Open a new terminal pane next to the focused one.
+    NewSplit(SplitDirection),
+    /// Move keyboard focus to a neighboring pane.
+    GotoSplit(SplitFocus),
+    /// Close the focused pane (and its session).
+    CloseSurface,
     /// Consume the key and do nothing (disables a default binding).
     Ignore,
     /// Remove the binding for this trigger.
@@ -138,9 +193,7 @@ pub(crate) fn parse_keybind(value: &str) -> Result<KeybindDirective, &'static st
         return Ok(KeybindDirective::Clear);
     }
 
-    let (trigger_part, action_part) = value
-        .split_once('=')
-        .ok_or("expected trigger=action")?;
+    let (trigger_part, action_part) = value.split_once('=').ok_or("expected trigger=action")?;
 
     let (flags, trigger_part) = strip_flags(trigger_part.trim());
     let trigger = parse_trigger(trigger_part)?;
@@ -259,6 +312,17 @@ fn parse_action(action: &str) -> Result<KeybindAction, &'static str> {
         "reset" => KeybindAction::Reset,
         "text" => KeybindAction::Text(unescape_text(param.ok_or("text: requires a payload")?)?),
         "esc" => KeybindAction::Esc(param.ok_or("esc: requires a payload")?.to_string()),
+        "new_split" => KeybindAction::NewSplit(match param {
+            None => SplitDirection::Auto,
+            Some(direction) => {
+                SplitDirection::parse(direction.trim()).ok_or("unknown split direction")?
+            }
+        }),
+        "goto_split" => KeybindAction::GotoSplit(
+            SplitFocus::parse(param.ok_or("goto_split: requires a direction")?.trim())
+                .ok_or("unknown split focus")?,
+        ),
+        "close_surface" => KeybindAction::CloseSurface,
         "ignore" => KeybindAction::Ignore,
         "unbind" => KeybindAction::Unbind,
         _ => return Ok(KeybindAction::Unsupported(action.to_string())),
@@ -276,7 +340,7 @@ fn parse_action(action: &str) -> Result<KeybindAction, &'static str> {
 fn accepts_param(name: &str) -> bool {
     matches!(
         name,
-        "increase_font_size" | "decrease_font_size" | "text" | "esc"
+        "increase_font_size" | "decrease_font_size" | "text" | "esc" | "new_split" | "goto_split"
     )
 }
 
@@ -318,8 +382,7 @@ fn unescape_text(raw: &str) -> Result<String, &'static str> {
 fn parse_hex_escape(chars: &mut std::str::Chars) -> Result<char, &'static str> {
     let high = chars.next().ok_or("truncated \\x escape")?;
     let low = chars.next().ok_or("truncated \\x escape")?;
-    let byte = u8::from_str_radix(&format!("{high}{low}"), 16)
-        .map_err(|_| "invalid \\x escape")?;
+    let byte = u8::from_str_radix(&format!("{high}{low}"), 16).map_err(|_| "invalid \\x escape")?;
     Ok(byte as char)
 }
 
@@ -384,10 +447,7 @@ mod tests {
     #[test]
     fn physical_prefix_matches_by_position() {
         let keybind = bind("ctrl+physical:a=select_all");
-        assert_eq!(
-            keybind.trigger[0].key,
-            KeySpec::Physical("a".to_string())
-        );
+        assert_eq!(keybind.trigger[0].key, KeySpec::Physical("a".to_string()));
     }
 
     #[test]
@@ -458,6 +518,33 @@ mod tests {
             parse_keybind("clear").expect("clear parses"),
             KeybindDirective::Clear
         );
+    }
+
+    #[test]
+    fn split_actions_parse_with_directions() {
+        assert_eq!(
+            bind("alt+n=new_split:right").action,
+            KeybindAction::NewSplit(SplitDirection::Right)
+        );
+        assert_eq!(
+            bind("alt+v=new_split:down").action,
+            KeybindAction::NewSplit(SplitDirection::Down)
+        );
+        assert_eq!(
+            bind("alt+s=new_split").action,
+            KeybindAction::NewSplit(SplitDirection::Auto)
+        );
+        assert_eq!(
+            bind("performable:alt+h=goto_split:left").action,
+            KeybindAction::GotoSplit(SplitFocus::Left)
+        );
+        assert_eq!(
+            bind("alt+x=close_surface").action,
+            KeybindAction::CloseSurface
+        );
+        assert!(parse_keybind("alt+n=new_split:sideways").is_err());
+        assert!(parse_keybind("alt+h=goto_split").is_err());
+        assert!(parse_keybind("alt+x=close_surface:now").is_err());
     }
 
     #[test]

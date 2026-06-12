@@ -62,6 +62,10 @@ export type KeybindFlags = {
 	performable: boolean
 }
 
+// Where new_split places the pane / where goto_split moves focus.
+export type SplitDirection = 'right' | 'down' | 'left' | 'up' | 'auto'
+export type SplitFocus = 'previous' | 'next' | 'left' | 'right' | 'up' | 'down'
+
 // The typed action half of a keybind (TP8). `unsupported` carries a verbatim
 // out-of-scope Ghostty action the dispatch must skip (and let the key fall
 // through to the PTY encoder).
@@ -81,6 +85,9 @@ export type KeybindAction =
 	| { kind: 'scroll_page_down' }
 	| { kind: 'text'; text: string }
 	| { kind: 'esc'; sequence: string }
+	| { kind: 'new_split'; direction: SplitDirection }
+	| { kind: 'goto_split'; focus: SplitFocus }
+	| { kind: 'close_surface' }
 	| { kind: 'ignore' }
 	| { kind: 'unsupported'; action: string }
 
@@ -129,6 +136,7 @@ export type GhosttyConfig = {
 	window_padding_balance: boolean | null
 	copy_on_select: string | null
 	mouse_hide_while_typing: boolean | null
+	macos_option_as_alt: string | null
 	term: string | null
 	keybinds: Keybind[]
 	diagnostics: Diagnostic[]
@@ -169,9 +177,27 @@ export const EMPTY_CONFIG: GhosttyConfig = {
 	window_padding_balance: null,
 	copy_on_select: null,
 	mouse_hide_while_typing: null,
+	macos_option_as_alt: null,
 	term: null,
 	keybinds: [],
 	diagnostics: [],
+}
+
+// Which Option side(s) act as Alt/Meta for the PTY. Ghostty's macOS default is
+// `false`: Option composes layout characters (é, |, {…}) and never ESC-prefixes.
+export type OptionAsAlt = 'none' | 'left' | 'right' | 'both'
+
+export const resolveOptionAsAlt = (config: GhosttyConfig): OptionAsAlt => {
+	switch (config.macos_option_as_alt) {
+		case 'true':
+			return 'both'
+		case 'left':
+			return 'left'
+		case 'right':
+			return 'right'
+		default:
+			return 'none'
+	}
 }
 
 // selection-background/-foreground for the renderer. The cell-foreground/
@@ -390,10 +416,13 @@ export const resolveBackgroundAlpha = (config: GhosttyConfig): number => {
 // and `style` are null when the config leaves them unset, so the renderer falls
 // back to the terminal foreground / the frame's reported style respectively.
 // `textColor` is the glyph color shown under a block cursor (cursor invert).
+// `blink` is cursor-style-blink verbatim: null = unset, meaning Ghostty's
+// out-of-box behavior (blinking) unless the frame reports a child-set state.
 export type ResolvedCursor = {
 	color: string | null
 	textColor: string | null
 	style: WireCursorStyle | null
+	blink: boolean | null
 	opacity: number
 }
 
@@ -432,5 +461,6 @@ export const resolveCursor = (config: GhosttyConfig): ResolvedCursor => ({
 	color: cursorColorFrom(config.cursor_color),
 	textColor: cursorColorFrom(config.cursor_text),
 	style: cursorStyleFrom(config.cursor_style),
+	blink: config.cursor_style_blink,
 	opacity: resolveCursorOpacity(config.cursor_opacity),
 })

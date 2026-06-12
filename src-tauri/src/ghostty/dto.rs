@@ -5,8 +5,9 @@
 //! host bridge: path resolution + the Tauri command).
 
 use mizraj_config::{
-    Adjustment, Color, CopyOnSelect, CursorStyle, Diagnostic, Keybind, KeybindAction,
-    KeybindFlags, KeyChord, KeySpec, PaddingAxis, ResolvedConfig,
+    Adjustment, Color, CopyOnSelect, CursorStyle, Diagnostic, KeyChord, KeySpec, Keybind,
+    KeybindAction, KeybindFlags, OptionAsAlt, PaddingAxis, ResolvedConfig, SplitDirection,
+    SplitFocus,
 };
 use serde::Serialize;
 
@@ -145,8 +146,41 @@ enum KeybindActionDto {
     ScrollPageDown,
     Text { text: String },
     Esc { sequence: String },
+    NewSplit { direction: &'static str },
+    GotoSplit { focus: &'static str },
+    CloseSurface,
     Ignore,
     Unsupported { action: String },
+}
+
+fn split_direction_name(direction: SplitDirection) -> &'static str {
+    match direction {
+        SplitDirection::Right => "right",
+        SplitDirection::Down => "down",
+        SplitDirection::Left => "left",
+        SplitDirection::Up => "up",
+        SplitDirection::Auto => "auto",
+    }
+}
+
+fn split_focus_name(focus: SplitFocus) -> &'static str {
+    match focus {
+        SplitFocus::Previous => "previous",
+        SplitFocus::Next => "next",
+        SplitFocus::Left => "left",
+        SplitFocus::Right => "right",
+        SplitFocus::Up => "up",
+        SplitFocus::Down => "down",
+    }
+}
+
+fn option_as_alt_name(value: OptionAsAlt) -> &'static str {
+    match value {
+        OptionAsAlt::True => "true",
+        OptionAsAlt::False => "false",
+        OptionAsAlt::Left => "left",
+        OptionAsAlt::Right => "right",
+    }
 }
 
 /// One effective keybinding: trigger chord sequence, flags, typed action.
@@ -176,6 +210,13 @@ fn keybind_dto(keybind: Keybind) -> Option<KeybindDto> {
         KeybindAction::Reset => KeybindActionDto::Reset,
         KeybindAction::Text(text) => KeybindActionDto::Text { text },
         KeybindAction::Esc(sequence) => KeybindActionDto::Esc { sequence },
+        KeybindAction::NewSplit(direction) => KeybindActionDto::NewSplit {
+            direction: split_direction_name(direction),
+        },
+        KeybindAction::GotoSplit(focus) => KeybindActionDto::GotoSplit {
+            focus: split_focus_name(focus),
+        },
+        KeybindAction::CloseSurface => KeybindActionDto::CloseSurface,
         KeybindAction::Ignore => KeybindActionDto::Ignore,
         KeybindAction::Unsupported(action) => KeybindActionDto::Unsupported { action },
         KeybindAction::Unbind => return None,
@@ -224,6 +265,7 @@ pub struct GhosttyConfigDto {
     window_padding_balance: Option<bool>,
     copy_on_select: Option<String>,
     mouse_hide_while_typing: Option<bool>,
+    macos_option_as_alt: Option<String>,
     term: Option<String>,
     keybinds: Vec<KeybindDto>,
     diagnostics: Vec<DiagnosticDto>,
@@ -337,8 +379,15 @@ pub(crate) fn build_dto(config: ResolvedConfig) -> GhosttyConfigDto {
             .copy_on_select
             .map(|value| copy_on_select_name(value).to_string()),
         mouse_hide_while_typing: config.mouse_hide_while_typing,
+        macos_option_as_alt: config
+            .macos_option_as_alt
+            .map(|value| option_as_alt_name(value).to_string()),
         term: config.term,
-        keybinds: config.keybinds.into_iter().filter_map(keybind_dto).collect(),
+        keybinds: config
+            .keybinds
+            .into_iter()
+            .filter_map(keybind_dto)
+            .collect(),
         diagnostics,
     }
 }
@@ -433,7 +482,10 @@ mod tests {
         );
 
         // The sequence keeps both chords, the text payload is unescaped.
-        assert_eq!(json["keybinds"][1]["trigger"].as_array().map(Vec::len), Some(2));
+        assert_eq!(
+            json["keybinds"][1]["trigger"].as_array().map(Vec::len),
+            Some(2)
+        );
         assert_eq!(
             json["keybinds"][1]["action"],
             serde_json::json!({ "kind": "text", "text": "next" })
@@ -443,6 +495,29 @@ mod tests {
         assert_eq!(
             json["keybinds"][2]["action"],
             serde_json::json!({ "kind": "unsupported", "action": "new_window" })
+        );
+    }
+
+    #[test]
+    fn maps_split_actions_and_option_as_alt() {
+        let dto = dto(
+            "macos-option-as-alt = left\nkeybind = clear\nkeybind = alt+n=new_split:right\nkeybind = performable:alt+h=goto_split:left\nkeybind = alt+x=close_surface",
+        );
+        let json = serde_json::to_value(&dto).expect("serialize");
+
+        assert_eq!(json["macos_option_as_alt"], "left");
+        assert_eq!(
+            json["keybinds"][0]["action"],
+            serde_json::json!({ "kind": "new_split", "direction": "right" })
+        );
+        assert_eq!(
+            json["keybinds"][1]["action"],
+            serde_json::json!({ "kind": "goto_split", "focus": "left" })
+        );
+        assert_eq!(json["keybinds"][1]["flags"]["performable"], true);
+        assert_eq!(
+            json["keybinds"][2]["action"],
+            serde_json::json!({ "kind": "close_surface" })
         );
     }
 

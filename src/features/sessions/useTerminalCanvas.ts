@@ -8,6 +8,8 @@ import { useAppearance } from '@/features/settings/settings'
 import { describeError, isSessionError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
+import { writeClipboardText } from './clipboard'
+import { fetchSessionFrame } from './fetchSessionFrame'
 import type { GhosttyConfig } from './ghosttyConfig'
 import {
 	resolveBackgroundAlpha,
@@ -15,13 +17,13 @@ import {
 	resolvePadding,
 	resolveSelectionColors,
 } from './ghosttyConfig'
-import { fetchSessionFrame } from './fetchSessionFrame'
 import { ghosttyConfigEpochAtom } from './ghosttyConfigBridge'
 import type { RenderBundle } from './ghosttyConfigCache'
 import { getRenderBundle } from './ghosttyConfigCache'
-import { writeClipboardText } from './clipboard'
 import { fontSizeDeltaAtom, sessionSelectionAtom } from './keybindRuntime'
 import { cellFramesAtom } from './sessions'
+import { subscribeToCellFrames } from './sessionSubscription'
+import { buildFontTable } from './terminalAttrs'
 import { findLinkAt } from './terminalLinks'
 import type { GridLink } from './terminalLinks'
 import {
@@ -30,10 +32,9 @@ import {
 	normalizeSelection,
 } from './terminalMouse'
 import type { CellPoint, SelectionRange } from './terminalMouse'
-import { subscribeToCellFrames } from './sessionSubscription'
-import { buildFontTable } from './terminalAttrs'
 import type { TerminalConfig } from './terminalRenderer'
 import {
+	cursorBlinks,
 	drawFrame,
 	gridForSize,
 	measureCell,
@@ -324,7 +325,8 @@ const startRendering = (
 	const unsubscribe = store.sub(cellFramesAtom, consumeSessionFrame)
 
 	const blinkTimer = setInterval(() => {
-		if (!lastFrame?.cursor?.blink) return
+		if (!lastFrame?.cursor || !cursorBlinks(config, lastFrame.cursor))
+			return
 		blinkOn = !blinkOn
 		paint()
 	}, CURSOR_BLINK_INTERVAL_MS)

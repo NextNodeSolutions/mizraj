@@ -15,7 +15,8 @@ use crate::color::{parse_color, Color, Rgb};
 use crate::diagnostic::Diagnostic;
 use crate::keybind::{default_keybinds, parse_keybind, Keybind, KeybindAction, KeybindDirective};
 use crate::value::{
-    parse_bool, parse_f32, parse_u64, Adjustment, CopyOnSelect, CursorStyle, PaddingAxis,
+    parse_bool, parse_f32, parse_u64, Adjustment, CopyOnSelect, CursorStyle, OptionAsAlt,
+    PaddingAxis,
 };
 use crate::Directive;
 
@@ -60,6 +61,9 @@ pub struct ResolvedConfig {
     pub window_padding_balance: Option<bool>,
     pub copy_on_select: Option<CopyOnSelect>,
     pub mouse_hide_while_typing: Option<bool>,
+    /// Which Option key acts as Alt on macOS; `None` = the macOS default
+    /// (Option composes layout characters, never ESC-prefixes).
+    pub macos_option_as_alt: Option<OptionAsAlt>,
     pub term: Option<String>,
     /// The effective keybinding table, in declaration order. Rebinding a
     /// trigger replaces in place, `unbind` removes, `clear` (or an empty
@@ -142,6 +146,7 @@ fn apply(config: &mut ResolvedConfig, directive: &Directive) {
         "window-padding-balance" => scalar!(window_padding_balance, parse_bool),
         "copy-on-select" => scalar!(copy_on_select, CopyOnSelect::parse),
         "mouse-hide-while-typing" => scalar!(mouse_hide_while_typing, parse_bool),
+        "macos-option-as-alt" => scalar!(macos_option_as_alt, OptionAsAlt::parse),
         "term" => set_string(&mut config.term, value, reset),
         "keybind" => apply_keybind(config, value, reset),
         _ => {}
@@ -392,6 +397,24 @@ mod tests {
     }
 
     #[test]
+    fn parses_macos_option_as_alt_sides() {
+        assert_eq!(
+            resolved("macos-option-as-alt = left").macos_option_as_alt,
+            Some(OptionAsAlt::Left)
+        );
+        assert_eq!(
+            resolved("macos-option-as-alt = true").macos_option_as_alt,
+            Some(OptionAsAlt::True)
+        );
+        assert_eq!(resolved("").macos_option_as_alt, None);
+        assert_eq!(
+            resolved("macos-option-as-alt = both").macos_option_as_alt,
+            None,
+            "invalid side records a diagnostic instead of guessing"
+        );
+    }
+
+    #[test]
     fn ignores_out_of_scope_keys() {
         // A real Ghostty key we don't (yet) honor must not produce a diagnostic.
         let config = resolved("macos-titlebar-style = tabs");
@@ -463,8 +486,9 @@ mod tests {
 
     #[test]
     fn unbind_removes_the_matching_trigger() {
-        let config =
-            resolved("keybind = clear\nkeybind = super+c=copy_to_clipboard\nkeybind = super+c=unbind");
+        let config = resolved(
+            "keybind = clear\nkeybind = super+c=copy_to_clipboard\nkeybind = super+c=unbind",
+        );
         assert!(config.keybinds.is_empty());
         assert!(config.diagnostics.is_empty());
     }
