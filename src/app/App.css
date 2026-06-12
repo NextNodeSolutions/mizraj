@@ -130,8 +130,13 @@
 	-webkit-text-size-adjust: 100%;
 }
 
-/* Mocha (dark) palette + semantic tokens */
-:root[data-theme='dark'] {
+/* Mocha (dark) palette + semantic tokens.
+ * data-theme now carries the RESOLVED palette name (usePaletteTheme writes
+ * 'mocha'/'latte'), so the v1 dark vocabulary also matches 'mocha' until
+ * the last v1 class is gone; 'dark' and the 'system' media block below are
+ * kept for that same cleanup. */
+:root[data-theme='dark'],
+:root[data-theme='mocha'] {
 	--ctp-rosewater: #f5e0dc;
 	--ctp-flamingo: #f2cdcd;
 	--ctp-pink: #f5c2e7;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import './App.css'
 import { CommandPalette } from '@/features/palette/CommandPalette'
@@ -10,6 +10,7 @@ import { SettingsPanel } from '@/features/settings/SettingsPanel'
 import { MainContent } from './MainContent'
 import { Toasts } from './Toasts'
 import { TopBar } from './TopBar'
+import { usePaletteTheme } from './usePaletteTheme'
 
 export function App(): React.JSX.Element {
 	const settings = useSettings()
@@ -21,10 +22,7 @@ export function App(): React.JSX.Element {
 	// data-theme stylesheet below. With no Ghostty theme it is a no-op and the
 	// Catppuccin tokens stand.
 	useGhosttyTheme()
-
-	useEffect(() => {
-		document.documentElement.dataset.theme = settings.theme
-	}, [settings.theme])
+	usePaletteTheme()
 
 	return (
 		<main className="container">
