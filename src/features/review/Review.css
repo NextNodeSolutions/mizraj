@@ -291,10 +291,51 @@
 }
 
 /* ---- center: diff pane ---- */
-.review__diff {
+.review__diff-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 14px;
+	border-bottom: 1px solid var(--border);
+	flex: none;
+}
+
+.review__diff-path {
+	font-family: var(--font-mono);
+	font-size: var(--fs-mono-sm);
+	font-weight: 500;
 	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.review__viewed-label {
+	margin-left: auto;
+	color: var(--text-2);
+}
+
+.review__diff-body {
+	flex: 1;
 	min-height: 0;
 	overflow-y: auto;
+	padding: 6px 0 16px;
+}
+
+.review__diff-file {
+	animation: riseIn 0.3s var(--ease-out) both;
+}
+
+/* hunk headers from hunkSeparators:'line-info' (design .hunk-head) */
+.review__diff-body [data-separator] {
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+	color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+.review__diff-body [data-separator-content] {
+	padding: 10px 16px 5px;
 }
 
 .review-rail {
@@ -422,7 +463,8 @@
 /* reduced motion: review-scoped animations show their end state */
 @media (prefers-reduced-motion: reduce) {
 	.review-tree__bar i,
-	.vchk[data-done='true'] {
+	.vchk[data-done='true'],
+	.review__diff-file {
 		transition: none;
 		animation: none;
 	}

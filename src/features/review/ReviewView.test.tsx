@@ -129,6 +129,27 @@ describe('ReviewView', () => {
 		expect(stat?.textContent).toContain('· 2 files')
 	})
 
+	it('heads the diff pane with the selected file and its own viewed toggle', async () => {
+		await render()
+
+		const head = container.querySelector('.review__diff-head')
+		expect(head?.textContent).toContain('src/api/limiter.ts')
+		expect(head?.textContent).toContain('Viewed')
+		expect(
+			head?.querySelector('.review-tree__badge[data-change="added"]')
+				?.textContent,
+		).toBe('A')
+
+		const check = head?.querySelector<HTMLButtonElement>(
+			'button[aria-label="Mark src/api/limiter.ts viewed"]',
+		)
+		expect(check).not.toBeNull()
+		await act(async () => {
+			check?.click()
+		})
+		expect(container.textContent).toContain('1 / 2 viewed')
+	})
+
 	it('switches the diff to a clicked file', async () => {
 		await render()
 

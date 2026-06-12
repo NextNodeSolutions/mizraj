@@ -2,16 +2,10 @@ import { useAtomValue } from 'jotai'
 
 import { DiffStat } from '@/shared/ui/atoms'
 
-import type { ReviewFile, ReviewFileChange } from './reviewFiles'
+import type { ReviewFile } from './reviewFiles'
+import { CHANGE_BADGE } from './reviewFiles'
 import { ViewedCheck } from './ViewedCheck'
 import { reviewProgress, viewedFilesAtom } from './viewedFiles'
-
-const CHANGE_BADGE: Readonly<Record<ReviewFileChange, string>> = {
-	added: 'A',
-	modified: 'M',
-	deleted: 'D',
-	renamed: 'R',
-}
 
 const fileName = (path: string): string => path.split('/').pop() ?? path
 

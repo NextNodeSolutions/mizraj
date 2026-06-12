@@ -16,6 +16,14 @@ export type DiffTotals = {
 	deletions: number
 }
 
+/** The badge letter a change kind wears in the tree and the diff head. */
+export const CHANGE_BADGE: Readonly<Record<ReviewFileChange, string>> = {
+	added: 'A',
+	modified: 'M',
+	deleted: 'D',
+	renamed: 'R',
+}
+
 const CHANGE_BY_PATCH_TYPE: Readonly<Record<string, ReviewFileChange>> = {
 	new: 'added',
 	deleted: 'deleted',

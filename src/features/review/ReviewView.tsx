@@ -1,15 +1,14 @@
 import { parsePatchFiles } from '@pierre/diffs'
 import type { FileDiffMetadata } from '@pierre/diffs'
-import { FileDiff } from '@pierre/diffs/react'
 import { useMemo, useRef, useState } from 'react'
 
 import { useDiff } from '@/features/diff/useDiff'
 import { BranchChip } from '@/features/projects/BranchChip'
-import { NEXTNODE_DIFF_THEME } from '@/shared/theme/shiki-nextnode'
 import { pushToast } from '@/shared/toasts'
 import { DiffStat, SDot } from '@/shared/ui/atoms'
 import { useLayoutToggle } from '@/shared/useLayoutToggle'
 
+import { ReviewDiffPane } from './ReviewDiffPane'
 import { diffTotals, reviewFilesFromParsed } from './reviewFiles'
 import { ReviewRail } from './ReviewRail'
 import { ReviewTree } from './ReviewTree'
@@ -145,18 +144,18 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 					selectedPath={selected?.path ?? null}
 					onSelect={setSelectedPath}
 				/>
-				<div className="panel review__diff">
-					{selectedMeta !== null && (
-						<FileDiff
-							key={selectedMeta.name}
-							fileDiff={selectedMeta}
-							options={{
-								diffStyle,
-								theme: NEXTNODE_DIFF_THEME,
-							}}
-						/>
-					)}
-				</div>
+				{selected !== null && selectedMeta !== null ? (
+					<ReviewDiffPane
+						file={selected}
+						meta={selectedMeta}
+						diffStyle={diffStyle}
+					/>
+				) : (
+					<section
+						className="panel review__diff"
+						aria-label="File diff"
+					/>
+				)}
 				<ReviewRail
 					repoPath={activeProjectPath}
 					totals={totals}
