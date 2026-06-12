@@ -5,10 +5,15 @@ import type { Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const navigateMock = vi.hoisted(() => vi.fn())
+const launchSessionMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/app/router', () => ({
 	navigate: navigateMock,
 	agentRunHref: (sessionId: string) => `/agent-run/${sessionId}`,
+}))
+
+vi.mock('./launchSession', () => ({
+	launchSession: launchSessionMock,
 }))
 
 import { CockpitSessions } from './CockpitSessions'
@@ -23,6 +28,7 @@ describe('CockpitSessions', () => {
 	beforeEach(() => {
 		store.set(sessionsAtom, {})
 		navigateMock.mockReset()
+		launchSessionMock.mockReset()
 		container = document.createElement('div')
 		document.body.appendChild(container)
 		root = createRoot(container)
@@ -49,11 +55,24 @@ describe('CockpitSessions', () => {
 		}
 	}
 
-	const render = (activeSessionId: string): void => {
+	const render = (
+		activeSessionId: string,
+		activeProjectPath: string | null = null,
+	): void => {
 		act(() => {
-			root.render(<CockpitSessions activeSessionId={activeSessionId} />)
+			root.render(
+				<CockpitSessions
+					activeSessionId={activeSessionId}
+					activeProjectPath={activeProjectPath}
+				/>,
+			)
 		})
 	}
+
+	const newSessionButton = (): HTMLButtonElement | null =>
+		container.querySelector<HTMLButtonElement>(
+			'button[aria-label="New session"]',
+		)
 
 	it('groups sessions under running and ended headings with counts', () => {
 		seed('run-1')
@@ -135,6 +154,31 @@ describe('CockpitSessions', () => {
 		const foot = container.querySelector('.fc-sess-foot')
 		expect(foot?.querySelector('.mz-kbd')?.textContent).toBe('⌘K')
 		expect(foot?.textContent).toContain('jump between agents')
+	})
+
+	it('hides the new-session button without an active project', () => {
+		seed('run-1')
+		render('run-1')
+
+		expect(newSessionButton()).toBeNull()
+	})
+
+	it('launches a claude session in the active project from the head button', () => {
+		launchSessionMock.mockReturnValue(new Promise(() => {}))
+		seed('run-1')
+		render('run-1', '/repo/mizraj')
+
+		const button = newSessionButton()
+		expect(button).not.toBeNull()
+		act(() => {
+			button?.click()
+		})
+
+		expect(launchSessionMock).toHaveBeenCalledExactlyOnceWith({
+			binary: 'claude',
+			repoPath: '/repo/mizraj',
+		})
+		expect(newSessionButton()?.disabled).toBe(true)
 	})
 
 	it('dots rows with the session display status', () => {

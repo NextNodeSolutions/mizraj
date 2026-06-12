@@ -80,9 +80,17 @@ describe('AgentRun cockpit', () => {
 		}
 	}
 
-	const render = (sessionId: string): void => {
+	const render = (
+		sessionId: string,
+		activeProjectPath: string | null = null,
+	): void => {
 		act(() => {
-			root.render(<AgentRun sessionId={sessionId} />)
+			root.render(
+				<AgentRun
+					sessionId={sessionId}
+					activeProjectPath={activeProjectPath}
+				/>,
+			)
 		})
 	}
 
@@ -90,7 +98,7 @@ describe('AgentRun cockpit', () => {
 		seed('sess-1')
 		render('sess-1')
 
-		expect(container.querySelector('.cockpit-sessions')).not.toBeNull()
+		expect(container.querySelector('.fc-sess')).not.toBeNull()
 		expect(
 			container
 				.querySelector('[data-testid="terminal-stub"]')

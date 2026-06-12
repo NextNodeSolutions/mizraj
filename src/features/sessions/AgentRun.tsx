@@ -14,6 +14,7 @@ import { useSession } from './useSession'
 
 type Props = {
 	sessionId: string
+	activeProjectPath: string | null
 }
 
 const stopSession = (sessionId: string): void => {
@@ -26,13 +27,19 @@ const stopSession = (sessionId: string): void => {
 	})
 }
 
-export const AgentRun = ({ sessionId }: Props): React.JSX.Element => {
+export const AgentRun = ({
+	sessionId,
+	activeProjectPath,
+}: Props): React.JSX.Element => {
 	const session = useSession(sessionId)
 	const ended = session?.status === 'ended'
 
 	return (
 		<div className="cockpit">
-			<CockpitSessions activeSessionId={sessionId} />
+			<CockpitSessions
+				activeSessionId={sessionId}
+				activeProjectPath={activeProjectPath}
+			/>
 			<div className="cockpit__stage">
 				<div className="cockpit__tab-bar">
 					<span className="cockpit__tab">

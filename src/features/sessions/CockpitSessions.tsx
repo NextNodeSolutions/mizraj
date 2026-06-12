@@ -1,14 +1,20 @@
+import { useState } from 'react'
+
 import { agentRunHref, navigate } from '@/app/router'
 import { formatSessionAge } from '@/features/missionControl/sessionAge'
 import type { SDotKind } from '@/shared/ui/atoms'
 import { Panel, PanelHead, SDot } from '@/shared/ui/atoms'
+import { IconPlus } from '@/shared/ui/icons'
 import { useNow } from '@/shared/useNow'
 
 import type { SessionDisplayStatus } from './displayStatus'
 import { DISPLAY_STATUS_LABEL, sessionDisplayStatus } from './displayStatus'
+import { launchSession } from './launchSession'
 import { sessionLabel, sessionRepoLabel } from './sessionLabel'
 import type { SessionState } from './sessions'
 import { useSessions } from './useSessions'
+
+const AGENT_BINARY = 'claude'
 
 const AGE_REFRESH_MS = 30_000
 
@@ -32,6 +38,38 @@ const sessionMeta = (session: SessionState, now: number): string => {
 			: DISPLAY_STATUS_LABEL[sessionDisplayStatus(session)]
 	const repo = sessionRepoLabel(session)
 	return repo === null ? tail : `${repo} · ${tail}`
+}
+
+type NewSessionButtonProps = {
+	repoPath: string
+}
+
+// launchSession navigates to the new pane itself; pending only guards a
+// double click while session_create is in flight.
+const NewSessionButton = ({
+	repoPath,
+}: NewSessionButtonProps): React.JSX.Element => {
+	const [pending, setPending] = useState(false)
+
+	const handleClick = (): void => {
+		setPending(true)
+		void launchSession({ binary: AGENT_BINARY, repoPath }).finally(() => {
+			setPending(false)
+		})
+	}
+
+	return (
+		<button
+			type="button"
+			className="mz-iconbtn"
+			aria-label="New session"
+			disabled={pending}
+			aria-busy={pending}
+			onClick={handleClick}
+		>
+			<IconPlus />
+		</button>
+	)
 }
 
 type RowProps = {
@@ -96,10 +134,12 @@ const SessionGroup = ({
 
 type Props = {
 	activeSessionId: string
+	activeProjectPath: string | null
 }
 
 export const CockpitSessions = ({
 	activeSessionId,
+	activeProjectPath,
 }: Props): React.JSX.Element => {
 	const sessions = useSessions()
 	const now = useNow(AGE_REFRESH_MS)
@@ -108,7 +148,11 @@ export const CockpitSessions = ({
 
 	return (
 		<Panel className="fc-sess">
-			<PanelHead title="Sessions" count={sessions.length} />
+			<PanelHead title="Sessions" count={sessions.length}>
+				{activeProjectPath !== null && (
+					<NewSessionButton repoPath={activeProjectPath} />
+				)}
+			</PanelHead>
 			<nav className="fc-sess-list" aria-label="Sessions">
 				<SessionGroup
 					title="Running"

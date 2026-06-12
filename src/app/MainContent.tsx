@@ -52,6 +52,7 @@ const RoutedScreen = ({
 			<AgentRun
 				key={agentRunRoute.sessionId}
 				sessionId={agentRunRoute.sessionId}
+				activeProjectPath={activeProjectPath}
 			/>
 		)
 	}
