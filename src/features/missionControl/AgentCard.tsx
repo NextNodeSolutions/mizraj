@@ -5,7 +5,10 @@ import {
 	DISPLAY_STATUS_LABEL,
 	sessionDisplayStatus,
 } from '@/features/sessions/displayStatus'
-import { sessionLabel, sessionRepoLabel } from '@/features/sessions/sessionLabel'
+import {
+	sessionLabel,
+	sessionRepoLabel,
+} from '@/features/sessions/sessionLabel'
 import type { SessionState } from '@/features/sessions/sessions'
 import { subscribeToCellFrames } from '@/features/sessions/sessionSubscription'
 import { terminalTail } from '@/features/sessions/terminalTail'

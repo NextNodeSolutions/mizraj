@@ -1,7 +1,11 @@
 import { useAtomValue, useSetAtom } from 'jotai'
 
 import type { ReviewFile, ReviewFileChange } from './reviewFiles'
-import { reviewProgress, toggleViewedAtom, viewedFilesAtom } from './viewedFiles'
+import {
+	reviewProgress,
+	toggleViewedAtom,
+	viewedFilesAtom,
+} from './viewedFiles'
 
 const CHANGE_BADGE: Readonly<Record<ReviewFileChange, string>> = {
 	added: 'A',

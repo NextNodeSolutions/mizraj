@@ -90,9 +90,7 @@ describe('AgentRun cockpit', () => {
 		seed('sess-1')
 		render('sess-1')
 
-		expect(
-			container.querySelector('.cockpit-sessions'),
-		).not.toBeNull()
+		expect(container.querySelector('.cockpit-sessions')).not.toBeNull()
 		expect(
 			container
 				.querySelector('[data-testid="terminal-stub"]')

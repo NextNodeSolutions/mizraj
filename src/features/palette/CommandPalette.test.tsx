@@ -117,9 +117,8 @@ describe('CommandPalette', () => {
 			pressGlobal({ key: 'k', metaKey: true })
 		})
 
-		const input = container.querySelector<HTMLInputElement>(
-			'.palette input',
-		)
+		const input =
+			container.querySelector<HTMLInputElement>('.palette input')
 		await act(async () => {
 			const setter = Object.getOwnPropertyDescriptor(
 				window.HTMLInputElement.prototype,
@@ -175,9 +174,7 @@ describe('CommandPalette', () => {
 		})
 
 		await act(async () => {
-			container
-				.querySelector<HTMLElement>('.palette-backdrop')
-				?.click()
+			container.querySelector<HTMLElement>('.palette-backdrop')?.click()
 		})
 
 		expect(container.querySelector('.palette')).toBeNull()

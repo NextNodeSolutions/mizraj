@@ -12,8 +12,6 @@ export const sessionLabel = (session: SessionState): string => {
 // The repo a session works in, as a compact chip label: the directory name.
 export const sessionRepoLabel = (session: SessionState): string | null => {
 	if (session.repoPath === null) return null
-	const name = session.repoPath
-		.split('/')
-		.findLast(segment => segment !== '')
+	const name = session.repoPath.split('/').findLast(segment => segment !== '')
 	return name ?? null
 }

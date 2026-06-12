@@ -101,9 +101,7 @@ export const ReviewRail = ({
 						type="button"
 						className="review-rail__send"
 						disabled={
-							target === null ||
-							sending ||
-							draft.trim() === ''
+							target === null || sending || draft.trim() === ''
 						}
 						onClick={submit}
 					>

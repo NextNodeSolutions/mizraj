@@ -65,9 +65,9 @@ describe('taskPrompt', () => {
 	})
 
 	it('falls back to the title alone', () => {
-		expect(
-			taskPrompt({ ...TASK, description: null, doneWhen: null }),
-		).toBe('Add rate limiting to API')
+		expect(taskPrompt({ ...TASK, description: null, doneWhen: null })).toBe(
+			'Add rate limiting to API',
+		)
 	})
 })
 

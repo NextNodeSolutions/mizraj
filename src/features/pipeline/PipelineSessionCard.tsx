@@ -30,9 +30,7 @@ const stopSession = (sessionId: string): void => {
 	})
 }
 
-export const PipelineSessionCard = ({
-	session,
-}: Props): React.JSX.Element => {
+export const PipelineSessionCard = ({ session }: Props): React.JSX.Element => {
 	const status = sessionDisplayStatus(session)
 	const frame = useCellFrame(session.id)
 	const tail = terminalTail(frame, TAIL_LINES)
@@ -49,9 +47,7 @@ export const PipelineSessionCard = ({
 				</span>
 			</div>
 			<p className="pipeline__title">{sessionLabel(session)}</p>
-			{running && (
-				<p className="pipeline__term">{tail[0] ?? '…'}</p>
-			)}
+			{running && <p className="pipeline__term">{tail[0] ?? '…'}</p>}
 			<div className="pipeline__card-actions">
 				{status === 'review' ? (
 					<button

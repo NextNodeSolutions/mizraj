@@ -10,9 +10,7 @@ type Props = {
  * selected document on the right. Selection is the URL — deep links and the
  * command palette land here with a document already open.
  */
-export const PlansView = ({
-	activeProjectPath,
-}: Props): React.JSX.Element => (
+export const PlansView = ({ activeProjectPath }: Props): React.JSX.Element => (
 	<section className="plans" aria-label="Plans">
 		<div className="plans__list">
 			<PlansMenu repoPath={activeProjectPath} />

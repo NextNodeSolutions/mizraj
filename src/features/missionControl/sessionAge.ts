@@ -12,7 +12,10 @@ const DAY_MS = HOURS_PER_DAY * HOUR_MS
  * `3d`. Truncates instead of rounding so a card never claims more time than
  * elapsed, and clamps negative skew to `0s`.
  */
-export const formatSessionAge = (nowMs: number, startedAtMs: number): string => {
+export const formatSessionAge = (
+	nowMs: number,
+	startedAtMs: number,
+): string => {
 	const elapsed = Math.max(0, nowMs - startedAtMs)
 	if (elapsed < MINUTE_MS) return `${Math.floor(elapsed / SECOND_MS)}s`
 	if (elapsed < HOUR_MS) return `${Math.floor(elapsed / MINUTE_MS)}m`

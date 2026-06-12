@@ -209,9 +209,7 @@ describe('ReviewView', () => {
 			request?.click()
 		})
 
-		expect(document.activeElement).toBe(
-			container.querySelector('textarea'),
-		)
+		expect(document.activeElement).toBe(container.querySelector('textarea'))
 	})
 
 	it('reports a clean working tree', async () => {

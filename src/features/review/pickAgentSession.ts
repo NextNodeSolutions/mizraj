@@ -16,8 +16,7 @@ export const pickAgentSession = (
 	const candidates = sessions
 		.filter(
 			session =>
-				session.status === 'running' &&
-				session.repoPath === repoPath,
+				session.status === 'running' && session.repoPath === repoPath,
 		)
 		.toSorted((a, b) => b.startedAt - a.startedAt)
 	return (

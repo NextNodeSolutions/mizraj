@@ -110,9 +110,7 @@ describe('TopBar', () => {
 		render({ onOpenSettings })
 
 		act(() => {
-			container
-				.querySelector<HTMLElement>('.settings-trigger')
-				?.click()
+			container.querySelector<HTMLElement>('.settings-trigger')?.click()
 		})
 
 		expect(onOpenSettings).toHaveBeenCalledTimes(1)

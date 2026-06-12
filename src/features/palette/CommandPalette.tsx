@@ -64,10 +64,7 @@ export const CommandPalette = ({
 				event.stopPropagation()
 				const step = event.key === 'ArrowDown' ? 1 : -1
 				setSelection(current =>
-					Math.max(
-						0,
-						Math.min(current + step, filtered.length - 1),
-					),
+					Math.max(0, Math.min(current + step, filtered.length - 1)),
 				)
 				return
 			}
@@ -143,11 +140,7 @@ const PaletteRow = ({
 				{item.group}
 			</div>
 		)}
-		<li
-			role="option"
-			aria-selected={active}
-			onClick={() => onRun(item)}
-		>
+		<li role="option" aria-selected={active} onClick={() => onRun(item)}>
 			{item.label}
 			{item.hint !== undefined && (
 				<span className="palette__hint">{item.hint}</span>

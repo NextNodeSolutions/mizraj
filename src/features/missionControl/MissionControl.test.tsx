@@ -34,7 +34,10 @@ import {
 	startSessionAtom,
 	endSessionAtom,
 } from '@/features/sessions/sessions'
-import type { CellFramePayload, WireCell } from '@/features/sessions/terminalWire'
+import type {
+	CellFramePayload,
+	WireCell,
+} from '@/features/sessions/terminalWire'
 
 import { MissionControl } from './MissionControl'
 
@@ -108,7 +111,9 @@ describe('MissionControl', () => {
 
 	const render = (activeProjectPath: string | null = '/repo'): void => {
 		act(() => {
-			root.render(<MissionControl activeProjectPath={activeProjectPath} />)
+			root.render(
+				<MissionControl activeProjectPath={activeProjectPath} />,
+			)
 		})
 	}
 
@@ -206,7 +211,9 @@ describe('MissionControl', () => {
 		expect(reviewChip).toBeDefined()
 
 		act(() => {
-			reviewChip?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+			reviewChip?.dispatchEvent(
+				new MouseEvent('click', { bubbles: true }),
+			)
 		})
 
 		expect(cards()).toHaveLength(1)

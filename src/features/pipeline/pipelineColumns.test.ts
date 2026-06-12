@@ -40,7 +40,10 @@ const session = (
 	startedAt: 0,
 })
 
-const overview = (tasks: ReadonlyArray<Task>, user: ReadonlyArray<Task>): Overview => ({
+const overview = (
+	tasks: ReadonlyArray<Task>,
+	user: ReadonlyArray<Task>,
+): Overview => ({
 	milestones: [
 		{
 			id: 'm1',
@@ -58,7 +61,11 @@ describe('pipelineColumns', () => {
 	it('routes tasks and sessions to their columns', () => {
 		const columns = pipelineColumns(
 			overview(
-				[task('a', 'backlog'), task('b', 'in_progress'), task('c', 'done')],
+				[
+					task('a', 'backlog'),
+					task('b', 'in_progress'),
+					task('c', 'done'),
+				],
 				[task('u', 'backlog')],
 			),
 			[session('run', 'running'), session('rev', 'ended', 0)],
@@ -83,7 +90,10 @@ describe('pipelineColumns', () => {
 	})
 
 	it('carries the track branch onto task entries', () => {
-		const columns = pipelineColumns(overview([task('a', 'backlog')], []), [])
+		const columns = pipelineColumns(
+			overview([task('a', 'backlog')], []),
+			[],
+		)
 
 		expect(columns.backlog[0]?.branch).toBe('feat/x')
 	})

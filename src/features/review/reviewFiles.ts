@@ -49,7 +49,9 @@ export const reviewFilesFromParsed = (
 export const reviewFilesFromPatch = (
 	patch: string,
 ): ReadonlyArray<ReviewFile> =>
-	reviewFilesFromParsed(parsePatchFiles(patch).flatMap(parsed => parsed.files))
+	reviewFilesFromParsed(
+		parsePatchFiles(patch).flatMap(parsed => parsed.files),
+	)
 
 export const diffTotals = (files: ReadonlyArray<ReviewFile>): DiffTotals => ({
 	files: files.length,

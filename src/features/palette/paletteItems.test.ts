@@ -18,7 +18,10 @@ import type { SessionState } from '@/features/sessions/sessions'
 
 import { buildPaletteItems, filterPaletteItems } from './paletteItems'
 
-const session = (id: string, overrides: Partial<SessionState> = {}): SessionState => ({
+const session = (
+	id: string,
+	overrides: Partial<SessionState> = {},
+): SessionState => ({
 	id,
 	binary: 'claude',
 	repoPath: '/repo',
@@ -79,9 +82,9 @@ describe('buildPaletteItems', () => {
 			activeProjectPath: null,
 		})
 
-		expect(
-			items.find(item => item.group === 'Plans')?.label,
-		).toBe('Auth hardening')
+		expect(items.find(item => item.group === 'Plans')?.label).toBe(
+			'Auth hardening',
+		)
 	})
 
 	it('offers launch actions only with an active project', () => {

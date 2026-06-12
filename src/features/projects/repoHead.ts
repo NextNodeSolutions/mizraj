@@ -30,7 +30,5 @@ const fetchRepoHead = async (): Promise<RepoHead> => {
 	return payload
 }
 
-export const useRepoHead = (
-	repoPath: string | null,
-): ResourceState<RepoHead> =>
+export const useRepoHead = (repoPath: string | null): ResourceState<RepoHead> =>
 	useRepoResource(repoPath, fetchRepoHead, 'repo-head', 'useRepoHead').state

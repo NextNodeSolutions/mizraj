@@ -8,9 +8,9 @@ import { BranchChip } from '@/features/projects/BranchChip'
 import { NEXTNODE_DIFF_THEME } from '@/shared/theme/shiki-nextnode'
 import { useLayoutToggle } from '@/shared/useLayoutToggle'
 
+import { diffTotals, reviewFilesFromParsed } from './reviewFiles'
 import { ReviewRail } from './ReviewRail'
 import { ReviewTree } from './ReviewTree'
-import { diffTotals, reviewFilesFromParsed } from './reviewFiles'
 
 type Props = {
 	activeProjectPath: string | null
@@ -28,9 +28,7 @@ const ReviewPlaceholder = ({
 	</section>
 )
 
-const usePatchFiles = (
-	patch: string | null,
-): ReadonlyArray<FileDiffMetadata> =>
+const usePatchFiles = (patch: string | null): ReadonlyArray<FileDiffMetadata> =>
 	useMemo(
 		() =>
 			patch === null
@@ -39,9 +37,7 @@ const usePatchFiles = (
 		[patch],
 	)
 
-export const ReviewView = ({
-	activeProjectPath,
-}: Props): React.JSX.Element => {
+export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 	const { state } = useDiff(activeProjectPath)
 	const patch = state.status === 'ready' ? state.data.patch : null
 	const parsedFiles = usePatchFiles(patch)
