@@ -4,6 +4,7 @@ import { ATTR_TABLE, decodeAttrs, fontCss, fontFor } from './terminalAttrs'
 import { isCellSelected } from './terminalMouse'
 import type { SelectionRange } from './terminalMouse'
 import type { GridLink } from './terminalLinks'
+import { coalesceTextRuns } from './terminalRuns'
 import type { TerminalColors } from './terminalPalette'
 import { brightenForBold, resolveColor } from './terminalPalette'
 import type {
@@ -102,21 +103,19 @@ const glyphFont = (
 	fontTable[cell.attrs] ??
 	fontFor(ATTR_TABLE[cell.attrs] ?? decodeAttrs(cell.attrs), config.font)
 
-const drawCell = (
-	context: CanvasRenderingContext2D,
+// Reverse video swaps the cell's two colors AND the theme defaults each falls
+// back to. Swapping only the sources collapses a default-on-default reversed
+// cell — exactly how Ink/Claude Code draws its input cursor (`chalk.inverse`
+// of a blank) — back to a normal cell, painting an invisible block. Swapping
+// the fallbacks too makes it resolve to foreground-on-background, matching
+// native Ghostty. A selected cell then takes the configured selection colors;
+// without them the classic reverse video keeps the highlight visible anywhere.
+const resolveCellColors = (
 	cell: WireCell,
-	rect: CellRect,
 	config: TerminalConfig,
-	fontTable: readonly string[],
 	selected: boolean,
-): void => {
+): { background: string; foreground: string } => {
 	const attrs = ATTR_TABLE[cell.attrs] ?? decodeAttrs(cell.attrs)
-	// Reverse video swaps the cell's two colors AND the theme defaults each falls
-	// back to. Swapping only the sources collapses a default-on-default reversed
-	// cell — exactly how Ink/Claude Code draws its input cursor (`chalk.inverse`
-	// of a blank) — back to a normal cell, painting an invisible block. Swapping
-	// the fallbacks too makes it resolve to foreground-on-background, matching
-	// native Ghostty.
 	const resolvedBackground = resolveColor(
 		attrs.reverse ? cell.fg : cell.bg,
 		attrs.reverse ? config.colors.foreground : config.colors.background,
@@ -131,14 +130,30 @@ const drawCell = (
 		attrs.reverse ? config.colors.background : config.colors.foreground,
 		config.palette,
 	)
-	// A selected cell takes the configured selection colors; without them the
-	// classic reverse video (swap) keeps the highlight visible on any theme.
-	const background = selected
-		? (config.selection.background ?? resolvedForeground)
-		: resolvedBackground
-	const foreground = selected
-		? (config.selection.foreground ?? resolvedBackground)
-		: resolvedForeground
+	if (!selected) {
+		return {
+			background: resolvedBackground,
+			foreground: resolvedForeground,
+		}
+	}
+	return {
+		background: config.selection.background ?? resolvedForeground,
+		foreground: config.selection.foreground ?? resolvedBackground,
+	}
+}
+
+// Background and decorations only — glyphs are painted by the run pass in
+// drawFrame so the shaper sees whole same-style stretches (ligatures, TP15).
+const drawCell = (
+	context: CanvasRenderingContext2D,
+	cell: WireCell,
+	rect: CellRect,
+	config: TerminalConfig,
+	fontTable: readonly string[],
+	selected: boolean,
+): void => {
+	const attrs = ATTR_TABLE[cell.attrs] ?? decodeAttrs(cell.attrs)
+	const { background, foreground } = resolveCellColors(cell, config, selected)
 
 	// background-opacity dims the cell's background fill only; the glyph and any
 	// underline/strike below stay fully opaque so text never washes out.
@@ -146,14 +161,6 @@ const drawCell = (
 	context.fillStyle = background
 	context.fillRect(rect.x, rect.y, rect.width, rect.height)
 	context.globalAlpha = FULL_ALPHA
-
-	if (cell.ch !== ' ' && cell.ch !== '') {
-		context.globalAlpha = attrs.dim ? DIM_ALPHA : FULL_ALPHA
-		context.fillStyle = foreground
-		context.font = glyphFont(cell, config, fontTable)
-		context.fillText(cell.ch, rect.x, rect.y)
-		context.globalAlpha = FULL_ALPHA
-	}
 
 	if (attrs.underline) {
 		context.fillStyle = foreground
@@ -316,6 +323,23 @@ export const drawFrame = (
 				selection ? isCellSelected(col, row, selection) : false,
 			)
 		}
+	}
+
+	// Glyph pass, by run: one fillText per same-style stretch lets the font
+	// shaper form ligatures (=>, !=) exactly like Ghostty's harfbuzz pass,
+	// while bg/selection/decorations above stayed per-cell.
+	const runs = coalesceTextRuns(frame, (col, row) =>
+		selection ? isCellSelected(col, row, selection) : false,
+	)
+	for (const run of runs) {
+		const attrs = ATTR_TABLE[run.cell.attrs] ?? decodeAttrs(run.cell.attrs)
+		const { foreground } = resolveCellColors(run.cell, config, run.selected)
+		const rect = cellRect(run.startCol, run.row, metrics, run.span)
+		context.globalAlpha = attrs.dim ? DIM_ALPHA : FULL_ALPHA
+		context.fillStyle = foreground
+		context.font = glyphFont(run.cell, config, fontTable)
+		context.fillText(run.text, rect.x, rect.y)
+		context.globalAlpha = FULL_ALPHA
 	}
 
 	const hovered = options.hoveredLink
