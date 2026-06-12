@@ -44,6 +44,7 @@ export const PlansView = ({ activeProjectPath }: Props): React.JSX.Element => {
 			<Panel className="pl-doc-panel">
 				<PlanView
 					plans={plansState.status === 'ready' ? plansState.data : []}
+					repoPath={activeProjectPath}
 					nowMs={nowMs}
 				/>
 			</Panel>

@@ -32,6 +32,33 @@ import { PlansView } from './PlansView'
 const SECONDS_PER_HOUR = 3600
 const nowSeconds = Math.floor(Date.now() / 1000)
 
+const EMPTY_OVERVIEW = { milestones: [], userTasks: [] }
+
+const OVERVIEW = {
+	milestones: [
+		{
+			id: 'm1',
+			number: 1,
+			demo: 'Login works',
+			skeleton: false,
+			needs: [],
+			tracks: [
+				{
+					id: 'track-a',
+					branch: 'feat/track-a',
+					tasks: [{ status: 'done' }, { status: 'in_progress' }],
+				},
+				{
+					id: 'track-b',
+					branch: 'feat/track-b',
+					tasks: [{ status: 'done' }],
+				},
+			],
+		},
+	],
+	userTasks: [],
+}
+
 const PLAN_ENTRIES = [
 	{
 		kind: 'plan',
@@ -59,6 +86,8 @@ describe('PlansView', () => {
 			if (command === 'list_plans') return Promise.resolve(PLAN_ENTRIES)
 			if (command === 'resolve_plan')
 				return Promise.resolve({ url: 'plan://plan/auth-hardening' })
+			if (command === 'tasks_overview')
+				return Promise.resolve(EMPTY_OVERVIEW)
 			return Promise.resolve(undefined)
 		})
 		window.history.pushState({}, '', '/plans')
@@ -151,6 +180,48 @@ describe('PlansView', () => {
 		expect(container.querySelector('.pl-doc-meta')?.textContent).toContain(
 			'auth-hardening · updated 2h ago',
 		)
+	})
+
+	const serveOverview = (): void => {
+		invokeMock.mockImplementation((command: string) => {
+			if (command === 'list_plans') return Promise.resolve(PLAN_ENTRIES)
+			if (command === 'resolve_plan')
+				return Promise.resolve({ url: 'plan://plan/auth-hardening' })
+			if (command === 'tasks_overview') return Promise.resolve(OVERVIEW)
+			return Promise.resolve(undefined)
+		})
+	}
+
+	it('derives milestone and track states under a plan doc', async () => {
+		serveOverview()
+		window.history.pushState({}, '', '/plans/plan/auth-hardening')
+		await render()
+
+		expect(container.textContent).toContain('Milestones')
+		expect(container.textContent).toContain('M1 · Login works')
+		expect(container.textContent).toContain('in progress')
+		expect(container.textContent).toContain('feat/track-a')
+
+		const trackChecks = container.querySelectorAll('.pl-track .pl-check')
+		expect(trackChecks[0]?.getAttribute('data-done')).toBe('false')
+		expect(trackChecks[1]?.getAttribute('data-done')).toBe('true')
+	})
+
+	it('counts the overview in the plan meta line', async () => {
+		serveOverview()
+		window.history.pushState({}, '', '/plans/plan/auth-hardening')
+		await render()
+
+		expect(container.querySelector('.pl-doc-meta')?.textContent).toContain(
+			'· 1 milestones · 2 tracks',
+		)
+	})
+
+	it('omits the milestones section when none are ingested', async () => {
+		window.history.pushState({}, '', '/plans/plan/auth-hardening')
+		await render()
+
+		expect(container.textContent).not.toContain('Milestones')
 	})
 
 	it('marks the open plan in the list', async () => {

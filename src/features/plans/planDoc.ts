@@ -1,4 +1,5 @@
 import type { PlanRoute } from '@/app/router'
+import type { MilestoneGroup } from '@/features/tasks/tasks'
 
 import type { PlanEntry, PlanKind } from './plans'
 import { updatedLabel } from './updatedLabel'
@@ -38,3 +39,19 @@ export const buildPlanDoc = (
 			? metaSubject(route)
 			: `${metaSubject(route)} · ${updatedLabel(nowMs, entry.mtime)}`,
 })
+
+/**
+ * Extend a doc meta line with what the milestones section will show below —
+ * only meaningful when that section renders (plan docs, non-empty overview).
+ */
+export const appendOverviewCounts = (
+	meta: string,
+	milestones: ReadonlyArray<MilestoneGroup>,
+): string => {
+	if (milestones.length === 0) return meta
+	const trackCount = milestones.reduce(
+		(sum, milestone) => sum + milestone.tracks.length,
+		0,
+	)
+	return `${meta} · ${milestones.length} milestones · ${trackCount} tracks`
+}

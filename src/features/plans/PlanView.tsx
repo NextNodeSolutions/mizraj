@@ -29,10 +29,15 @@ const matchingEntry = (
 
 type Props = {
 	plans: ReadonlyArray<PlanEntry>
+	repoPath: string | null
 	nowMs: number
 }
 
-export const PlanView = ({ plans, nowMs }: Props): React.JSX.Element => {
+export const PlanView = ({
+	plans,
+	repoPath,
+	nowMs,
+}: Props): React.JSX.Element => {
 	const pathname = usePathname()
 	const route = matchPlanRoute(pathname)
 	const [resolution, setResolution] = useState<Resolution>({
@@ -96,6 +101,7 @@ export const PlanView = ({ plans, nowMs }: Props): React.JSX.Element => {
 				matchingEntry(plans, route),
 				nowMs,
 			)}
+			repoPath={repoPath}
 		/>
 	)
 }
