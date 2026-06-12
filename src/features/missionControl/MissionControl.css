@@ -299,12 +299,14 @@
 	line-height: 1.3;
 }
 
-/* two fixed rows so every card foot lines up; with a Ghostty theme the
-   tail wears the real terminal's colors (--terminal-* land on <html>) */
+/* Two fixed rows so every card foot lines up. Chrome tokens, not
+   --terminal-*: those are :root-defined so the fallback never fired
+   (unthemed latte cards went #1e1e1e), and a themed Ghostty config
+   writes the same background into --term-bg anyway. */
 .agent-card .mini-term {
 	min-height: calc(1.65em * 2 + 18px);
-	background: var(--terminal-bg, var(--term-bg));
-	color: var(--terminal-fg, var(--ctp-text));
+	background: var(--term-bg);
+	color: var(--ctp-text);
 }
 
 .ac-subs {

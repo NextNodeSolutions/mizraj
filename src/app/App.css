@@ -470,7 +470,10 @@
 	flex: 1 1 0;
 }
 
-.terminal-split .terminal-pane {
+/* Unconditional: the canvas paints --terminal-bg, and the pane's inline
+   window-padding (Ghostty window_padding_*) must ring it with the same
+   color — a lone pane left transparent showed the chrome's --term-bg. */
+.terminal-pane {
 	background: var(--terminal-bg);
 }
 
