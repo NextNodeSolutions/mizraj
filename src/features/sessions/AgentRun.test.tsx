@@ -34,6 +34,12 @@ vi.mock('@/shared/logger', () => ({
 	},
 }))
 
+const pushToastMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/shared/toasts', () => ({
+	pushToast: pushToastMock,
+}))
+
 vi.mock('./SplitTreeView', () => ({
 	SplitTreeView: ({ rootId }: { rootId: string }) => (
 		<div data-testid="terminal-stub" data-root={rootId} />
@@ -54,6 +60,7 @@ describe('AgentRun cockpit', () => {
 		invokeMock.mockReset()
 		invokeMock.mockResolvedValue({ patch: '' })
 		navigateMock.mockReset()
+		pushToastMock.mockReset()
 		container = document.createElement('div')
 		document.body.appendChild(container)
 		root = createRoot(container)
@@ -80,11 +87,11 @@ describe('AgentRun cockpit', () => {
 		}
 	}
 
-	const render = (
+	const render = async (
 		sessionId: string,
 		activeProjectPath: string | null = null,
-	): void => {
-		act(() => {
+	): Promise<void> => {
+		await act(async () => {
 			root.render(
 				<AgentRun
 					sessionId={sessionId}
@@ -94,62 +101,96 @@ describe('AgentRun cockpit', () => {
 		})
 	}
 
-	it('lays out sessions, terminal and docked diffs', () => {
-		seed('sess-1')
-		render('sess-1')
+	const mockRepoHead = (branch: string): void => {
+		invokeMock.mockImplementation((command: string) =>
+			command === 'repo_head'
+				? Promise.resolve({ branch, detached: false })
+				: Promise.resolve({ patch: '' }),
+		)
+	}
 
-		expect(container.querySelector('.fc-sess')).not.toBeNull()
+	it('lays out sessions, terminal and docked diffs', async () => {
+		seed('sess-1')
+		await render('sess-1')
+
+		const wrap = container.querySelector('.fc-wrap.stagger')
+		expect(wrap).not.toBeNull()
+		expect(wrap?.querySelector('.fc-sess')).not.toBeNull()
 		expect(
-			container
-				.querySelector('[data-testid="terminal-stub"]')
+			wrap
+				?.querySelector('.term.fc-term .fc-term-body')
+				?.querySelector('[data-testid="terminal-stub"]')
 				?.getAttribute('data-root'),
 		).toBe('sess-1')
-		expect(container.querySelector('.diff-panel')).not.toBeNull()
+		expect(wrap?.querySelector('.diff-panel')).not.toBeNull()
 	})
 
-	it('labels the terminal tab with the session and its status', () => {
+	it('labels the terminal tab with the active repo branch and status dot', async () => {
+		mockRepoHead('feat/login')
 		seed('sess-1')
-		render('sess-1')
+		await render('sess-1')
 
-		const tab = container.querySelector('.cockpit__tab')
-		expect(tab?.textContent).toContain('claude')
-		expect(
-			tab?.querySelector('.status-dot')?.getAttribute('data-status'),
-		).toBe('running')
+		const tab = container.querySelector('.fc-term-tab')
+		expect(tab?.textContent).toContain('feat/login')
+		expect(tab?.querySelector('.sdot')?.className).toBe('sdot sdot-run')
 	})
 
-	it('stops the session from the tab bar', () => {
+	it('falls back to the session label while the branch is unknown', async () => {
 		seed('sess-1')
-		render('sess-1')
+		await render('sess-1')
 
-		const stop = Array.from(
-			container.querySelectorAll<HTMLButtonElement>('button'),
-		).find(button => button.textContent?.includes('Stop'))
-		act(() => {
+		expect(container.querySelector('.fc-term-tab')?.textContent).toContain(
+			'claude',
+		)
+	})
+
+	it('shows the engine and binary context label', async () => {
+		store.set(startSessionAtom, {
+			id: 'sess-1',
+			binary: '/usr/local/bin/claude',
+			repoPath: '/repo/mizraj',
+		})
+		await render('sess-1')
+
+		expect(container.querySelector('.fc-cwd')?.textContent).toBe(
+			'ghostty · claude',
+		)
+	})
+
+	it('stops the session from the tab bar and confirms with a toast', async () => {
+		seed('sess-1')
+		await render('sess-1')
+
+		const stop = container.querySelector<HTMLButtonElement>(
+			'.fc-term-bar button.btn.btn-sm.btn-ghost',
+		)
+		expect(stop?.textContent).toContain('Stop')
+		await act(async () => {
 			stop?.click()
 		})
 
 		expect(invokeMock).toHaveBeenCalledWith('session_close', {
 			sessionId: 'sess-1',
 		})
+		expect(pushToastMock).toHaveBeenCalledWith('Session stopped')
 	})
 
-	it('disables stop and shows the exit code once ended', () => {
+	it('disables stop and shows the exit code once ended', async () => {
 		seed('sess-1', { exitCode: 3 })
-		render('sess-1')
+		await render('sess-1')
 
 		const stop = Array.from(
 			container.querySelectorAll<HTMLButtonElement>('button'),
 		).find(button => button.textContent?.includes('Stop'))
 		expect(stop?.disabled).toBe(true)
-		expect(container.querySelector('.cockpit__exit')?.textContent).toBe(
+		expect(container.querySelector('.fc-term-exit')?.textContent).toBe(
 			'exit 3',
 		)
 	})
 
-	it('opens the full review from the diff dock', () => {
+	it('opens the full review from the diff dock', async () => {
 		seed('sess-1')
-		render('sess-1')
+		await render('sess-1')
 
 		const openReview = Array.from(
 			container.querySelectorAll<HTMLButtonElement>('button'),
