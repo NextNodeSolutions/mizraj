@@ -15,8 +15,16 @@ const LOAD_COMMAND = 'load_ghostty_config'
 const DEFAULT_FONT_SIZE_PX = 13
 const DEFAULT_LINE_HEIGHT_RATIO = 1.2
 const PERCENT_TO_FRACTION = 100
+// The bundled JetBrainsMono Nerd Font (App.css @font-face) leads the default
+// stack — Ghostty parity: a missing configured family falls back to a font
+// with ligatures and Nerd glyphs, not Menlo.
 export const DEFAULT_FONT_STACK =
-	'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace'
+	'"JetBrainsMono Nerd Font Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace'
+
+// Per-glyph fallback inserted after the user's configured families: a font
+// that lacks Nerd/powerline glyphs (private-use-area codepoints) borrows them
+// from the bundled symbols face, like Ghostty's embedded symbols fallback.
+export const GLYPH_FALLBACK_STACK = `"Symbols Nerd Font Mono", ${DEFAULT_FONT_STACK}`
 
 // A cell-metric tweak from the Ghostty config: either a percentage of the
 // natural metric or an absolute pixel delta. Mirrors the backend AdjustmentDto.
@@ -295,11 +303,13 @@ export type ResolvedFont = {
 	cellWidthAdjustment: Adjustment | null
 }
 
-// Append the built-in monospace stack so a single missing family still has the
-// same fallbacks the renderer has always had.
+// Append the built-in fallbacks behind the configured families. The symbols
+// face slots between them so user fonts without Nerd glyphs still render
+// icons; with no families at all, the default stack's JetBrainsMono Nerd Font
+// already carries its own symbols.
 const familyStackFrom = (families: string[]): string => {
 	if (families.length === 0) return DEFAULT_FONT_STACK
-	return `${families.join(', ')}, ${DEFAULT_FONT_STACK}`
+	return `${families.join(', ')}, ${GLYPH_FALLBACK_STACK}`
 }
 
 // A configured variant family is drawn verbatim (normal weight/style — the font
@@ -407,7 +417,7 @@ const OPAQUE_ALPHA = 1
 
 export const resolveBackgroundAlpha = (config: GhosttyConfig): number => {
 	const opacity = config.background_opacity
-	if (opacity === null) return OPAQUE_ALPHA
+	if (opacity === null || Number.isNaN(opacity)) return OPAQUE_ALPHA
 	if (opacity <= 0 || opacity >= OPAQUE_ALPHA) return OPAQUE_ALPHA
 	return opacity
 }

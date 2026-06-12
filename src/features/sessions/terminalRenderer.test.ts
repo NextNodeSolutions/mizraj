@@ -4,6 +4,7 @@ import type { ResolvedCursor, ResolvedFont } from './ghosttyConfig'
 import {
 	applyAdjustment,
 	DEFAULT_FONT_STACK,
+	GLYPH_FALLBACK_STACK,
 	EMPTY_CONFIG,
 	resolveBackgroundAlpha,
 	resolveCursor,
@@ -154,7 +155,7 @@ describe('resolveFont', () => {
 		})
 
 		expect(font.regular.familyCss).toBe(
-			`MonoLisa, JetBrains Mono, ${DEFAULT_FONT_STACK}`,
+			`MonoLisa, JetBrains Mono, ${GLYPH_FALLBACK_STACK}`,
 		)
 	})
 
@@ -166,7 +167,7 @@ describe('resolveFont', () => {
 		})
 
 		expect(font.bold).toEqual({
-			familyCss: `Reg Bold, ${DEFAULT_FONT_STACK}`,
+			familyCss: `Reg Bold, ${GLYPH_FALLBACK_STACK}`,
 			weight: 'normal',
 			style: 'normal',
 		})
@@ -176,7 +177,7 @@ describe('resolveFont', () => {
 		const font = resolveFont({ ...EMPTY_CONFIG, font_family: ['Reg'] })
 
 		expect(font.bold).toEqual({
-			familyCss: `Reg, ${DEFAULT_FONT_STACK}`,
+			familyCss: `Reg, ${GLYPH_FALLBACK_STACK}`,
 			weight: 'bold',
 			style: 'normal',
 		})
@@ -190,7 +191,7 @@ describe('resolveFont', () => {
 		})
 
 		expect(font.boldItalic).toEqual({
-			familyCss: `Reg Bold, ${DEFAULT_FONT_STACK}`,
+			familyCss: `Reg Bold, ${GLYPH_FALLBACK_STACK}`,
 			weight: 'normal',
 			style: 'italic',
 		})
@@ -205,7 +206,7 @@ describe('resolveFont', () => {
 		})
 
 		expect(font.boldItalic).toEqual({
-			familyCss: `Reg Bold Italic, ${DEFAULT_FONT_STACK}`,
+			familyCss: `Reg Bold Italic, ${GLYPH_FALLBACK_STACK}`,
 			weight: 'normal',
 			style: 'normal',
 		})
@@ -461,6 +462,7 @@ const recordingContext = (
 		save() {},
 		restore() {},
 		setTransform() {},
+		clearRect() {},
 		fillRect(x: number, y: number, width: number, height: number) {
 			paints.push({
 				op: 'rect',
@@ -933,11 +935,11 @@ const glyphCell = (ch: string): WireCell => ({
 // the grid — the cursor ends up cells to the right of the text. The run pass
 // must keep every character on its own column.
 describe('drawFrame run drift correction', () => {
-	const threeCellFrame = (): CellFramePayload => ({
+	const rowFrame = (text: string): CellFramePayload => ({
 		session_id: 'sess-1',
-		cols: 3,
+		cols: text.length,
 		rows: 1,
-		cells: [glyphCell('a'), glyphCell('b'), glyphCell('c')],
+		cells: [...text].map(glyphCell),
 		cursor: null,
 		mouse_reporting: false,
 		viewport_top: 0,
@@ -946,11 +948,12 @@ describe('drawFrame run drift correction', () => {
 
 	const drawWith = (
 		options: Parameters<typeof recordingContext>[0],
+		text = 'abc',
 	): Paint[] => {
 		const { context, paints } = recordingContext(options)
 		drawFrame(
 			context,
-			threeCellFrame(),
+			rowFrame(text),
 			INTEGRAL_METRICS,
 			configWith({}),
 			buildFontTable(resolveFont(EMPTY_CONFIG)),
@@ -980,6 +983,46 @@ describe('drawFrame run drift correction', () => {
 			{ text: 'a', x: 0 },
 			{ text: 'b', x: 8 },
 			{ text: 'c', x: 16 },
+		])
+	})
+
+	// Ligature sequences must reach the shaper unspaced even when the run needs
+	// realignment: letterSpacing != 0 disables ligature formation, so `->` drawn
+	// through the spacing path would never fuse.
+	it('keeps a ligature sequence in one unspaced fillText under drift', () => {
+		const texts = drawWith(
+			{ advancePerChar: 7, letterSpacing: true },
+			'a->',
+		)
+
+		expect(
+			texts.map(p => ({ text: p.text, x: p.x, spacing: p.spacing })),
+		).toEqual([
+			{ text: 'a', x: 0, spacing: '0px' },
+			{ text: '->', x: 8, spacing: '0px' },
+		])
+	})
+
+	it('keeps ligature sequences whole without letterSpacing support', () => {
+		const texts = drawWith({ advancePerChar: 7 }, 'a=>b')
+
+		expect(texts.map(p => ({ text: p.text, x: p.x }))).toEqual([
+			{ text: 'a', x: 0 },
+			{ text: '=>', x: 8 },
+			{ text: 'b', x: 24 },
+		])
+	})
+
+	// A long separator would accumulate visible drift if drawn in one unspaced
+	// call (6 chars x 1px here); it is chunked so each chunk re-anchors on its
+	// own column while repeated glyphs still fuse within a chunk.
+	it('chunks a long ligature stretch to bound the drift', () => {
+		const texts = drawWith({ advancePerChar: 7 }, '======')
+
+		expect(texts.map(p => ({ text: p.text, x: p.x }))).toEqual([
+			{ text: '==', x: 0 },
+			{ text: '==', x: 16 },
+			{ text: '==', x: 32 },
 		])
 	})
 })

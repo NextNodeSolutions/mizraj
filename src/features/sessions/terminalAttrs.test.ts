@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_FONT_STACK, EMPTY_CONFIG, resolveFont } from './ghosttyConfig'
+import {
+	EMPTY_CONFIG,
+	GLYPH_FALLBACK_STACK,
+	resolveFont,
+} from './ghosttyConfig'
 import { buildFontTable, decodeAttrs, fontFor } from './terminalAttrs'
 
 // Raw attrs bytes for the variant axes (mirrors the backend bitfield):
@@ -19,7 +23,7 @@ describe('fontFor', () => {
 		})
 
 		expect(fontFor(decodeAttrs(ATTRS_BOLD), font)).toBe(
-			`normal normal ${font.sizePx}px Reg Bold, ${DEFAULT_FONT_STACK}`,
+			`normal normal ${font.sizePx}px Reg Bold, ${GLYPH_FALLBACK_STACK}`,
 		)
 	})
 
@@ -27,7 +31,7 @@ describe('fontFor', () => {
 		const font = resolveFont({ ...EMPTY_CONFIG, font_family: ['Reg'] })
 
 		expect(fontFor(decodeAttrs(ATTRS_BOLD), font)).toBe(
-			`normal bold ${font.sizePx}px Reg, ${DEFAULT_FONT_STACK}`,
+			`normal bold ${font.sizePx}px Reg, ${GLYPH_FALLBACK_STACK}`,
 		)
 	})
 
@@ -35,7 +39,7 @@ describe('fontFor', () => {
 		const font = resolveFont({ ...EMPTY_CONFIG, font_family: ['Reg'] })
 
 		expect(fontFor(decodeAttrs(ATTRS_ITALIC), font)).toBe(
-			`italic normal ${font.sizePx}px Reg, ${DEFAULT_FONT_STACK}`,
+			`italic normal ${font.sizePx}px Reg, ${GLYPH_FALLBACK_STACK}`,
 		)
 	})
 
@@ -43,7 +47,7 @@ describe('fontFor', () => {
 		const font = resolveFont({ ...EMPTY_CONFIG, font_family: ['Reg'] })
 
 		expect(fontFor(decodeAttrs(ATTRS_PLAIN), font)).toBe(
-			`normal normal ${font.sizePx}px Reg, ${DEFAULT_FONT_STACK}`,
+			`normal normal ${font.sizePx}px Reg, ${GLYPH_FALLBACK_STACK}`,
 		)
 	})
 })

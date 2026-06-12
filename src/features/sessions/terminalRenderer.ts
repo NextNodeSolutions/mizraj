@@ -204,6 +204,10 @@ const clearToBackground = (
 	const { canvas } = context
 	context.save()
 	context.setTransform(1, 0, 0, 1, 0, 0)
+	// A translucent fill composes OVER the previous frame's pixels, leaving
+	// (1 - alpha) of every old glyph behind on each repaint — ghost trails.
+	// Wipe to transparent first so the frame always starts from a clean slate.
+	context.clearRect(0, 0, canvas.width, canvas.height)
 	context.globalAlpha = alpha
 	context.fillStyle = background
 	context.fillRect(0, 0, canvas.width, canvas.height)
@@ -299,11 +303,107 @@ const drawCursor = (
 // call (shaper ligatures intact); beyond it the advance is corrected.
 const RUN_DRIFT_TOLERANCE_PX = 0.5
 
-// Draw one run's text so each character lands on its grid column. Three paths,
-// fastest first: a matching natural advance draws the whole run (ligatures
-// form, zero extra cost); a mismatch is absorbed into letterSpacing when the
-// engine supports it (ligatures survive, advance == cellWidth); else each char
-// is placed at its own cell x — Ghostty's per-cell placement, minus shaping.
+// Codepoints coding fonts fuse into ligatures (`->`, `=>`, `!=`, `::`, `||`).
+// They must reach the shaper in ONE unspaced fillText: a non-zero letterSpacing
+// disables ligature formation (CSS text spec, honored by WebKit's canvas) and
+// per-char placement never shapes. Sequences of these chars are therefore drawn
+// raw at their cell origin; the drift inside one is bounded by
+// LIGATURE_DRIFT_CAP_PX — long separators (`====`) are chunked to keep the
+// bound, and a chunk seam between repeated identical glyphs is invisible.
+const LIGATURE_CHARS = new Set(String.raw`-=<>!&|~+:?/.*#_\;@$%^`)
+const LIGATURE_DRIFT_CAP_PX = 2
+// A chunk shorter than 2 chars cannot fuse anything — the floor below which
+// chunking would defeat its own purpose.
+const MIN_LIGATURE_CHUNK_CHARS = 2
+
+type RunSegment = { startIndex: number; text: string; ligature: boolean }
+
+// Split a run's chars into maximal stretches of ligature-candidate punctuation
+// vs everything else, keeping each stretch's offset into the run.
+const splitLigatureSegments = (chars: readonly string[]): RunSegment[] => {
+	const segments: RunSegment[] = []
+	for (const [index, char] of chars.entries()) {
+		const ligature = LIGATURE_CHARS.has(char)
+		const last = segments.at(-1)
+		if (last && last.ligature === ligature) {
+			last.text += char
+			continue
+		}
+		segments.push({ startIndex: index, text: char, ligature })
+	}
+	return segments
+}
+
+const columnX = (col: number, metrics: CellMetrics): number =>
+	Math.round(col * metrics.cellWidth)
+
+// One unspaced fillText so the shaper fuses the sequence. Past the drift cap
+// (a long `----` separator under adjust-cell-width) the segment is chunked,
+// each chunk re-anchored on its own column.
+const fillLigatureSegment = (
+	context: CanvasRenderingContext2D,
+	text: string,
+	startCol: number,
+	y: number,
+	metrics: CellMetrics,
+): void => {
+	const chars = [...text]
+	const drift = Math.abs(
+		context.measureText(text).width - chars.length * metrics.cellWidth,
+	)
+	if (drift <= LIGATURE_DRIFT_CAP_PX) {
+		context.fillText(text, columnX(startCol, metrics), y)
+		return
+	}
+	const chunkLength = Math.max(
+		MIN_LIGATURE_CHUNK_CHARS,
+		Math.floor((LIGATURE_DRIFT_CAP_PX * chars.length) / drift),
+	)
+	for (let index = 0; index < chars.length; index += chunkLength) {
+		context.fillText(
+			chars.slice(index, index + chunkLength).join(''),
+			columnX(startCol + index, metrics),
+			y,
+		)
+	}
+}
+
+// Keep every char of a non-ligature segment on its grid column. letterSpacing
+// (Safari 17.4+/WKWebView) absorbs the advance mismatch in one call; engines
+// without it place per character. Reflect.has, not `in`: lib.dom types the
+// property unconditionally, so an `in` check would narrow the no-support
+// branch to `never`.
+const fillAlignedSegment = (
+	context: CanvasRenderingContext2D,
+	text: string,
+	startCol: number,
+	y: number,
+	metrics: CellMetrics,
+): void => {
+	const chars = [...text]
+	const x = columnX(startCol, metrics)
+	if (chars.length === 1) {
+		context.fillText(text, x, y)
+		return
+	}
+	if (Reflect.has(context, 'letterSpacing')) {
+		const natural = context.measureText(text).width
+		const target = chars.length * metrics.cellWidth
+		context.letterSpacing = `${(target - natural) / chars.length}px`
+		context.fillText(text, x, y)
+		context.letterSpacing = '0px'
+		return
+	}
+	for (const [index, char] of chars.entries()) {
+		context.fillText(char, columnX(startCol + index, metrics), y)
+	}
+}
+
+// Draw one run's text so each character lands on its grid column. A matching
+// natural advance draws the whole run in one call (ligatures form, zero extra
+// cost). On a mismatch the run is split into ligature-candidate and plain
+// segments: ligature stretches stay unspaced so the shaper can fuse them,
+// plain stretches are realigned per column (fillAlignedSegment).
 const fillRunText = (
 	context: CanvasRenderingContext2D,
 	text: string,
@@ -322,21 +422,16 @@ const fillRunText = (
 		context.fillText(text, rect.x, rect.y)
 		return
 	}
-	// letterSpacing (Safari 17.4+/WKWebView) absorbs the mismatch while the
-	// shaper still sees the whole run; engines without it place per character.
-	// Reflect.has, not `in`: lib.dom types the property unconditionally, so an
-	// `in` check would narrow the no-support branch to `never`.
-	if (Reflect.has(context, 'letterSpacing')) {
-		context.letterSpacing = `${(target - natural) / chars.length}px`
-		context.fillText(text, rect.x, rect.y)
-		context.letterSpacing = '0px'
-		return
-	}
-	for (const [index, char] of chars.entries()) {
-		context.fillText(
-			char,
-			Math.round((startCol + index) * metrics.cellWidth),
+	for (const segment of splitLigatureSegments(chars)) {
+		const fillSegment = segment.ligature
+			? fillLigatureSegment
+			: fillAlignedSegment
+		fillSegment(
+			context,
+			segment.text,
+			startCol + segment.startIndex,
 			rect.y,
+			metrics,
 		)
 	}
 }

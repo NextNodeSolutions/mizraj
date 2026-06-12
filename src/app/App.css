@@ -1,3 +1,40 @@
+/* Bundled fallback fonts — parity with Ghostty's embedded JetBrains Mono +
+ * Nerd symbols: when the user's configured font-family is missing (or lacks
+ * Nerd glyphs), the terminal still gets ligatures and icons instead of Menlo.
+ * Faces load lazily on first use; ghosttyConfigCache pre-loads them before
+ * measuring the cell box so metrics never come from an interim fallback. */
+@font-face {
+	font-family: 'JetBrainsMono Nerd Font Mono';
+	src: url('/fonts/JetBrainsMonoNerdFontMono-Regular.ttf') format('truetype');
+	font-weight: normal;
+	font-style: normal;
+}
+@font-face {
+	font-family: 'JetBrainsMono Nerd Font Mono';
+	src: url('/fonts/JetBrainsMonoNerdFontMono-Bold.ttf') format('truetype');
+	font-weight: bold;
+	font-style: normal;
+}
+@font-face {
+	font-family: 'JetBrainsMono Nerd Font Mono';
+	src: url('/fonts/JetBrainsMonoNerdFontMono-Italic.ttf') format('truetype');
+	font-weight: normal;
+	font-style: italic;
+}
+@font-face {
+	font-family: 'JetBrainsMono Nerd Font Mono';
+	src: url('/fonts/JetBrainsMonoNerdFontMono-BoldItalic.ttf')
+		format('truetype');
+	font-weight: bold;
+	font-style: italic;
+}
+@font-face {
+	font-family: 'Symbols Nerd Font Mono';
+	src: url('/fonts/SymbolsNerdFontMono-Regular.ttf') format('truetype');
+	font-weight: normal;
+	font-style: normal;
+}
+
 /* Catppuccin palettes
  * https://github.com/catppuccin/catppuccin
  */
