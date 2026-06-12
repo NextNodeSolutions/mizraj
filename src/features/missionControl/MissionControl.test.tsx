@@ -131,18 +131,23 @@ describe('MissionControl', () => {
 	const cards = (): ReadonlyArray<Element> =>
 		Array.from(container.querySelectorAll('.agent-card'))
 
+	const runAgentButton = (): Element | null =>
+		Array.from(container.querySelectorAll('button')).find(
+			button => button.textContent === 'Run agent',
+		) ?? null
+
 	it('shows an empty state inviting a first agent when no session lives', () => {
 		render()
 
 		expect(container.textContent).toContain('No agents yet')
-		expect(container.querySelector('.run-agent-button')).not.toBeNull()
+		expect(runAgentButton()).not.toBeNull()
 	})
 
 	it('omits the run CTA while no project is selected', () => {
 		render(null)
 
 		expect(container.textContent).toContain('No agents yet')
-		expect(container.querySelector('.run-agent-button')).toBeNull()
+		expect(runAgentButton()).toBeNull()
 	})
 
 	it('keeps the screen title above the empty state, without filters', () => {
