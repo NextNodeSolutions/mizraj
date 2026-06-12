@@ -8,6 +8,9 @@
 @import '../features/review/Review.css';
 @import '../features/pipeline/Pipeline.css';
 @import '../features/palette/Palette.css';
+/* v2 per-screen styles (stubs until the phase B screen tasks fill them) */
+@import '../features/plans/Plans.css';
+@import '../features/sessions/Cockpit.css';
 
 /* Bundled fallback fonts — parity with Ghostty's embedded JetBrains Mono +
  * Nerd symbols: when the user's configured font-family is missing (or lacks

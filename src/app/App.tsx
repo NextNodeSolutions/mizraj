@@ -25,15 +25,17 @@ export function App(): React.JSX.Element {
 	usePaletteTheme()
 
 	return (
-		<main className="container">
-			<TopBar
-				activeProjectPath={activeProjectPath}
-				onSelectProject={settings.setLastProjectPath}
-				onOpenSettings={() => setPanelOpen(true)}
-			/>
-			<section className="main-content">
-				<MainContent activeProjectPath={activeProjectPath} />
-			</section>
+		<>
+			<div className="mz-app">
+				<TopBar
+					activeProjectPath={activeProjectPath}
+					onSelectProject={settings.setLastProjectPath}
+					onOpenSettings={() => setPanelOpen(true)}
+				/>
+				<div className="mz-body">
+					<MainContent activeProjectPath={activeProjectPath} />
+				</div>
+			</div>
 			<SettingsPanel
 				open={panelOpen}
 				onClose={() => setPanelOpen(false)}
@@ -41,6 +43,6 @@ export function App(): React.JSX.Element {
 			/>
 			<CommandPalette activeProjectPath={activeProjectPath} />
 			<Toasts />
-		</main>
+		</>
 	)
 }
