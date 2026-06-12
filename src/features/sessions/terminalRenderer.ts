@@ -3,6 +3,7 @@ import { applyAdjustment } from './ghosttyConfig'
 import { ATTR_TABLE, decodeAttrs, fontCss, fontFor } from './terminalAttrs'
 import { isCellSelected } from './terminalMouse'
 import type { SelectionRange } from './terminalMouse'
+import type { GridLink } from './terminalLinks'
 import type { TerminalColors } from './terminalPalette'
 import { brightenForBold, resolveColor } from './terminalPalette'
 import type {
@@ -284,6 +285,8 @@ const drawCursor = (
 export type DrawFrameOptions = {
 	cursorBlinkOn?: boolean
 	selection?: SelectionRange | null
+	// The link under the pointer, underlined like Ghostty's hover affordance.
+	hoveredLink?: GridLink | null
 }
 
 export const drawFrame = (
@@ -311,6 +314,20 @@ export const drawFrame = (
 				config,
 				fontTable,
 				selection ? isCellSelected(col, row, selection) : false,
+			)
+		}
+	}
+
+	const hovered = options.hoveredLink
+	if (hovered) {
+		context.fillStyle = config.colors.foreground
+		for (let col = hovered.startCol; col <= hovered.endCol; col += 1) {
+			const rect = cellRect(col, hovered.row, metrics)
+			context.fillRect(
+				rect.x,
+				rect.y + rect.height - UNDERLINE_OFFSET_PX,
+				rect.width,
+				UNDERLINE_THICKNESS_PX,
 			)
 		}
 	}

@@ -960,6 +960,33 @@ describe('drawFrame selection', () => {
 	})
 })
 
+describe('drawFrame hovered link', () => {
+	it('underlines the hovered span in the foreground color', () => {
+		const { context, paints } = recordingContext()
+		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))
+
+		drawFrame(
+			context,
+			oneCellFrame(defaultColorCell),
+			INTEGRAL_METRICS,
+			configWith({}),
+			fontTable,
+			{
+				hoveredLink: { url: 'https://a.dev', row: 0, startCol: 0, endCol: 0 },
+			},
+		)
+
+		const underline = paints.find(
+			p =>
+				p.op === 'rect' &&
+				p.fillStyle === LATTE_FG &&
+				p.height === 1 &&
+				p.y === 14,
+		)
+		expect(underline).toBeDefined()
+	})
+})
+
 describe('drawFrame cursor', () => {
 	// A single space cell paints only its LATTE_BG background and no glyph, so the
 	// only non-LATTE_BG paint in the log is the cursor itself.

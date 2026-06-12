@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { getDefaultStore, useAtomValue } from 'jotai'
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
@@ -21,6 +22,8 @@ import { getRenderBundle } from './ghosttyConfigCache'
 import { writeClipboardText } from './clipboard'
 import { fontSizeDeltaAtom, sessionSelectionAtom } from './keybindRuntime'
 import { cellFramesAtom } from './sessions'
+import { findLinkAt } from './terminalLinks'
+import type { GridLink } from './terminalLinks'
 import {
 	cellAtPoint,
 	extractSelectionText,
@@ -273,6 +276,8 @@ const startRendering = (
 	// drives the paint highlight, and the release extracts/copies the text.
 	let selection: SelectionRange | null = null
 	let dragAnchor: CellPoint | null = null
+	// The link under the pointer (TP9): underlined, opened on cmd-click.
+	let hoveredLink: GridLink | null = null
 
 	const paint = (): void => {
 		if (!lastFrame) return
@@ -280,6 +285,7 @@ const startRendering = (
 		drawFrame(context, lastFrame, metrics, config, fontTable, {
 			cursorBlinkOn: blinkOn,
 			selection,
+			hoveredLink,
 		})
 	}
 
@@ -392,9 +398,38 @@ const startRendering = (
 		alt: event.altKey,
 	})
 
+	const sameLink = (a: GridLink | null, b: GridLink | null): boolean =>
+		a === b ||
+		(a !== null &&
+			b !== null &&
+			a.row === b.row &&
+			a.startCol === b.startCol &&
+			a.url === b.url)
+
+	const refreshHover = (cell: CellPoint): void => {
+		const link = lastFrame ? findLinkAt(lastFrame, cell) : null
+		if (sameLink(hoveredLink, link)) return
+		hoveredLink = link
+		canvas.style.cursor = link ? 'pointer' : ''
+		paint()
+	}
+
 	const onMouseDown = (event: MouseEvent): void => {
 		const cell = cellFromEvent(event)
 		if (!cell) return
+		// Cmd-click opens the hovered link via the OS (plain clicks keep
+		// selecting); Ghostty's affordance.
+		if (event.metaKey && hoveredLink) {
+			event.preventDefault()
+			void openUrl(hoveredLink.url).catch((error: unknown) => {
+				const { message } = describeError(error)
+				logger.warn(`useTerminalCanvas: openUrl failed: ${message}`, {
+					scope: 'terminal-pane',
+					details: { url: hoveredLink?.url },
+				})
+			})
+			return
+		}
 		if (reportsMouse(event)) {
 			const button = MOUSE_BUTTONS[event.button] ?? 'none'
 			forwardedButton = button
@@ -427,7 +462,10 @@ const startRendering = (
 			)
 			return
 		}
-		if (!dragAnchor) return
+		if (!dragAnchor) {
+			refreshHover(cell)
+			return
+		}
 		selection = normalizeSelection({ anchor: dragAnchor, head: cell })
 		paint()
 	}
