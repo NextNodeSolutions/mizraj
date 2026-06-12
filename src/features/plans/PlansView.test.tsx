@@ -34,7 +34,29 @@ const nowSeconds = Math.floor(Date.now() / 1000)
 
 const EMPTY_OVERVIEW = { milestones: [], userTasks: [] }
 
-const OVERVIEW = {
+type TrackFixture = {
+	id: string
+	branch: string
+	tasks: ReadonlyArray<{ status: string }>
+}
+
+type OverviewFixture = {
+	milestones: ReadonlyArray<Record<string, unknown>>
+	userTasks: ReadonlyArray<never>
+}
+
+const trackOf = (
+	id: string,
+	...statuses: ReadonlyArray<string>
+): TrackFixture => ({
+	id,
+	branch: `feat/${id}`,
+	tasks: statuses.map(status => ({ status })),
+})
+
+const overviewOf = (
+	...tracks: ReadonlyArray<TrackFixture>
+): OverviewFixture => ({
 	milestones: [
 		{
 			id: 'm1',
@@ -42,22 +64,16 @@ const OVERVIEW = {
 			demo: 'Login works',
 			skeleton: false,
 			needs: [],
-			tracks: [
-				{
-					id: 'track-a',
-					branch: 'feat/track-a',
-					tasks: [{ status: 'done' }, { status: 'in_progress' }],
-				},
-				{
-					id: 'track-b',
-					branch: 'feat/track-b',
-					tasks: [{ status: 'done' }],
-				},
-			],
+			tracks,
 		},
 	],
 	userTasks: [],
-}
+})
+
+const OVERVIEW = overviewOf(
+	trackOf('track-a', 'done', 'in_progress'),
+	trackOf('track-b', 'done'),
+)
 
 const PLAN_ENTRIES = [
 	{
@@ -182,15 +198,107 @@ describe('PlansView', () => {
 		)
 	})
 
-	const serveOverview = (): void => {
+	type ServeOptions = {
+		overview?: OverviewFixture
+		spawn?: () => Promise<string>
+	}
+
+	const serveOverview = (options: ServeOptions = {}): void => {
+		const overview = options.overview ?? OVERVIEW
+		let nextSession = 0
+		const spawn =
+			options.spawn ??
+			((): Promise<string> => {
+				nextSession += 1
+				return Promise.resolve(`session-${nextSession}`)
+			})
 		invokeMock.mockImplementation((command: string) => {
 			if (command === 'list_plans') return Promise.resolve(PLAN_ENTRIES)
 			if (command === 'resolve_plan')
 				return Promise.resolve({ url: 'plan://plan/auth-hardening' })
-			if (command === 'tasks_overview') return Promise.resolve(OVERVIEW)
+			if (command === 'tasks_overview') return Promise.resolve(overview)
+			if (command === 'session_create') return spawn()
 			return Promise.resolve(undefined)
 		})
 	}
+
+	const launchButton = (): HTMLButtonElement | null =>
+		Array.from(container.querySelectorAll('button')).find(button =>
+			button.textContent?.includes('Launch agents for this plan'),
+		) ?? null
+
+	it('launches one agent per pending track, then heads to mission control', async () => {
+		serveOverview({
+			overview: overviewOf(
+				trackOf('track-a', 'backlog'),
+				trackOf('track-b', 'done'),
+				trackOf('track-c', 'in_progress'),
+			),
+		})
+		window.history.pushState({}, '', '/plans/plan/auth-hardening')
+		await render()
+
+		await act(async () => {
+			launchButton()?.click()
+		})
+
+		const spawns = invokeMock.mock.calls.filter(
+			call => call[0] === 'session_create',
+		)
+		expect(spawns).toHaveLength(2)
+		expect(spawns[0]?.[1]).toEqual({ binary: 'claude', cwd: '/repo' })
+		const messages = getDefaultStore()
+			.get(toastsAtom)
+			.map(toast => toast.message)
+		expect(messages).toContain('2 agents launched from this plan')
+		expect(window.location.pathname).toBe('/')
+	})
+
+	it('opens the pipeline from the plan actions', async () => {
+		window.history.pushState({}, '', '/plans/plan/auth-hardening')
+		await render()
+
+		const button = Array.from(container.querySelectorAll('button')).find(
+			candidate => candidate.textContent === 'Open in Pipeline',
+		)
+		await act(async () => {
+			button?.click()
+		})
+
+		expect(window.location.pathname).toBe('/pipeline')
+	})
+
+	it('disables launching once every track is done', async () => {
+		serveOverview({ overview: overviewOf(trackOf('track-a', 'done')) })
+		window.history.pushState({}, '', '/plans/plan/auth-hardening')
+		await render()
+
+		expect(launchButton()?.disabled).toBe(true)
+	})
+
+	it('reports busy while agents are spawning', async () => {
+		let releaseSpawn: ((sessionId: string) => void) | undefined
+		serveOverview({
+			overview: overviewOf(trackOf('track-a', 'backlog')),
+			spawn: () =>
+				new Promise<string>(resolve => {
+					releaseSpawn = resolve
+				}),
+		})
+		window.history.pushState({}, '', '/plans/plan/auth-hardening')
+		await render()
+
+		await act(async () => {
+			launchButton()?.click()
+		})
+		expect(launchButton()?.getAttribute('aria-busy')).toBe('true')
+		expect(launchButton()?.disabled).toBe(true)
+
+		await act(async () => {
+			releaseSpawn?.('session-1')
+		})
+		expect(window.location.pathname).toBe('/')
+	})
 
 	it('derives milestone and track states under a plan doc', async () => {
 		serveOverview()

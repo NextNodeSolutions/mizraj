@@ -1,6 +1,8 @@
+import { navigate, pipelineHref } from '@/app/router'
 import type { MilestoneGroup } from '@/features/tasks/tasks'
 import { useTasks } from '@/features/tasks/tasks'
 
+import { LaunchPlanAgentsButton } from './LaunchPlanAgentsButton'
 import type { PlanDoc } from './planDoc'
 import { appendOverviewCounts } from './planDoc'
 import { PlanMilestones } from './PlanMilestones'
@@ -42,6 +44,21 @@ export const PlanPaper = ({ doc, repoPath }: Props): React.JSX.Element => {
 				</p>
 				<PlanPanel src={doc.url} title={`${doc.kind}/${doc.slug}`} />
 				<PlanMilestones milestones={milestones} />
+				{doc.kind === 'plan' && (
+					<div className="pl-actions">
+						<LaunchPlanAgentsButton
+							repoPath={repoPath}
+							milestones={milestones}
+						/>
+						<button
+							type="button"
+							className="btn btn-outline"
+							onClick={() => navigate(pipelineHref())}
+						>
+							Open in Pipeline
+						</button>
+					</div>
+				)}
 			</div>
 		</div>
 	)

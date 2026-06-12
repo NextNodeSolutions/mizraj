@@ -227,3 +227,11 @@
 .pl-track .branch {
 	margin-left: auto;
 }
+
+/* ---- doc actions ---- */
+.pl-actions {
+	display: flex;
+	gap: 9px;
+	margin-top: 24px;
+	flex-wrap: wrap;
+}
