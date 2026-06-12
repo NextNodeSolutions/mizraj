@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
+	agentRunIndexHref,
+	matchAgentRunIndexRoute,
+	matchAgentRunRoute,
 	matchMissionControlRoute,
 	matchPipelineRoute,
 	matchPlanRoute,
@@ -8,6 +11,8 @@ import {
 	matchReviewRoute,
 	matchTasksRoute,
 	missionControlHref,
+	navigate,
+	parseMissionFilter,
 	pipelineHref,
 	plansIndexHref,
 	reviewHref,
@@ -22,6 +27,26 @@ describe('mission control route', () => {
 	it('does not match other screens', () => {
 		expect(matchMissionControlRoute('/pipeline')).toBe(false)
 		expect(matchMissionControlRoute('/tasks')).toBe(false)
+	})
+
+	it('deep-links a status filter through the query string', () => {
+		expect(missionControlHref('running')).toBe('/?filter=running')
+		expect(missionControlHref('review')).toBe('/?filter=review')
+		expect(missionControlHref('failed')).toBe('/?filter=failed')
+	})
+})
+
+describe('mission filter param', () => {
+	it('parses a valid filter from a search string', () => {
+		expect(parseMissionFilter('?filter=running')).toBe('running')
+		expect(parseMissionFilter('?filter=review')).toBe('review')
+		expect(parseMissionFilter('?filter=failed')).toBe('failed')
+	})
+
+	it('falls back to all on anything else', () => {
+		expect(parseMissionFilter('')).toBe('all')
+		expect(parseMissionFilter('?filter=bogus')).toBe('all')
+		expect(parseMissionFilter('?other=1')).toBe('all')
 	})
 })
 
@@ -57,6 +82,39 @@ describe('plans index route', () => {
 			kind: 'plan',
 			slug: 'my-slug',
 		})
+	})
+})
+
+describe('agent-run index route', () => {
+	it('round-trips through its href — the cockpit without a session', () => {
+		expect(matchAgentRunIndexRoute(agentRunIndexHref())).toBe(true)
+	})
+
+	it('leaves session deep links to the session matcher', () => {
+		expect(matchAgentRunIndexRoute('/agent-run/sess-1')).toBe(false)
+		expect(matchAgentRunRoute('/agent-run')).toBeNull()
+	})
+})
+
+describe('navigate', () => {
+	it('pushes a same-path navigation that only changes the query', () => {
+		window.history.pushState({}, '', '/')
+
+		navigate('/?filter=running')
+
+		expect(window.location.pathname).toBe('/')
+		expect(window.location.search).toBe('?filter=running')
+	})
+
+	it('does nothing when pathname and query already match', () => {
+		window.history.pushState({}, '', '/?filter=running')
+		const onPop = vi.fn()
+		window.addEventListener('popstate', onPop)
+
+		navigate('/?filter=running')
+
+		window.removeEventListener('popstate', onPop)
+		expect(onPop).not.toHaveBeenCalled()
 	})
 })
 

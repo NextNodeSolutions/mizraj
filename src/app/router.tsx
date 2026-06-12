@@ -24,9 +24,29 @@ export const planRouteHref = ({ kind, slug }: PlanRoute): string =>
 export const agentRunHref = (sessionId: string): string =>
 	`/${AGENT_RUN_PATH_ROOT}/${sessionId}`
 
+/** The cockpit with no session yet — its empty state. */
+export const agentRunIndexHref = (): string => `/${AGENT_RUN_PATH_ROOT}`
+
 export const tasksHref = (): string => `/${TASKS_PATH_ROOT}`
 
-export const missionControlHref = (): string => '/'
+export const MISSION_FILTERS = ['running', 'review', 'failed'] as const
+
+/** The status filters mission control can be deep-linked to. */
+export type MissionControlFilter = (typeof MISSION_FILTERS)[number]
+
+/** What mission control reads back from the URL: a filter, or everything. */
+export type MissionFilter = MissionControlFilter | 'all'
+
+export const missionControlHref = (filter?: MissionControlFilter): string =>
+	filter === undefined ? '/' : `/?filter=${filter}`
+
+const isMissionControlFilter = (value: string): value is MissionControlFilter =>
+	MISSION_FILTERS.some(filter => filter === value)
+
+export const parseMissionFilter = (search: string): MissionFilter => {
+	const value = new URLSearchParams(search).get('filter')
+	return value !== null && isMissionControlFilter(value) ? value : 'all'
+}
 
 export const pipelineHref = (): string => `/${PIPELINE_PATH_ROOT}`
 
@@ -72,6 +92,9 @@ const isSingleSegment = (pathname: string, root: string): boolean => {
 export const matchTasksRoute = (pathname: string): boolean =>
 	isSingleSegment(pathname, TASKS_PATH_ROOT)
 
+export const matchAgentRunIndexRoute = (pathname: string): boolean =>
+	isSingleSegment(pathname, AGENT_RUN_PATH_ROOT)
+
 export const matchMissionControlRoute = (pathname: string): boolean =>
 	pathname.split('/').filter(Boolean).length === 0
 
@@ -85,19 +108,29 @@ export const matchPlansIndexRoute = (pathname: string): boolean =>
 	isSingleSegment(pathname, PLANS_PATH_ROOT)
 
 export const navigate = (href: string): void => {
-	if (window.location.pathname === href) return
+	// Compare the full location (path + query) so '/?filter=running' is a
+	// real navigation from '/', and re-navigating it is still a no-op.
+	if (window.location.pathname + window.location.search === href) return
 	window.history.pushState({}, '', href)
 	window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
 const readPathname = (): string => window.location.pathname
 
-export const usePathname = (): string => {
-	const [pathname, setPathname] = useState<string>(readPathname)
+const readSearch = (): string => window.location.search
+
+// Both location hooks ride the same popstate subscription; navigate() above
+// dispatches a synthetic popstate so pushes re-render subscribers too.
+const useLocationValue = (read: () => string): string => {
+	const [value, setValue] = useState<string>(read)
 	useEffect(() => {
-		const handler = (): void => setPathname(readPathname())
+		const handler = (): void => setValue(read())
 		window.addEventListener('popstate', handler)
 		return () => window.removeEventListener('popstate', handler)
-	}, [])
-	return pathname
+	}, [read])
+	return value
 }
+
+export const usePathname = (): string => useLocationValue(readPathname)
+
+export const useLocationSearch = (): string => useLocationValue(readSearch)
