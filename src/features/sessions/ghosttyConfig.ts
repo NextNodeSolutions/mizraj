@@ -306,8 +306,9 @@ export type ResolvedFont = {
 // Append the built-in fallbacks behind the configured families. The symbols
 // face slots between them so user fonts without Nerd glyphs still render
 // icons; with no families at all, the default stack's JetBrainsMono Nerd Font
-// already carries its own symbols.
-const familyStackFrom = (families: string[]): string => {
+// already carries its own symbols. Shared by the canvas font resolution below
+// and the app-wide --font-mono token (useGhosttyTheme).
+export const familyStackFrom = (families: string[]): string => {
 	if (families.length === 0) return DEFAULT_FONT_STACK
 	return `${families.join(', ')}, ${GLYPH_FALLBACK_STACK}`
 }
