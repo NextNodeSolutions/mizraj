@@ -1,6 +1,6 @@
 import { getDefaultStore } from 'jotai'
 import { act } from 'react'
-import type { JSX } from 'react'
+import type { JSX, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,17 +26,55 @@ vi.mock('@/shared/logger', () => ({
 	},
 }))
 
+// The stub exposes the library contract the view relies on: the hovered-line
+// gutter slot (hovering line 2 of the additions side) and the annotation
+// render path.
 vi.mock('@pierre/diffs/react', () => {
+	type HoveredLine = { lineNumber: number; side: 'additions' | 'deletions' }
+	type StubAnnotation = {
+		side: 'additions' | 'deletions'
+		lineNumber: number
+		metadata: { id: number }
+	}
 	type StubProps = {
 		fileDiff: { name: string }
 		options: { diffStyle: string }
+		lineAnnotations?: ReadonlyArray<StubAnnotation>
+		renderAnnotation?: (annotation: StubAnnotation) => ReactNode
+		renderGutterUtility?: (
+			getHoveredLine: () => HoveredLine | undefined,
+		) => ReactNode
 	}
-	const FileDiff = ({ fileDiff, options }: StubProps): JSX.Element => (
+	const FileDiff = ({
+		fileDiff,
+		options,
+		lineAnnotations,
+		renderAnnotation,
+		renderGutterUtility,
+	}: StubProps): JSX.Element => (
 		<div
 			data-testid="file-diff-stub"
 			data-file-name={fileDiff.name}
 			data-diff-style={options.diffStyle}
-		/>
+		>
+			<div data-testid="gutter-utility">
+				{renderGutterUtility?.(() => ({
+					lineNumber: 2,
+					side: 'additions',
+				}))}
+			</div>
+			<div data-testid="annotations">
+				{lineAnnotations?.map(annotation => (
+					<div
+						key={annotation.metadata.id}
+						data-annotation-line={annotation.lineNumber}
+						data-annotation-side={annotation.side}
+					>
+						{renderAnnotation?.(annotation)}
+					</div>
+				))}
+			</div>
+		</div>
 	)
 	return { FileDiff }
 })
@@ -383,6 +421,106 @@ describe('ReviewView', () => {
 		).find(button => button.textContent?.includes('Approve & merge'))
 		expect(approve?.disabled).toBe(true)
 		expect(approve?.title).toBe('Merge backend not wired yet')
+	})
+
+	it('+ comment arms the composer on the hovered line', async () => {
+		store.set(startSessionAtom, {
+			id: 'agent-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		await render()
+
+		const add =
+			container.querySelector<HTMLButtonElement>('.review__cmt-add')
+		expect(add?.textContent).toBe('+ comment')
+		await act(async () => {
+			add?.click()
+		})
+
+		expect(document.activeElement).toBe(container.querySelector('textarea'))
+		expect(container.querySelector('.review-rail__ctx')?.textContent).toBe(
+			'↳ src/api/limiter.ts · line 2',
+		)
+		expect(store.get(toastsAtom).map(toast => toast.message)).toContain(
+			'Comment the line, then send to agent',
+		)
+	})
+
+	it('anchors a sent line comment as an inline annotation card', async () => {
+		store.set(startSessionAtom, {
+			id: 'agent-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		await render()
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('.review__cmt-add')
+				?.click()
+		})
+		const textarea = container.querySelector('textarea')
+		await act(async () => {
+			const setter = Object.getOwnPropertyDescriptor(
+				window.HTMLTextAreaElement.prototype,
+				'value',
+			)?.set
+			setter?.call(textarea, 'gère le cas null ici')
+			textarea?.dispatchEvent(new Event('input', { bubbles: true }))
+		})
+		const send = Array.from(
+			container.querySelectorAll<HTMLButtonElement>('button'),
+		).find(button => button.textContent?.includes('Send to agent'))
+		await act(async () => {
+			send?.click()
+		})
+
+		expect(invokeMock).toHaveBeenCalledWith('session_paste', {
+			sessionId: 'agent-1',
+			text: '[src/api/limiter.ts:2] gère le cas null ici',
+		})
+		const annotation = container.querySelector(
+			'[data-testid="annotations"] [data-annotation-line="2"]',
+		)
+		const card = annotation?.querySelector('.review__inline-cmt')
+		expect(annotation?.getAttribute('data-annotation-side')).toBe(
+			'additions',
+		)
+		expect(card?.querySelector('.who')?.textContent).toBe('You · line 2')
+		expect(card?.querySelector('.txt')?.textContent).toBe(
+			'gère le cas null ici',
+		)
+		expect(card?.textContent).toContain('↻ sent to agent')
+	})
+
+	it('resets the compose context to the newly selected file', async () => {
+		store.set(startSessionAtom, {
+			id: 'agent-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		await render()
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('.review__cmt-add')
+				?.click()
+		})
+		expect(container.querySelector('.review-rail__ctx')?.textContent).toBe(
+			'↳ src/api/limiter.ts · line 2',
+		)
+
+		const rows = container.querySelectorAll<HTMLElement>(
+			'.review-tree__select',
+		)
+		await act(async () => {
+			rows[1]?.click()
+		})
+
+		expect(container.querySelector('.review-rail__ctx')?.textContent).toBe(
+			'↳ src/api/handler.ts',
+		)
 	})
 
 	it('reports a clean working tree', async () => {

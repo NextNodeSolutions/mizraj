@@ -5,6 +5,7 @@ import { useCellFrame } from '@/features/sessions/useCellFrame'
 import { useSessions } from '@/features/sessions/useSessions'
 import { pushToast } from '@/shared/toasts'
 
+import type { ReviewRef } from './agentConversation'
 import {
 	reviewRefLabel,
 	sendToAgent,
@@ -16,14 +17,15 @@ import type { DiffTotals } from './reviewFiles'
 type Props = {
 	repoPath: string | null
 	totals: DiffTotals
-	selectedPath: string | null
+	/** Where a sent remark anchors: the selected file, or a clicked line. */
+	context: ReviewRef | null
 	composeRef: React.Ref<HTMLTextAreaElement>
 }
 
 export const ReviewRail = ({
 	repoPath,
 	totals,
-	selectedPath,
+	context,
 	composeRef,
 }: Props): React.JSX.Element => {
 	const sessions = useSessions()
@@ -44,10 +46,7 @@ export const ReviewRail = ({
 			sessionId: target.id,
 			repoPath,
 			text,
-			ref:
-				selectedPath === null
-					? null
-					: { path: selectedPath, line: null, side: null },
+			ref: context,
 		})
 			.then(sent => {
 				if (!sent) {
@@ -132,9 +131,9 @@ export const ReviewRail = ({
 					}}
 				/>
 				<div className="review-rail__compose-row">
-					{selectedPath !== null && (
+					{context !== null && (
 						<span className="review-rail__ctx">
-							↳ {selectedPath}
+							↳ {reviewRefLabel(context)}
 						</span>
 					)}
 					<button

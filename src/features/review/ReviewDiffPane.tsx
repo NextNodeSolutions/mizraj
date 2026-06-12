@@ -1,17 +1,43 @@
-import type { FileDiffMetadata } from '@pierre/diffs'
+import type { DiffLineAnnotation, FileDiffMetadata } from '@pierre/diffs'
 import { FileDiff } from '@pierre/diffs/react'
 
 import { NEXTNODE_DIFF_THEME } from '@/shared/theme/shiki-nextnode'
 import type { DiffStyle } from '@/shared/useLayoutToggle'
 
+import type { ReviewMessage } from './agentConversation'
 import type { ReviewFile } from './reviewFiles'
 import { CHANGE_BADGE } from './reviewFiles'
 import { ViewedCheck } from './ViewedCheck'
+
+/** A thread message pinned to one diff line, as the renderer consumes it. */
+export type ReviewAnnotation = DiffLineAnnotation<ReviewMessage>
+
+type InlineCommentProps = {
+	message: ReviewMessage
+}
+
+const InlineComment = ({ message }: InlineCommentProps): React.JSX.Element => (
+	<div className="review__inline-cmt">
+		<div className="who">
+			You
+			{message.ref !== null &&
+				message.ref.line !== null &&
+				` · line ${message.ref.line}`}
+		</div>
+		<div className="txt">{message.text}</div>
+		<span className="chip2">↻ sent to agent</span>
+	</div>
+)
 
 type Props = {
 	file: ReviewFile
 	meta: FileDiffMetadata
 	diffStyle: DiffStyle
+	annotations: Array<ReviewAnnotation>
+	onBeginComment: (
+		line: number,
+		side: 'additions' | 'deletions' | null,
+	) => void
 }
 
 /**
@@ -22,6 +48,8 @@ export const ReviewDiffPane = ({
 	file,
 	meta,
 	diffStyle,
+	annotations,
+	onBeginComment,
 }: Props): React.JSX.Element => (
 	<section className="panel review__diff" aria-label="File diff">
 		<div className="review__diff-head">
@@ -52,7 +80,30 @@ export const ReviewDiffPane = ({
 						disableFileHeader: true,
 						hunkSeparators: 'line-info',
 						lineHoverHighlight: 'line',
+						enableGutterUtility: true,
+						// Gutter press (the library's selection path) arms the
+						// same composer as the hover affordance below.
+						onGutterUtilityClick: range => {
+							onBeginComment(range.start, range.side ?? null)
+						},
 					}}
+					lineAnnotations={annotations}
+					renderAnnotation={annotation => (
+						<InlineComment message={annotation.metadata} />
+					)}
+					renderGutterUtility={getHoveredLine => (
+						<button
+							type="button"
+							className="review__cmt-add"
+							onClick={() => {
+								const hovered = getHoveredLine()
+								if (hovered === undefined) return
+								onBeginComment(hovered.lineNumber, hovered.side)
+							}}
+						>
+							+ comment
+						</button>
+					)}
 				/>
 			</div>
 		</div>

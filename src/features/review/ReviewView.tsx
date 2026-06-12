@@ -3,13 +3,16 @@ import type { FileDiffMetadata } from '@pierre/diffs'
 import { useMemo, useRef, useState } from 'react'
 
 import { useDiff } from '@/features/diff/useDiff'
-import { BranchChip } from '@/features/projects/BranchChip'
 import { pushToast } from '@/shared/toasts'
-import { DiffStat, SDot } from '@/shared/ui/atoms'
 import { useLayoutToggle } from '@/shared/useLayoutToggle'
 
+import type { ReviewMessage, ReviewRef } from './agentConversation'
+import { useConversation } from './agentConversation'
+import type { ReviewAnnotation } from './ReviewDiffPane'
 import { ReviewDiffPane } from './ReviewDiffPane'
+import type { ReviewFile } from './reviewFiles'
 import { diffTotals, reviewFilesFromParsed } from './reviewFiles'
+import { ReviewHeader } from './ReviewHeader'
 import { ReviewRail } from './ReviewRail'
 import { ReviewTree } from './ReviewTree'
 
@@ -38,6 +41,38 @@ const usePatchFiles = (patch: string | null): ReadonlyArray<FileDiffMetadata> =>
 		[patch],
 	)
 
+// Where the composer anchors: the armed line while its file stays selected,
+// else the selected file — so switching files resets the context by itself.
+const composeContextFor = (
+	selected: ReviewFile | null,
+	anchor: ReviewRef | null,
+): ReviewRef | null => {
+	if (selected === null) return null
+	if (anchor !== null && anchor.path === selected.path) return anchor
+	return { path: selected.path, line: null, side: null }
+}
+
+// Line-anchored remarks of one file, as the diff renderer's annotations.
+// TODO: persist line comments (backend has no review-comment storage; atom
+// state dies with the window).
+const annotationsFor = (
+	thread: ReadonlyArray<ReviewMessage>,
+	path: string | null,
+): Array<ReviewAnnotation> =>
+	thread.flatMap(message =>
+		message.ref !== null &&
+		message.ref.path === path &&
+		message.ref.line !== null
+			? [
+					{
+						side: message.ref.side ?? 'additions',
+						lineNumber: message.ref.line,
+						metadata: message,
+					},
+				]
+			: [],
+	)
+
 export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 	const { state } = useDiff(activeProjectPath)
 	const patch = state.status === 'ready' ? state.data.patch : null
@@ -47,14 +82,35 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 		[parsedFiles],
 	)
 	const [selectedPath, setSelectedPath] = useState<string | null>(null)
+	// A "+ comment" click narrows the composer to one line; it only applies
+	// while its file stays selected, so switching files falls back to a
+	// file-level context without an effect.
+	const [commentAnchor, setCommentAnchor] = useState<ReviewRef | null>(null)
 	const { layout, toggleLayout, diffStyle } = useLayoutToggle()
 	const composeRef = useRef<HTMLTextAreaElement>(null)
+	const thread = useConversation(activeProjectPath)
 
 	const selected =
 		files.find(file => file.path === selectedPath) ?? files[0] ?? null
 	const selectedMeta =
 		parsedFiles.find(file => file.name === selected?.path) ?? null
 	const totals = diffTotals(files)
+	const composeContext = composeContextFor(selected, commentAnchor)
+
+	const selectFile = (path: string): void => {
+		setSelectedPath(path)
+		setCommentAnchor(null)
+	}
+
+	const beginLineComment = (
+		line: number,
+		side: 'additions' | 'deletions' | null,
+	): void => {
+		if (selected === null) return
+		setCommentAnchor({ path: selected.path, line, side })
+		composeRef.current?.focus()
+		pushToast('Comment the line, then send to agent')
+	}
 
 	if (state.status === 'idle') {
 		return <ReviewPlaceholder>No repository selected.</ReviewPlaceholder>
@@ -79,76 +135,26 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 
 	return (
 		<section className="review" aria-label="Diff review">
-			<header className="review__top">
-				<SDot s="rev" />
-				<BranchChip repoPath={activeProjectPath} />
-				{/* TODO: per-branch task name once tasks link to branches. */}
-				<h2 className="review__title">Working tree review</h2>
-				<DiffStat
-					add={totals.additions}
-					del={totals.deletions}
-					files={totals.files}
-				/>
-				<div className="review__actions">
-					<div
-						className="review__view-seg"
-						role="group"
-						aria-label="Diff style"
-					>
-						<button
-							type="button"
-							aria-pressed={layout === 'split'}
-							onClick={() => {
-								if (layout !== 'split') toggleLayout()
-							}}
-						>
-							Split
-						</button>
-						<button
-							type="button"
-							aria-pressed={layout === 'stacked'}
-							onClick={() => {
-								if (layout !== 'stacked') toggleLayout()
-							}}
-						>
-							Unified
-						</button>
-					</div>
-					<button
-						type="button"
-						className="btn btn-outline review__request"
-						onClick={() => {
-							composeRef.current?.focus()
-							pushToast(
-								'Describe the change you want from the agent',
-							)
-						}}
-					>
-						Request changes
-					</button>
-					{/* TODO: wire to a review_merge Tauri command (approve + merge into main) — backend missing.
-					    Once it exists: pushToast('Approved & merged into main') + navigate(missionControlHref()). */}
-					<button
-						type="button"
-						className="btn btn-primary review__approve"
-						disabled
-						title="Merge backend not wired yet"
-					>
-						✓ Approve & merge
-					</button>
-				</div>
-			</header>
+			<ReviewHeader
+				repoPath={activeProjectPath}
+				totals={totals}
+				layout={layout}
+				toggleLayout={toggleLayout}
+				onRequestChanges={() => composeRef.current?.focus()}
+			/>
 			<div className="review__body stagger">
 				<ReviewTree
 					files={files}
 					selectedPath={selected?.path ?? null}
-					onSelect={setSelectedPath}
+					onSelect={selectFile}
 				/>
 				{selected !== null && selectedMeta !== null ? (
 					<ReviewDiffPane
 						file={selected}
 						meta={selectedMeta}
 						diffStyle={diffStyle}
+						annotations={annotationsFor(thread, selected.path)}
+						onBeginComment={beginLineComment}
 					/>
 				) : (
 					<section
@@ -159,7 +165,7 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 				<ReviewRail
 					repoPath={activeProjectPath}
 					totals={totals}
-					selectedPath={selected?.path ?? null}
+					context={composeContext}
 					composeRef={composeRef}
 				/>
 			</div>

@@ -338,6 +338,64 @@
 	padding: 10px 16px 5px;
 }
 
+/* hover affordance in the gutter utility slot */
+.review__cmt-add {
+	font-size: 10px;
+	font-weight: 600;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--r-xs);
+	padding: 2px 7px;
+	background: var(--surface);
+	color: var(--text-2);
+	cursor: pointer;
+	white-space: nowrap;
+	transition:
+		color var(--t-fast),
+		border-color var(--t-fast),
+		opacity var(--t-fast);
+}
+
+.review__cmt-add:hover {
+	color: var(--accent);
+	border-color: var(--accent);
+}
+
+/* inline comment card anchored under its line (design .inline-cmt) */
+.review__inline-cmt {
+	margin: 5px 16px 9px 98px;
+	border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+	border-radius: var(--r-md);
+	padding: 10px 13px;
+	background: var(--fill-accent);
+	font-family: var(--font-ui);
+	animation: riseIn 0.35s var(--ease-out) both;
+}
+
+.review__inline-cmt .who {
+	font-size: var(--fs-xs);
+	font-weight: 650;
+	color: var(--accent);
+}
+
+.review__inline-cmt .txt {
+	font-size: var(--fs-sm);
+	margin-top: 3px;
+	line-height: 1.45;
+}
+
+.review__inline-cmt .chip2 {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	margin-top: 8px;
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--text-2);
+	border: 1px dashed var(--border-strong);
+	border-radius: 20px;
+	padding: 2px 9px;
+}
+
 /* ---- right: rail ---- */
 .review-rail__summary {
 	padding: 14px 15px;
@@ -526,6 +584,7 @@
 	.review-tree__bar i,
 	.vchk[data-done='true'],
 	.review__diff-file,
+	.review__inline-cmt,
 	.review-rail__msg {
 		transition: none;
 		animation: none;
