@@ -108,6 +108,24 @@ fn parse_appearance(value: &str) -> Appearance {
     }
 }
 
+/// Approximate Ghostty's byte-based `scrollback-limit` in libghostty's
+/// line-based retention: bytes / 80 (a typical text line), clamped to sane
+/// bounds. Exact byte accounting would require owning the ring; the deviation
+/// is recorded in the implementation notes.
+const SCROLLBACK_BYTES_PER_LINE: u64 = 80;
+const SCROLLBACK_MIN_LINES: u64 = 100;
+const SCROLLBACK_MAX_LINES: u64 = 10_000_000;
+
+pub fn scrollback_lines() -> usize {
+    let config = load(&load_options(Appearance::Dark));
+    let Some(limit_bytes) = config.scrollback_limit else {
+        return mizraj_term::DEFAULT_MAX_SCROLLBACK_LINES;
+    };
+    let lines = (limit_bytes / SCROLLBACK_BYTES_PER_LINE)
+        .clamp(SCROLLBACK_MIN_LINES, SCROLLBACK_MAX_LINES);
+    usize::try_from(lines).unwrap_or(mizraj_term::DEFAULT_MAX_SCROLLBACK_LINES)
+}
+
 /// Load the user's effective Ghostty config for the given system appearance
 /// (`"light"` / `"dark"`). Never fails on a bad config — problems ride along in
 /// `diagnostics` so the terminal still starts.

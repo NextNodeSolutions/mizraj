@@ -75,6 +75,10 @@ export type KeybindAction =
 	| { kind: 'reset_font_size' }
 	| { kind: 'clear_screen' }
 	| { kind: 'reset' }
+	| { kind: 'scroll_to_top' }
+	| { kind: 'scroll_to_bottom' }
+	| { kind: 'scroll_page_up' }
+	| { kind: 'scroll_page_down' }
 	| { kind: 'text'; text: string }
 	| { kind: 'esc'; sequence: string }
 	| { kind: 'ignore' }

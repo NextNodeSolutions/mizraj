@@ -204,6 +204,8 @@ describe('startAgentEventsBridge', () => {
 			cells: [],
 			cursor: null,
 			mouse_reporting: false,
+	viewport_top: 0,
+	history_total: 0,
 		}
 		handler({ payload: frame })
 
@@ -223,6 +225,8 @@ describe('startAgentEventsBridge', () => {
 				cells: [],
 				cursor: null,
 				mouse_reporting: false,
+	viewport_top: 0,
+	history_total: 0,
 			},
 		})
 

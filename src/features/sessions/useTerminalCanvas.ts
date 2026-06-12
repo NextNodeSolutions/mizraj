@@ -94,6 +94,23 @@ const MOUSE_BUTTONS: ReadonlyArray<MouseEventDto['button']> = [
 	'right',
 ]
 
+// One wheel tick moves three rows, the terminal default Ghostty follows
+// (mouse-scroll-multiplier=1 on a 3-line wheel notch).
+const WHEEL_ROWS_PER_TICK = 3
+
+const scrollViewport = (sessionId: string, rows: number): void => {
+	invoke('session_scroll', {
+		sessionId,
+		request: { delta: { rows } },
+	}).catch((error: unknown) => {
+		const { message, stack } = describeError(error)
+		logger.warn(`useTerminalCanvas: session_scroll failed: ${message}`, {
+			scope: 'terminal-pane',
+			details: { stack, sessionId },
+		})
+	})
+}
+
 const propagateResize = (
 	sessionId: string,
 	cols: number,
@@ -434,14 +451,25 @@ const startRendering = (
 	}
 
 	const onWheel = (event: WheelEvent): void => {
-		if (!reportsMouse(event)) return
-		const cell = cellFromEvent(event)
-		if (!cell) return
 		event.preventDefault()
-		forwardMouseEvent(
-			sessionId,
-			dtoFor(event.deltaY < 0 ? 'wheel_up' : 'wheel_down', 'none', cell, event),
-		)
+		if (reportsMouse(event)) {
+			const cell = cellFromEvent(event)
+			if (!cell) return
+			forwardMouseEvent(
+				sessionId,
+				dtoFor(
+					event.deltaY < 0 ? 'wheel_up' : 'wheel_down',
+					'none',
+					cell,
+					event,
+				),
+			)
+			return
+		}
+		// Outside app mouse mode the wheel walks the scrollback (TP6).
+		const rows =
+			event.deltaY < 0 ? -WHEEL_ROWS_PER_TICK : WHEEL_ROWS_PER_TICK
+		scrollViewport(sessionId, rows)
 	}
 
 	// Press starts on the canvas; the drag may travel (and release) anywhere.

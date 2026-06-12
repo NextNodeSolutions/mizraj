@@ -139,6 +139,18 @@ pub struct CellFrame {
     /// the frontend then forwards mouse events for PTY encoding instead of
     /// selecting locally (shift still forces selection, like Ghostty).
     pub mouse_reporting: bool,
+    /// Rows the viewport sits ABOVE the live area (0 = attached to live).
+    pub viewport_top: u64,
+    /// Rows of scrollback history available above the live area.
+    pub history_total: u64,
+}
+
+/// Frame-level terminal state that rides alongside the grid (TP6/TP10/TP11).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FrameContext {
+    pub mouse_reporting: bool,
+    pub viewport_top: u64,
+    pub history_total: u64,
 }
 
 impl CellFrame {
@@ -148,7 +160,7 @@ impl CellFrame {
         session_id: String,
         cells: Cells,
         cursor: Option<Cursor>,
-        mouse_reporting: bool,
+        context: FrameContext,
     ) -> Self {
         Self {
             session_id,
@@ -156,7 +168,9 @@ impl CellFrame {
             rows: cells.rows,
             cells: cells.data.into_iter().map(WireCell::from).collect(),
             cursor: cursor.map(WireCursor::from),
-            mouse_reporting,
+            mouse_reporting: context.mouse_reporting,
+            viewport_top: context.viewport_top,
+            history_total: context.history_total,
         }
     }
 }
@@ -196,7 +210,7 @@ mod tests {
             ],
         };
 
-        let frame = CellFrame::from_cells("sess-1".to_string(), cells, None, false);
+        let frame = CellFrame::from_cells("sess-1".to_string(), cells, None, FrameContext::default());
 
         assert_eq!(frame.session_id, "sess-1");
         assert_eq!(frame.rows, 1);
@@ -244,7 +258,7 @@ mod tests {
             }],
         };
 
-        let frame = CellFrame::from_cells("s".to_string(), cells, None, false);
+        let frame = CellFrame::from_cells("s".to_string(), cells, None, FrameContext::default());
         let json = serde_json::to_value(&frame).expect("serialize CellFrame");
 
         assert_eq!(json["session_id"], "s");
@@ -283,7 +297,7 @@ mod tests {
             visible: true,
         });
 
-        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells, cursor, false))
+        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells, cursor, FrameContext::default()))
             .expect("serialize CellFrame");
 
         assert_eq!(json["cursor"]["x"], 3);
@@ -316,7 +330,7 @@ mod tests {
             ],
         };
 
-        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells, None, false))
+        let json = serde_json::to_value(CellFrame::from_cells("s".to_string(), cells, None, FrameContext::default()))
             .expect("serialize CellFrame");
 
         assert_eq!(json["cells"][0]["wide"], "wide");
@@ -336,7 +350,7 @@ mod tests {
         render_state.update(&mut term).expect("update");
         let cells = render_state.snapshot().expect("snapshot");
 
-        let frame = CellFrame::from_cells("sess".to_string(), cells, None, false);
+        let frame = CellFrame::from_cells("sess".to_string(), cells, None, FrameContext::default());
 
         assert_eq!(frame.rows, 4);
         assert_eq!(frame.cols, 10);
@@ -358,7 +372,7 @@ mod tests {
         render_state.update(&mut term).expect("update");
         let cells = render_state.snapshot().expect("snapshot");
 
-        let frame = CellFrame::from_cells("sess".to_string(), cells, None, false);
+        let frame = CellFrame::from_cells("sess".to_string(), cells, None, FrameContext::default());
 
         assert_eq!(frame.cells[0].ch, "中");
         assert_eq!(frame.cells[0].wide, WireCellWidth::Wide);
@@ -379,7 +393,7 @@ mod tests {
         render_state.update(&mut term).expect("update");
         let cells = render_state.snapshot().expect("snapshot");
 
-        let frame = CellFrame::from_cells("sess".to_string(), cells, None, false);
+        let frame = CellFrame::from_cells("sess".to_string(), cells, None, FrameContext::default());
 
         assert_eq!(frame.cells[0].ch, "e\u{0301}");
     }
@@ -398,7 +412,7 @@ mod tests {
         let cells = render_state.snapshot().expect("snapshot");
         let cursor = render_state.cursor().expect("cursor");
 
-        let frame = CellFrame::from_cells("sess".to_string(), cells, cursor, false);
+        let frame = CellFrame::from_cells("sess".to_string(), cells, cursor, FrameContext::default());
         let drawn = frame.cursor.expect("cursor present in viewport");
 
         assert_eq!(drawn.x, 2);

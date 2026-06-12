@@ -1,4 +1,4 @@
-use mizraj_term::MouseInput;
+use mizraj_term::{MouseInput, ScrollViewport};
 
 use crate::session::cell_frame::CellFrame;
 use crate::session::key::KeyStroke;
@@ -65,6 +65,11 @@ pub trait OutputSink: Send + Sync {
     /// mouse-tracking mode and writes to the PTY — or nothing, outside any
     /// tracking mode. Same ~1ms budget.
     fn mouse(&self, _input: MouseInput) {}
+
+    /// Called when the user scrolls the viewport (wheel outside app mouse
+    /// mode, scroll keybinds — TP6). Only the terminal sink acts: its render
+    /// thread repositions the window over the scrollback and repaints.
+    fn scroll(&self, _to: ScrollViewport) {}
 
     /// Called when the user pastes into the session (TP7/TP8). Only the
     /// terminal sink acts: its render thread encodes the payload against the

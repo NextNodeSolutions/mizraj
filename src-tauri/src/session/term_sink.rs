@@ -3,11 +3,11 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use mizraj_term::{encode_paste, Dirty, KeyEncoder, MouseEncoder, MouseInput, RenderState, Terminal};
+use mizraj_term::{encode_paste, Dirty, KeyEncoder, MouseEncoder, MouseInput, RenderState, ScrollViewport, Terminal};
 use tauri::async_runtime::Sender as PtyInputSender;
 use tauri::{AppHandle, Emitter, Runtime};
 
-use crate::session::cell_frame::CellFrame;
+use crate::session::cell_frame::{CellFrame, FrameContext};
 use crate::session::id::SessionId;
 use crate::session::key::KeyStroke;
 use crate::session::pty::{DEFAULT_COLS, DEFAULT_ROWS};
@@ -37,6 +37,7 @@ enum RenderInput {
     Paste(Vec<u8>),
     Reset,
     Mouse(MouseInput),
+    Scroll(ScrollViewport),
 }
 
 /// `OutputSink` that turns raw PTY bytes into rendered grid snapshots, and the
@@ -64,13 +65,15 @@ impl TermSink {
         app: AppHandle<R>,
         session_id: SessionId,
         pty_input: PtyInputSender<Vec<u8>>,
+        scrollback_lines: usize,
     ) -> Self {
-        Self::with_emitter(
+        Self::with_emitter_and_scrollback(
             move |frame| {
                 let _ = app.emit(AGENT_CELLS_EVENT, frame);
             },
             session_id,
             pty_input,
+            scrollback_lines,
         )
     }
 
@@ -81,8 +84,25 @@ impl TermSink {
     where
         E: Fn(CellFrame) + Send + 'static,
     {
+        Self::with_emitter_and_scrollback(
+            emit,
+            session_id,
+            pty_input,
+            mizraj_term::DEFAULT_MAX_SCROLLBACK_LINES,
+        )
+    }
+
+    fn with_emitter_and_scrollback<E>(
+        emit: E,
+        session_id: SessionId,
+        pty_input: PtyInputSender<Vec<u8>>,
+        scrollback_lines: usize,
+    ) -> Self
+    where
+        E: Fn(CellFrame) + Send + 'static,
+    {
         let (tx, rx) = mpsc::channel::<RenderInput>();
-        thread::spawn(move || render_loop(emit, session_id, rx, pty_input));
+        thread::spawn(move || render_loop(emit, session_id, rx, pty_input, scrollback_lines));
         Self { tx: Mutex::new(tx) }
     }
 }
@@ -150,6 +170,12 @@ impl OutputSink for TermSink {
             let _ = tx.send(RenderInput::Mouse(input));
         }
     }
+
+    fn scroll(&self, to: ScrollViewport) {
+        if let Ok(tx) = self.tx.lock() {
+            let _ = tx.send(RenderInput::Scroll(to));
+        }
+    }
 }
 
 /// Spin up the render thread's state and pump the input channel until it
@@ -159,8 +185,9 @@ fn render_loop<E: Fn(CellFrame)>(
     session_id: SessionId,
     rx: Receiver<RenderInput>,
     pty_input: PtyInputSender<Vec<u8>>,
+    scrollback_lines: usize,
 ) {
-    let Some(state) = RenderLoop::init(emit, session_id, pty_input) else {
+    let Some(state) = RenderLoop::init(emit, session_id, pty_input, scrollback_lines) else {
         return;
     };
     state.run(&rx);
@@ -183,6 +210,8 @@ struct RenderLoop<E: Fn(CellFrame)> {
     // updates leave the damage accumulated, which makes the first update after
     // a re-subscribe report dirty and push the whole hidden-era catch-up frame.
     subscribed: bool,
+    // A viewport move must repaint even though the grid content is clean.
+    force_emit: bool,
     // When the previous frame went out; emission waits out the rest of
     // [`FRAME_WINDOW`] before the next one (TP3 pacing).
     last_emit: Option<Instant>,
@@ -192,9 +221,14 @@ struct RenderLoop<E: Fn(CellFrame)> {
 }
 
 impl<E: Fn(CellFrame)> RenderLoop<E> {
-    fn init(emit: E, session_id: SessionId, pty_input: PtyInputSender<Vec<u8>>) -> Option<Self> {
+    fn init(
+        emit: E,
+        session_id: SessionId,
+        pty_input: PtyInputSender<Vec<u8>>,
+        scrollback_lines: usize,
+    ) -> Option<Self> {
         let sid = session_id.as_str();
-        let terminal = match Terminal::new(DEFAULT_ROWS, DEFAULT_COLS) {
+        let terminal = match Terminal::with_scrollback(DEFAULT_ROWS, DEFAULT_COLS, scrollback_lines) {
             Ok(terminal) => terminal,
             Err(err) => {
                 tracing::error!(session_id = sid, error = %err, "terminal init failed; no cell frames");
@@ -224,6 +258,7 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             mouse_encoder: None,
             mouse_encoder_failed: false,
             subscribed: false,
+            force_emit: false,
             last_emit: None,
             pty_input,
             emit,
@@ -246,11 +281,13 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             self.drain(rx);
 
             if !self.subscribed {
+                self.force_emit = false;
                 continue;
             }
-            if self.refresh_dirty() == Dirty::Clean {
+            if self.refresh_dirty() == Dirty::Clean && !self.force_emit {
                 continue;
             }
+            self.force_emit = false;
 
             // A frame is due. Wait out the rest of the frame window first,
             // folding anything that arrives meanwhile into this frame, then
@@ -330,6 +367,12 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             }
             RenderInput::Mouse(input) => {
                 self.mouse_to_pty(&input);
+            }
+            RenderInput::Scroll(to) => {
+                // Page deltas arrive pre-scaled by the caller; reposition and
+                // schedule a repaint of the new window.
+                self.terminal.scroll_viewport(to);
+                self.force_emit = true;
             }
         }
     }
@@ -411,8 +454,7 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             tracing::warn!(session_id = sid, error = %err, "cursor read for frame request failed");
             None
         });
-        let mouse_reporting = self.terminal.mouse_tracking().unwrap_or(false);
-        let frame = CellFrame::from_cells(sid.to_string(), cells, cursor, mouse_reporting);
+        let frame = CellFrame::from_cells(sid.to_string(), cells, cursor, self.frame_context());
         // try_send: the requester may have timed out and dropped the receiver;
         // never block the render thread on a gone caller.
         let _ = reply.try_send(frame);
@@ -440,6 +482,23 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
         }
     }
 
+    /// Viewport + history rows for the frame, from the live scrollbar state.
+    fn frame_context(&self) -> FrameContext {
+        let scrollbar = self.terminal.scrollbar().ok();
+        let mouse_reporting = self.terminal.mouse_tracking().unwrap_or(false);
+        match scrollbar {
+            Some(bar) => FrameContext {
+                mouse_reporting,
+                viewport_top: bar.total.saturating_sub(bar.offset + bar.len),
+                history_total: bar.total.saturating_sub(bar.len),
+            },
+            None => FrameContext {
+                mouse_reporting,
+                ..FrameContext::default()
+            },
+        }
+    }
+
     fn emit_frame(&mut self) {
         let sid = self.session_id.as_str();
         let cells = match self.render_state.snapshot() {
@@ -457,8 +516,7 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             None
         });
 
-        let mouse_reporting = self.terminal.mouse_tracking().unwrap_or(false);
-        let frame = CellFrame::from_cells(sid.to_string(), cells, cursor, mouse_reporting);
+        let frame = CellFrame::from_cells(sid.to_string(), cells, cursor, self.frame_context());
         (self.emit)(frame);
 
         if let Err(err) = self.render_state.mark_clean() {
@@ -733,6 +791,32 @@ mod tests {
             b"\x1b[<0;3;5M",
             "the first PTY bytes must be the in-mode press (the out-of-mode one sent nothing)"
         );
+    }
+
+    #[test]
+    fn scrolling_repaints_the_viewport_into_history() {
+        let (sink, frames) = frame_capturing_sink();
+        sink.set_subscribed(true);
+
+        // Overflow the 24-row default grid so history exists.
+        for n in 0..40 {
+            sink.write(format!("line{n}\r\n").as_bytes());
+        }
+        while frames.recv_timeout(Duration::from_millis(200)).is_ok() {}
+
+        sink.scroll(ScrollViewport::Delta(-5));
+
+        let frame = frames
+            .recv_timeout(FRAME_WAIT)
+            .expect("a viewport move must emit a frame without new output");
+        assert_eq!(frame.viewport_top, 5, "viewport sits 5 rows above live");
+        assert!(frame.history_total >= 5);
+
+        sink.scroll(ScrollViewport::Bottom);
+        let live = frames
+            .recv_timeout(FRAME_WAIT)
+            .expect("scrolling back to bottom re-emits");
+        assert_eq!(live.viewport_top, 0, "bottom re-attaches to live");
     }
 
     #[test]

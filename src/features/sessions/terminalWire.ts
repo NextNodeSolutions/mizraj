@@ -41,4 +41,8 @@ export type CellFramePayload = {
 	// mouse events for PTY encoding instead of selecting locally (shift still
 	// forces selection, like Ghostty).
 	mouse_reporting: boolean
+	// Rows the viewport sits above the live area (0 = attached to live) and
+	// the rows of scrollback available — the scroll UI's whole model (TP6).
+	viewport_top: number
+	history_total: number
 }

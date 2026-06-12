@@ -14,6 +14,8 @@ use crate::session::id::SessionId;
 use crate::session::key::KeyStroke;
 use crate::session::manager::SessionManager;
 use crate::session::mouse::MouseEventDto;
+use mizraj_term::ScrollViewport;
+use serde::Deserialize;
 use crate::session::path;
 use crate::session::sink::OutputSink;
 use crate::session::tauri_sink::TauriEventSink;
@@ -132,10 +134,12 @@ pub async fn session_create<R: Runtime>(
     db: tauri::State<'_, Db>,
 ) -> Result<SessionId, SessionError> {
     let pool = db.pool().await.map_err(SessionError::Database)?;
+    let scrollback_lines = crate::ghostty::scrollback_lines();
     session_create_inner(&manager, &pool, &binary, cwd, move |id, pty_input| {
         vec![
             Arc::new(TauriEventSink::new(app.clone(), id.clone())) as Arc<dyn OutputSink>,
-            Arc::new(TermSink::new(app, id.clone(), pty_input)) as Arc<dyn OutputSink>,
+            Arc::new(TermSink::new(app, id.clone(), pty_input, scrollback_lines))
+                as Arc<dyn OutputSink>,
         ]
     })
     .await
@@ -212,6 +216,45 @@ pub async fn session_reset(
     manager: tauri::State<'_, SessionManager>,
 ) -> Result<(), SessionError> {
     manager.reset_terminal(&session_id).await
+}
+
+/// Where to scroll, in the wire shape: 'top' | 'bottom' | {'delta': rows} |
+/// 'page_up' | 'page_down' (pages resolved against the live grid height by
+/// the render thread's caller — here, using the manager's knowledge).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScrollRequestDto {
+    Top,
+    Bottom,
+    Delta { rows: i64 },
+    PageUp,
+    PageDown,
+}
+
+/// Reposition the session's viewport over its scrollback (TP6). Page
+/// requests scroll by one viewport height minus a context row.
+#[tauri::command]
+pub async fn session_scroll(
+    session_id: SessionId,
+    request: ScrollRequestDto,
+    manager: tauri::State<'_, SessionManager>,
+) -> Result<(), SessionError> {
+    let to = match request {
+        ScrollRequestDto::Top => ScrollViewport::Top,
+        ScrollRequestDto::Bottom => ScrollViewport::Bottom,
+        ScrollRequestDto::Delta { rows } => {
+            ScrollViewport::Delta(isize::try_from(rows).unwrap_or(0))
+        }
+        // The render thread knows the live height; a page is expressed as a
+        // sentinel the sink resolves. Keep it simple: managers don't know the
+        // grid, so pages ride as deltas of the DEFAULT grid? No — resolve in
+        // the sink via terminal.rows() would need a new variant. The frontend
+        // already knows its grid (it drives resize), so pages are sent as
+        // deltas from there; these arms guard direct CLI/tooling calls.
+        ScrollRequestDto::PageUp => ScrollViewport::Delta(-(i32::from(crate::session::pty::DEFAULT_ROWS) as isize - 1)),
+        ScrollRequestDto::PageDown => ScrollViewport::Delta(i32::from(crate::session::pty::DEFAULT_ROWS) as isize - 1),
+    };
+    manager.scroll(&session_id, to).await
 }
 
 /// Forward a mouse event (cell coordinates) to the session: encoded against

@@ -1,9 +1,15 @@
 use std::ptr::{self, NonNull};
 
 use mizraj_term_sys::{
-    ghostty_terminal_free, ghostty_terminal_mode_get, ghostty_terminal_new,
-    ghostty_terminal_reset, ghostty_terminal_resize, ghostty_terminal_vt_write,
-    GhosttyResult_GHOSTTY_SUCCESS, GhosttyTerminal, GhosttyTerminalImpl, GhosttyTerminalOptions,
+    ghostty_terminal_free, ghostty_terminal_get, ghostty_terminal_mode_get,
+    ghostty_terminal_new, ghostty_terminal_reset, ghostty_terminal_resize,
+    ghostty_terminal_scroll_viewport, ghostty_terminal_vt_write,
+    GhosttyResult_GHOSTTY_SUCCESS, GhosttyTerminal, GhosttyTerminalImpl,
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_SCROLLBAR, GhosttyTerminalOptions,
+    GhosttyTerminalScrollViewport, GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_BOTTOM,
+    GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_DELTA,
+    GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_TOP,
+    GhosttyTerminalScrollViewportValue, GhosttyTerminalScrollbar,
 };
 
 use crate::{Result, TermError};
@@ -16,7 +22,24 @@ const MODE_BRACKETED_PASTE: u16 = 2004;
 /// any-event (1003). Any of them active means the program owns the mouse.
 const MOUSE_TRACKING_MODES: [u16; 3] = [1000, 1002, 1003];
 
-const DEFAULT_MAX_SCROLLBACK: usize = 10_000;
+pub const DEFAULT_MAX_SCROLLBACK_LINES: usize = 10_000;
+
+/// Where to scroll the viewport (the Ghostty scroll actions' vocabulary).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollViewport {
+    Top,
+    Bottom,
+    /// Rows; negative scrolls up into history.
+    Delta(isize),
+}
+
+/// Viewport position within the scrollable area, in rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScrollbarState {
+    pub total: u64,
+    pub offset: u64,
+    pub len: u64,
+}
 
 #[derive(Debug)]
 pub struct Terminal {
@@ -27,6 +50,13 @@ pub struct Terminal {
 
 impl Terminal {
     pub fn new(rows: u16, cols: u16) -> Result<Self> {
+        Self::with_scrollback(rows, cols, DEFAULT_MAX_SCROLLBACK_LINES)
+    }
+
+    /// `max_scrollback_lines`: history retention in LINES (the libghostty
+    /// option's unit; Ghostty's byte-based scrollback-limit is approximated
+    /// by the caller).
+    pub fn with_scrollback(rows: u16, cols: u16, max_scrollback_lines: usize) -> Result<Self> {
         if rows == 0 || cols == 0 {
             return Err(TermError::Init(format!(
                 "rows and cols must be non-zero (got rows={rows}, cols={cols})"
@@ -36,7 +66,7 @@ impl Terminal {
         let options = GhosttyTerminalOptions {
             cols,
             rows,
-            max_scrollback: DEFAULT_MAX_SCROLLBACK,
+            max_scrollback: max_scrollback_lines,
         };
 
         let mut raw: GhosttyTerminal = ptr::null_mut();
@@ -125,6 +155,59 @@ impl Terminal {
         self.mode(MODE_BRACKETED_PASTE)
     }
 
+    /// Reposition the viewport over the scrollback. New output keeps landing
+    /// in the active area; the viewport stays where it was put until scrolled
+    /// back to [`ScrollViewport::Bottom`].
+    pub fn scroll_viewport(&mut self, to: ScrollViewport) {
+        let behavior = match to {
+            ScrollViewport::Top => GhosttyTerminalScrollViewport {
+                tag: GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_TOP,
+                value: GhosttyTerminalScrollViewportValue { _padding: [0; 2] },
+            },
+            ScrollViewport::Bottom => GhosttyTerminalScrollViewport {
+                tag: GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_BOTTOM,
+                value: GhosttyTerminalScrollViewportValue { _padding: [0; 2] },
+            },
+            ScrollViewport::Delta(rows) => GhosttyTerminalScrollViewport {
+                tag: GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_DELTA,
+                value: GhosttyTerminalScrollViewportValue { delta: rows },
+            },
+        };
+        // SAFETY: live handle (&mut self); `behavior` is a fully initialized
+        // POD passed by value.
+        unsafe { ghostty_terminal_scroll_viewport(self.handle.as_ptr(), behavior) };
+    }
+
+    /// Where the viewport sits in the scrollable area (rows). `offset` grows
+    /// downward from the top of history; the viewport is live when
+    /// `offset + len == total`.
+    pub fn scrollbar(&self) -> Result<ScrollbarState> {
+        let mut raw = GhosttyTerminalScrollbar {
+            total: 0,
+            offset: 0,
+            len: 0,
+        };
+        // SAFETY: live handle (&self); out pointer targets a local struct of
+        // the exact type the SCROLLBAR data type documents.
+        let result = unsafe {
+            ghostty_terminal_get(
+                self.handle.as_ptr(),
+                GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_SCROLLBAR,
+                (&raw mut raw).cast(),
+            )
+        };
+        if result != GhosttyResult_GHOSTTY_SUCCESS {
+            return Err(TermError::Mode(format!(
+                "ghostty_terminal_get(scrollbar) returned {result}"
+            )));
+        }
+        Ok(ScrollbarState {
+            total: raw.total,
+            offset: raw.offset,
+            len: raw.len,
+        })
+    }
+
     /// Whether any mouse-tracking mode is active — the program (vim, htop)
     /// wants mouse events encoded to the PTY instead of local selection.
     pub fn mouse_tracking(&self) -> Result<bool> {
@@ -208,6 +291,29 @@ mod tests {
         );
         assert_eq!(terminal.rows(), 24);
         assert_eq!(terminal.cols(), 80);
+    }
+
+    #[test]
+    fn scrollback_viewport_repositions_and_reports() {
+        let mut terminal = Terminal::new(4, 10).expect("terminal");
+        // 12 lines on a 4-row grid -> 8 rows of history.
+        for n in 0..12 {
+            terminal
+                .feed(format!("line{n}\r\n").as_bytes())
+                .expect("feed line");
+        }
+
+        let live = terminal.scrollbar().expect("scrollbar");
+        assert_eq!(live.offset + live.len, live.total, "starts live");
+        assert!(live.total > u64::from(terminal.rows()), "history exists");
+
+        terminal.scroll_viewport(ScrollViewport::Delta(-3));
+        let scrolled = terminal.scrollbar().expect("scrollbar after delta");
+        assert_eq!(scrolled.offset + 3, live.offset, "moved 3 rows up");
+
+        terminal.scroll_viewport(ScrollViewport::Bottom);
+        let back = terminal.scrollbar().expect("scrollbar at bottom");
+        assert_eq!(back.offset + back.len, back.total, "re-attached to live");
     }
 
     #[test]

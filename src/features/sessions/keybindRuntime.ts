@@ -100,6 +100,25 @@ const writeToSession = (sessionId: string, text: string): void => {
 	})
 }
 
+type ScrollRequest =
+	| 'top'
+	| 'bottom'
+	| 'page_up'
+	| 'page_down'
+	| { delta: { rows: number } }
+
+const scrollSession = (sessionId: string, request: ScrollRequest): void => {
+	invoke('session_scroll', { sessionId, request }).catch(
+		(error: unknown) => {
+			const { message, stack } = describeError(error)
+			logger.warn(`keybind scroll: session_scroll failed: ${message}`, {
+				scope: 'terminal-input',
+				details: { stack, sessionId },
+			})
+		},
+	)
+}
+
 const resetTerminal = (sessionId: string): void => {
 	invoke('session_reset', { sessionId }).catch((error: unknown) => {
 		const { message, stack } = describeError(error)
@@ -153,6 +172,18 @@ export const executeKeybindAction = (
 			return
 		case 'clear_screen':
 			writeToSession(context.sessionId, FORM_FEED)
+			return
+		case 'scroll_to_top':
+			scrollSession(context.sessionId, 'top')
+			return
+		case 'scroll_to_bottom':
+			scrollSession(context.sessionId, 'bottom')
+			return
+		case 'scroll_page_up':
+			scrollSession(context.sessionId, 'page_up')
+			return
+		case 'scroll_page_down':
+			scrollSession(context.sessionId, 'page_down')
 			return
 		case 'reset':
 			resetTerminal(context.sessionId)

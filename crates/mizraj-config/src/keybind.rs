@@ -61,6 +61,10 @@ pub enum KeybindAction {
     Text(String),
     /// Send ESC followed by the raw payload.
     Esc(String),
+    ScrollToTop,
+    ScrollToBottom,
+    ScrollPageUp,
+    ScrollPageDown,
     /// Consume the key and do nothing (disables a default binding).
     Ignore,
     /// Remove the binding for this trigger.
@@ -248,6 +252,10 @@ fn parse_action(action: &str) -> Result<KeybindAction, &'static str> {
         "decrease_font_size" => KeybindAction::DecreaseFontSize(font_step(param)?),
         "reset_font_size" => KeybindAction::ResetFontSize,
         "clear_screen" => KeybindAction::ClearScreen,
+        "scroll_to_top" => KeybindAction::ScrollToTop,
+        "scroll_to_bottom" => KeybindAction::ScrollToBottom,
+        "scroll_page_up" => KeybindAction::ScrollPageUp,
+        "scroll_page_down" => KeybindAction::ScrollPageDown,
         "reset" => KeybindAction::Reset,
         "text" => KeybindAction::Text(unescape_text(param.ok_or("text: requires a payload")?)?),
         "esc" => KeybindAction::Esc(param.ok_or("esc: requires a payload")?.to_string()),
