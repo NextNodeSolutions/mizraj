@@ -1,4 +1,4 @@
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect } from 'react'
 
 import { useAppearance } from '@/features/settings/settings'
@@ -6,6 +6,7 @@ import { useAppearance } from '@/features/settings/settings'
 import { loadGhosttyConfig } from './ghosttyConfig'
 import { ghosttyConfigEpochAtom } from './ghosttyConfigBridge'
 import { ghosttyThemeTokens, THEME_TOKEN_KEYS } from './ghosttyTheme'
+import { keybindTableAtom } from './keybindRuntime'
 
 // Synchronizes <html>'s inline theme variables with the resolved Ghostty theme.
 // This is a legitimate external-system sync (the document is outside React's
@@ -17,6 +18,7 @@ import { ghosttyThemeTokens, THEME_TOKEN_KEYS } from './ghosttyTheme'
 export const useGhosttyTheme = (): void => {
 	const appearance = useAppearance()
 	const configEpoch = useAtomValue(ghosttyConfigEpochAtom)
+	const seedKeybindTable = useSetAtom(keybindTableAtom)
 
 	useEffect(() => {
 		let cancelled = false
@@ -28,6 +30,9 @@ export const useGhosttyTheme = (): void => {
 
 		void loadGhosttyConfig(appearance).then(config => {
 			if (cancelled) return
+			// The input router's matcher follows this table; seeding it here
+			// keeps every app-level config consumer on one load path.
+			seedKeybindTable(config.keybinds)
 			clearThemeTokens()
 			const tokens = ghosttyThemeTokens(config)
 			if (!tokens) return
@@ -40,5 +45,5 @@ export const useGhosttyTheme = (): void => {
 			cancelled = true
 			clearThemeTokens()
 		}
-	}, [appearance, configEpoch])
+	}, [appearance, configEpoch, seedKeybindTable])
 }

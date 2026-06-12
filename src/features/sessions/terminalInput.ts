@@ -4,6 +4,11 @@ import { getDefaultStore } from 'jotai'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
+import type { KeybindAction } from './ghosttyConfig'
+import type { KeyInput, MatchResult } from './keybindMatcher'
+import { createKeybindMatcher } from './keybindMatcher'
+import type { KeybindContext } from './keybindRuntime'
+import { executeKeybindAction, keybindTableAtom } from './keybindRuntime'
 import { activeSessionIdAtom } from './sessions'
 
 // Raw keystroke DTO mirroring the `session_key` serde struct on the Rust side.
@@ -42,35 +47,96 @@ const propagateKey = (sessionId: string, stroke: KeyStroke): void => {
 	})
 }
 
-let routerStarted = false
+// The KeyboardEvent surface the route consumes — narrowed for testability.
+export type RoutedKeydown = {
+	key: string
+	code: string
+	ctrlKey: boolean
+	altKey: boolean
+	shiftKey: boolean
+	metaKey: boolean
+	target: EventTarget | null
+	preventDefault: () => void
+}
 
-// One window-level keydown listener routes every keystroke to whichever pane is
-// active (activeSessionIdAtom), read live from the default store so it always
-// targets the current pane — never broadcasting to all of them. Idempotent and
-// started once from main.tsx, mirroring startAgentEventsBridge.
-export const startTerminalInputRouter = (): void => {
-	if (routerStarted) return
-	routerStarted = true
+type RouteDeps = {
+	activeSessionId: () => string | null
+	feed: (input: KeyInput) => MatchResult
+	execute: (action: KeybindAction, context: KeybindContext) => void
+	propagate: (sessionId: string, stroke: KeyStroke) => void
+}
 
-	const store = getDefaultStore()
-
-	window.addEventListener('keydown', event => {
-		// Cmd/Super belongs to the app/OS; lone modifiers carry no input.
-		if (event.metaKey || LONE_MODIFIER_KEYS.has(event.key)) return
-		// A focused control owns its own keystroke; don't hijack it.
+// Decide one keydown's fate (TP8), in order: keybind dispatch first — a
+// matched action executes with zero bytes to the PTY, a pending/aborted
+// sequence consumes the key — then the PTY encoder as the fallback. Unbound
+// cmd/super keys stay with the app/OS (never encoded), preserving the
+// pre-keybind behavior.
+export const createKeydownRoute =
+	(deps: RouteDeps) =>
+	(event: RoutedKeydown): void => {
+		if (LONE_MODIFIER_KEYS.has(event.key)) return
 		if (isInteractiveTarget(event.target)) return
-		// No active pane → leave the keystroke to the app (shortcuts, etc.).
-		const sessionId = store.get(activeSessionIdAtom)
+		const sessionId = deps.activeSessionId()
 		if (!sessionId) return
-		// The active terminal owns the keystroke: Tab/Space/arrows must not
-		// scroll the page or move focus.
+
+		const result = deps.feed({
+			key: event.key,
+			code: event.code,
+			shift: event.shiftKey,
+			ctrl: event.ctrlKey,
+			alt: event.altKey,
+			super: event.metaKey,
+		})
+
+		if (result.kind === 'action') {
+			event.preventDefault()
+			deps.execute(result.action, { sessionId })
+			return
+		}
+		if (result.kind === 'pending' || result.kind === 'abort') {
+			event.preventDefault()
+			return
+		}
+
+		// Unbound: cmd/super belongs to the app/OS, everything else is the
+		// active terminal's keystroke (Tab/Space/arrows must not scroll the
+		// page or move focus).
+		if (event.metaKey) return
 		event.preventDefault()
-		propagateKey(sessionId, {
+		deps.propagate(sessionId, {
 			code: event.code,
 			text: event.key.length === 1 ? event.key : null,
 			ctrl: event.ctrlKey,
 			alt: event.altKey,
 			shift: event.shiftKey,
 		})
+	}
+
+let routerStarted = false
+
+// One window-level keydown listener routes every keystroke to whichever pane is
+// active (activeSessionIdAtom), read live from the default store so it always
+// targets the current pane — never broadcasting to all of them. The keybind
+// matcher rebuilds whenever the config's table changes (first load, hot
+// reload). Idempotent and started once from main.tsx, mirroring
+// startAgentEventsBridge.
+export const startTerminalInputRouter = (): void => {
+	if (routerStarted) return
+	routerStarted = true
+
+	const store = getDefaultStore()
+
+	let matcher = createKeybindMatcher(store.get(keybindTableAtom))
+	store.sub(keybindTableAtom, () => {
+		matcher = createKeybindMatcher(store.get(keybindTableAtom))
 	})
+
+	const route = createKeydownRoute({
+		activeSessionId: () => store.get(activeSessionIdAtom),
+		feed: input => matcher.feed(input),
+		execute: executeKeybindAction,
+		propagate: propagateKey,
+	})
+
+	window.addEventListener('keydown', route)
 }
