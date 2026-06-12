@@ -17,6 +17,18 @@ use crate::session::sink::{FrameReply, OutputSink};
 /// `session_id` rides in the [`CellFrame`] payload, mirroring `agent:output`.
 pub const AGENT_CELLS_EVENT: &str = "agent:cells";
 
+/// Emitted when the running program changes its OSC 0/2 title (TP13). An
+/// empty/absent title is broadcast as `None` so the frontend falls back to
+/// its derived label.
+pub const AGENT_TITLE_EVENT: &str = "agent:title";
+
+/// Payload of [`AGENT_TITLE_EVENT`].
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct TitlePayload {
+    pub session_id: String,
+    pub title: Option<String>,
+}
+
 /// Minimum spacing between two emitted frames (TP3): ~8ms ≈ 120fps. Under
 /// sustained output the render thread folds everything that arrives inside the
 /// window into one frame instead of emitting per burst.
@@ -67,9 +79,20 @@ impl TermSink {
         pty_input: PtyInputSender<Vec<u8>>,
         scrollback_lines: usize,
     ) -> Self {
-        Self::with_emitter_and_scrollback(
+        let title_app = app.clone();
+        let title_sid = session_id.clone();
+        Self::with_emitters(
             move |frame| {
                 let _ = app.emit(AGENT_CELLS_EVENT, frame);
+            },
+            move |title| {
+                let _ = title_app.emit(
+                    AGENT_TITLE_EVENT,
+                    TitlePayload {
+                        session_id: title_sid.as_str().to_string(),
+                        title,
+                    },
+                );
             },
             session_id,
             pty_input,
@@ -101,8 +124,24 @@ impl TermSink {
     where
         E: Fn(CellFrame) + Send + 'static,
     {
+        Self::with_emitters(emit, |_| {}, session_id, pty_input, scrollback_lines)
+    }
+
+    fn with_emitters<E, T>(
+        emit: E,
+        on_title: T,
+        session_id: SessionId,
+        pty_input: PtyInputSender<Vec<u8>>,
+        scrollback_lines: usize,
+    ) -> Self
+    where
+        E: Fn(CellFrame) + Send + 'static,
+        T: Fn(Option<String>) + Send + 'static,
+    {
         let (tx, rx) = mpsc::channel::<RenderInput>();
-        thread::spawn(move || render_loop(emit, session_id, rx, pty_input, scrollback_lines));
+        thread::spawn(move || {
+            render_loop(emit, on_title, session_id, rx, pty_input, scrollback_lines)
+        });
         Self { tx: Mutex::new(tx) }
     }
 }
@@ -180,14 +219,16 @@ impl OutputSink for TermSink {
 
 /// Spin up the render thread's state and pump the input channel until it
 /// disconnects (sink dropped on session close).
-fn render_loop<E: Fn(CellFrame)>(
+fn render_loop<E: Fn(CellFrame), T: Fn(Option<String>)>(
     emit: E,
+    on_title: T,
     session_id: SessionId,
     rx: Receiver<RenderInput>,
     pty_input: PtyInputSender<Vec<u8>>,
     scrollback_lines: usize,
 ) {
-    let Some(state) = RenderLoop::init(emit, session_id, pty_input, scrollback_lines) else {
+    let Some(state) = RenderLoop::init(emit, on_title, session_id, pty_input, scrollback_lines)
+    else {
         return;
     };
     state.run(&rx);
@@ -197,7 +238,7 @@ fn render_loop<E: Fn(CellFrame)>(
 /// state, the key encoder, the subscription gate and the way back to the PTY.
 /// The libghostty handles are `!Send`, so the whole struct lives and dies on
 /// the render thread.
-struct RenderLoop<E: Fn(CellFrame)> {
+struct RenderLoop<E: Fn(CellFrame), T: Fn(Option<String>)> {
     terminal: Terminal,
     render_state: RenderState,
     encoder: Option<KeyEncoder>,
@@ -217,18 +258,22 @@ struct RenderLoop<E: Fn(CellFrame)> {
     last_emit: Option<Instant>,
     pty_input: PtyInputSender<Vec<u8>>,
     emit: E,
+    on_title: T,
+    // The last OSC title broadcast, to emit only on change.
+    last_title: Option<String>,
     session_id: SessionId,
 }
 
-impl<E: Fn(CellFrame)> RenderLoop<E> {
+impl<E: Fn(CellFrame), T: Fn(Option<String>)> RenderLoop<E, T> {
     fn init(
         emit: E,
+        on_title: T,
         session_id: SessionId,
         pty_input: PtyInputSender<Vec<u8>>,
         scrollback_lines: usize,
     ) -> Option<Self> {
         let sid = session_id.as_str();
-        let terminal = match Terminal::with_scrollback(DEFAULT_ROWS, DEFAULT_COLS, scrollback_lines) {
+        let mut terminal = match Terminal::with_scrollback(DEFAULT_ROWS, DEFAULT_COLS, scrollback_lines) {
             Ok(terminal) => terminal,
             Err(err) => {
                 tracing::error!(session_id = sid, error = %err, "terminal init failed; no cell frames");
@@ -251,6 +296,16 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
                 None
             }
         };
+        // The PTY write-back makes libghostty answer DSR/DA/ENQ queries (TP14)
+        // — without it, TUIs probing the terminal at startup hang. Same
+        // best-effort delivery as keystrokes.
+        let writer_input = pty_input.clone();
+        if let Err(err) = terminal.set_pty_writer(Box::new(move |bytes| {
+            let _ = writer_input.try_send(bytes.to_vec());
+        })) {
+            tracing::error!(session_id = sid, error = %err, "pty write-back install failed; query responses off");
+        }
+
         Some(Self {
             terminal,
             render_state,
@@ -262,6 +317,8 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             last_emit: None,
             pty_input,
             emit,
+            on_title,
+            last_title: None,
             session_id,
         })
     }
@@ -279,6 +336,7 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
             };
             self.apply(input);
             self.drain(rx);
+            self.broadcast_title_change();
 
             if !self.subscribed {
                 self.force_emit = false;
@@ -466,6 +524,17 @@ impl<E: Fn(CellFrame)> RenderLoop<E> {
         }
     }
 
+    /// Broadcast the OSC 0/2 title when it changes (TP13). Polling per burst
+    /// is one cheap FFI read; `None` means "back to the derived label".
+    fn broadcast_title_change(&mut self) {
+        let title = self.terminal.title().unwrap_or(None);
+        if title == self.last_title {
+            return;
+        }
+        self.last_title = title.clone();
+        (self.on_title)(title);
+    }
+
     /// Sync the render state with the terminal and report the damage. Dirty
     /// tracking is the whole point of RenderState: a clean report skips
     /// snapshotting and emitting (e.g. a chunk of only control bytes, or a
@@ -589,6 +658,42 @@ mod tests {
             pty_tx,
         );
         (sink, frame_rx, pty_rx)
+    }
+
+    #[test]
+    fn osc_title_changes_are_broadcast_once_per_change() {
+        let (title_tx, title_rx) = mpsc::channel::<Option<String>>();
+        let (pty_tx, _pty_rx) = tauri::async_runtime::channel::<Vec<u8>>(8);
+        let sink = TermSink::with_emitters(
+            |_frame| {},
+            move |title| {
+                let _ = title_tx.send(title);
+            },
+            SessionId::new(),
+            pty_tx,
+            mizraj_term::DEFAULT_MAX_SCROLLBACK_LINES,
+        );
+
+        sink.write(b"\x1b]2;mon-titre\x07");
+        assert_eq!(
+            title_rx.recv_timeout(FRAME_WAIT).expect("title broadcast"),
+            Some("mon-titre".to_string())
+        );
+
+        sink.write(b"\x1b]2;\x07");
+        assert_eq!(
+            title_rx.recv_timeout(FRAME_WAIT).expect("title reset broadcast"),
+            None
+        );
+    }
+
+    #[test]
+    fn dsr_query_answers_flow_back_to_the_pty() {
+        let (sink, _frames, mut pty_rx) = sink_with_channels();
+
+        sink.write(b"\x1b[6n");
+
+        assert_eq!(next_pty_bytes(&mut pty_rx), b"\x1b[1;1R");
     }
 
     fn next_pty_bytes(pty_rx: &mut tauri::async_runtime::Receiver<Vec<u8>>) -> Vec<u8> {

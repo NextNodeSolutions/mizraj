@@ -20,6 +20,9 @@ export type SessionState = {
 	/// The spawned program ('claude' for agent runs, the user's shell for
 	/// plain terminals) — what the sidebar labels the session with.
 	binary: string
+	/// The OSC 0/2 title the program set, when any — overrides the derived
+	/// label while present (TP13).
+	title: string | null
 	output: ReadonlyArray<OutputChunk>
 	status: SessionStatus
 	exitCode: number | null
@@ -42,6 +45,13 @@ export const AGENT_END_EVENT = 'agent:end'
 
 export const AGENT_CELLS_EVENT = 'agent:cells'
 
+export const AGENT_TITLE_EVENT = 'agent:title'
+
+export type TitlePayload = {
+	session_id: string
+	title: string | null
+}
+
 type SessionsMap = Readonly<Record<string, SessionState>>
 
 export const sessionsAtom = atom<SessionsMap>({})
@@ -56,6 +66,7 @@ export const startSessionAtom = atom(
 			[id]: {
 				id,
 				binary,
+				title: null,
 				output: [],
 				status: 'running',
 				exitCode: null,
@@ -78,6 +89,21 @@ export const appendOutputAtom = atom(
 				...existing,
 				output: [...existing.output, chunk],
 			},
+		})
+	},
+)
+
+type SetTitleArgs = { sessionId: string; title: string | null }
+
+export const setSessionTitleAtom = atom(
+	null,
+	(get, set, { sessionId, title }: SetTitleArgs) => {
+		const sessions = get(sessionsAtom)
+		const existing = sessions[sessionId]
+		if (!existing) return
+		set(sessionsAtom, {
+			...sessions,
+			[sessionId]: { ...existing, title },
 		})
 	},
 )
@@ -199,6 +225,10 @@ export const startAgentEventsBridge = (): void => {
 
 	forwardSessionEvent<CellFramePayload>(AGENT_CELLS_EVENT, frame => {
 		store.set(setCellFrameAtom, frame)
+	})
+
+	forwardSessionEvent<TitlePayload>(AGENT_TITLE_EVENT, ({ session_id, title }) => {
+		store.set(setSessionTitleAtom, { sessionId: session_id, title })
 	})
 }
 

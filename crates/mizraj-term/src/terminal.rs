@@ -3,15 +3,17 @@ use std::ptr::{self, NonNull};
 use mizraj_term_sys::{
     ghostty_terminal_free, ghostty_terminal_get, ghostty_terminal_mode_get,
     ghostty_terminal_new, ghostty_terminal_reset, ghostty_terminal_resize,
-    ghostty_terminal_scroll_viewport, ghostty_terminal_vt_write,
+    ghostty_terminal_scroll_viewport, ghostty_terminal_vt_write, GhosttyString,
     GhosttyResult_GHOSTTY_SUCCESS, GhosttyTerminal, GhosttyTerminalImpl,
-    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_SCROLLBAR, GhosttyTerminalOptions,
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_SCROLLBAR,
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_TITLE, GhosttyTerminalOptions,
     GhosttyTerminalScrollViewport, GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_BOTTOM,
     GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_DELTA,
     GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_TOP,
     GhosttyTerminalScrollViewportValue, GhosttyTerminalScrollbar,
 };
 
+use crate::device::{drop_callbacks, install_pty_writer, TerminalCallbacks};
 use crate::{Result, TermError};
 
 /// DEC private mode 2004 (bracketed paste), packed per `modes.h`: bits 0–14
@@ -41,11 +43,22 @@ pub struct ScrollbarState {
     pub len: u64,
 }
 
-#[derive(Debug)]
 pub struct Terminal {
     handle: NonNull<GhosttyTerminalImpl>,
     rows: u16,
     cols: u16,
+    // Userdata for the write-pty/device-attributes callbacks; freed AFTER the
+    // terminal in Drop so no callback can fire on freed state.
+    callbacks: *mut TerminalCallbacks,
+}
+
+impl std::fmt::Debug for Terminal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Terminal")
+            .field("rows", &self.rows)
+            .field("cols", &self.cols)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Terminal {
@@ -85,7 +98,12 @@ impl Terminal {
             TermError::Init("ghostty_terminal_new succeeded but returned NULL handle".into())
         })?;
 
-        Ok(Self { handle, rows, cols })
+        Ok(Self {
+            handle,
+            rows,
+            cols,
+            callbacks: std::ptr::null_mut(),
+        })
     }
 
     pub fn rows(&self) -> u16 {
@@ -136,6 +154,51 @@ impl Terminal {
             ghostty_terminal_vt_write(self.handle.as_ptr(), data.as_ptr(), data.len());
         }
         Ok(())
+    }
+
+    /// Install the PTY write-back (TP14): libghostty then answers DSR/DA/ENQ
+    /// queries by handing the response bytes to `writer` — synchronously,
+    /// during `feed`, on the thread that owns this terminal. DA queries get
+    /// Ghostty's device identity (VT220 + ANSI color). Installing twice
+    /// replaces the previous writer.
+    pub fn set_pty_writer(&mut self, writer: Box<dyn FnMut(&[u8]) + 'static>) -> Result<()> {
+        let userdata = install_pty_writer(self.handle, writer)?;
+        let previous = self.callbacks;
+        self.callbacks = userdata;
+        // The old state (if any) is no longer referenced by the terminal:
+        // OPT_USERDATA now points at the new box.
+        drop_callbacks(previous);
+        Ok(())
+    }
+
+    /// The title the running program set via OSC 0/2, when any.
+    pub fn title(&self) -> Result<Option<String>> {
+        let mut raw = GhosttyString {
+            ptr: std::ptr::null(),
+            len: 0,
+        };
+        // SAFETY: live handle (&self); out pointer targets a local of the
+        // exact type DATA_TITLE documents. The returned string is borrowed —
+        // copied to an owned String before the next feed can invalidate it.
+        let result = unsafe {
+            ghostty_terminal_get(
+                self.handle.as_ptr(),
+                GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_TITLE,
+                (&raw mut raw).cast(),
+            )
+        };
+        if result != GhosttyResult_GHOSTTY_SUCCESS {
+            return Err(TermError::Mode(format!(
+                "ghostty_terminal_get(title) returned {result}"
+            )));
+        }
+        if raw.ptr.is_null() || raw.len == 0 {
+            return Ok(None);
+        }
+        // SAFETY: ptr/len come from libghostty and are valid until the next
+        // vt_write/reset; we copy immediately.
+        let bytes = unsafe { std::slice::from_raw_parts(raw.ptr, raw.len) };
+        Ok(Some(String::from_utf8_lossy(bytes).into_owned()))
     }
 
     /// Full terminal reset (the Ghostty `reset` keybind action): wipes
@@ -246,6 +309,9 @@ impl Drop for Terminal {
         // has not been freed before (Drop runs at most once), and is not
         // observed after this call (the Terminal is being destroyed).
         unsafe { ghostty_terminal_free(self.handle.as_ptr()) };
+        // Free the callback state only after the terminal is gone: callbacks
+        // fire during vt_write, which can no longer happen.
+        drop_callbacks(self.callbacks);
     }
 }
 
@@ -275,6 +341,45 @@ mod tests {
         // The failed resize must not corrupt the live dimensions.
         assert_eq!(terminal.rows(), 24);
         assert_eq!(terminal.cols(), 80);
+    }
+
+    #[test]
+    fn dsr_query_round_trips_through_the_pty_writer() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        let mut terminal = Terminal::new(24, 80).expect("terminal");
+        let written: Rc<RefCell<Vec<u8>>> = Rc::default();
+        let sink = Rc::clone(&written);
+        terminal
+            .set_pty_writer(Box::new(move |bytes| {
+                sink.borrow_mut().extend_from_slice(bytes);
+            }))
+            .expect("install writer");
+
+        // DSR cursor position (CSI 6 n) -> CSI 1;1R from the home position.
+        terminal.feed(b"\x1b[6n").expect("feed DSR");
+        assert_eq!(written.borrow().as_slice(), b"\x1b[1;1R");
+
+        // DA1 (CSI c) -> VT220 identity with our feature set.
+        written.borrow_mut().clear();
+        terminal.feed(b"\x1b[c").expect("feed DA1");
+        assert_eq!(written.borrow().as_slice(), b"\x1b[?62;22;52c");
+    }
+
+    #[test]
+    fn osc_title_is_readable_and_resets() {
+        let mut terminal = Terminal::new(24, 80).expect("terminal");
+        assert_eq!(terminal.title().expect("no title yet"), None);
+
+        terminal.feed(b"\x1b]2;mon-titre\x07").expect("feed OSC 2");
+        assert_eq!(
+            terminal.title().expect("title set"),
+            Some("mon-titre".to_string())
+        );
+
+        terminal.feed(b"\x1b]2;\x07").expect("feed empty title");
+        assert_eq!(terminal.title().expect("title cleared"), None);
     }
 
     #[test]

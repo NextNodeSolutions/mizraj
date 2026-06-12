@@ -35,6 +35,7 @@ describe('sessions atoms', () => {
 		expect(store.get(sessionsAtom)['sess-a']).toEqual({
 			id: 'sess-a',
 			binary: 'claude',
+			title: null,
 			output: [],
 			status: 'running',
 			exitCode: null,
@@ -119,12 +120,12 @@ describe('startAgentEventsBridge', () => {
 		return handler
 	}
 
-	it('subscribes to agent:output, agent:end and agent:cells exactly once each', () => {
+	it('subscribes to agent:output, agent:end, agent:cells and agent:title exactly once each', () => {
 		startAgentEventsBridge()
 		startAgentEventsBridge()
 		startAgentEventsBridge()
 
-		expect(listenMock).toHaveBeenCalledTimes(3)
+		expect(listenMock).toHaveBeenCalledTimes(4)
 		expect(listenMock).toHaveBeenNthCalledWith(
 			1,
 			AGENT_OUTPUT_EVENT,

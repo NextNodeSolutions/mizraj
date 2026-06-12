@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 mod cells;
+mod device;
 mod key;
 mod mouse;
 mod paste;
