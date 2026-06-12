@@ -41,12 +41,13 @@ fn user_config_dirs() -> Vec<PathBuf> {
     let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
     let mut dirs = vec![xdg_ghostty_dir(&home, xdg.as_deref())];
 
-    #[cfg(target_os = "macos")]
-    dirs.push(
-        home.join("Library")
-            .join("Application Support")
-            .join("com.mitchellh.ghostty"),
-    );
+    if cfg!(target_os = "macos") {
+        dirs.push(
+            home.join("Library")
+                .join("Application Support")
+                .join("com.mitchellh.ghostty"),
+        );
+    }
 
     dirs
 }
