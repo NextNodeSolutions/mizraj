@@ -42,6 +42,7 @@ vi.mock('@pierre/diffs/react', () => {
 })
 
 import { sessionsAtom, startSessionAtom } from '@/features/sessions/sessions'
+import { toastsAtom } from '@/shared/toasts'
 
 import { conversationsAtom } from './agentConversation'
 import { ReviewView } from './ReviewView'
@@ -77,6 +78,7 @@ describe('ReviewView', () => {
 		store.set(sessionsAtom, {})
 		store.set(viewedFilesAtom, {})
 		store.set(conversationsAtom, {})
+		store.set(toastsAtom, [])
 		invokeMock.mockReset()
 		invokeMock.mockImplementation((command: string) =>
 			command === 'get_diff'
@@ -114,6 +116,17 @@ describe('ReviewView', () => {
 				.querySelector('[data-testid="file-diff-stub"]')
 				?.getAttribute('data-file-name'),
 		).toBe('src/api/limiter.ts')
+	})
+
+	it('shows the review status dot and diff totals in the header', async () => {
+		await render()
+
+		const head = container.querySelector('.review__top')
+		expect(head?.querySelector('.sdot.sdot-rev')).not.toBeNull()
+		const stat = head?.querySelector('.stat')
+		expect(stat?.textContent).toContain('+3')
+		expect(stat?.textContent).toContain('−1')
+		expect(stat?.textContent).toContain('· 2 files')
 	})
 
 	it('switches the diff to a clicked file', async () => {
@@ -194,7 +207,7 @@ describe('ReviewView', () => {
 		expect(textarea?.value).toBe('')
 	})
 
-	it('request changes focuses the composer', async () => {
+	it('request changes focuses the composer and prompts via toast', async () => {
 		store.set(startSessionAtom, {
 			id: 'agent-1',
 			binary: 'claude',
@@ -210,6 +223,19 @@ describe('ReviewView', () => {
 		})
 
 		expect(document.activeElement).toBe(container.querySelector('textarea'))
+		expect(store.get(toastsAtom).map(toast => toast.message)).toContain(
+			'Describe the change you want from the agent',
+		)
+	})
+
+	it('renders approve & merge disabled until a merge backend exists', async () => {
+		await render()
+
+		const approve = Array.from(
+			container.querySelectorAll<HTMLButtonElement>('button'),
+		).find(button => button.textContent?.includes('Approve & merge'))
+		expect(approve?.disabled).toBe(true)
+		expect(approve?.title).toBe('Merge backend not wired yet')
 	})
 
 	it('reports a clean working tree', async () => {

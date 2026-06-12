@@ -6,6 +6,8 @@ import { useMemo, useRef, useState } from 'react'
 import { useDiff } from '@/features/diff/useDiff'
 import { BranchChip } from '@/features/projects/BranchChip'
 import { NEXTNODE_DIFF_THEME } from '@/shared/theme/shiki-nextnode'
+import { pushToast } from '@/shared/toasts'
+import { DiffStat, SDot } from '@/shared/ui/atoms'
 import { useLayoutToggle } from '@/shared/useLayoutToggle'
 
 import { diffTotals, reviewFilesFromParsed } from './reviewFiles'
@@ -53,6 +55,7 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 		files.find(file => file.path === selectedPath) ?? files[0] ?? null
 	const selectedMeta =
 		parsedFiles.find(file => file.name === selected?.path) ?? null
+	const totals = diffTotals(files)
 
 	if (state.status === 'idle') {
 		return <ReviewPlaceholder>No repository selected.</ReviewPlaceholder>
@@ -78,9 +81,15 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 	return (
 		<section className="review" aria-label="Diff review">
 			<header className="review__top">
-				<span className="status-dot" data-status="review" />
-				<h2>Working tree review</h2>
+				<SDot s="rev" />
 				<BranchChip repoPath={activeProjectPath} />
+				{/* TODO: per-branch task name once tasks link to branches. */}
+				<h2 className="review__title">Working tree review</h2>
+				<DiffStat
+					add={totals.additions}
+					del={totals.deletions}
+					files={totals.files}
+				/>
 				<div className="review__actions">
 					<div
 						className="review__view-seg"
@@ -108,10 +117,25 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 					</div>
 					<button
 						type="button"
-						className="review__request"
-						onClick={() => composeRef.current?.focus()}
+						className="btn btn-outline review__request"
+						onClick={() => {
+							composeRef.current?.focus()
+							pushToast(
+								'Describe the change you want from the agent',
+							)
+						}}
 					>
 						Request changes
+					</button>
+					{/* TODO: wire to a review_merge Tauri command (approve + merge into main) — backend missing.
+					    Once it exists: pushToast('Approved & merged into main') + navigate(missionControlHref()). */}
+					<button
+						type="button"
+						className="btn btn-primary review__approve"
+						disabled
+						title="Merge backend not wired yet"
+					>
+						✓ Approve & merge
 					</button>
 				</div>
 			</header>
@@ -135,7 +159,7 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 				</div>
 				<ReviewRail
 					repoPath={activeProjectPath}
-					totals={diffTotals(files)}
+					totals={totals}
 					selectedPath={selected?.path ?? null}
 					composeRef={composeRef}
 				/>
