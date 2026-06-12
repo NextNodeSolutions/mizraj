@@ -13,6 +13,7 @@ import {
 	missionControlHref,
 	navigate,
 	parseMissionFilter,
+	parseReviewFile,
 	pipelineHref,
 	plansIndexHref,
 	reviewHref,
@@ -68,6 +69,26 @@ describe('review route', () => {
 
 	it('rejects unrelated paths', () => {
 		expect(matchReviewRoute('/reviews')).toBe(false)
+	})
+
+	it('deep-links a file selection through the query string', () => {
+		expect(reviewHref('src/api/handler.ts')).toBe(
+			'/review?file=src%2Fapi%2Fhandler.ts',
+		)
+	})
+})
+
+describe('review file param', () => {
+	it('parses the preselected file from a search string', () => {
+		expect(parseReviewFile('?file=src%2Fapi%2Fhandler.ts')).toBe(
+			'src/api/handler.ts',
+		)
+	})
+
+	it('is null when absent or empty', () => {
+		expect(parseReviewFile('')).toBeNull()
+		expect(parseReviewFile('?file=')).toBeNull()
+		expect(parseReviewFile('?filter=running')).toBeNull()
 	})
 })
 

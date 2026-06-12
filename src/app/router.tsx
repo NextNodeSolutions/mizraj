@@ -50,7 +50,16 @@ export const parseMissionFilter = (search: string): MissionFilter => {
 
 export const pipelineHref = (): string => `/${PIPELINE_PATH_ROOT}`
 
-export const reviewHref = (): string => `/${REVIEW_PATH_ROOT}`
+export const reviewHref = (file?: string): string =>
+	file === undefined
+		? `/${REVIEW_PATH_ROOT}`
+		: `/${REVIEW_PATH_ROOT}?file=${encodeURIComponent(file)}`
+
+/** The file the review screen should preselect, when deep-linked. */
+export const parseReviewFile = (search: string): string | null => {
+	const value = new URLSearchParams(search).get('file')
+	return value !== null && value !== '' ? value : null
+}
 
 export const plansIndexHref = (): string => `/${PLANS_PATH_ROOT}`
 
