@@ -1,4 +1,5 @@
 import { MissionControl } from '@/features/missionControl/MissionControl'
+import { PipelineView } from '@/features/pipeline/PipelineView'
 import { PlanView } from '@/features/plans/PlanView'
 import { ReviewView } from '@/features/review/ReviewView'
 import { AgentRun } from '@/features/sessions/AgentRun'
@@ -7,6 +8,7 @@ import { TasksView } from '@/features/tasks/TasksView'
 import {
 	matchAgentRunRoute,
 	matchMissionControlRoute,
+	matchPipelineRoute,
 	matchReviewRoute,
 	matchTasksRoute,
 	usePathname,
@@ -31,6 +33,9 @@ export const MainContent = ({
 				sessionId={agentRunRoute.sessionId}
 			/>
 		)
+	}
+	if (matchPipelineRoute(pathname)) {
+		return <PipelineView activeProjectPath={activeProjectPath} />
 	}
 	if (matchReviewRoute(pathname)) {
 		return <ReviewView activeProjectPath={activeProjectPath} />

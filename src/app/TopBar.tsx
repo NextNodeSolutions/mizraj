@@ -4,9 +4,11 @@ import { RunAgentButton } from '@/features/sessions/RunAgentButton'
 
 import {
 	matchMissionControlRoute,
+	matchPipelineRoute,
 	matchTasksRoute,
 	missionControlHref,
 	navigate,
+	pipelineHref,
 	tasksHref,
 	usePathname,
 } from './router'
@@ -23,6 +25,7 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
 		href: missionControlHref(),
 		isActive: matchMissionControlRoute,
 	},
+	{ label: 'Pipeline', href: pipelineHref(), isActive: matchPipelineRoute },
 	{ label: 'Tasks', href: tasksHref(), isActive: matchTasksRoute },
 ]
 

@@ -1,6 +1,7 @@
 @import './Toasts.css';
 @import '../features/missionControl/MissionControl.css';
 @import '../features/review/Review.css';
+@import '../features/pipeline/Pipeline.css';
 
 /* Bundled fallback fonts — parity with Ghostty's embedded JetBrains Mono +
  * Nerd symbols: when the user's configured font-family is missing (or lacks
