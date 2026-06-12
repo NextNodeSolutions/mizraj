@@ -3,7 +3,10 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use mizraj_term::{encode_paste, Dirty, KeyEncoder, MouseEncoder, MouseInput, RenderState, ScrollViewport, Terminal};
+use mizraj_term::{
+    encode_paste, Dirty, KeyEncoder, MouseEncoder, MouseInput, RenderState, ScrollViewport,
+    Terminal,
+};
 use tauri::async_runtime::Sender as PtyInputSender;
 use tauri::{AppHandle, Emitter, Runtime};
 
@@ -101,30 +104,21 @@ impl TermSink {
     }
 
     /// Same as [`new`](Self::new) but with the frame transport abstracted: the
-    /// render thread hands every emitted [`CellFrame`] to `emit`. Production
-    /// wraps `app.emit`; tests capture frames on a channel.
+    /// render thread hands every emitted [`CellFrame`] to `emit`. Test-only —
+    /// production always goes through `new` (which wraps `app.emit`), hence
+    /// the cfg gate keeping the non-test build warning-free.
+    #[cfg(test)]
     fn with_emitter<E>(emit: E, session_id: SessionId, pty_input: PtyInputSender<Vec<u8>>) -> Self
     where
         E: Fn(CellFrame) + Send + 'static,
     {
-        Self::with_emitter_and_scrollback(
+        Self::with_emitters(
             emit,
+            |_| {},
             session_id,
             pty_input,
             mizraj_term::DEFAULT_MAX_SCROLLBACK_LINES,
         )
-    }
-
-    fn with_emitter_and_scrollback<E>(
-        emit: E,
-        session_id: SessionId,
-        pty_input: PtyInputSender<Vec<u8>>,
-        scrollback_lines: usize,
-    ) -> Self
-    where
-        E: Fn(CellFrame) + Send + 'static,
-    {
-        Self::with_emitters(emit, |_| {}, session_id, pty_input, scrollback_lines)
     }
 
     fn with_emitters<E, T>(
@@ -273,7 +267,11 @@ impl<E: Fn(CellFrame), T: Fn(Option<String>)> RenderLoop<E, T> {
         scrollback_lines: usize,
     ) -> Option<Self> {
         let sid = session_id.as_str();
-        let mut terminal = match Terminal::with_scrollback(DEFAULT_ROWS, DEFAULT_COLS, scrollback_lines) {
+        let mut terminal = match Terminal::with_scrollback(
+            DEFAULT_ROWS,
+            DEFAULT_COLS,
+            scrollback_lines,
+        ) {
             Ok(terminal) => terminal,
             Err(err) => {
                 tracing::error!(session_id = sid, error = %err, "terminal init failed; no cell frames");
@@ -682,7 +680,9 @@ mod tests {
 
         sink.write(b"\x1b]2;\x07");
         assert_eq!(
-            title_rx.recv_timeout(FRAME_WAIT).expect("title reset broadcast"),
+            title_rx
+                .recv_timeout(FRAME_WAIT)
+                .expect("title reset broadcast"),
             None
         );
     }
