@@ -1,3 +1,8 @@
+/* v2 layer first: tokens then shared components, so the later v1 rules
+ * below keep winning ties while both vocabularies coexist. */
+@import './styles/tokens.css';
+@import './styles/components.css';
+
 @import './Toasts.css';
 @import '../features/missionControl/MissionControl.css';
 @import '../features/review/Review.css';
@@ -107,9 +112,10 @@
 	--terminal-bg: #1e1e1e;
 	--terminal-fg: #e6e6e6;
 
-	font-family:
-		'MonoLisa Nerd Font', 'MonoLisa', ui-monospace, SFMono-Regular,
-		'SF Mono', Menlo, Consolas, monospace;
+	/* v2: the app chrome is sans (--font-ui); mono is opt-in via --font-mono.
+	 * The terminal canvas resolves its own fonts from the Ghostty config and
+	 * never reads this. */
+	font-family: var(--font-ui);
 	font-size: 14px;
 	line-height: 22px;
 	font-weight: 400;
@@ -1200,18 +1206,23 @@
 	gap: 0.5rem;
 }
 
-a {
+/* v1 element styles, scoped to the v1 shell: every v1 surface renders
+ * inside <main class="container"> (no portals), while the v2 components
+ * layer styles its own classes and must not inherit these. :where() keeps
+ * the specificity at element level so any class rule wins. Deleted with
+ * the v1 shell. */
+:where(.container, .error-boundary) a {
 	font-weight: 500;
 	color: var(--color-link);
 	text-decoration: inherit;
 }
 
-a:hover {
+:where(.container, .error-boundary) a:hover {
 	color: var(--color-link-hover);
 }
 
-input,
-button {
+:where(.container, .error-boundary) input,
+:where(.container, .error-boundary) button {
 	border-radius: 8px;
 	border: 1px solid var(--color-border);
 	padding: 0.6em 1.2em;
@@ -1224,25 +1235,25 @@ button {
 	box-shadow: var(--shadow-input);
 }
 
-button {
+:where(.container, .error-boundary) button {
 	cursor: pointer;
 }
 
-button:hover {
+:where(.container, .error-boundary) button:hover {
 	border-color: var(--color-accent);
 }
 
-button:active {
+:where(.container, .error-boundary) button:active {
 	border-color: var(--color-accent-hover);
 	background-color: var(--color-surface);
 }
 
-input,
-button {
+:where(.container, .error-boundary) input,
+:where(.container, .error-boundary) button {
 	outline: none;
 }
 
-input:focus,
-button:focus-visible {
+:where(.container, .error-boundary) input:focus,
+:where(.container, .error-boundary) button:focus-visible {
 	border-color: var(--color-accent);
 }
