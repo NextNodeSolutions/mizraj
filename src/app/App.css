@@ -1,3 +1,5 @@
+@import './Toasts.css';
+
 /* Bundled fallback fonts — parity with Ghostty's embedded JetBrains Mono +
  * Nerd symbols: when the user's configured font-family is missing (or lacks
  * Nerd glyphs), the terminal still gets ligatures and icons instead of Menlo.
