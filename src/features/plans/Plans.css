@@ -235,3 +235,23 @@
 	margin-top: 24px;
 	flex-wrap: wrap;
 }
+
+/* ---- interview Q&A typography ----
+   Unused until docs ship structured content (see the native-rendering
+   TODO in PlanPaper); defines the plan-doc voice for that future. */
+.interview-q {
+	border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+	padding: 2px 0 2px 16px;
+	margin: 0 0 18px;
+}
+.interview-q .q {
+	font-size: var(--fs-body);
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
+.interview-q .a {
+	font-size: var(--fs-body);
+	color: var(--text-2);
+	line-height: 1.55;
+	margin-top: 4px;
+}

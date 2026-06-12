@@ -49,6 +49,7 @@ const PlanRow = ({ entry, nowMs, onSelect }: RowProps): React.JSX.Element => {
 			)}
 			<span className="pl-row-text">
 				<span className="lr-t">{entry.title}</span>
+				{/* TODO: interview question count — read_interview_state(slug) returns untyped state.json (phase, rounds_completed); no qa/question count guaranteed */}
 				<span className="lr-b">{updatedLabel(nowMs, entry.mtime)}</span>
 			</span>
 		</a>

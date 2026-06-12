@@ -198,6 +198,15 @@ describe('PlansView', () => {
 		)
 	})
 
+	it('describes the open interview in the meta line', async () => {
+		window.history.pushState({}, '', '/plans/interview/auth-hardening')
+		await render()
+
+		expect(container.querySelector('.pl-doc-meta')?.textContent).toBe(
+			'interview · updated 1h ago',
+		)
+	})
+
 	type ServeOptions = {
 		entries?: typeof PLAN_ENTRIES
 		overview?: OverviewFixture
