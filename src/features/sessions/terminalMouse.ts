@@ -21,7 +21,10 @@ export const cellAtPoint = (
 	metrics: Metrics,
 	grid: GridSize,
 ): CellPoint => ({
-	col: Math.min(grid.cols - 1, Math.max(0, Math.floor(x / metrics.cellWidth))),
+	col: Math.min(
+		grid.cols - 1,
+		Math.max(0, Math.floor(x / metrics.cellWidth)),
+	),
 	row: Math.min(
 		grid.rows - 1,
 		Math.max(0, Math.floor(y / metrics.lineHeight)),

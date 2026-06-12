@@ -50,7 +50,10 @@ describe('subscribeToCellFrames', () => {
 	})
 
 	it('stays quiet when the session is already gone (not_found)', async () => {
-		invokeMock.mockRejectedValue({ kind: 'not_found', session_id: 'sess-1' })
+		invokeMock.mockRejectedValue({
+			kind: 'not_found',
+			session_id: 'sess-1',
+		})
 
 		const release = subscribeToCellFrames('sess-1')
 		release()
