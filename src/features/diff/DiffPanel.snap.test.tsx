@@ -82,7 +82,7 @@ describe('DiffPanel snapshot', () => {
 	it('renders the dock with file rows and a unified preview', async () => {
 		await mount()
 		expect(container.innerHTML).toMatchInlineSnapshot(
-			`"<aside class="panel fc-diffs" aria-label="Diffs"><header class="panel-head"><h3>Diffs</h3><span class="ph-count">1 files</span><span class="mz-spacer"></span><button type="button" class="btn btn-sm btn-outline">Open review ↗</button></header><div class="fc-dfiles"><button type="button" class="dfile" data-on="true"><span class="nm">foo.ts</span><span class="stat"><span class="add">+1</span> <span class="del">−1</span></span></button></div><div class="fc-dhunk"><div data-testid="file-diff-stub" data-file-name="foo.ts" data-diff-style="unified"></div></div></aside>"`,
+			`"<aside class="panel fc-diffs" aria-label="Diffs"><header class="panel-head"><span class="grip" title="Drag to rearrange module" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span><h3>Diffs</h3><span class="ph-count">1 files</span><span class="mz-spacer"></span><button type="button" class="btn btn-sm btn-outline">Open review ↗</button></header><div class="fc-dfiles"><button type="button" class="dfile" data-on="true"><span class="nm">foo.ts</span><span class="stat"><span class="add">+1</span> <span class="del">−1</span></span></button></div><div class="fc-dhunk"><div data-testid="file-diff-stub" data-file-name="foo.ts" data-diff-style="unified"></div></div></aside>"`,
 		)
 	})
 })

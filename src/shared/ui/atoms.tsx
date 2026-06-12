@@ -74,13 +74,26 @@ type PanelHeadProps = {
 	children?: React.ReactNode
 }
 
-// The design's .grip drag handle is omitted: decorative only, no behavior.
+// The grip is the design's modularity affordance — six dots revealed on panel
+// hover. Decorative for now (no drag behavior), hence aria-hidden.
 export const PanelHead = ({
 	title,
 	count,
 	children,
 }: PanelHeadProps): React.JSX.Element => (
 	<header className="panel-head">
+		<span
+			className="grip"
+			title="Drag to rearrange module"
+			aria-hidden="true"
+		>
+			<i />
+			<i />
+			<i />
+			<i />
+			<i />
+			<i />
+		</span>
 		<h3>{title}</h3>
 		{count !== undefined && <span className="ph-count">{count}</span>}
 		<span className="mz-spacer" />

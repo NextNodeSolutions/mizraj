@@ -128,5 +128,14 @@ describe('atoms', () => {
 			expect(head?.querySelector('.ph-count')).toBeNull()
 			expect(head?.querySelector('button')?.textContent).toBe('act')
 		})
+
+		it('leads with the modularity grip affordance', () => {
+			render(<PanelHead title="Sessions" />)
+
+			const grip = container.querySelector('header.panel-head .grip')
+			expect(grip?.getAttribute('title')).toBe('Drag to rearrange module')
+			expect(grip?.getAttribute('aria-hidden')).toBe('true')
+			expect(grip?.querySelectorAll('i')).toHaveLength(6)
+		})
 	})
 })

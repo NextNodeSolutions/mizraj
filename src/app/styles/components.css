@@ -438,16 +438,6 @@ button {
 	font-size: var(--fs-xs);
 	border-radius: var(--r-xs);
 }
-.btn-danger-ghost {
-	background: transparent;
-	border-color: transparent;
-	color: var(--ctp-red);
-}
-.btn-danger-ghost:hover {
-	background: var(--fill-del);
-	box-shadow: none;
-}
-
 .mz-iconbtn {
 	width: var(--h-control);
 	height: var(--h-control);
@@ -544,12 +534,6 @@ button {
 		opacity: 1;
 	}
 }
-.mz-rail .rail-sep {
-	width: 26px;
-	height: 1px;
-	background: var(--border);
-	margin: 6px 0;
-}
 .mz-rail .rail-badge {
 	position: absolute;
 	top: 4px;
@@ -585,10 +569,6 @@ button {
 .mz-view[data-state='in'] {
 	animation: viewIn var(--t-slow) var(--ease-out) both;
 }
-.mz-view[data-state='out'] {
-	animation: viewOut var(--t-med) var(--ease-out) both;
-	pointer-events: none;
-}
 @keyframes viewIn {
 	from {
 		opacity: 0;
@@ -599,17 +579,6 @@ button {
 		opacity: 1;
 		transform: none;
 		filter: blur(0);
-	}
-}
-@keyframes viewOut {
-	from {
-		opacity: 1;
-		transform: none;
-	}
-	to {
-		opacity: 0;
-		transform: translateY(-10px) scale(0.995);
-		filter: blur(2px);
 	}
 }
 /* staggered children entrance */
@@ -847,19 +816,6 @@ button {
 	white-space: pre-wrap;
 	word-break: break-word;
 }
-.term-line[data-new='true'] {
-	animation: termLine calc(0.3s / var(--mspd)) var(--ease-out) both;
-}
-@keyframes termLine {
-	from {
-		opacity: 0;
-		transform: translateY(5px);
-	}
-	to {
-		opacity: 1;
-		transform: none;
-	}
-}
 .t-dim {
 	color: var(--ctp-overlay1);
 }
@@ -869,14 +825,8 @@ button {
 .t-y {
 	color: var(--ctp-yellow);
 }
-.t-b {
-	color: var(--ctp-blue);
-}
 .t-r {
 	color: var(--ctp-red);
-}
-.t-m {
-	color: var(--ctp-mauve);
 }
 .caret {
 	display: inline-block;
@@ -1118,52 +1068,6 @@ html[data-theme='latte'] .toast[data-show] {
 	padding: 12px 10px 5px;
 }
 
-/* ---- diff line primitives ---- */
-.dl {
-	display: flex;
-	font-family: var(--font-mono);
-	font-size: var(--fs-mono-sm);
-	line-height: 1.7;
-	white-space: pre;
-	position: relative;
-}
-.dl .dl-gut {
-	display: flex;
-	flex: none;
-	color: var(--text-3);
-	user-select: none;
-}
-.dl .dl-gut span {
-	width: 40px;
-	text-align: right;
-	padding-right: 9px;
-}
-.dl .dl-sign {
-	width: 18px;
-	flex: none;
-	text-align: center;
-	color: var(--text-3);
-	user-select: none;
-}
-.dl .dl-code {
-	flex: 1;
-	padding-right: 14px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-.dl-add {
-	background: var(--fill-add);
-}
-.dl-add .dl-sign {
-	color: var(--c-add);
-}
-.dl-del {
-	background: var(--fill-del);
-}
-.dl-del .dl-sign {
-	color: var(--c-del);
-}
-
 /* keep topbar controls on one line */
 .btn,
 .mz-proj,
@@ -1180,12 +1084,7 @@ html[data-theme='latte'] .toast[data-show] {
 /* reduced motion: show end-states, kill loops */
 @media (prefers-reduced-motion: reduce) {
 	.mz-view[data-state='in'],
-	.stagger > *,
-	.term-line[data-new='true'],
-	.kcard[data-anim],
-	.rv-code .dl[data-new='true'],
-	.inline-cmt,
-	.msg {
+	.stagger > * {
 		animation: none !important;
 	}
 	.sdot-run::after,
