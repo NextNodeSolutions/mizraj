@@ -29,6 +29,9 @@ export type SessionState = {
 	output: ReadonlyArray<OutputChunk>
 	status: SessionStatus
 	exitCode: number | null
+	/// Epoch ms the session was registered — what relative "age" labels are
+	/// computed from.
+	startedAt: number
 }
 
 export type AgentOutputPayload = {
@@ -74,6 +77,7 @@ export const startSessionAtom = atom(
 				output: [],
 				status: 'running',
 				exitCode: null,
+				startedAt: Date.now(),
 			},
 		})
 	},

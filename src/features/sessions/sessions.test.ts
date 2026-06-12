@@ -30,6 +30,9 @@ describe('sessions atoms', () => {
 	})
 
 	it('startSessionAtom registers a fresh session with empty output and running status', () => {
+		vi.useFakeTimers()
+		vi.setSystemTime(1_750_000_000_000)
+
 		store.set(startSessionAtom, {
 			id: 'sess-a',
 			binary: 'claude',
@@ -44,7 +47,9 @@ describe('sessions atoms', () => {
 			output: [],
 			status: 'running',
 			exitCode: null,
+			startedAt: 1_750_000_000_000,
 		})
+		vi.useRealTimers()
 	})
 
 	it('appendOutputAtom pushes chunks in order onto the matching session', () => {
