@@ -1,11 +1,13 @@
 import { MissionControl } from '@/features/missionControl/MissionControl'
 import { PlanView } from '@/features/plans/PlanView'
+import { ReviewView } from '@/features/review/ReviewView'
 import { AgentRun } from '@/features/sessions/AgentRun'
 import { TasksView } from '@/features/tasks/TasksView'
 
 import {
 	matchAgentRunRoute,
 	matchMissionControlRoute,
+	matchReviewRoute,
 	matchTasksRoute,
 	usePathname,
 } from './router'
@@ -29,6 +31,9 @@ export const MainContent = ({
 				sessionId={agentRunRoute.sessionId}
 			/>
 		)
+	}
+	if (matchReviewRoute(pathname)) {
+		return <ReviewView activeProjectPath={activeProjectPath} />
 	}
 	if (matchTasksRoute(pathname)) {
 		return <TasksView repoPath={activeProjectPath} />

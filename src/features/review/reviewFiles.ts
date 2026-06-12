@@ -1,4 +1,5 @@
 import { parsePatchFiles } from '@pierre/diffs'
+import type { FileDiffMetadata } from '@pierre/diffs'
 
 export type ReviewFileChange = 'added' | 'modified' | 'deleted' | 'renamed'
 
@@ -24,28 +25,31 @@ const CHANGE_BY_PATCH_TYPE: Readonly<Record<string, ReviewFileChange>> = {
 }
 
 /**
- * Flatten a raw unified patch into the review tree's model: one entry per
- * file with its change kind and +/− line counts. Parsing is delegated to
- * `@pierre/diffs` — the same parser that renders the diff — so the tree and
- * the diff pane can never disagree.
+ * Project parsed patch files onto the review tree's model: one entry per
+ * file with its change kind and +/− line counts. Callers that already
+ * parsed the patch for rendering pass the same metadata here, so the tree
+ * and the diff pane can never disagree.
  */
+export const reviewFilesFromParsed = (
+	files: ReadonlyArray<FileDiffMetadata>,
+): ReadonlyArray<ReviewFile> =>
+	files.map(file => ({
+		path: file.name,
+		change: CHANGE_BY_PATCH_TYPE[file.type] ?? 'modified',
+		additions: file.hunks.reduce(
+			(sum, hunk) => sum + hunk.additionLines,
+			0,
+		),
+		deletions: file.hunks.reduce(
+			(sum, hunk) => sum + hunk.deletionLines,
+			0,
+		),
+	}))
+
 export const reviewFilesFromPatch = (
 	patch: string,
 ): ReadonlyArray<ReviewFile> =>
-	parsePatchFiles(patch)
-		.flatMap(parsed => parsed.files)
-		.map(file => ({
-			path: file.name,
-			change: CHANGE_BY_PATCH_TYPE[file.type] ?? 'modified',
-			additions: file.hunks.reduce(
-				(sum, hunk) => sum + hunk.additionLines,
-				0,
-			),
-			deletions: file.hunks.reduce(
-				(sum, hunk) => sum + hunk.deletionLines,
-				0,
-			),
-		}))
+	reviewFilesFromParsed(parsePatchFiles(patch).flatMap(parsed => parsed.files))
 
 export const diffTotals = (files: ReadonlyArray<ReviewFile>): DiffTotals => ({
 	files: files.length,
