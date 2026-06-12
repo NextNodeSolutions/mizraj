@@ -1,15 +1,17 @@
-import { useAtomValue } from 'jotai'
-import { useMemo } from 'react'
+import { useAtomValue, useSetAtom } from 'jotai'
+import { useMemo, useState } from 'react'
 
 import { useDiff } from '@/features/diff/useDiff'
 import { diffTotals, reviewFilesFromPatch } from '@/features/review/reviewFiles'
 import type { DiffTotals } from '@/features/review/reviewFiles'
 import { useSessions } from '@/features/sessions/useSessions'
 import { useTasks } from '@/features/tasks/tasks'
+import { pushToast } from '@/shared/toasts'
 
-import { approvedSessionIdsAtom } from './approvedSessions'
+import { approvedSessionIdsAtom, approveSessionAtom } from './approvedSessions'
 import { PipelineColumn } from './PipelineColumn'
 import { pipelineColumns } from './pipelineColumns'
+import { PipelineMergedCard } from './PipelineMergedCard'
 import { PipelineSessionCard } from './PipelineSessionCard'
 import { PipelineTaskCard } from './PipelineTaskCard'
 
@@ -37,7 +39,28 @@ export const PipelineView = ({
 	const { state, refetch } = useTasks(activeProjectPath)
 	const sessions = useSessions()
 	const approvedSessionIds = useAtomValue(approvedSessionIdsAtom)
+	const approveSession = useSetAtom(approveSessionAtom)
 	const reviewStat = useWorkingTreeTotals(activeProjectPath)
+	// Session ids whose card just changed column (launched or approved) —
+	// those mount with the spring entrance. 'both' animation fill means no
+	// cleanup is needed; the set dies with the view.
+	const [freshSessionIds, setFreshSessionIds] = useState<ReadonlySet<string>>(
+		new Set(),
+	)
+
+	const markFresh = (sessionId: string): void => {
+		setFreshSessionIds(previous => new Set(previous).add(sessionId))
+	}
+
+	const approve = (sessionId: string): void => {
+		//TODO: real merge — backend has no approve/merge command (no `git
+		// merge`/branch-integration Tauri command in src-tauri/src/lib.rs);
+		// wire to a future `merge_session_branch`-style command and drop the
+		// client-only approvedSessionIdsAtom
+		approveSession(sessionId)
+		markFresh(sessionId)
+		pushToast('Merged into main')
+	}
 
 	if (activeProjectPath === null) {
 		return (
@@ -79,6 +102,7 @@ export const PipelineView = ({
 							repoPath={activeProjectPath}
 							onChanged={refetch}
 							isFirst={index === 0}
+							onLaunched={markFresh}
 						/>
 					))}
 				</PipelineColumn>
@@ -92,6 +116,7 @@ export const PipelineView = ({
 						<PipelineSessionCard
 							key={session.id}
 							session={session}
+							fresh={freshSessionIds.has(session.id)}
 						/>
 					))}
 					{columns.inProgressTasks.map(entry => (
@@ -114,11 +139,13 @@ export const PipelineView = ({
 							nothing waiting on you
 						</p>
 					)}
-					{columns.endedSessions.map(session => (
+					{columns.endedSessions.map((session, index) => (
 						<PipelineSessionCard
 							key={session.id}
 							session={session}
 							stat={reviewStat}
+							isFirst={index === 0}
+							onApprove={() => approve(session.id)}
 						/>
 					))}
 				</PipelineColumn>
@@ -128,6 +155,13 @@ export const PipelineView = ({
 					dot="done"
 					si={3}
 				>
+					{columns.doneSessions.map(session => (
+						<PipelineMergedCard
+							key={session.id}
+							session={session}
+							fresh={freshSessionIds.has(session.id)}
+						/>
+					))}
 					{columns.done.map(entry => (
 						<PipelineTaskCard
 							key={entry.task.id}

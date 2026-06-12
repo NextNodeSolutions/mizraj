@@ -24,7 +24,7 @@ describe('approvedSessions', () => {
 		store.set(approveSessionAtom, 'sess-1')
 		store.set(approveSessionAtom, 'sess-2')
 
-		expect([...store.get(approvedSessionIdsAtom)].sort()).toEqual([
+		expect([...store.get(approvedSessionIdsAtom)].toSorted()).toEqual([
 			'sess-1',
 			'sess-2',
 		])

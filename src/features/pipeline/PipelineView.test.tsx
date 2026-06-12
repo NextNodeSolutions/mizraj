@@ -52,7 +52,9 @@ import type {
 	WireCell,
 } from '@/features/sessions/terminalWire'
 import type { Overview } from '@/features/tasks/tasks'
+import { toastsAtom } from '@/shared/toasts'
 
+import { approvedSessionIdsAtom } from './approvedSessions'
 import { PipelineView } from './PipelineView'
 
 const cell = (ch: string): WireCell => ({
@@ -209,6 +211,7 @@ describe('PipelineView', () => {
 	beforeEach(() => {
 		store.set(sessionsAtom, {})
 		store.set(cellFramesAtom, {})
+		store.set(approvedSessionIdsAtom, new Set<string>())
 		invokeMock.mockReset()
 		invokeMock.mockImplementation((command: string) => {
 			if (command === 'tasks_overview') return Promise.resolve(OVERVIEW)
@@ -464,6 +467,84 @@ describe('PipelineView', () => {
 		expect(
 			column('Review')?.querySelector('.pipeline__card .stat'),
 		).toBeNull()
+	})
+
+	const reviewableSession = (id: string): void => {
+		store.set(startSessionAtom, {
+			id,
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		store.set(endSessionAtom, { sessionId: id, exitCode: 0 })
+	}
+
+	const approveButtons = (): ReadonlyArray<HTMLButtonElement> =>
+		Array.from(
+			column('Review')?.querySelectorAll<HTMLButtonElement>('button') ??
+				[],
+		).filter(button => button.textContent?.includes('Approve'))
+
+	it('makes only the first review approve primary', async () => {
+		reviewableSession('rev-1')
+		reviewableSession('rev-2')
+		await render()
+
+		const approvals = approveButtons()
+		expect(approvals).toHaveLength(2)
+		expect(approvals[0]?.className).toContain('btn-primary')
+		expect(approvals[1]?.className).toContain('btn-outline')
+		expect(approvals[1]?.className).not.toContain('btn-primary')
+	})
+
+	it('approves a review card into done as a merged card', async () => {
+		reviewableSession('rev-1')
+		reviewableSession('rev-2')
+		await render()
+
+		await act(async () => {
+			approveButtons()[0]?.click()
+		})
+
+		expect(
+			column('Review')?.querySelectorAll('.pipeline__card'),
+		).toHaveLength(1)
+		const doneCards = Array.from(
+			column('Done')?.querySelectorAll('.pipeline__card') ?? [],
+		)
+		// The merged session is prepended above done tasks.
+		expect(doneCards[0]?.querySelector('.tag')?.textContent).toBe('merged')
+		expect(doneCards[0]?.textContent).toContain('✓ merged into main')
+		expect(doneCards[0]?.getAttribute('data-done')).toBe('true')
+		expect(doneCards[0]?.getAttribute('data-anim')).toBe('in')
+		expect(doneCards[1]?.textContent).toContain('CSV export')
+		expect(
+			column('Done')?.querySelector('.pipeline__count')?.textContent,
+		).toBe('2')
+		expect(store.get(toastsAtom).map(toast => toast.message)).toContain(
+			'Merged into main',
+		)
+	})
+
+	it('springs the freshly launched session card into running', async () => {
+		await render()
+
+		const launch = Array.from(
+			column('Backlog')?.querySelectorAll<HTMLButtonElement>('button') ??
+				[],
+		).find(button => button.textContent?.includes('Launch agent'))
+		await act(async () => {
+			launch?.click()
+		})
+
+		const freshCard = column('Running')?.querySelector(
+			'.pipeline__card[data-anim="in"]',
+		)
+		expect(freshCard?.textContent).toContain('claude')
+		// Cards that did not just move carry no entrance animation.
+		const taskCard = Array.from(
+			column('Running')?.querySelectorAll('.pipeline__card') ?? [],
+		).find(candidate => candidate.textContent?.includes('Refactor auth'))
+		expect(taskCard?.getAttribute('data-anim')).toBeNull()
 	})
 
 	it('launches an agent from a backlog card', async () => {

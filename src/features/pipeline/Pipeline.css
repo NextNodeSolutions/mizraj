@@ -113,6 +113,25 @@
 	opacity: 0.85;
 }
 
+/* spring entrance for a card that just changed column (launch, approve) */
+.pipeline__card[data-anim='in'] {
+	animation: pipeline-card-in calc(0.5s / var(--mspd)) var(--ease-spring) both;
+}
+
+@keyframes pipeline-card-in {
+	0% {
+		transform: scale(0.85) translateY(-6px);
+		opacity: 0;
+	}
+	60% {
+		transform: scale(1.03);
+	}
+	100% {
+		transform: none;
+		opacity: 1;
+	}
+}
+
 .pipeline__card-row {
 	display: flex;
 	align-items: center;
@@ -197,5 +216,13 @@
 	.pipeline__cols {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		overflow-y: auto;
+	}
+}
+
+/* reduced motion: the shared layer already stills .stagger children, the
+   running-dot sonar and the caret — only the board's own animation remains */
+@media (prefers-reduced-motion: reduce) {
+	.pipeline__card[data-anim] {
+		animation: none !important;
 	}
 }

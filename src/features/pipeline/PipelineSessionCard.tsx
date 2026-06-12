@@ -22,6 +22,12 @@ type Props = {
 	session: SessionState
 	/** Working-tree diff totals, shown on ended cards (null while loading). */
 	stat?: DiffTotals | null
+	/** Just moved into this column — mounts with the spring entrance. */
+	fresh?: boolean
+	/** First card of its column — its Approve renders as the primary button. */
+	isFirst?: boolean
+	/** Approve handler for review cards; the view owns the optimistic move. */
+	onApprove?: () => void
 }
 
 const stopSession = (sessionId: string): void => {
@@ -53,6 +59,9 @@ const TerminalPreview = ({ tail }: TerminalPreviewProps): React.JSX.Element => (
 export const PipelineSessionCard = ({
 	session,
 	stat = null,
+	fresh = false,
+	isFirst = false,
+	onApprove,
 }: Props): React.JSX.Element => {
 	const status = sessionDisplayStatus(session)
 	const frame = useCellFrame(session.id)
@@ -68,7 +77,11 @@ export const PipelineSessionCard = ({
 	useEffect(() => subscribeToCellFrames(session.id), [session.id])
 
 	return (
-		<article className="pipeline__card" data-status={status}>
+		<article
+			className="pipeline__card"
+			data-status={status}
+			data-anim={fresh ? 'in' : undefined}
+		>
 			<div className="pipeline__card-row">
 				<StatusTag status={status} />
 				{repoLabel !== null && (
@@ -86,13 +99,26 @@ export const PipelineSessionCard = ({
 			)}
 			<div className="pipeline__card-actions">
 				{status === 'review' ? (
-					<button
-						type="button"
-						className="btn btn-outline btn-sm"
-						onClick={() => navigate(reviewHref())}
-					>
-						Review
-					</button>
+					<>
+						<button
+							type="button"
+							className={
+								isFirst
+									? 'btn btn-primary btn-sm'
+									: 'btn btn-outline btn-sm'
+							}
+							onClick={onApprove}
+						>
+							✓ Approve
+						</button>
+						<button
+							type="button"
+							className="btn btn-outline btn-sm"
+							onClick={() => navigate(reviewHref())}
+						>
+							Review
+						</button>
+					</>
 				) : (
 					<button
 						type="button"
