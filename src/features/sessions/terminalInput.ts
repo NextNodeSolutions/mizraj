@@ -27,6 +27,9 @@ type KeyStroke = {
 	shift: boolean
 }
 
+// W3C legacy keyCode value meaning "processed by the input method".
+const IME_PROCESSED_KEYCODE = 229
+
 // Lone modifier presses carry no input on their own; built once, not per keystroke.
 const LONE_MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta'])
 
@@ -61,6 +64,12 @@ const propagateKey = (sessionId: string, stroke: KeyStroke): void => {
 export type RoutedKeydown = {
 	key: string
 	code: string
+	/// Legacy keyCode, kept for ONE signal: 229 marks a keydown the OS text
+	/// input system already consumed (dead-key commit, IME) — observed in
+	/// WebKit as e.g. `key:"'", code:"Space", keyCode:229` fired AFTER the
+	/// compositionend that delivered the apostrophe. No modern field carries
+	/// this; xterm.js gates on the same value.
+	keyCode: number
 	ctrlKey: boolean
 	altKey: boolean
 	shiftKey: boolean
@@ -84,6 +93,15 @@ type RouteDeps = {
 	/// focused element). When true, printable keys are left alone so the OS
 	/// composes them (dead keys, option chars, IME) and `beforeinput` delivers.
 	composerActive: () => boolean
+	/// Abandon any in-flight composition in the composer WITHOUT committing its
+	/// text — used when a keybind fires on a dead-key chord (option+n) so the
+	/// pending dead char never reaches the PTY.
+	cancelComposition: () => void
+	/// Whether the composer holds in-flight text (a dead key or IME composition
+	/// awaiting its commit). While true, every printable key must reach the
+	/// composer — on US-International, the space after a dead `'` IS the commit
+	/// keystroke; encoding it directly would double-deliver (`' ` instead of `'`).
+	composerBusy: () => boolean
 }
 
 // An unbound key's fate: cmd/super belongs to the app/OS, a dead key to the
@@ -102,6 +120,11 @@ const routeUnboundKey = (
 ): void => {
 	if (event.metaKey) return
 	if (event.key === 'Dead') return
+	// The OS text input system already owns this keydown (keyCode 229): its
+	// text was/will be delivered through the composer's composition events.
+	// Encoding it here would double-deliver — `'`+space on US-International
+	// commits the apostrophe via compositionend AND fires this keydown.
+	if (event.keyCode === IME_PROCESSED_KEYCODE) return
 
 	const printable = [...event.key].length === 1
 	const altIsMeta = event.altKey && deps.altIsMeta()
@@ -118,7 +141,21 @@ const routeUnboundKey = (
 		return
 	}
 
-	if (deps.composerActive()) return
+	// Word-boundary characters (space, punctuation, digits) are exactly what
+	// macOS autocorrect/inline prediction buffers in a composition inside the
+	// composer, deferring delivery until the NEXT keystroke commits it. They
+	// can never START a composition themselves (a dead key arrives as key
+	// "Dead"), so they encode directly — UNLESS one is already in flight
+	// (composerBusy): then this keystroke may be its commit (dead `'` + space
+	// = `'` on US-International) and must reach the composer. Letters always
+	// stay with the composer: press-and-hold accents and dead-key sequences
+	// need the OS text machinery.
+	if (
+		deps.composerActive() &&
+		(deps.composerBusy() || /\p{L}/u.test(event.key))
+	) {
+		return
+	}
 	event.preventDefault()
 	deps.propagate(sessionId, {
 		code: event.code,
@@ -138,7 +175,10 @@ export const createKeydownRoute =
 	(event: RoutedKeydown): void => {
 		// The IME owns the stream mid-composition; its commit arrives through
 		// the composer's composition/beforeinput events, never as keystrokes.
-		if (event.isComposing) return
+		// EXCEPT modifier chords: a dead-key chord (option+n → dead "~") makes
+		// WebKit fire compositionstart BEFORE the chord's own keydown, so an
+		// alt/ctrl binding must still reach the matcher mid-composition.
+		if (event.isComposing && !event.ctrlKey && !event.altKey) return
 		if (LONE_MODIFIER_KEYS.has(event.key)) return
 		if (isInteractiveTarget(event.target)) return
 		const sessionId = deps.activeSessionId()
@@ -160,6 +200,12 @@ export const createKeydownRoute =
 				deps.canPerform(result.action, context)
 			) {
 				event.preventDefault()
+				// A dead-key chord already opened a composition (or will,
+				// since the dead char was pressed): drop it so the pending
+				// "~"-style char never commits to the PTY.
+				if (event.isComposing || event.key === 'Dead') {
+					deps.cancelComposition()
+				}
 				deps.execute(result.action, context)
 				return
 			}
@@ -169,6 +215,7 @@ export const createKeydownRoute =
 			return
 		}
 
+		if (event.isComposing) return
 		routeUnboundKey(deps, event, sessionId)
 	}
 
@@ -195,15 +242,26 @@ const deliverComposedText = (
 // The hidden composer: a real text field so macOS runs its input machinery
 // (dead keys, press-and-hold accents, IME) against the terminal. It never
 // accumulates content — every insertion is intercepted and forwarded.
-const createComposer = (
-	activeSessionId: () => string | null,
-): HTMLTextAreaElement => {
+type Composer = {
+	element: HTMLTextAreaElement
+	/// Abandon an in-flight composition without committing its text.
+	cancelComposition: () => void
+	/// Whether a composition (dead key, IME) is awaiting its commit.
+	busy: () => boolean
+}
+
+const createComposer = (activeSessionId: () => string | null): Composer => {
 	const composer = document.createElement('textarea')
 	composer.dataset[COMPOSER_FLAG] = 'true'
 	composer.setAttribute('aria-label', 'Terminal input')
 	composer.autocapitalize = 'off'
 	composer.autocomplete = 'off'
 	composer.spellcheck = false
+	// WebKit-specific switches: without them macOS autocorrect/inline
+	// prediction wraps plain keystrokes (notably the space ending a word) in a
+	// composition, deferring delivery until the next keypress commits it.
+	composer.setAttribute('autocorrect', 'off')
+	composer.setAttribute('writingsuggestions', 'false')
 	composer.tabIndex = -1
 	composer.style.position = 'fixed'
 	composer.style.left = '0'
@@ -241,12 +299,40 @@ const createComposer = (
 		}
 	})
 
+	// Cancellation path: blurring the composer makes WebKit COMMIT the pending
+	// composition (compositionend with data), so the flag swallows that one
+	// commit. `composing` guards the flag so a cancel outside a composition can
+	// never eat a future legitimate commit.
+	let composing = false
+	let suppressCommit = false
+	composer.addEventListener('compositionstart', () => {
+		composing = true
+	})
 	composer.addEventListener('compositionend', (event: CompositionEvent) => {
-		if (event.data) deliverComposedText(activeSessionId, event.data)
+		composing = false
+		if (suppressCommit) {
+			suppressCommit = false
+		} else if (event.data) {
+			deliverComposedText(activeSessionId, event.data)
+		}
 		composer.value = ''
 	})
 
-	return composer
+	const cancelComposition = (): void => {
+		composer.value = ''
+		if (!composing || document.activeElement !== composer) return
+		suppressCommit = true
+		composer.blur()
+		composer.focus({ preventScroll: true })
+	}
+
+	// `composing` covers implementations that fire composition events for dead
+	// keys; the value check covers any that only stage marked text (every
+	// committed insertion is prevented or cleared, so a non-empty value can
+	// only be in-flight composition text).
+	const busy = (): boolean => composing || composer.value !== ''
+
+	return { element: composer, cancelComposition, busy }
 }
 
 let routerStarted = false
@@ -271,7 +357,11 @@ export const startTerminalInputRouter = (): void => {
 		matcher = createKeybindMatcher(store.get(keybindTableAtom))
 	})
 
-	const composer = createComposer(activeSessionId)
+	const {
+		element: composer,
+		cancelComposition,
+		busy: composerBusy,
+	} = createComposer(activeSessionId)
 	document.body.appendChild(composer)
 
 	// Which Option side is physically down: KeyboardEvent.altKey can't say, so
@@ -323,6 +413,8 @@ export const startTerminalInputRouter = (): void => {
 		propagate: propagateKey,
 		altIsMeta,
 		composerActive: () => document.activeElement === composer,
+		cancelComposition,
+		composerBusy,
 	})
 
 	window.addEventListener('keydown', event => {

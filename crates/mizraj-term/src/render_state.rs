@@ -94,6 +94,11 @@ pub struct RenderState {
     handle: NonNull<GhosttyRenderStateImpl>,
     row_iter: NonNull<GhosttyRenderStateRowIteratorImpl>,
     row_cells: NonNull<GhosttyRenderStateRowCellsImpl>,
+    /// Cursor as of the previous `update`. libghostty does not flag relative
+    /// cursor moves (CUF/CUB/CUU/CUD — e.g. Ink advancing past a typed space
+    /// with `CSI 1C`) as dirty, only absolute ones, so `update` compares the
+    /// cursor itself and upgrades a Clean report to Partial when it moved.
+    last_cursor: Option<Option<Cursor>>,
 }
 
 /// Build the `void* out` argument every `ghostty_*_get` call expects: a pointer
@@ -179,6 +184,7 @@ impl RenderState {
             handle,
             row_iter,
             row_cells,
+            last_cursor: None,
         })
     }
 
@@ -195,7 +201,13 @@ impl RenderState {
                 "ghostty_render_state_update returned {r}"
             )));
         }
-        self.read_dirty()
+        let dirty = self.read_dirty()?;
+        let cursor = self.cursor()?;
+        let moved = self.last_cursor.replace(cursor) != Some(cursor);
+        if dirty == Dirty::Clean && moved {
+            return Ok(Dirty::Partial);
+        }
+        Ok(dirty)
     }
 
     /// Current dirty state without re-pulling from the terminal.

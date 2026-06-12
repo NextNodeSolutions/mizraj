@@ -11,11 +11,14 @@ const deps = {
 	propagate: vi.fn(),
 	altIsMeta: vi.fn<() => boolean>(),
 	composerActive: vi.fn<() => boolean>(),
+	cancelComposition: vi.fn(),
+	composerBusy: vi.fn<() => boolean>(),
 }
 
 const keydown = (overrides: Partial<RoutedKeydown>): RoutedKeydown => ({
 	key: 'c',
 	code: 'KeyC',
+	keyCode: 0,
 	ctrlKey: false,
 	altKey: false,
 	shiftKey: false,
@@ -34,6 +37,8 @@ describe('createKeydownRoute', () => {
 		deps.propagate.mockReset()
 		deps.altIsMeta.mockReset().mockReturnValue(false)
 		deps.composerActive.mockReset().mockReturnValue(false)
+		deps.cancelComposition.mockReset()
+		deps.composerBusy.mockReset().mockReturnValue(false)
 	})
 
 	it('executes a matched binding and sends nothing to the PTY', () => {
@@ -147,6 +152,109 @@ describe('createKeydownRoute', () => {
 		route(event)
 
 		expect(deps.feed).not.toHaveBeenCalled()
+		expect(deps.propagate).not.toHaveBeenCalled()
+		expect(event.preventDefault).not.toHaveBeenCalled()
+	})
+
+	it('matches an alt binding on a dead-key chord mid-composition', () => {
+		// option+n on a US layout: WebKit opens a composition for the dead "~"
+		// before the chord's own keydown, so isComposing is already true.
+		deps.feed.mockReturnValue({
+			kind: 'action',
+			action: { kind: 'new_split', direction: 'right' },
+			performable: false,
+		})
+		const route = createKeydownRoute(deps)
+		const event = keydown({
+			key: 'Dead',
+			code: 'KeyN',
+			altKey: true,
+			isComposing: true,
+		})
+
+		route(event)
+
+		expect(deps.execute).toHaveBeenCalledWith(
+			{ kind: 'new_split', direction: 'right' },
+			{ sessionId: 'sess-1' },
+		)
+		expect(deps.cancelComposition).toHaveBeenCalled()
+		expect(deps.propagate).not.toHaveBeenCalled()
+		expect(event.preventDefault).toHaveBeenCalled()
+	})
+
+	it('leaves an unmatched alt chord mid-composition to the composer', () => {
+		const route = createKeydownRoute(deps)
+		const event = keydown({
+			key: 'Dead',
+			code: 'KeyI',
+			altKey: true,
+			isComposing: true,
+		})
+
+		route(event)
+
+		expect(deps.feed).toHaveBeenCalled()
+		expect(deps.propagate).not.toHaveBeenCalled()
+		expect(deps.cancelComposition).not.toHaveBeenCalled()
+		expect(event.preventDefault).not.toHaveBeenCalled()
+	})
+
+	it('encodes word-boundary chars directly even with the composer focused', () => {
+		// macOS inline prediction would buffer the space in a composition and
+		// only commit it on the next keystroke — so space/punctuation bypass
+		// the composer.
+		deps.composerActive.mockReturnValue(true)
+		const route = createKeydownRoute(deps)
+
+		const space = keydown({ key: ' ', code: 'Space' })
+		route(space)
+		expect(deps.propagate).toHaveBeenLastCalledWith('sess-1', {
+			code: 'Space',
+			text: ' ',
+			ctrl: false,
+			alt: false,
+			shift: false,
+		})
+		expect(space.preventDefault).toHaveBeenCalled()
+
+		const period = keydown({ key: '.', code: 'Period' })
+		route(period)
+		expect(deps.propagate).toHaveBeenLastCalledWith('sess-1', {
+			code: 'Period',
+			text: '.',
+			ctrl: false,
+			alt: false,
+			shift: false,
+		})
+	})
+
+	it('ignores IME-processed keydowns (keyCode 229) — dead-key commits', () => {
+		// US-International, dead `'` + space: WebKit delivers the apostrophe
+		// via compositionend, then fires a ghost keydown key:"'" code:"Space"
+		// keyCode:229 AFTER it. Encoding that keydown doubles the character.
+		deps.composerActive.mockReturnValue(true)
+		const route = createKeydownRoute(deps)
+
+		const commit = keydown({ key: "'", code: 'Space', keyCode: 229 })
+		route(commit)
+		const accent = keydown({ key: 'é', code: 'KeyE', keyCode: 229 })
+		route(accent)
+
+		expect(deps.propagate).not.toHaveBeenCalled()
+		expect(commit.preventDefault).not.toHaveBeenCalled()
+	})
+
+	it('leaves the commit space to the composer while a dead key is pending', () => {
+		// US-International: dead `'` then space must yield a lone `'` — the
+		// space IS the commit keystroke, so it must not also encode directly.
+		deps.composerActive.mockReturnValue(true)
+		deps.composerBusy.mockReturnValue(true)
+		const route = createKeydownRoute(deps)
+		const event = keydown({ key: ' ', code: 'Space' })
+
+		route(event)
+
 		expect(deps.propagate).not.toHaveBeenCalled()
 		expect(event.preventDefault).not.toHaveBeenCalled()
 	})
