@@ -1,5 +1,9 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
+
+use mizraj_vcs::branch::{current_branch, Head};
+use mizraj_vcs::repo_open;
+use serde::Serialize;
 
 use crate::db::{self, Db};
 
@@ -54,6 +58,37 @@ pub async fn clear_active_project(
     db.clear().await;
     active_project.clear();
     Ok(())
+}
+
+/// What the UI shows as "where am I": the checked-out branch, or a detached
+/// HEAD marker.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub struct RepoHead {
+    pub branch: Option<String>,
+    pub detached: bool,
+}
+
+/// Return the active project's HEAD as a displayable payload.
+#[tauri::command]
+pub fn repo_head(active_project: tauri::State<'_, ActiveProject>) -> Result<RepoHead, String> {
+    let repo_path = active_project
+        .get()
+        .ok_or_else(|| "no active project".to_string())?;
+    repo_head_inner(&repo_path)
+}
+
+fn repo_head_inner(repo_path: &Path) -> Result<RepoHead, String> {
+    let repo = repo_open(repo_path).map_err(|e| e.to_string())?;
+    match current_branch(&repo).map_err(|e| e.to_string())? {
+        Head::Branch(name) => Ok(RepoHead {
+            branch: Some(name),
+            detached: false,
+        }),
+        Head::Detached => Ok(RepoHead {
+            branch: None,
+            detached: true,
+        }),
+    }
 }
 
 fn validate_repo_path(repo_path: &str) -> Result<PathBuf, String> {
@@ -129,5 +164,33 @@ mod tests {
         let path = tmp.path().to_string_lossy().to_string();
         let canonical = validate_repo_path(&path).expect("validate");
         assert!(canonical.is_dir());
+    }
+
+    #[test]
+    fn repo_head_reports_the_checked_out_branch() {
+        use mizraj_vcs::git2::{Repository, RepositoryInitOptions};
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut opts = RepositoryInitOptions::new();
+        opts.external_template(false);
+        opts.initial_head("feat/ui");
+        Repository::init_opts(dir.path(), &opts).expect("init repo");
+
+        let head = repo_head_inner(dir.path()).expect("repo_head");
+
+        assert_eq!(
+            head,
+            RepoHead {
+                branch: Some("feat/ui".to_string()),
+                detached: false,
+            }
+        );
+    }
+
+    #[test]
+    fn repo_head_fails_outside_a_repository() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let err = repo_head_inner(dir.path()).expect_err("non-repo should fail");
+        assert!(!err.is_empty());
     }
 }

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 
 import { navigate, reviewHref } from '@/app/router'
 import { DiffPanel } from '@/features/diff/DiffPanel'
+import { BranchChip } from '@/features/projects/BranchChip'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
@@ -48,6 +49,7 @@ export const AgentRun = ({ sessionId }: Props): React.JSX.Element => {
 							</span>
 						)}
 					</span>
+					<BranchChip repoPath={session?.repoPath ?? null} />
 					<button
 						type="button"
 						className="cockpit__stop"

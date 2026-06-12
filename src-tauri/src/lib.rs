@@ -54,6 +54,7 @@ pub fn run() {
             plans::list::list_plans,
             project::set_active_project,
             project::clear_active_project,
+            project::repo_head,
             tasks::tasks_overview,
             tasks::tasks_create,
             tasks::tasks_update,

@@ -4,6 +4,7 @@ import { FileDiff } from '@pierre/diffs/react'
 import { useMemo, useRef, useState } from 'react'
 
 import { useDiff } from '@/features/diff/useDiff'
+import { BranchChip } from '@/features/projects/BranchChip'
 import { NEXTNODE_DIFF_THEME } from '@/shared/theme/shiki-nextnode'
 import { useLayoutToggle } from '@/shared/useLayoutToggle'
 
@@ -83,6 +84,7 @@ export const ReviewView = ({
 			<header className="review__top">
 				<span className="status-dot" data-status="review" />
 				<h2>Working tree review</h2>
+				<BranchChip repoPath={activeProjectPath} />
 				<div className="review__actions">
 					<div
 						className="review__view-seg"
