@@ -57,11 +57,10 @@ const RoutedScreen = ({
 		)
 	}
 	if (matchAgentRunIndexRoute(pathname)) {
-		// Placeholder for the no-session cockpit; restyled in phase B.
 		return (
-			<p className="cockpit-empty">
-				No session yet — launch an agent or open a terminal.
-			</p>
+			<div className="fc-empty">
+				<p>No session yet — launch an agent or open a terminal.</p>
+			</div>
 		)
 	}
 	if (matchPipelineRoute(pathname)) {

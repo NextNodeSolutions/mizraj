@@ -63,7 +63,7 @@ describe('MainContent', () => {
 		window.history.pushState({}, '', '/agent-run')
 		render()
 
-		expect(container.querySelector('.cockpit-empty')?.textContent).toBe(
+		expect(container.querySelector('.fc-empty p')?.textContent).toBe(
 			'No session yet — launch an agent or open a terminal.',
 		)
 	})
