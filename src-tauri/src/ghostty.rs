@@ -6,12 +6,17 @@
 //! command. The pure `ResolvedConfig -> wire DTO` mapping lives in [`dto`].
 
 mod dto;
+mod watch;
 
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use mizraj_config::{load, Appearance, LoadOptions};
+use notify::RecommendedWatcher;
+use tauri::{AppHandle, Emitter, Runtime};
 
 use dto::{build_dto, GhosttyConfigDto};
+use watch::{spawn_config_watcher, GHOSTTY_CONFIG_CHANGED_EVENT};
 
 /// The directory that holds `$XDG_CONFIG_HOME/ghostty` (defaulting XDG to
 /// `$HOME/.config`).
@@ -27,25 +32,34 @@ fn config_files_in(dir: &Path) -> [PathBuf; 2] {
     [dir.join("config"), dir.join("config.ghostty")]
 }
 
+/// The user-editable Ghostty config directories, in load order: the XDG dir
+/// always, plus the macOS Application Support location. These are both the
+/// roots the loader reads from and the roots the hot-reload watcher observes
+/// (their `themes/` subdirs included, by recursion).
+fn user_config_dirs() -> Vec<PathBuf> {
+    let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
+    let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
+    let mut dirs = vec![xdg_ghostty_dir(&home, xdg.as_deref())];
+
+    #[cfg(target_os = "macos")]
+    dirs.push(
+        home.join("Library")
+            .join("Application Support")
+            .join("com.mitchellh.ghostty"),
+    );
+
+    dirs
+}
+
 /// Resolve the Ghostty config files (load order) and theme search dirs from the
 /// environment. macOS adds the Application Support locations and the installed
 /// Ghostty app's bundled themes; Linux adds the system theme dir.
 fn load_options(appearance: Appearance) -> LoadOptions {
-    let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
-    let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
-    let ghostty_dir = xdg_ghostty_dir(&home, xdg.as_deref());
-
-    let mut config_dirs = vec![ghostty_dir.clone()];
-    let mut theme_dirs = vec![ghostty_dir.join("themes")];
+    let config_dirs = user_config_dirs();
+    let mut theme_dirs: Vec<PathBuf> = config_dirs.iter().map(|dir| dir.join("themes")).collect();
 
     #[cfg(target_os = "macos")]
     {
-        let support = home
-            .join("Library")
-            .join("Application Support")
-            .join("com.mitchellh.ghostty");
-        theme_dirs.push(support.join("themes"));
-        config_dirs.push(support);
         // Best-effort secondary source for a default Ghostty install. This is a
         // fallback only: M1 bundles the theme corpus inside the app so parity
         // does not depend on an external Ghostty install or its exact location
@@ -69,6 +83,22 @@ fn load_options(appearance: Appearance) -> LoadOptions {
         theme_dirs,
         appearance,
     }
+}
+
+/// Keeps the config watcher alive for the app's lifetime (dropping a `notify`
+/// watcher silently stops its notifications). Managed as Tauri state; `None`
+/// when no config directory exists, in which case hot reload is simply off.
+pub struct ConfigWatchGuard(#[allow(dead_code)] Mutex<Option<RecommendedWatcher>>);
+
+/// Watch the user's Ghostty config directories and broadcast
+/// `ghostty:config-changed` on every (debounced) change so the frontend
+/// re-pulls the resolved config (DG3 hot reload).
+pub fn start_config_watcher<R: Runtime>(app: &AppHandle<R>) -> ConfigWatchGuard {
+    let emitter = app.clone();
+    let watcher = spawn_config_watcher(user_config_dirs(), move || {
+        let _ = emitter.emit(GHOSTTY_CONFIG_CHANGED_EVENT, ());
+    });
+    ConfigWatchGuard(Mutex::new(watcher))
 }
 
 fn parse_appearance(value: &str) -> Appearance {

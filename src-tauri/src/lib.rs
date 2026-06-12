@@ -37,6 +37,9 @@ pub fn run() {
             // is resolved and opened lazily when a project becomes active (see
             // `set_active_project`). Until then the `Db` state holds no pool.
             app.manage(SessionManager::new());
+            // Managed for keep-alive: dropping the guard would stop hot reload.
+            let config_watch = ghostty::start_config_watcher(app.handle());
+            app.manage(config_watch);
             #[cfg(all(desktop, not(debug_assertions)))]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;

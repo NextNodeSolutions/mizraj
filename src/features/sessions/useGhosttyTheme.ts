@@ -1,8 +1,10 @@
+import { useAtomValue } from 'jotai'
 import { useEffect } from 'react'
 
 import { useAppearance } from '@/features/settings/settings'
 
 import { loadGhosttyConfig } from './ghosttyConfig'
+import { ghosttyConfigEpochAtom } from './ghosttyConfigBridge'
 import { ghosttyThemeTokens, THEME_TOKEN_KEYS } from './ghosttyTheme'
 
 // Synchronizes <html>'s inline theme variables with the resolved Ghostty theme.
@@ -11,8 +13,10 @@ import { ghosttyThemeTokens, THEME_TOKEN_KEYS } from './ghosttyTheme'
 // previously written theme tokens, then writes the fresh set when a theme is
 // present. The async fetch is guarded so a late resolution never paints a
 // torn-down (appearance-changed) scope. Mount once near the top of App.
+// Re-runs when the on-disk config changes (epoch bump = hot reload).
 export const useGhosttyTheme = (): void => {
 	const appearance = useAppearance()
+	const configEpoch = useAtomValue(ghosttyConfigEpochAtom)
 
 	useEffect(() => {
 		let cancelled = false
@@ -36,5 +40,5 @@ export const useGhosttyTheme = (): void => {
 			cancelled = true
 			clearThemeTokens()
 		}
-	}, [appearance])
+	}, [appearance, configEpoch])
 }

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { getDefaultStore } from 'jotai'
+import { getDefaultStore, useAtomValue } from 'jotai'
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 
@@ -15,6 +15,7 @@ import {
 	resolveFont,
 } from './ghosttyConfig'
 import { fetchSessionFrame } from './fetchSessionFrame'
+import { ghosttyConfigEpochAtom } from './ghosttyConfigBridge'
 import { cellFramesAtom } from './sessions'
 import { subscribeToCellFrames } from './sessionSubscription'
 import { buildFontTable } from './terminalAttrs'
@@ -104,6 +105,9 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const canvasRef = useRef<HTMLCanvasElement>(null)
 	const appearance = useAppearance()
+	// Hot reload (DG3): an on-disk config edit bumps the epoch, tearing the
+	// render scope down and rebuilding it against the fresh config.
+	const configEpoch = useAtomValue(ghosttyConfigEpochAtom)
 
 	// Subscription is keyed on the session alone — an appearance flip must not
 	// blink the backend's emission gate, only re-derive the render config below.
@@ -141,7 +145,7 @@ export const useTerminalCanvas = (sessionId: string): TerminalCanvasHandles => {
 			cancelled = true
 			teardown?.()
 		}
-	}, [sessionId, appearance])
+	}, [sessionId, appearance, configEpoch])
 
 	return { containerRef, canvasRef }
 }
