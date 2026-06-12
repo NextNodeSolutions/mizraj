@@ -1,7 +1,10 @@
+import { getDefaultStore } from 'jotai'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toastsAtom } from '@/shared/toasts'
 
 const invokeMock = vi.hoisted(() => vi.fn())
 
@@ -26,20 +29,23 @@ vi.mock('@/shared/logger', () => ({
 
 import { PlansView } from './PlansView'
 
+const SECONDS_PER_HOUR = 3600
+const nowSeconds = Math.floor(Date.now() / 1000)
+
 const PLAN_ENTRIES = [
 	{
 		kind: 'plan',
 		slug: 'auth-hardening',
 		title: 'Auth hardening',
 		url: 'plan://plan/auth-hardening',
-		mtime: 2,
+		mtime: nowSeconds - 2 * SECONDS_PER_HOUR,
 	},
 	{
 		kind: 'interview',
 		slug: 'auth-hardening',
 		title: 'Auth hardening — interview',
 		url: 'plan://interview/auth-hardening',
-		mtime: 1,
+		mtime: nowSeconds - 1 * SECONDS_PER_HOUR,
 	},
 ]
 
@@ -82,6 +88,42 @@ describe('PlansView', () => {
 		expect(container.textContent).toContain('Select a plan')
 	})
 
+	it('lists plan documents before interviews', async () => {
+		await render()
+
+		const firstRow = container.querySelector('a')
+		expect(firstRow?.getAttribute('href')).toBe(
+			'/plans/plan/auth-hardening',
+		)
+	})
+
+	it('toasts that new interviews come from the agent workflow', async () => {
+		await render()
+
+		const button = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="New interview"]',
+		)
+		await act(async () => {
+			button?.click()
+		})
+
+		const messages = getDefaultStore()
+			.get(toastsAtom)
+			.map(toast => toast.message)
+		expect(messages).toContain(
+			'New interview — Claude asks, you answer, a plan comes out',
+		)
+	})
+
+	it('shows how long ago each entry was updated', async () => {
+		await render()
+
+		const planRow = container.querySelector(
+			'a[href="/plans/plan/auth-hardening"]',
+		)
+		expect(planRow?.textContent).toContain('updated 2h ago')
+	})
+
 	it('opens the selected plan document', async () => {
 		window.history.pushState({}, '', '/plans/plan/auth-hardening')
 		await render()
@@ -95,15 +137,16 @@ describe('PlansView', () => {
 		await render()
 
 		const current = container.querySelector('[aria-current="page"]')
-		expect(current?.textContent).toBe('Auth hardening')
+		expect(current?.getAttribute('href')).toBe('/plans/plan/auth-hardening')
+		expect(current?.textContent).toContain('Auth hardening')
 	})
 
 	it('navigates to a plan from the list', async () => {
 		await render()
 
-		const link = Array.from(
-			container.querySelectorAll<HTMLAnchorElement>('a'),
-		).find(anchor => anchor.textContent === 'Auth hardening')
+		const link = container.querySelector<HTMLAnchorElement>(
+			'a[href="/plans/plan/auth-hardening"]',
+		)
 		await act(async () => {
 			link?.click()
 		})

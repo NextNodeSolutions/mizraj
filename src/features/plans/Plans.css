@@ -1,1 +1,66 @@
-/* v2 screen styles — populated by the screen task */
+/* ============================================================
+   PLANS v2 — screen-specific styles (pl-* / interview-q only).
+   Shared primitives (.panel, .panel-head, .lrow, .lgroup, .tag,
+   .branch, .btn, .mz-iconbtn, .stagger) live in
+   src/app/styles/components.css — never redeclared here.
+   ============================================================ */
+
+.pl-wrap {
+	flex: 1;
+	min-height: 0;
+	display: grid;
+	grid-template-columns: 262px 1fr;
+	gap: var(--sp-gap);
+	padding: var(--sp-gap) var(--sp-panel) var(--sp-panel);
+}
+.pl-list-panel,
+.pl-doc-panel {
+	overflow: hidden;
+}
+/* stagger index of the second panel (the first keeps the --si default 0) */
+.pl-wrap > .pl-doc-panel {
+	--si: 1;
+}
+
+/* ---- list panel ---- */
+.pl-list-panel .panel-head .mz-iconbtn {
+	width: 24px;
+	height: 24px;
+	font-size: 12px;
+}
+.pl-list-panel .panel-head .mz-iconbtn svg {
+	width: 12px;
+	height: 12px;
+}
+.pl-list {
+	flex: 1;
+	overflow-y: auto;
+	padding: 4px 8px 10px;
+}
+.pl-list .lrow {
+	text-decoration: none;
+	color: inherit;
+}
+/* the design keys selection on data-on; the app keeps anchor semantics */
+.pl-list .lrow[aria-current='page'] {
+	background: var(--fill-accent);
+	border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.pl-glyph {
+	margin-top: 3px;
+	color: var(--text-3);
+}
+.pl-glyph-pen {
+	font-family: var(--font-mono);
+	font-size: 13px;
+}
+.pl-row-text {
+	min-width: 0;
+}
+.pl-empty {
+	margin: 0;
+	padding: 4px 10px;
+	font-size: var(--fs-sm);
+	color: var(--text-3);
+	text-align: left;
+}
