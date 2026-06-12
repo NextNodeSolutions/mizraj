@@ -1,5 +1,8 @@
-/* v2 layer first: tokens then shared components, so the later v1 rules
- * below keep winning ties while both vocabularies coexist. */
+/* App-level sheet: the v2 token/component layers load first, then the
+ * per-screen sheets; below them only what genuinely lives at the shell
+ * level remains — fonts, base, the not-yet-redesigned tasks screen,
+ * the terminal canvas panes, the settings dialog and the error
+ * boundary. Palettes and semantic tokens live in styles/tokens.css. */
 @import './styles/tokens.css';
 @import './styles/components.css';
 
@@ -8,15 +11,17 @@
 @import '../features/review/Review.css';
 @import '../features/pipeline/Pipeline.css';
 @import '../features/palette/Palette.css';
-/* v2 per-screen styles (stubs until the phase B screen tasks fill them) */
 @import '../features/plans/Plans.css';
 @import '../features/sessions/Cockpit.css';
 
-/* Bundled fallback fonts — parity with Ghostty's embedded JetBrains Mono +
- * Nerd symbols: when the user's configured font-family is missing (or lacks
- * Nerd glyphs), the terminal still gets ligatures and icons instead of Menlo.
- * Faces load lazily on first use; ghosttyConfigCache pre-loads them before
- * measuring the cell box so metrics never come from an interim fallback. */
+/* ============================================================
+   Bundled fallback fonts — parity with Ghostty's embedded JetBrains
+   Mono + Nerd symbols: when the user's configured font-family is
+   missing (or lacks Nerd glyphs), the terminal still gets ligatures
+   and icons instead of Menlo. Faces load lazily on first use;
+   ghosttyConfigCache pre-loads them before measuring the cell box so
+   metrics never come from an interim fallback.
+   ============================================================ */
 @font-face {
 	font-family: 'JetBrainsMono Nerd Font Mono';
 	src: url('/fonts/JetBrainsMonoNerdFontMono-Regular.ttf') format('truetype');
@@ -49,73 +54,22 @@
 	font-style: normal;
 }
 
-/* Catppuccin palettes
- * https://github.com/catppuccin/catppuccin
- */
+/* ============================================================
+   Base — terminal defaults + shell typography. Theme switching is
+   html[data-theme='latte'|'frappe'|'macchiato'|'mocha'] in tokens.css
+   (usePaletteTheme writes the resolved palette name).
+   ============================================================ */
 :root {
-	/* Latte (light) — default semantic tokens */
-	--ctp-rosewater: #dc8a78;
-	--ctp-flamingo: #dd7878;
-	--ctp-pink: #ea76cb;
-	--ctp-mauve: #8839ef;
-	--ctp-red: #d20f39;
-	--ctp-maroon: #e64553;
-	--ctp-peach: #fe640b;
-	--ctp-yellow: #df8e1d;
-	--ctp-green: #40a02b;
-	--ctp-teal: #179299;
-	--ctp-sky: #04a5e5;
-	--ctp-sapphire: #209fb5;
-	--ctp-blue: #1e66f5;
-	--ctp-lavender: #7287fd;
-	--ctp-text: #4c4f69;
-	--ctp-subtext1: #5c5f77;
-	--ctp-subtext0: #6c6f85;
-	--ctp-overlay2: #7c7f93;
-	--ctp-overlay1: #8c8fa1;
-	--ctp-overlay0: #9ca0b0;
-	--ctp-surface2: #acb0be;
-	--ctp-surface1: #bcc0cc;
-	--ctp-surface0: #ccd0da;
-	--ctp-base: #eff1f5;
-	--ctp-mantle: #e6e9ef;
-	--ctp-crust: #dce0e8;
-
-	/* Semantic tokens — light */
-	--color-bg: var(--ctp-base);
-	--color-bg-elevated: #ffffff;
-	--color-surface: var(--ctp-mantle);
-	--color-text: var(--ctp-text);
-	--color-text-muted: var(--ctp-subtext0);
-	--color-border: var(--ctp-surface1);
-	--color-border-subtle: var(--ctp-surface0);
-	--color-accent: var(--ctp-blue);
-	--color-accent-hover: var(--ctp-sapphire);
-	--color-link: var(--ctp-blue);
-	--color-link-hover: var(--ctp-lavender);
-	--color-hover-overlay: rgba(76, 79, 105, 0.08);
-	--color-active-overlay: rgba(76, 79, 105, 0.14);
-	--color-backdrop: rgba(76, 79, 105, 0.45);
-	--shadow-elevated: 0 20px 60px rgba(76, 79, 105, 0.25);
-	--shadow-input: 0 2px 2px rgba(76, 79, 105, 0.15);
-
-	/* Session display-status hues + diff stats — follow the Catppuccin
-	   palette per theme via the --ctp-* indirection. */
-	--color-running: var(--ctp-green);
-	--color-review: var(--ctp-yellow);
-	--color-failed: var(--ctp-red);
-	--color-diff-add: var(--ctp-green);
-	--color-diff-del: var(--ctp-red);
-
 	/* Terminal default colors — what a cell's `Color::Default` resolves to.
 	   Single source of truth: the canvas renderer reads these via
 	   getComputedStyle (see useTerminalCanvas). Theme-independent on purpose —
-	   the terminal stays dark regardless of the app's light/dark theme, so they
-	   live in base :root only, not the per-theme overrides. */
+	   the terminal stays dark regardless of the app theme, so they live in
+	   base :root only; a resolved Ghostty theme overrides them inline on
+	   <html> (useGhosttyTheme). */
 	--terminal-bg: #1e1e1e;
 	--terminal-fg: #e6e6e6;
 
-	/* v2: the app chrome is sans (--font-ui); mono is opt-in via --font-mono.
+	/* The app chrome is sans (--font-ui); mono is opt-in via --font-mono.
 	 * The terminal canvas resolves its own fonts from the Ghostty config and
 	 * never reads this. */
 	font-family: var(--font-ui);
@@ -123,8 +77,8 @@
 	line-height: 22px;
 	font-weight: 400;
 
-	color: var(--color-text);
-	background-color: var(--color-bg);
+	color: var(--text);
+	background-color: var(--bg);
 
 	font-synthesis: none;
 	text-rendering: optimizeLegibility;
@@ -133,252 +87,10 @@
 	-webkit-text-size-adjust: 100%;
 }
 
-/* Mocha (dark) palette + semantic tokens.
- * data-theme now carries the RESOLVED palette name (usePaletteTheme writes
- * 'mocha'/'latte'), so the v1 dark vocabulary also matches 'mocha' until
- * the last v1 class is gone; 'dark' and the 'system' media block below are
- * kept for that same cleanup. */
-:root[data-theme='dark'],
-:root[data-theme='mocha'] {
-	--ctp-rosewater: #f5e0dc;
-	--ctp-flamingo: #f2cdcd;
-	--ctp-pink: #f5c2e7;
-	--ctp-mauve: #cba6f7;
-	--ctp-red: #f38ba8;
-	--ctp-maroon: #eba0ac;
-	--ctp-peach: #fab387;
-	--ctp-yellow: #f9e2af;
-	--ctp-green: #a6e3a1;
-	--ctp-teal: #94e2d5;
-	--ctp-sky: #89dceb;
-	--ctp-sapphire: #74c7ec;
-	--ctp-blue: #89b4fa;
-	--ctp-lavender: #b4befe;
-	--ctp-text: #cdd6f4;
-	--ctp-subtext1: #bac2de;
-	--ctp-subtext0: #a6adc8;
-	--ctp-overlay2: #9399b2;
-	--ctp-overlay1: #7f849c;
-	--ctp-overlay0: #6c7086;
-	--ctp-surface2: #585b70;
-	--ctp-surface1: #45475a;
-	--ctp-surface0: #313244;
-	--ctp-base: #1e1e2e;
-	--ctp-mantle: #181825;
-	--ctp-crust: #11111b;
-
-	--color-bg: var(--ctp-base);
-	--color-bg-elevated: var(--ctp-mantle);
-	--color-surface: var(--ctp-surface0);
-	--color-text: var(--ctp-text);
-	--color-text-muted: var(--ctp-subtext0);
-	--color-border: var(--ctp-surface1);
-	--color-border-subtle: var(--ctp-surface0);
-	--color-accent: var(--ctp-blue);
-	--color-accent-hover: var(--ctp-sapphire);
-	--color-link: var(--ctp-blue);
-	--color-link-hover: var(--ctp-lavender);
-	--color-hover-overlay: rgba(205, 214, 244, 0.08);
-	--color-active-overlay: rgba(205, 214, 244, 0.14);
-	--color-backdrop: rgba(17, 17, 27, 0.6);
-	--shadow-elevated: 0 20px 60px rgba(0, 0, 0, 0.55);
-	--shadow-input: 0 2px 2px rgba(0, 0, 0, 0.35);
-}
-
-@media (prefers-color-scheme: dark) {
-	:root[data-theme='system'] {
-		--ctp-rosewater: #f5e0dc;
-		--ctp-flamingo: #f2cdcd;
-		--ctp-pink: #f5c2e7;
-		--ctp-mauve: #cba6f7;
-		--ctp-red: #f38ba8;
-		--ctp-maroon: #eba0ac;
-		--ctp-peach: #fab387;
-		--ctp-yellow: #f9e2af;
-		--ctp-green: #a6e3a1;
-		--ctp-teal: #94e2d5;
-		--ctp-sky: #89dceb;
-		--ctp-sapphire: #74c7ec;
-		--ctp-blue: #89b4fa;
-		--ctp-lavender: #b4befe;
-		--ctp-text: #cdd6f4;
-		--ctp-subtext1: #bac2de;
-		--ctp-subtext0: #a6adc8;
-		--ctp-overlay2: #9399b2;
-		--ctp-overlay1: #7f849c;
-		--ctp-overlay0: #6c7086;
-		--ctp-surface2: #585b70;
-		--ctp-surface1: #45475a;
-		--ctp-surface0: #313244;
-		--ctp-base: #1e1e2e;
-		--ctp-mantle: #181825;
-		--ctp-crust: #11111b;
-
-		--color-bg: var(--ctp-base);
-		--color-bg-elevated: var(--ctp-mantle);
-		--color-surface: var(--ctp-surface0);
-		--color-text: var(--ctp-text);
-		--color-text-muted: var(--ctp-subtext0);
-		--color-border: var(--ctp-surface1);
-		--color-border-subtle: var(--ctp-surface0);
-		--color-accent: var(--ctp-blue);
-		--color-accent-hover: var(--ctp-sapphire);
-		--color-link: var(--ctp-blue);
-		--color-link-hover: var(--ctp-lavender);
-		--color-hover-overlay: rgba(205, 214, 244, 0.08);
-		--color-active-overlay: rgba(205, 214, 244, 0.14);
-		--color-backdrop: rgba(17, 17, 27, 0.6);
-		--shadow-elevated: 0 20px 60px rgba(0, 0, 0, 0.55);
-		--shadow-input: 0 2px 2px rgba(0, 0, 0, 0.35);
-	}
-}
-
-.container {
-	margin: 0;
-	display: flex;
-	flex-direction: column;
-	min-height: 100vh;
-}
-
-.main-content {
-	flex: 1;
-	min-height: 0;
-	padding: 1rem 1.5rem;
-	overflow-y: auto;
-	display: flex;
-	flex-direction: column;
-}
-
-.main-content > * {
-	flex: 1;
-	min-height: 0;
-}
-
-.plans-menu {
-	display: flex;
-	flex-direction: column;
-	gap: 1rem;
-}
-
-.plans-menu__section {
-	display: flex;
-	flex-direction: column;
-	gap: 0.25rem;
-}
-
-.plans-menu__heading {
-	margin: 0;
-	font-size: 0.75rem;
-	font-weight: 600;
-	letter-spacing: 0.05em;
-	text-transform: uppercase;
-	text-align: left;
-	color: var(--color-text-muted);
-}
-
-.plans-menu__list {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-	display: flex;
-	flex-direction: column;
-}
-
-.plans-menu__link {
-	display: block;
-	padding: 0.35rem 0.5rem;
-	border-radius: 6px;
-	color: var(--color-text);
-	text-decoration: none;
-	font-size: 0.9rem;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.plans-menu__link:hover {
-	background: var(--color-hover-overlay);
-	color: var(--color-text);
-}
-
-.plans-menu__link[aria-current='page'] {
-	background: var(--color-active-overlay);
-	font-weight: 600;
-}
-
-.plans {
-	display: grid;
-	grid-template-columns: 15rem minmax(0, 1fr);
-	height: 100%;
-	min-height: 0;
-}
-
-.plans__list {
-	padding-right: 0.75rem;
-	border-right: 1px solid var(--color-border-subtle);
-	overflow-y: auto;
-}
-
-.plans__doc {
-	min-width: 0;
-	min-height: 0;
-	display: flex;
-	flex-direction: column;
-	padding-left: 0.75rem;
-}
-
-.plans__doc > * {
-	flex: 1;
-	min-height: 0;
-}
-
-.plans-menu__empty {
-	margin: 0;
-	padding: 0.25rem 0.5rem;
-	font-size: 0.85rem;
-	color: var(--color-text-muted);
-	text-align: left;
-}
-
-.plan-panel__container {
-	position: relative;
-	width: 100%;
-	height: 100%;
-}
-
-.plan-panel {
-	display: block;
-	width: 100%;
-	height: 100%;
-	border: 0;
-	background: var(--color-surface, #ffffff);
-}
-
-.plan-panel__placeholder {
-	position: absolute;
-	inset: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	margin: 0;
-	padding: 1rem;
-	color: var(--color-text-muted);
-	background: var(--color-surface, #ffffff);
-	font-size: 0.95rem;
-}
-
-.plan-panel__placeholder--error {
-	color: var(--color-danger, #d33);
-}
-
-.plan-view__empty {
-	margin: 0;
-	padding: 2rem 1rem;
-	text-align: center;
-	color: var(--color-text-muted);
-	font-size: 0.95rem;
-}
-
+/* ============================================================
+   Tasks screen (.tasks-view / .tasks-tree) — not part of the v2
+   redesign; the v1 layout stays as-is, colors read the v2 tokens.
+   ============================================================ */
 .tasks-view {
 	display: flex;
 	flex-direction: column;
@@ -727,215 +439,11 @@
 	color: var(--text-2);
 }
 
-.cockpit {
-	display: grid;
-	grid-template-columns: 14rem minmax(0, 1fr) minmax(18rem, 24rem);
-	gap: 0;
-	height: 100%;
-	min-height: 0;
-	overflow: hidden;
-}
-
-.cockpit-sessions {
-	display: flex;
-	flex-direction: column;
-	gap: 0.25rem;
-	padding-right: 0.75rem;
-	border-right: 1px solid var(--color-border-subtle);
-	overflow-y: auto;
-}
-
-.cockpit-sessions__group {
-	margin: 0.75rem 0 0.25rem;
-	font-size: 0.7rem;
-	font-weight: 600;
-	letter-spacing: 0.05em;
-	text-transform: uppercase;
-	text-align: left;
-	color: var(--color-text-muted);
-}
-
-.cockpit-sessions__group:first-child {
-	margin-top: 0;
-}
-
-.cockpit-sessions__list {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-	display: flex;
-	flex-direction: column;
-	gap: 0.1rem;
-}
-
-.cockpit-sessions__row {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	padding: 0.35rem 0.5rem;
-	border-radius: 6px;
-	color: var(--color-text);
-	text-decoration: none;
-	font-size: 0.85rem;
-}
-
-.cockpit-sessions__row:hover {
-	background: var(--color-hover-overlay);
-	color: var(--color-text);
-}
-
-.cockpit-sessions__row[aria-current='page'] {
-	background: var(--color-active-overlay);
-	font-weight: 600;
-}
-
-.cockpit-sessions__label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.cockpit__stage {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-	min-height: 0;
-	background: var(--terminal-bg);
-	border-radius: 0.375rem 0 0 0.375rem;
-	margin-left: 0.75rem;
-	overflow: hidden;
-}
-
-.cockpit__tab-bar {
-	display: flex;
-	align-items: center;
-	gap: 0.75rem;
-	padding: 0.45rem 0.75rem;
-	border-bottom: 1px solid
-		color-mix(in srgb, var(--terminal-fg) 12%, transparent);
-}
-
-.cockpit__tab {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.5rem;
-	padding: 0.25rem 0.7rem;
-	border-radius: 6px 6px 0 0;
-	background: color-mix(in srgb, var(--terminal-fg) 8%, transparent);
-	color: var(--terminal-fg);
-	font-family: var(--font-mono, monospace);
-	font-size: 0.78rem;
-}
-
-.cockpit__exit {
-	font-size: 0.7rem;
-	color: var(--color-failed);
-}
-
-.cockpit__stop {
-	margin-left: auto;
-	padding: 0.25rem 0.7rem;
-	font-size: 0.75rem;
-	letter-spacing: 0.04em;
-	border: 1px solid color-mix(in srgb, var(--terminal-fg) 25%, transparent);
-	border-radius: 0.375rem;
-	background: transparent;
-	color: var(--terminal-fg);
-	box-shadow: none;
-	cursor: pointer;
-}
-
-.cockpit__stop:hover:not(:disabled) {
-	background: color-mix(in srgb, var(--terminal-fg) 10%, transparent);
-}
-
-.cockpit__stop:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
-}
-
-.cockpit__terminal {
-	flex: 1;
-	min-height: 0;
-	display: flex;
-	flex-direction: column;
-	padding: 0.5rem;
-}
-
-.cockpit__diffs {
-	display: flex;
-	flex-direction: column;
-	min-height: 0;
-	min-width: 0;
-	border-left: 1px solid var(--color-border-subtle);
-	padding-left: 0.75rem;
-}
-
-.cockpit__open-review {
-	padding: 0.25rem 0.7rem;
-	font-size: 0.8rem;
-	border: 1px solid var(--color-border-subtle);
-	border-radius: 999px;
-	background: transparent;
-	color: var(--color-accent);
-	box-shadow: none;
-	cursor: pointer;
-}
-
-.cockpit__open-review:hover {
-	border-color: var(--color-accent);
-}
-
-@media (max-width: 1120px) {
-	.cockpit {
-		grid-template-columns: 12rem minmax(0, 1fr);
-	}
-
-	.cockpit__diffs {
-		display: none;
-	}
-}
-
-.diff-panel {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	min-height: 0;
-}
-
-.diff-panel__toolbar {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	padding-bottom: 0.5rem;
-}
-
-.diff-panel__container {
-	flex: 1;
-	min-height: 0;
-	overflow-y: auto;
-}
-
-.diff-panel__close {
-	margin-left: auto;
-	width: 1.85rem;
-	height: 1.85rem;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 1.25rem;
-	line-height: 1;
-	border: 1px solid var(--color-border-subtle);
-	border-radius: 0.375rem;
-	background: var(--color-surface, #fff);
-	color: var(--color-text, #1f2430);
-	cursor: pointer;
-}
-
-.diff-panel__close:hover {
-	background: var(--color-border-subtle);
-}
-
+/* ============================================================
+   Terminal canvas panes — the rendering pipeline's containers
+   (TerminalPane / SplitTreeView), sized by the cockpit's
+   .fc-term-body flex column.
+   ============================================================ */
 .terminal-pane {
 	width: 100%;
 	height: 100%;
@@ -982,104 +490,10 @@
 	opacity: 0.8;
 }
 
-.top-bar {
-	display: flex;
-	align-items: center;
-	gap: 1.25rem;
-	padding: 0.6rem 1.5rem;
-	border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.top-bar h1 {
-	margin: 0;
-	font-size: 1.05rem;
-	text-align: left;
-}
-
-.top-bar__brand {
-	display: flex;
-	align-items: center;
-	gap: 0.6rem;
-	padding: 0.25rem 0.4rem;
-	border: none;
-	background: transparent;
-	color: inherit;
-	box-shadow: none;
-	cursor: pointer;
-}
-
-.top-bar__brand:hover {
-	background: var(--color-hover-overlay);
-	border: none;
-}
-
-.top-bar__glyph {
-	width: 1.5rem;
-	height: 1.5rem;
-	display: grid;
-	place-items: center;
-	border-radius: 7px;
-	background: var(--color-accent);
-	color: #fff;
-	font-size: 0.85rem;
-	font-weight: 700;
-}
-
-.top-bar__nav {
-	display: flex;
-	align-items: center;
-	gap: 0.25rem;
-}
-
-.top-bar__nav-link {
-	padding: 0.3rem 0.7rem;
-	border-radius: 6px;
-	font-size: 0.85rem;
-	color: var(--color-text-muted);
-	text-decoration: none;
-}
-
-.top-bar__nav-link:hover {
-	background: var(--color-hover-overlay);
-	color: var(--color-text);
-}
-
-.top-bar__nav-link[aria-current='page'] {
-	background: var(--color-active-overlay);
-	color: var(--color-text);
-	font-weight: 600;
-}
-
-.top-bar__actions {
-	display: flex;
-	align-items: center;
-	gap: 0.75rem;
-	margin-left: auto;
-}
-
-.project-picker {
-	padding: 0.35rem 0.9rem;
-	font-size: 0.85rem;
-	border-radius: 999px;
-	border: 1px solid var(--color-border-subtle);
-	background: transparent;
-	color: inherit;
-	cursor: pointer;
-	box-shadow: none;
-	max-width: 16rem;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.project-picker:hover {
-	background: var(--color-hover-overlay);
-}
-
-.project-picker__hint {
-	color: var(--color-text-muted);
-}
-
+/* ============================================================
+   Shared chrome
+   ============================================================ */
+/* The checked-out branch as a small mono chip (review header). */
 .branch-chip {
 	font-family: var(--font-mono);
 	font-size: 0.72rem;
@@ -1093,26 +507,9 @@
 	max-width: 14rem;
 }
 
-.settings-trigger {
-	font-size: 1.1rem;
-	line-height: 1;
-	padding: 0.35em 0.55em;
-	background: transparent;
-	border-color: transparent;
-	box-shadow: none;
-	color: inherit;
-}
-
-.settings-trigger:hover {
-	background: var(--color-hover-overlay);
-	border-color: transparent;
-}
-
-.settings-trigger:active {
-	background: var(--color-active-overlay);
-	border-color: transparent;
-}
-
+/* ============================================================
+   Settings dialog
+   ============================================================ */
 .settings-panel {
 	border: 1px solid var(--border-strong);
 	border-radius: 12px;
@@ -1195,9 +592,11 @@
 	gap: 0.5rem;
 }
 
-/* Error boundary — the crash fallback is the one surface that still
- * renders a bare <button>; its element rules stay scoped to it so the
- * v2 component classes never inherit them. */
+/* ============================================================
+   Error boundary — the crash fallback is the one surface that still
+   renders a bare <button>; its element rules stay scoped to it so the
+   v2 component classes never inherit them.
+   ============================================================ */
 .error-boundary button {
 	border-radius: 8px;
 	border: 1px solid var(--border-strong);
