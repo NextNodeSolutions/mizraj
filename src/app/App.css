@@ -1199,30 +1199,6 @@
 	gap: 0.5rem;
 }
 
-.logo {
-	height: 6em;
-	padding: 1.5em;
-	will-change: filter;
-	transition: 0.75s;
-}
-
-.logo.vite:hover {
-	filter: drop-shadow(0 0 2em var(--ctp-blue));
-}
-
-.logo.react:hover {
-	filter: drop-shadow(0 0 2em var(--ctp-sky));
-}
-
-.logo.tauri:hover {
-	filter: drop-shadow(0 0 2em var(--ctp-sapphire));
-}
-
-.row {
-	display: flex;
-	justify-content: center;
-}
-
 a {
 	font-weight: 500;
 	color: var(--color-link);
@@ -1268,8 +1244,4 @@ button {
 input:focus,
 button:focus-visible {
 	border-color: var(--color-accent);
-}
-
-#greet-input {
-	margin-right: 5px;
 }
