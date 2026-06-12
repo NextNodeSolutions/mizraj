@@ -4,12 +4,14 @@ type Props = {
 	layout: DiffLayout
 	onToggle: () => void
 	onClose?: () => void
+	children?: React.ReactNode
 }
 
 export const DiffPanelToolbar = ({
 	layout,
 	onToggle,
 	onClose,
+	children,
 }: Props): React.JSX.Element => (
 	<div className="diff-panel__toolbar" role="toolbar" aria-label="Diff panel">
 		<button
@@ -20,6 +22,7 @@ export const DiffPanelToolbar = ({
 		>
 			{layout === 'split' ? 'Stacked view' : 'Split view'}
 		</button>
+		{children}
 		{onClose && (
 			<button
 				type="button"

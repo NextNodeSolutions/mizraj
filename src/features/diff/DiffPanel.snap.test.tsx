@@ -10,6 +10,12 @@ vi.mock('@tauri-apps/api/core', () => ({
 	invoke: invokeMock,
 }))
 
+vi.mock('@tauri-apps/api/window', () => ({
+	getCurrentWindow: () => ({
+		onFocusChanged: vi.fn().mockResolvedValue(() => {}),
+	}),
+}))
+
 vi.mock('@pierre/diffs/react', () => {
 	type StubProps = {
 		fileDiff: { name: string }
@@ -58,7 +64,7 @@ describe('DiffPanel snapshot', () => {
 
 	const mount = async (): Promise<void> => {
 		await act(async () => {
-			root.render(<DiffPanel />)
+			root.render(<DiffPanel repoPath="/repo" />)
 		})
 	}
 

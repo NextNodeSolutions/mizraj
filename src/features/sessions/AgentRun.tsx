@@ -1,10 +1,13 @@
 import { invoke } from '@tauri-apps/api/core'
-import { useState } from 'react'
 
+import { navigate, reviewHref } from '@/app/router'
 import { DiffPanel } from '@/features/diff/DiffPanel'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
+import { CockpitSessions } from './CockpitSessions'
+import { sessionDisplayStatus } from './displayStatus'
+import { sessionLabel } from './sessionLabel'
 import { SplitTreeView } from './SplitTreeView'
 import { useSession } from './useSession'
 
@@ -26,45 +29,48 @@ export const AgentRun = ({ sessionId }: Props): React.JSX.Element => {
 	const session = useSession(sessionId)
 	const ended = session?.status === 'ended'
 
-	const [diffOpen, setDiffOpen] = useState(false)
-	// Auto-open the diff once, on the transition to `ended` (D8). Tracking the
-	// previous `ended` value and adjusting state during render — rather than an
-	// effect — keeps this a one-shot reaction to the transition: a later manual
-	// close sticks, and the Diffs button can still reopen it.
-	const [endedSeen, setEndedSeen] = useState(ended)
-	if (ended !== endedSeen) {
-		setEndedSeen(ended)
-		if (ended) setDiffOpen(true)
-	}
-
 	return (
-		<div className="agent-run">
-			<button
-				type="button"
-				className="agent-run__stop"
-				onClick={() => stopSession(sessionId)}
-				disabled={ended}
-			>
-				Stop
-			</button>
-			<div className="agent-run__log">
-				<SplitTreeView rootId={sessionId} />
+		<div className="cockpit">
+			<CockpitSessions activeSessionId={sessionId} />
+			<div className="cockpit__stage">
+				<div className="cockpit__tab-bar">
+					<span className="cockpit__tab">
+						{session && (
+							<span
+								className="status-dot"
+								data-status={sessionDisplayStatus(session)}
+							/>
+						)}
+						{session ? sessionLabel(session) : sessionId}
+						{ended && session.exitCode !== null && (
+							<span className="cockpit__exit">
+								exit {session.exitCode}
+							</span>
+						)}
+					</span>
+					<button
+						type="button"
+						className="cockpit__stop"
+						onClick={() => stopSession(sessionId)}
+						disabled={ended}
+					>
+						◼ Stop
+					</button>
+				</div>
+				<div className="cockpit__terminal">
+					<SplitTreeView rootId={sessionId} />
+				</div>
 			</div>
-			{!diffOpen && (
-				<button
-					type="button"
-					className="agent-run__diff-handle"
-					onClick={() => setDiffOpen(true)}
-				>
-					Diffs
-				</button>
-			)}
-			<aside
-				className="agent-run__diff"
-				data-open={diffOpen}
-				aria-hidden={!diffOpen}
-			>
-				<DiffPanel onClose={() => setDiffOpen(false)} />
+			<aside className="cockpit__diffs" aria-label="Diffs">
+				<DiffPanel repoPath={session?.repoPath ?? null}>
+					<button
+						type="button"
+						className="cockpit__open-review"
+						onClick={() => navigate(reviewHref())}
+					>
+						Open review ↗
+					</button>
+				</DiffPanel>
 			</aside>
 		</div>
 	)

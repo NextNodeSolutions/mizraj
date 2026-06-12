@@ -1,11 +1,11 @@
+import type { ResourceState } from '@/shared/repoResource'
 import type { DiffStyle } from '@/shared/useLayoutToggle'
 
 import { DiffPanelPlaceholder } from './DiffPanelPlaceholder'
 import { DiffPanelView } from './DiffPanelView'
-import type { DiffLoadState } from './useDiff'
 
 type Props = {
-	state: DiffLoadState
+	state: ResourceState<{ patch: string }>
 	diffStyle: DiffStyle
 }
 
@@ -13,6 +13,13 @@ export const DiffPanelBody = ({
 	state,
 	diffStyle,
 }: Props): React.JSX.Element => {
+	if (state.status === 'idle') {
+		return (
+			<DiffPanelPlaceholder tone="empty">
+				No repository selected.
+			</DiffPanelPlaceholder>
+		)
+	}
 	if (state.status === 'loading') {
 		return (
 			<DiffPanelPlaceholder tone="loading">
@@ -27,12 +34,12 @@ export const DiffPanelBody = ({
 			</DiffPanelPlaceholder>
 		)
 	}
-	if (state.patch.trim() === '') {
+	if (state.data.patch.trim() === '') {
 		return (
 			<DiffPanelPlaceholder tone="empty">
 				No changes.
 			</DiffPanelPlaceholder>
 		)
 	}
-	return <DiffPanelView patch={state.patch} diffStyle={diffStyle} />
+	return <DiffPanelView patch={state.data.patch} diffStyle={diffStyle} />
 }
