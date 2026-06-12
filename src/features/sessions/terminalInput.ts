@@ -430,7 +430,10 @@ export const startTerminalInputRouter = (): void => {
 	})
 	window.addEventListener('focus', syncSoon)
 	document.addEventListener('click', syncSoon)
-	composer.addEventListener('focusout', syncSoon)
+	// Document-level so ANY field handing focus back to the body returns the
+	// keyboard to the terminal — the palette's Escape/⌘K close and other
+	// keyboard-only dismissals never produce a click or window refocus.
+	document.addEventListener('focusout', syncSoon)
 	store.sub(activeSessionIdAtom, syncSoon)
 	syncComposerFocus()
 }
