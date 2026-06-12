@@ -12,6 +12,7 @@ import { Rail } from './Rail'
 import { Toasts } from './Toasts'
 import { TopBar } from './TopBar'
 import { usePaletteTheme } from './usePaletteTheme'
+import { useShellShortcuts } from './useShellShortcuts'
 
 export function App(): React.JSX.Element {
 	const settings = useSettings()
@@ -24,6 +25,7 @@ export function App(): React.JSX.Element {
 	// Catppuccin tokens stand.
 	useGhosttyTheme()
 	usePaletteTheme()
+	useShellShortcuts()
 
 	return (
 		<>
