@@ -41,11 +41,15 @@ describe('CockpitSessions', () => {
 		container.remove()
 	})
 
-	const seed = (id: string, ended?: { exitCode: number }): void => {
+	const seed = (
+		id: string,
+		ended?: { exitCode: number },
+		repoPath = '/repo/mizraj',
+	): void => {
 		store.set(startSessionAtom, {
 			id,
 			binary: 'claude',
-			repoPath: '/repo/mizraj',
+			repoPath,
 		})
 		if (ended) {
 			store.set(endSessionAtom, {
@@ -122,6 +126,29 @@ describe('CockpitSessions', () => {
 		})
 
 		expect(navigateMock).toHaveBeenCalledWith('/agent-run/run-2')
+	})
+
+	it('lists only sessions of the followed repo', () => {
+		seed('mizraj-1')
+		seed('scribe-1', undefined, '/repo/scribe')
+		render('mizraj-1', '/repo/mizraj')
+
+		expect(container.querySelectorAll('.lrow')).toHaveLength(1)
+		expect(
+			container.querySelector('.panel-head .ph-count')?.textContent,
+		).toBe('1')
+		const metas = Array.from(container.querySelectorAll('.lr-b')).map(
+			meta => meta.textContent,
+		)
+		expect(metas).toEqual(['mizraj · 0s'])
+	})
+
+	it('shows sessions from every repo when no repo is followed', () => {
+		seed('mizraj-1')
+		seed('scribe-1', undefined, '/repo/scribe')
+		render('mizraj-1', null)
+
+		expect(container.querySelectorAll('.lrow')).toHaveLength(2)
 	})
 
 	it('shows nothing for a group without sessions', () => {

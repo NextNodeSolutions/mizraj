@@ -144,12 +144,19 @@ export const CockpitSessions = ({
 }: Props): React.JSX.Element => {
 	const sessions = useSessions()
 	const now = useNow(AGE_REFRESH_MS)
-	const running = sessions.filter(session => session.status === 'running')
-	const ended = sessions.filter(session => session.status === 'ended')
+	// The cockpit is per-repo (MP2): it follows the active session's repo, so it
+	// lists only that repo's sessions — a sibling repo's agents never bleed in.
+	// Before any repo is followed (null) nothing scopes the list, so show all.
+	const repoSessions =
+		activeProjectPath === null
+			? sessions
+			: sessions.filter(session => session.repoPath === activeProjectPath)
+	const running = repoSessions.filter(session => session.status === 'running')
+	const ended = repoSessions.filter(session => session.status === 'ended')
 
 	return (
 		<Panel className="fc-sess">
-			<PanelHead title="Sessions" count={sessions.length}>
+			<PanelHead title="Sessions" count={repoSessions.length}>
 				{activeProjectPath !== null && (
 					<NewSessionButton repoPath={activeProjectPath} />
 				)}
