@@ -81,11 +81,6 @@ export const ReviewDiffPane = ({
 						hunkSeparators: 'line-info',
 						lineHoverHighlight: 'line',
 						enableGutterUtility: true,
-						// Gutter press (the library's selection path) arms the
-						// same composer as the hover affordance below.
-						onGutterUtilityClick: range => {
-							onBeginComment(range.start, range.side ?? null)
-						},
 					}}
 					lineAnnotations={annotations}
 					renderAnnotation={annotation => (

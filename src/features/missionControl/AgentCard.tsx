@@ -1,13 +1,12 @@
 import { useEffect } from 'react'
 
-import { agentRunHref, navigate, reviewHref } from '@/app/router'
 import type { DiffTotals } from '@/features/review/reviewFiles'
 import type { SessionDisplayStatus } from '@/features/sessions/displayStatus'
 import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
+import { openSession, openSessionReview } from '@/features/sessions/openSession'
 import { sessionLabel } from '@/features/sessions/sessionLabel'
 import type { SessionState } from '@/features/sessions/sessions'
 import { subscribeToCellFrames } from '@/features/sessions/sessionSubscription'
-import { setLastProjectPath } from '@/features/settings/settings'
 import { terminalTail } from '@/features/sessions/terminalTail'
 import { useCellFrame } from '@/features/sessions/useCellFrame'
 import type { SDotKind } from '@/shared/ui/atoms'
@@ -24,18 +23,14 @@ const DOT_KIND: Readonly<Record<SessionDisplayStatus, SDotKind>> = {
 }
 
 // A running or failed agent re-opens its terminal; a cleanly ended one goes
-// to the diff review. Review is a mono-project screen (MP5), so a card from
-// another repo retargets the project preference before navigating — the
-// review that opens is always the card's own repo.
+// to the diff review. Both follow the session's repo (MP2/MP5): the cockpit
+// or review that opens is always the card's own project.
 const openCard = (session: SessionState): void => {
-	if (sessionDisplayStatus(session) !== 'review') {
-		navigate(agentRunHref(session.id))
-		return
+	if (sessionDisplayStatus(session) === 'review') {
+		openSessionReview(session)
+	} else {
+		openSession(session)
 	}
-	if (session.repoPath !== null) {
-		void setLastProjectPath(session.repoPath)
-	}
-	navigate(reviewHref())
 }
 
 type MiniTermProps = {

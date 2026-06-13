@@ -1,5 +1,4 @@
 import {
-	agentRunHref,
 	missionControlHref,
 	navigate,
 	pipelineHref,
@@ -18,6 +17,10 @@ import {
 	launchSession,
 	launchShellSession,
 } from '@/features/sessions/launchSession'
+import {
+	openSession,
+	openSessionReview,
+} from '@/features/sessions/openSession'
 import {
 	sessionLabel,
 	sessionRepoLabel,
@@ -52,7 +55,7 @@ const sessionItems = (
 					? sessionLabel(session)
 					: `${sessionLabel(session)} — ${repo}`,
 			hint: DISPLAY_STATUS_LABEL[sessionDisplayStatus(session)],
-			run: () => navigate(agentRunHref(session.id)),
+			run: () => openSession(session),
 		}
 	})
 

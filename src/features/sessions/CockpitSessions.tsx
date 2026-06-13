@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { agentRunHref, navigate } from '@/app/router'
+import { agentRunHref } from '@/app/router'
 import { formatSessionAge } from '@/features/missionControl/sessionAge'
 import type { SDotKind } from '@/shared/ui/atoms'
 import { Panel, PanelHead, SDot } from '@/shared/ui/atoms'
@@ -10,6 +10,7 @@ import { useNow } from '@/shared/useNow'
 import type { SessionDisplayStatus } from './displayStatus'
 import { DISPLAY_STATUS_LABEL, sessionDisplayStatus } from './displayStatus'
 import { launchSession } from './launchSession'
+import { openSession } from './openSession'
 import { sessionLabel, sessionRepoLabel } from './sessionLabel'
 import type { SessionState } from './sessions'
 import { useSessions } from './useSessions'
@@ -87,7 +88,7 @@ const SessionRow = ({ session, active, now }: RowProps): React.JSX.Element => (
 		title={session.id}
 		onClick={event => {
 			event.preventDefault()
-			navigate(agentRunHref(session.id))
+			openSession(session)
 		}}
 	>
 		<span style={{ marginTop: 5 }}>

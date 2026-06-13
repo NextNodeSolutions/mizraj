@@ -10,6 +10,7 @@ import type {
 import { isTrackDone, milestoneState } from './planProgress'
 
 const task = (status: TaskStatus): Task => ({
+	repoPath: '/repo/x',
 	id: `task-${status}`,
 	identifier: null,
 	origin: 'track',

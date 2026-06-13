@@ -134,6 +134,7 @@ describe('MissionControl', () => {
 		invokeMock.mockResolvedValue(undefined)
 		navigateMock.mockReset()
 		setLastProjectPathMock.mockReset()
+		setLastProjectPathMock.mockResolvedValue(undefined)
 		window.history.replaceState({}, '', '/')
 		container = document.createElement('div')
 		document.body.appendChild(container)
