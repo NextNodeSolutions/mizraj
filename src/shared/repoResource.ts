@@ -1,8 +1,8 @@
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { onRepoChanged } from '@/features/projects/repoEvents'
 
+import { onAppFocus } from './appFocus'
 import { describeError } from './errors'
 import { logger } from './logger'
 
@@ -65,17 +65,16 @@ export const useRepoResource = <T>(
 		setState({ status: 'loading' })
 		void reload()
 
-		const unlistenPromise = getCurrentWindow().onFocusChanged(
-			({ payload: focused }) => {
-				if (focused) void reload()
-			},
-		)
+		// Both subscriptions resolve to synchronous unsubscribes (in-memory
+		// registry removals), so cleanup never calls Tauri's `unlisten()` — see
+		// appFocus.ts / repoEvents.ts for why that matters under StrictMode.
+		const offFocus = onAppFocus(() => void reload())
 		// Event-driven refresh (MP6): the backend watcher reports this repo's
 		// filesystem changes; only this repo's resources refetch on them.
 		const offRepoChanged = onRepoChanged(repoPath, () => void reload())
 
 		return () => {
-			void unlistenPromise.then(off => off())
+			offFocus()
 			offRepoChanged()
 		}
 	}, [repoPath, reload])
