@@ -47,15 +47,7 @@ export const groupSessionsByRepo = (
 	)
 }
 
-const NO_PROJECT_LABEL = 'no project'
-
-const NO_PROJECT_DIR = '—'
-
-/** The repo's human name — its last path segment (same logic as sessionRepoLabel). */
-export const projectName = (repoPath: string | null): string => {
-	if (repoPath === null) return NO_PROJECT_LABEL
-	return repoPath.split('/').findLast(segment => segment !== '') ?? repoPath
-}
+export { compactPath, projectName } from '@/features/projects/repoPaths'
 
 export const HUES = [
 	'blue',
@@ -88,12 +80,6 @@ export const projectHue = (repoPath: string | null): Hue =>
 	repoPath === null
 		? HUES[0]
 		: (HUES[djb2(repoPath) % HUES.length] ?? HUES[0])
-
-const HOME_PREFIX = /^\/(?:Users|home)\/[^/]+/
-
-/** Display-only path compaction: the home prefix becomes a tilde. */
-export const compactPath = (repoPath: string | null): string =>
-	repoPath === null ? NO_PROJECT_DIR : repoPath.replace(HOME_PREFIX, '~')
 
 const latestStart = (group: SessionGroup): number =>
 	group.sessions.reduce(

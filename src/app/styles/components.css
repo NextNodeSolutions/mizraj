@@ -148,6 +148,21 @@ button {
 	font-size: 9px;
 	color: var(--text-3);
 }
+.mz-projwrap {
+	position: relative;
+	display: inline-flex;
+}
+.mz-projmenu {
+	position: absolute;
+	top: calc(var(--h-control) + 6px);
+	left: 0;
+	z-index: 60;
+	min-width: 280px;
+	border: 1px solid var(--border);
+	border-radius: var(--r-md);
+	background: var(--surface);
+	box-shadow: var(--shadow-2);
+}
 .mz-spacer {
 	flex: 1;
 }
