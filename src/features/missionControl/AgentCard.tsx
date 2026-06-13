@@ -1,11 +1,13 @@
 import { useEffect } from 'react'
 
 import { agentRunHref, navigate, reviewHref } from '@/app/router'
+import type { DiffTotals } from '@/features/review/reviewFiles'
 import type { SessionDisplayStatus } from '@/features/sessions/displayStatus'
 import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
 import { sessionLabel } from '@/features/sessions/sessionLabel'
 import type { SessionState } from '@/features/sessions/sessions'
 import { subscribeToCellFrames } from '@/features/sessions/sessionSubscription'
+import { setLastProjectPath } from '@/features/settings/settings'
 import { terminalTail } from '@/features/sessions/terminalTail'
 import { useCellFrame } from '@/features/sessions/useCellFrame'
 import type { SDotKind } from '@/shared/ui/atoms'
@@ -22,14 +24,19 @@ const DOT_KIND: Readonly<Record<SessionDisplayStatus, SDotKind>> = {
 }
 
 // A running or failed agent re-opens its terminal; a cleanly ended one goes
-// straight to the diff review.
-// TODO(backend): review screen is active-project-scoped; a review card from
-// another project still opens the active project's diff — needs
-// branch/worktree-scoped review
-const cardTarget = (session: SessionState): string =>
-	sessionDisplayStatus(session) === 'review'
-		? reviewHref()
-		: agentRunHref(session.id)
+// to the diff review. Review is a mono-project screen (MP5), so a card from
+// another repo retargets the project preference before navigating — the
+// review that opens is always the card's own repo.
+const openCard = (session: SessionState): void => {
+	if (sessionDisplayStatus(session) !== 'review') {
+		navigate(agentRunHref(session.id))
+		return
+	}
+	if (session.repoPath !== null) {
+		void setLastProjectPath(session.repoPath)
+	}
+	navigate(reviewHref())
+}
 
 type MiniTermProps = {
 	session: SessionState
@@ -124,12 +131,18 @@ const SubAgents = ({ subs }: SubAgentsProps): React.JSX.Element | null => {
 type Props = {
 	session: SessionState
 	now: number
+	/** The checked-out branch of the card's own repo, when known. */
+	branch: string | null
+	/** Working-tree +/− of the card's own repo, when known. */
+	diff: DiffTotals | null
 	style?: React.CSSProperties
 }
 
 export const AgentCard = ({
 	session,
 	now,
+	branch,
+	diff,
 	style,
 }: Props): React.JSX.Element => {
 	const status = sessionDisplayStatus(session)
@@ -144,12 +157,14 @@ export const AgentCard = ({
 			className="agent-card"
 			data-status={status}
 			style={style}
-			onClick={() => navigate(cardTarget(session))}
+			onClick={() => openCard(session)}
 		>
 			<span className="ac-top">
 				<SDot s={DOT_KIND[status]} />
 				<StatusTag status={status} />
-				{/* TODO(backend): per-session worktree branch — sessions only carry repoPath, repo_head is active-project-wide */}
+				{branch !== null && (
+					<span className="branch-chip">⎇ {branch}</span>
+				)}
 			</span>
 			<span className="ac-task">{sessionLabel(session)}</span>
 			<MiniTerm session={session} status={status} />
@@ -159,7 +174,12 @@ export const AgentCard = ({
 				<SubAgents subs={undefined} />
 			)}
 			<span className="ac-foot">
-				{/* TODO(backend): per-session diff stats — get_diff returns only the active project's whole working-tree patch */}
+				{diff !== null && diff.files > 0 && (
+					<span className="ac-diff">
+						<b className="add">+{diff.additions}</b>{' '}
+						<b className="del">−{diff.deletions}</b>
+					</span>
+				)}
 				{status === 'review' ? (
 					<span className="btn btn-sm gobtn">Review →</span>
 				) : (

@@ -89,7 +89,12 @@ const updateSetting = async <K extends keyof Settings>(
 const setTheme = async (theme: Theme): Promise<void> =>
 	updateSetting('theme', theme)
 
-const setLastProjectPath = async (path: string | null): Promise<void> =>
+/**
+ * Retarget the project preference from anywhere (e.g. a cross-repo review
+ * card): updates the shared atom instantly, then persists. Exported as a
+ * module function — distant components need no prop drilling to call it.
+ */
+export const setLastProjectPath = async (path: string | null): Promise<void> =>
 	updateSetting('lastProjectPath', path)
 
 // Test-only escape hatch: drop the cached store and re-arm hydration so suites

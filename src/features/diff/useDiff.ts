@@ -13,8 +13,19 @@ export type DiffResource = RepoResource<DiffPayload>
  * refreshes. The path is passed to the backend — any registered repo can be
  * read without touching the active-project preference (MP1).
  */
-const fetchDiff = (repoPath: string): Promise<DiffPayload> =>
-	invoke<DiffPayload>('get_diff', { repoPath })
+const isDiffPayload = (value: unknown): value is DiffPayload =>
+	typeof value === 'object' &&
+	value !== null &&
+	'patch' in value &&
+	typeof value.patch === 'string'
+
+const fetchDiff = async (repoPath: string): Promise<DiffPayload> => {
+	const payload = await invoke<unknown>('get_diff', { repoPath })
+	if (!isDiffPayload(payload)) {
+		throw new Error('get_diff returned an unexpected payload')
+	}
+	return payload
+}
 
 export const useDiff = (repoPath: string | null): DiffResource =>
 	useRepoResource(repoPath, fetchDiff, 'diff-panel', 'useDiff: get_diff')

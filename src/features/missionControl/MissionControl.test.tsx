@@ -6,9 +6,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as RouterModule from '@/app/router'
 
-const { invokeMock, navigateMock } = vi.hoisted(() => ({
+const { invokeMock, navigateMock, setLastProjectPathMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
 	navigateMock: vi.fn(),
+	setLastProjectPathMock: vi.fn(),
+}))
+
+vi.mock('@/features/settings/settings', async importOriginal => ({
+	...(await importOriginal<
+		typeof import('@/features/settings/settings')
+	>()),
+	setLastProjectPath: setLastProjectPathMock,
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -20,6 +28,22 @@ vi.mock('@tauri-apps/api/core', () => ({
 vi.mock('@/app/router', async importOriginal => ({
 	...(await importOriginal<typeof RouterModule>()),
 	navigate: navigateMock,
+}))
+
+vi.mock('@tauri-apps/api/window', () => ({
+	getCurrentWindow: () => ({
+		onFocusChanged: vi.fn().mockResolvedValue(() => {}),
+	}),
+}))
+
+vi.mock('@tauri-apps/plugin-store', () => ({
+	Store: {
+		load: vi.fn().mockResolvedValue({
+			get: vi.fn().mockResolvedValue(undefined),
+			set: vi.fn().mockResolvedValue(undefined),
+			save: vi.fn().mockResolvedValue(undefined),
+		}),
+	},
 }))
 
 vi.mock('@/shared/logger', () => ({
@@ -109,6 +133,7 @@ describe('MissionControl', () => {
 		invokeMock.mockReset()
 		invokeMock.mockResolvedValue(undefined)
 		navigateMock.mockReset()
+		setLastProjectPathMock.mockReset()
 		window.history.replaceState({}, '', '/')
 		container = document.createElement('div')
 		document.body.appendChild(container)
@@ -428,6 +453,65 @@ describe('MissionControl', () => {
 			node => node.textContent,
 		)
 		expect(names).toEqual(['active', 'busy', 'no project'])
+	})
+
+	it('shows each card the branch and diff stats of its OWN repo', async () => {
+		seedSession('run-a', { repoPath: '/repo/alpha' })
+		seedSession('run-b', { repoPath: '/repo/beta' })
+		invokeMock.mockImplementation(
+			(command: string, args?: { repoPath?: string }) => {
+				if (command === 'repo_head') {
+					return Promise.resolve({
+						branch:
+							args?.repoPath === '/repo/alpha'
+								? 'feat/alpha-work'
+								: 'fix/beta-bug',
+						detached: false,
+					})
+				}
+				if (command === 'get_diff') {
+					return Promise.resolve({
+						patch:
+							args?.repoPath === '/repo/alpha'
+								? 'diff --git a/a.txt b/a.txt\nindex 000..111 100644\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1,2 @@\n-old\n+new\n+more\n'
+								: '',
+					})
+				}
+				return Promise.resolve(undefined)
+			},
+		)
+
+		await act(async () => {
+			root.render(<MissionControl activeProjectPath="/repo/alpha" />)
+		})
+
+		const groups = Array.from(container.querySelectorAll('.proj-group'))
+		const alpha = groups.find(group =>
+			group.textContent?.includes('alpha'),
+		)
+		const beta = groups.find(group => group.textContent?.includes('beta'))
+		expect(alpha?.textContent).toContain('feat/alpha-work')
+		expect(beta?.textContent).toContain('fix/beta-bug')
+		expect(alpha?.querySelector('.ac-diff')?.textContent).toContain('+2')
+		expect(alpha?.querySelector('.ac-diff')?.textContent).toContain('−1')
+		expect(beta?.querySelector('.ac-diff')).toBeNull()
+	})
+
+	it('opening a review card from another repo retargets the preference first', async () => {
+		seedSession('done-b', {
+			repoPath: '/repo/beta',
+			ended: { exitCode: 0 },
+		})
+
+		await act(async () => {
+			root.render(<MissionControl activeProjectPath="/repo/alpha" />)
+		})
+		await act(async () => {
+			cards()[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		})
+
+		expect(setLastProjectPathMock).toHaveBeenCalledWith('/repo/beta')
+		expect(navigateMock).toHaveBeenCalledWith('/review')
 	})
 
 	it('folds registered repos without sessions into a compact dormant section', () => {

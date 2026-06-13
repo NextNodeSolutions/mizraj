@@ -1,5 +1,9 @@
 import { useState } from 'react'
 
+import { useDiff } from '@/features/diff/useDiff'
+import { repoHeadLabel, useRepoHead } from '@/features/projects/repoHead'
+import type { DiffTotals } from '@/features/review/reviewFiles'
+import { diffTotals, reviewFilesFromPatch } from '@/features/review/reviewFiles'
 import type { SessionDisplayStatus } from '@/features/sessions/displayStatus'
 import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
 import { launchSession } from '@/features/sessions/launchSession'
@@ -39,6 +43,16 @@ export const ProjectGroup = ({
 	// A const binding so the null check narrows inside the launch closure.
 	const { repoPath } = group
 	const name = projectName(repoPath)
+	// One head + one working-tree read per repo group (MP1): every card of
+	// the group shows ITS repo's branch and diff stats, never the active
+	// project's.
+	const head = useRepoHead(repoPath)
+	const diff = useDiff(repoPath)
+	const branch = head.status === 'ready' ? repoHeadLabel(head.data) : null
+	const totals: DiffTotals | null =
+		diff.state.status === 'ready'
+			? diffTotals(reviewFilesFromPatch(diff.state.data.patch))
+			: null
 
 	const toggle = (): void => setCollapsed(current => !current)
 
@@ -122,6 +136,8 @@ export const ProjectGroup = ({
 							key={session.id}
 							session={session}
 							now={now}
+							branch={branch}
+							diff={totals}
 							style={{
 								animationDelay: `${cardIndex * STAGGER_STEP_MS}ms`,
 							}}

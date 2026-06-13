@@ -423,3 +423,18 @@
 	font-size: var(--fs-xs);
 	color: var(--text-3);
 }
+
+.ac-diff {
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+}
+
+.ac-diff .add {
+	color: var(--c-add);
+	font-weight: 600;
+}
+
+.ac-diff .del {
+	color: var(--c-del);
+	font-weight: 600;
+}
