@@ -1,9 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 
-import { agentRunHref, navigate, reviewHref } from '@/app/router'
+import { useDiff } from '@/features/diff/useDiff'
 import type { DiffTotals } from '@/features/review/reviewFiles'
+import { diffTotals, reviewFilesFromPatch } from '@/features/review/reviewFiles'
 import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
+import { openSession, openSessionReview } from '@/features/sessions/openSession'
 import {
 	sessionLabel,
 	sessionRepoLabel,
@@ -20,14 +22,26 @@ const TAIL_LINES = 2
 
 type Props = {
 	session: SessionState
-	/** Working-tree diff totals, shown on ended cards (null while loading). */
-	stat?: DiffTotals | null
 	/** Just moved into this column — mounts with the spring entrance. */
 	fresh?: boolean
 	/** First card of its column — its Approve renders as the primary button. */
 	isFirst?: boolean
 	/** Approve handler for review cards; the view owns the optimistic move. */
 	onApprove?: () => void
+}
+
+// The card's own repo working-tree totals — never the active project's
+// (MP5). The same diff the Review screen opens for this repo.
+//TODO: per-session diff stats — needs a session/branch-scoped diff command
+// (mizraj_vcs::diff_session exists in the crate but is not exposed as a
+// Tauri command)
+const useWorkingTreeTotals = (repoPath: string | null): DiffTotals | null => {
+	const { state } = useDiff(repoPath)
+	const patch = state.status === 'ready' ? state.data.patch : null
+	return useMemo(
+		() => (patch === null ? null : diffTotals(reviewFilesFromPatch(patch))),
+		[patch],
+	)
 }
 
 const stopSession = (sessionId: string): void => {
@@ -58,7 +72,6 @@ const TerminalPreview = ({ tail }: TerminalPreviewProps): React.JSX.Element => (
 
 export const PipelineSessionCard = ({
 	session,
-	stat = null,
 	fresh = false,
 	isFirst = false,
 	onApprove,
@@ -67,6 +80,7 @@ export const PipelineSessionCard = ({
 	const frame = useCellFrame(session.id)
 	const tail = terminalTail(frame, TAIL_LINES)
 	const running = status === 'running'
+	const stat = useWorkingTreeTotals(running ? null : session.repoPath)
 	//TODO: per-session branch — SessionState has no branch (sessions run
 	// directly in repoPath; worktree.rs spawn_worktree is unused by
 	// session_create and repo_head only resolves the active project).
@@ -114,7 +128,7 @@ export const PipelineSessionCard = ({
 						<button
 							type="button"
 							className="btn btn-outline btn-sm"
-							onClick={() => navigate(reviewHref())}
+							onClick={() => openSessionReview(session)}
 						>
 							Review
 						</button>
@@ -123,7 +137,7 @@ export const PipelineSessionCard = ({
 					<button
 						type="button"
 						className="btn btn-outline btn-sm"
-						onClick={() => navigate(agentRunHref(session.id))}
+						onClick={() => openSession(session)}
 					>
 						Open
 					</button>

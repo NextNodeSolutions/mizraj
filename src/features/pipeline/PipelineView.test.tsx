@@ -54,6 +54,8 @@ import type {
 import type { Overview } from '@/features/tasks/tasks'
 import { toastsAtom } from '@/shared/toasts'
 
+import { projectsAtom } from '@/features/projects/useProjects'
+
 import { approvedSessionIdsAtom } from './approvedSessions'
 import { PipelineView } from './PipelineView'
 
@@ -216,6 +218,7 @@ describe('PipelineView', () => {
 		store.set(sessionsAtom, {})
 		store.set(cellFramesAtom, {})
 		store.set(approvedSessionIdsAtom, new Set<string>())
+		store.set(projectsAtom, [])
 		invokeMock.mockReset()
 		invokeMock.mockImplementation((command: string) => {
 			if (command === 'tasks_overview') return Promise.resolve(OVERVIEW)
@@ -248,6 +251,57 @@ describe('PipelineView', () => {
 		Array.from(container.querySelectorAll('.pipeline__col')).find(col =>
 			col.querySelector('h3')?.textContent?.includes(name),
 		)
+
+	it('shows the cards of every registered repo, grouped per repo', async () => {
+		store.set(projectsAtom, ['/repo/alpha', '/repo/beta'])
+		const wireUserTask = (title: string): unknown => ({
+			id: `task-${title}`,
+			identifier: null,
+			origin: 'user',
+			milestoneId: null,
+			trackId: null,
+			step: null,
+			title,
+			description: null,
+			doneWhen: null,
+			size: null,
+			sliceOf: [],
+			sinkId: null,
+			position: 0,
+			status: 'backlog',
+			blockedReason: null,
+			commitSha: null,
+			createdAt: '2026-01-01T00:00:00Z',
+		})
+		invokeMock.mockImplementation(
+			(command: string, args?: { repoPath?: string }) => {
+				if (command === 'tasks_overview') {
+					const title =
+						args?.repoPath === '/repo/alpha'
+							? 'Alpha work'
+							: 'Beta work'
+					return Promise.resolve({
+						milestones: [],
+						userTasks: [wireUserTask(title)],
+					})
+				}
+				if (command === 'get_diff') {
+					return Promise.resolve({ patch: '' })
+				}
+				return Promise.resolve(undefined)
+			},
+		)
+
+		await render('/repo/alpha')
+
+		const backlog = column('Backlog')
+		expect(backlog?.textContent).toContain('Alpha work')
+		expect(backlog?.textContent).toContain('Beta work')
+		const labels = Array.from(
+			backlog?.querySelectorAll('.pipeline__repo') ?? [],
+		).map(label => label.textContent)
+		expect(labels).toEqual(['alpha', 'beta'])
+	})
 
 	it('lays out the four columns with their counts', async () => {
 		store.set(startSessionAtom, {
@@ -693,6 +747,6 @@ describe('PipelineView', () => {
 	it('asks for a project when none is active', async () => {
 		await render(null)
 
-		expect(container.textContent).toContain('Select a repository')
+		expect(container.textContent).toContain('Add a repository')
 	})
 })

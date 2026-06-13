@@ -90,7 +90,7 @@ const tagOverview = (wire: WireOverview, repoPath: string): Overview => ({
  * explicit (MP1): any registered repo can be read at any time, in parallel
  * with the others — no active-project switch involved.
  */
-const fetchOverview = async (repoPath: string): Promise<Overview> => {
+export const fetchOverview = async (repoPath: string): Promise<Overview> => {
 	const wire = await invoke<WireOverview>('tasks_overview', { repoPath })
 	return tagOverview(wire, repoPath)
 }

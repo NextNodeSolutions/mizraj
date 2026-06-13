@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { SessionState } from '@/features/sessions/sessions'
 import type { Overview, Task } from '@/features/tasks/tasks'
 
-import { pipelineColumns } from './pipelineColumns'
+import { groupColumnByRepo, pipelineColumns } from './pipelineColumns'
 
 const task = (id: string, status: Task['status']): Task => ({
 	repoPath: '/repo/x',
@@ -63,14 +63,16 @@ const NONE_APPROVED: ReadonlySet<string> = new Set()
 describe('pipelineColumns', () => {
 	it('routes tasks and sessions to their columns', () => {
 		const columns = pipelineColumns(
-			overview(
-				[
-					task('a', 'backlog'),
-					task('b', 'in_progress'),
-					task('c', 'done'),
-				],
-				[task('u', 'backlog')],
-			),
+			[
+				overview(
+					[
+						task('a', 'backlog'),
+						task('b', 'in_progress'),
+						task('c', 'done'),
+					],
+					[task('u', 'backlog')],
+				),
+			],
 			[session('run', 'running'), session('rev', 'ended', 0)],
 			NONE_APPROVED,
 		)
@@ -86,7 +88,7 @@ describe('pipelineColumns', () => {
 
 	it('moves approved ended sessions from review to done', () => {
 		const columns = pipelineColumns(
-			null,
+			[],
 			[session('kept', 'ended', 0), session('merged', 'ended', 0)],
 			new Set(['merged']),
 		)
@@ -97,7 +99,7 @@ describe('pipelineColumns', () => {
 
 	it('keeps blocked tasks visible in the backlog', () => {
 		const columns = pipelineColumns(
-			overview([task('x', 'blocked')], []),
+			[overview([task('x', 'blocked')], [])],
 			[],
 			NONE_APPROVED,
 		)
@@ -107,7 +109,7 @@ describe('pipelineColumns', () => {
 
 	it('carries the track branch onto task entries', () => {
 		const columns = pipelineColumns(
-			overview([task('a', 'backlog')], []),
+			[overview([task('a', 'backlog')], [])],
 			[],
 			NONE_APPROVED,
 		)
@@ -115,9 +117,52 @@ describe('pipelineColumns', () => {
 		expect(columns.backlog[0]?.branch).toBe('feat/x')
 	})
 
-	it('handles a missing overview', () => {
+	it('merges the overviews of every repo into the same columns', () => {
+		const taskOfRepo = (id: string, repoPath: string): Task => ({
+			...task(id, 'backlog'),
+			repoPath,
+		})
 		const columns = pipelineColumns(
-			null,
+			[
+				overview([taskOfRepo('a1', '/repo/alpha')], []),
+				overview([taskOfRepo('b1', '/repo/beta')], []),
+			],
+			[],
+			NONE_APPROVED,
+		)
+
+		expect(columns.backlog.map(entry => entry.task.id)).toEqual([
+			'a1',
+			'b1',
+		])
+		expect(columns.backlog.map(entry => entry.task.repoPath)).toEqual([
+			'/repo/alpha',
+			'/repo/beta',
+		])
+	})
+
+	it('groups a column by repo, sessions first, first-seen order', () => {
+		const sessions = [
+			{ ...session('s1', 'running'), repoPath: '/repo/beta' },
+			{ ...session('s2', 'running'), repoPath: '/repo/alpha' },
+		]
+		const entries = [
+			{ task: { ...task('t1', 'in_progress'), repoPath: '/repo/alpha' }, branch: null },
+		]
+
+		const groups = groupColumnByRepo(sessions, entries)
+
+		expect(groups.map(group => group.repoPath)).toEqual([
+			'/repo/beta',
+			'/repo/alpha',
+		])
+		expect(groups[1]?.sessions.map(s => s.id)).toEqual(['s2'])
+		expect(groups[1]?.entries.map(entry => entry.task.id)).toEqual(['t1'])
+	})
+
+	it('handles no overview at all', () => {
+		const columns = pipelineColumns(
+			[],
 			[session('run', 'running')],
 			NONE_APPROVED,
 		)

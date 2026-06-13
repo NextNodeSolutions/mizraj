@@ -1,17 +1,18 @@
 import { useAtomValue, useSetAtom } from 'jotai'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
-import { useDiff } from '@/features/diff/useDiff'
-import { diffTotals, reviewFilesFromPatch } from '@/features/review/reviewFiles'
-import type { DiffTotals } from '@/features/review/reviewFiles'
+import { projectHue, projectName } from '@/features/missionControl/projectGroups'
+import { useProjects } from '@/features/projects/useProjects'
 import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
+import type { SessionState } from '@/features/sessions/sessions'
 import { useSessions } from '@/features/sessions/useSessions'
-import { useTasks } from '@/features/tasks/tasks'
+import { useOverviews } from '@/features/tasks/useOverviews'
 import { pushToast } from '@/shared/toasts'
 
 import { approvedSessionIdsAtom, approveSessionAtom } from './approvedSessions'
 import { PipelineColumn } from './PipelineColumn'
-import { pipelineColumns } from './pipelineColumns'
+import type { TaskEntry } from './pipelineColumns'
+import { groupColumnByRepo, pipelineColumns } from './pipelineColumns'
 import { PipelineMergedCard } from './PipelineMergedCard'
 import { PipelineSessionCard } from './PipelineSessionCard'
 import { PipelineTaskCard } from './PipelineTaskCard'
@@ -20,28 +21,66 @@ type Props = {
 	activeProjectPath: string | null
 }
 
-// The active project's working-tree totals — the same diff the Review screen
-// opens, so it is identical on every review card.
-//TODO: per-session diff stats — needs a session/branch-scoped diff command
-// (mizraj_vcs::diff_session exists in the crate but is not exposed as a Tauri
-// command)
-const useWorkingTreeTotals = (repoPath: string | null): DiffTotals | null => {
-	const { state } = useDiff(repoPath)
-	const patch = state.status === 'ready' ? state.data.patch : null
-	return useMemo(
-		() => (patch === null ? null : diffTotals(reviewFilesFromPatch(patch))),
-		[patch],
-	)
+type RepoLabelProps = {
+	repoPath: string | null
 }
+
+// The thin per-repo separator inside a column, shown only on multi-repo
+// boards: name + stable hue dot, same identity as Mission Control groups.
+const RepoLabel = ({ repoPath }: RepoLabelProps): React.JSX.Element => (
+	<div className="pipeline__repo" data-hue={projectHue(repoPath)}>
+		<span className="pipeline__repo-dot" aria-hidden="true" />
+		{projectName(repoPath)}
+	</div>
+)
+
+type ColumnCardsProps = {
+	sessions: ReadonlyArray<SessionState>
+	entries: ReadonlyArray<TaskEntry>
+	showRepoLabels: boolean
+	renderSession: (session: SessionState) => React.JSX.Element
+	renderEntry: (entry: TaskEntry, index: number) => React.JSX.Element
+}
+
+// One column's body: cards grouped by repo (sessions before tasks inside a
+// group), with the repo separator only when the board spans several repos.
+const ColumnCards = ({
+	sessions,
+	entries,
+	showRepoLabels,
+	renderSession,
+	renderEntry,
+}: ColumnCardsProps): React.JSX.Element => (
+	<>
+		{groupColumnByRepo(sessions, entries).map(group => (
+			<div
+				key={group.repoPath ?? 'no-project'}
+				className="pipeline__repo-group"
+			>
+				{showRepoLabels && <RepoLabel repoPath={group.repoPath} />}
+				{group.sessions.map(renderSession)}
+				{group.entries.map(renderEntry)}
+			</div>
+		))}
+	</>
+)
 
 export const PipelineView = ({
 	activeProjectPath,
 }: Props): React.JSX.Element => {
-	const { state, refetch } = useTasks(activeProjectPath)
+	const { projects } = useProjects()
+	// The board reads the whole registry (MP5); before the registry loads —
+	// or off-registry — the active project alone keeps the board truthful.
+	const repos =
+		projects.length > 0
+			? projects
+			: activeProjectPath === null
+				? []
+				: [activeProjectPath]
+	const { overviews, refetch } = useOverviews(repos)
 	const sessions = useSessions()
 	const approvedSessionIds = useAtomValue(approvedSessionIdsAtom)
 	const approveSession = useSetAtom(approveSessionAtom)
-	const reviewStat = useWorkingTreeTotals(activeProjectPath)
 	// Session ids whose card just changed column (launched or approved) —
 	// those mount with the spring entrance. 'both' animation fill means no
 	// cleanup is needed; the set dies with the view.
@@ -63,16 +102,24 @@ export const PipelineView = ({
 		pushToast('Merged into main')
 	}
 
-	if (activeProjectPath === null) {
+	if (repos.length === 0) {
 		return (
 			<section className="pipeline pipeline--empty" aria-label="Pipeline">
-				<p>Select a repository to see its pipeline.</p>
+				<p>Add a repository to see its pipeline.</p>
 			</section>
 		)
 	}
 
-	const overview = state.status === 'ready' ? state.data : null
-	const columns = pipelineColumns(overview, sessions, approvedSessionIds)
+	const columns = pipelineColumns(overviews, sessions, approvedSessionIds)
+	// Repo separators appear once the board actually spans several repos.
+	const repoCount = new Set([
+		...sessions.map(session => session.repoPath),
+		...overviews.flatMap(overview =>
+			overview.userTasks.map(task => task.repoPath),
+		),
+		...repos,
+	]).size
+	const showRepoLabels = repoCount > 1
 	const runningCount =
 		columns.runningSessions.length + columns.inProgressTasks.length
 	const doneCount = columns.doneSessions.length + columns.done.length
@@ -85,11 +132,6 @@ export const PipelineView = ({
 
 	return (
 		<section className="pipeline" aria-label="Pipeline">
-			{state.status === 'error' && (
-				<p className="pipeline__error" role="alert">
-					Tasks unavailable: {state.message}
-				</p>
-			)}
 			<div className="pipeline__cols stagger">
 				<PipelineColumn
 					title="Backlog"
@@ -102,16 +144,21 @@ export const PipelineView = ({
 							backlog clear — every task has an agent
 						</p>
 					)}
-					{columns.backlog.map((entry, index) => (
-						<PipelineTaskCard
-							key={entry.task.id}
-							entry={entry}
-							repoPath={activeProjectPath}
-							onChanged={refetch}
-							isFirst={index === 0}
-							onLaunched={markFresh}
-						/>
-					))}
+					<ColumnCards
+						sessions={[]}
+						entries={columns.backlog}
+						showRepoLabels={showRepoLabels}
+						renderSession={() => <></>}
+						renderEntry={(entry, index) => (
+							<PipelineTaskCard
+								key={entry.task.id}
+								entry={entry}
+								onChanged={refetch}
+								isFirst={index === 0}
+								onLaunched={markFresh}
+							/>
+						)}
+					/>
 				</PipelineColumn>
 				<PipelineColumn
 					title="Running"
@@ -119,21 +166,25 @@ export const PipelineView = ({
 					dot="run"
 					si={1}
 				>
-					{columns.runningSessions.map(session => (
-						<PipelineSessionCard
-							key={session.id}
-							session={session}
-							fresh={freshSessionIds.has(session.id)}
-						/>
-					))}
-					{columns.inProgressTasks.map(entry => (
-						<PipelineTaskCard
-							key={entry.task.id}
-							entry={entry}
-							repoPath={activeProjectPath}
-							onChanged={refetch}
-						/>
-					))}
+					<ColumnCards
+						sessions={columns.runningSessions}
+						entries={columns.inProgressTasks}
+						showRepoLabels={showRepoLabels}
+						renderSession={session => (
+							<PipelineSessionCard
+								key={session.id}
+								session={session}
+								fresh={freshSessionIds.has(session.id)}
+							/>
+						)}
+						renderEntry={entry => (
+							<PipelineTaskCard
+								key={entry.task.id}
+								entry={entry}
+								onChanged={refetch}
+							/>
+						)}
+					/>
 				</PipelineColumn>
 				<PipelineColumn
 					title="Review"
@@ -142,19 +193,22 @@ export const PipelineView = ({
 					si={2}
 				>
 					{columns.endedSessions.length === 0 && (
-						<p className="pipeline__empty">
-							nothing waiting on you
-						</p>
+						<p className="pipeline__empty">nothing waiting on you</p>
 					)}
-					{columns.endedSessions.map(session => (
-						<PipelineSessionCard
-							key={session.id}
-							session={session}
-							stat={reviewStat}
-							isFirst={session.id === firstReviewId}
-							onApprove={() => approve(session.id)}
-						/>
-					))}
+					<ColumnCards
+						sessions={columns.endedSessions}
+						entries={[]}
+						showRepoLabels={showRepoLabels}
+						renderSession={session => (
+							<PipelineSessionCard
+								key={session.id}
+								session={session}
+								isFirst={session.id === firstReviewId}
+								onApprove={() => approve(session.id)}
+							/>
+						)}
+						renderEntry={() => <></>}
+					/>
 				</PipelineColumn>
 				<PipelineColumn
 					title="Done"
@@ -162,21 +216,25 @@ export const PipelineView = ({
 					dot="done"
 					si={3}
 				>
-					{columns.doneSessions.map(session => (
-						<PipelineMergedCard
-							key={session.id}
-							session={session}
-							fresh={freshSessionIds.has(session.id)}
-						/>
-					))}
-					{columns.done.map(entry => (
-						<PipelineTaskCard
-							key={entry.task.id}
-							entry={entry}
-							repoPath={activeProjectPath}
-							onChanged={refetch}
-						/>
-					))}
+					<ColumnCards
+						sessions={columns.doneSessions}
+						entries={columns.done}
+						showRepoLabels={showRepoLabels}
+						renderSession={session => (
+							<PipelineMergedCard
+								key={session.id}
+								session={session}
+								fresh={freshSessionIds.has(session.id)}
+							/>
+						)}
+						renderEntry={entry => (
+							<PipelineTaskCard
+								key={entry.task.id}
+								entry={entry}
+								onChanged={refetch}
+							/>
+						)}
+					/>
 				</PipelineColumn>
 			</div>
 		</section>

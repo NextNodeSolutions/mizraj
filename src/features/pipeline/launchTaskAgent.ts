@@ -27,13 +27,12 @@ export const taskPrompt = (task: Task): string =>
  * reports null; success reports the new session id so the view can mark
  * its card fresh.
  */
-export const launchTaskAgent = async (
-	task: Task,
-	repoPath: string,
-): Promise<string | null> => {
+export const launchTaskAgent = async (task: Task): Promise<string | null> => {
+	// The agent spawns in the task's own repo (MP5): a launch from a repo-B
+	// card lands on B even while the preference points at A.
 	const sessionId = await spawnSession({
 		binary: AGENT_BINARY,
-		repoPath,
+		repoPath: task.repoPath,
 	})
 	if (sessionId === null) {
 		pushToast('Agent launch failed — see logs')

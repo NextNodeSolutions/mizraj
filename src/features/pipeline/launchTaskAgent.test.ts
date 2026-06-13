@@ -88,12 +88,12 @@ describe('launchTaskAgent', () => {
 				: Promise.resolve({ ...TASK, status: 'in_progress' }),
 		)
 
-		const sessionId = await launchTaskAgent(TASK, '/repo')
+		const sessionId = await launchTaskAgent(TASK)
 
 		expect(sessionId).toBe('sess-9')
 		expect(invokeMock).toHaveBeenCalledWith('session_create', {
 			binary: 'claude',
-			cwd: '/repo',
+			cwd: '/repo/x',
 		})
 		expect(invokeMock).toHaveBeenCalledWith('tasks_update', {
 			repoPath: '/repo/x',
@@ -109,7 +109,7 @@ describe('launchTaskAgent', () => {
 	it('aborts without flagging the task when the spawn fails', async () => {
 		invokeMock.mockRejectedValue(new Error('no claude on PATH'))
 
-		const sessionId = await launchTaskAgent(TASK, '/repo')
+		const sessionId = await launchTaskAgent(TASK)
 
 		expect(sessionId).toBe(null)
 		expect(invokeMock).not.toHaveBeenCalledWith(

@@ -226,3 +226,42 @@
 		animation: none !important;
 	}
 }
+
+/* ---- per-repo separators inside a column (multi-repo boards, MP5) ---- */
+.pipeline__repo-group {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.pipeline__repo-group + .pipeline__repo-group {
+	margin-top: 12px;
+}
+
+.pipeline__repo {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.09em;
+	text-transform: uppercase;
+	color: var(--text-3);
+	padding: 2px 2px 0;
+}
+
+.pipeline__repo-dot {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--proj-hue, var(--accent));
+}
+
+.pipeline__repo[data-hue='blue'] { --proj-hue: var(--ctp-blue); }
+.pipeline__repo[data-hue='mauve'] { --proj-hue: var(--ctp-mauve); }
+.pipeline__repo[data-hue='teal'] { --proj-hue: var(--ctp-teal); }
+.pipeline__repo[data-hue='peach'] { --proj-hue: var(--ctp-peach); }
+.pipeline__repo[data-hue='green'] { --proj-hue: var(--ctp-green); }
+.pipeline__repo[data-hue='sky'] { --proj-hue: var(--ctp-sky); }
+.pipeline__repo[data-hue='pink'] { --proj-hue: var(--ctp-pink); }
+.pipeline__repo[data-hue='yellow'] { --proj-hue: var(--ctp-yellow); }

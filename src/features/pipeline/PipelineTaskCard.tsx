@@ -7,7 +7,6 @@ import type { TaskEntry } from './pipelineColumns'
 
 type Props = {
 	entry: TaskEntry
-	repoPath: string | null
 	onChanged: () => void
 	/** First card of its column — its action renders as the primary button. */
 	isFirst?: boolean
@@ -32,10 +31,9 @@ const markDone = async (
 
 const launch = (
 	task: Task,
-	repoPath: string,
 	onSpawned: (sessionId: string) => void,
 ): void => {
-	void launchTaskAgent(task, repoPath).then(sessionId => {
+	void launchTaskAgent(task).then(sessionId => {
 		if (sessionId !== null) onSpawned(sessionId)
 	})
 }
@@ -61,7 +59,6 @@ const TaskMetaRow = ({ entry }: MetaRowProps): React.JSX.Element | null => {
 
 export const PipelineTaskCard = ({
 	entry,
-	repoPath,
 	onChanged,
 	isFirst = false,
 	onLaunched,
@@ -96,10 +93,9 @@ export const PipelineTaskCard = ({
 								? 'btn btn-primary btn-sm'
 								: 'btn btn-outline btn-sm'
 						}
-						disabled={blocked || repoPath === null}
+						disabled={blocked}
 						onClick={() => {
-							if (repoPath === null) return
-							launch(task, repoPath, sessionId => {
+							launch(task, sessionId => {
 								onLaunched?.(sessionId)
 								onChanged()
 							})
