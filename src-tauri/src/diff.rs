@@ -4,8 +4,6 @@ use mizraj_vcs::git2::{Diff, DiffFormat};
 use mizraj_vcs::{diff_working_tree, repo_open};
 use serde_json::{json, Value};
 
-use crate::project::ActiveProject;
-
 /// Serialize a `git2::Diff` into a payload consumable by `@pierre/diffs`.
 ///
 /// Returns `{"patch": "<unified diff text>"}`. The frontend feeds `patch`
@@ -30,18 +28,14 @@ pub fn map_diff(diff: &Diff<'_>) -> Value {
     json!({ "patch": text })
 }
 
-/// Return the active project's uncommitted changes — staged, unstaged, and
+/// Return `repo_path`'s uncommitted changes — staged, unstaged, and
 /// untracked, all relative to `HEAD` — as a `@pierre/diffs` patch payload.
 ///
-/// The multi-view selector (session / HEAD-vs-base) was removed; this command
-/// now serves the single working-tree diff. `diff_session` / `diff_head_base`
-/// remain in the vcs crate for when the diff views are rebuilt.
+/// The repo is an explicit argument (MP1): any registered repo can be read
+/// at any time, the active project is a UI preference and plays no part here.
 #[tauri::command]
-pub fn get_diff(active_project: tauri::State<'_, ActiveProject>) -> Result<Value, String> {
-    let repo_path = active_project
-        .get()
-        .ok_or_else(|| "no active project".to_string())?;
-    get_diff_inner(&repo_path)
+pub fn get_diff(repo_path: String) -> Result<Value, String> {
+    get_diff_inner(Path::new(&repo_path))
 }
 
 fn get_diff_inner(repo_path: &Path) -> Result<Value, String> {
