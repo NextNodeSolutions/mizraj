@@ -149,12 +149,15 @@ export const PipelineView = ({
 						entries={columns.backlog}
 						showRepoLabels={showRepoLabels}
 						renderSession={() => <></>}
-						renderEntry={(entry, index) => (
+						renderEntry={entry => (
 							<PipelineTaskCard
 								key={entry.task.id}
 								entry={entry}
 								onChanged={refetch}
-								isFirst={index === 0}
+								isFirst={
+									entry.task.id ===
+									columns.backlog[0]?.task.id
+								}
 								onLaunched={markFresh}
 							/>
 						)}
