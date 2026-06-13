@@ -32,6 +32,9 @@ vi.mock('@/shared/logger', () => ({
 }))
 
 import { useDiff } from '@/features/diff/useDiff'
+import { resetAppFocusForTests } from '@/shared/appFocus'
+
+import { resetRepoEventsForTests } from './repoEvents'
 
 type RepoChangedEvent = {
 	payload: { repoPath: string; kind: string }
@@ -46,17 +49,17 @@ describe('repo-changed invalidation', () => {
 	let container: HTMLDivElement
 	let root: Root
 	let emitRepoChanged: ((event: RepoChangedEvent) => void) | null
-	let unlisten: ReturnType<typeof vi.fn>
 
 	beforeEach(() => {
+		resetRepoEventsForTests()
+		resetAppFocusForTests()
 		invokeMock.mockReset()
 		listenMock.mockReset()
 		emitRepoChanged = null
-		unlisten = vi.fn()
 		listenMock.mockImplementation(
 			(_event: string, handler: (event: RepoChangedEvent) => void) => {
 				emitRepoChanged = handler
-				return Promise.resolve(unlisten)
+				return Promise.resolve(() => {})
 			},
 		)
 		invokeMock.mockResolvedValue({ patch: '' })
@@ -107,13 +110,33 @@ describe('repo-changed invalidation', () => {
 		expect(invokeMock.mock.calls.length).toBe(callsBefore)
 	})
 
-	it('unsubscribes from the event on unmount', async () => {
+	it('stops refetching after the hook unmounts', async () => {
 		await renderProbe('/repo/alpha')
 
 		await act(async () => {
 			root.unmount()
 		})
+		const callsBefore = invokeMock.mock.calls.length
 
-		expect(unlisten).toHaveBeenCalled()
+		await act(async () => {
+			emitRepoChanged?.({
+				payload: { repoPath: '/repo/alpha', kind: 'worktree' },
+			})
+		})
+
+		expect(invokeMock.mock.calls.length).toBe(callsBefore)
+	})
+
+	it('registers a single repo-changed listener for many hooks', async () => {
+		await act(async () => {
+			root.render(
+				<>
+					<DiffProbe repoPath="/repo/alpha" />
+					<DiffProbe repoPath="/repo/alpha" />
+				</>,
+			)
+		})
+
+		expect(listenMock).toHaveBeenCalledTimes(1)
 	})
 })
