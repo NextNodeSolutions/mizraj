@@ -30,6 +30,14 @@ pub fn run() {
         .manage(Db::default())
         .register_uri_scheme_protocol(plans::protocol::SCHEME, plans::protocol::handle_request)
         .setup(|app| {
+            let registry_path = app
+                .path()
+                .app_data_dir()
+                .map_err(|err| format!("resolve app data dir: {err}"))?
+                .join("projects.json");
+            let registry = project::registry::Registry::load(&registry_path)
+                .map_err(|err| format!("load project registry: {err}"))?;
+            app.manage(project::registry::SharedRegistry::new(registry));
             #[cfg(target_os = "macos")]
             if let Some(path) = session::path::capture_login_shell_path() {
                 std::env::set_var("PATH", path);
@@ -53,6 +61,9 @@ pub fn run() {
             ghostty::load_ghostty_config,
             plans::list::list_plans,
             project::set_active_project,
+            project::registry::projects_list,
+            project::registry::projects_add,
+            project::registry::projects_remove,
             project::clear_active_project,
             project::repo_head,
             tasks::tasks_overview,
