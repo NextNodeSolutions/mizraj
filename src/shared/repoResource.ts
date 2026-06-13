@@ -1,6 +1,8 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { onRepoChanged } from '@/features/projects/repoEvents'
+
 import { describeError } from './errors'
 import { logger } from './logger'
 
@@ -68,9 +70,13 @@ export const useRepoResource = <T>(
 				if (focused) void reload()
 			},
 		)
+		// Event-driven refresh (MP6): the backend watcher reports this repo's
+		// filesystem changes; only this repo's resources refetch on them.
+		const offRepoChanged = onRepoChanged(repoPath, () => void reload())
 
 		return () => {
 			void unlistenPromise.then(off => off())
+			offRepoChanged()
 		}
 	}, [repoPath, reload])
 
