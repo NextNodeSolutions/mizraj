@@ -1,6 +1,13 @@
 import { parsePatchFiles } from '@pierre/diffs'
 import type { FileDiffMetadata } from '@pierre/diffs'
-import { useMemo, useRef, useState } from 'react'
+import {
+	useCallback,
+	useDeferredValue,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react'
 
 import { parseReviewFile, useLocationSearch } from '@/app/router'
 import { useDiff } from '@/features/diff/useDiff'
@@ -33,14 +40,41 @@ const ReviewPlaceholder = ({
 	</section>
 )
 
+// A content-derived prefix (djb2) so @pierre/diffs stamps each file with a
+// cacheKey (`prefix-patchIndex-fileIndex`). Without it the worker pool's LRU is
+// bypassed and every re-open re-tokenizes from scratch; with it, re-opening a
+// file returns the cached highlight instantly. The prefix changes with the
+// patch content, so an edited file never serves a stale highlight.
+const DJB2_SEED = 5381
+const DJB2_MULTIPLIER = 33
+const BASE36 = 36
+
+const hashPatch = (patch: string): string => {
+	let hash = DJB2_SEED
+	for (let i = 0; i < patch.length; i += 1) {
+		hash = (hash * DJB2_MULTIPLIER + patch.charCodeAt(i)) | 0
+	}
+	return (hash >>> 0).toString(BASE36)
+}
+
 const usePatchFiles = (patch: string | null): ReadonlyArray<FileDiffMetadata> =>
 	useMemo(
 		() =>
 			patch === null
 				? []
-				: parsePatchFiles(patch).flatMap(parsed => parsed.files),
+				: parsePatchFiles(patch, hashPatch(patch)).flatMap(
+						parsed => parsed.files,
+					),
 		[patch],
 	)
+
+// First match by path, else the first file. The tree highlight (urgent) and the
+// diff pane (deferred) resolve their file the same way from different paths.
+const resolveFile = (
+	files: ReadonlyArray<ReviewFile>,
+	path: string | null,
+): ReviewFile | null =>
+	files.find(file => file.path === path) ?? files[0] ?? null
 
 // Where the composer anchors: the armed line while its file stays selected,
 // else the selected file — so switching files resets the context by itself.
@@ -74,6 +108,88 @@ const annotationsFor = (
 			: [],
 	)
 
+// Annotations for the selected file, stable across unrelated re-renders
+// (composer typing, toasts): a fresh array would make the persistent FileDiff
+// instance re-diff its annotations every time the rail re-renders.
+const useSelectedAnnotations = (
+	thread: ReadonlyArray<ReviewMessage>,
+	selected: ReviewFile | null,
+): Array<ReviewAnnotation> => {
+	const path = selected?.path ?? null
+	return useMemo(() => annotationsFor(thread, path), [thread, path])
+}
+
+type DiffTarget = {
+	shownFile: ReviewFile | null
+	shownMeta: FileDiffMetadata | null
+	shownAnnotations: Array<ReviewAnnotation>
+	shownPath: string | null
+}
+
+// What the diff pane renders trails the selection by a deferred value: a click
+// updates the tree highlight urgently while the heavy in-place re-tokenize
+// (FileDiff's pre-paint layout effect) runs in a low-priority render, so the
+// click never blocks on a large file. shownFile/Meta/Annotations all derive
+// from the SAME deferred path, so the pane is never internally inconsistent.
+const useDeferredDiffTarget = (
+	files: ReadonlyArray<ReviewFile>,
+	parsedFiles: ReadonlyArray<FileDiffMetadata>,
+	selectedPath: string | null,
+	thread: ReadonlyArray<ReviewMessage>,
+): DiffTarget => {
+	const deferredPath = useDeferredValue(selectedPath)
+	const shownFile = resolveFile(files, deferredPath)
+	const shownMeta =
+		parsedFiles.find(file => file.name === shownFile?.path) ?? null
+	const shownAnnotations = useSelectedAnnotations(thread, shownFile)
+	return {
+		shownFile,
+		shownMeta,
+		shownAnnotations,
+		shownPath: shownFile?.path ?? null,
+	}
+}
+
+const isTextEntry = (node: Element | null): boolean =>
+	node instanceof HTMLElement &&
+	(node.tagName === 'TEXTAREA' ||
+		node.tagName === 'INPUT' ||
+		node.isContentEditable)
+
+// Tab → next changed file, Shift+Tab → previous (wrapping). Suppressed while
+// the composer (or any text field) holds focus, so writing a remark keeps Tab's
+// normal behavior. Rapid Tab presses ride the same deferred path as clicks.
+const useFileKeyboardNav = (
+	files: ReadonlyArray<ReviewFile>,
+	currentPath: string | null,
+	selectFile: (path: string) => void,
+): void => {
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent): void => {
+			if (
+				event.key !== 'Tab' ||
+				event.altKey ||
+				event.metaKey ||
+				event.ctrlKey ||
+				files.length === 0 ||
+				isTextEntry(document.activeElement)
+			) {
+				return
+			}
+			event.preventDefault()
+			const current = files.findIndex(file => file.path === currentPath)
+			const base = current === -1 ? 0 : current
+			const step = event.shiftKey ? -1 : 1
+			const target = files[(base + step + files.length) % files.length]
+			if (target !== undefined) selectFile(target.path)
+		}
+		document.addEventListener('keydown', onKeyDown)
+		return () => {
+			document.removeEventListener('keydown', onKeyDown)
+		}
+	}, [files, currentPath, selectFile])
+}
+
 export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 	const { state } = useDiff(activeProjectPath)
 	const patch = state.status === 'ready' ? state.data.patch : null
@@ -106,27 +222,36 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 	const composeRef = useRef<HTMLTextAreaElement>(null)
 	const thread = useConversation(activeProjectPath)
 
-	const selected =
-		files.find(file => file.path === selectedPath) ?? files[0] ?? null
-	const selectedMeta =
-		parsedFiles.find(file => file.name === selected?.path) ?? null
+	// Tree highlight follows the click instantly (urgent); the diff pane trails
+	// a deferred copy so the heavy render never blocks the click's paint.
+	const selected = resolveFile(files, selectedPath)
+	const activePath = selected?.path ?? null
+	const { shownFile, shownMeta, shownAnnotations, shownPath } =
+		useDeferredDiffTarget(files, parsedFiles, selectedPath, thread)
 	const totals = diffTotals(files)
-	const composeContext = composeContextFor(selected, commentAnchor)
+	// Compose context and any armed line comment track the file the diff
+	// actually shows (deferred), staying consistent with the visible gutter.
+	const composeContext = composeContextFor(shownFile, commentAnchor)
 
-	const selectFile = (path: string): void => {
+	// Stable identities so memo(ReviewDiffPane) holds: unrelated re-renders
+	// (composer typing, toasts, conversation refetch) no longer push fresh
+	// callbacks into the persistent FileDiff instance.
+	const selectFile = useCallback((path: string): void => {
 		setSelectedPath(path)
 		setCommentAnchor(null)
-	}
+	}, [])
 
-	const beginLineComment = (
-		line: number,
-		side: 'additions' | 'deletions' | null,
-	): void => {
-		if (selected === null) return
-		setCommentAnchor({ path: selected.path, line, side })
-		composeRef.current?.focus()
-		pushToast('Comment the line, then send to agent')
-	}
+	const beginLineComment = useCallback(
+		(line: number, side: 'additions' | 'deletions' | null): void => {
+			if (shownPath === null) return
+			setCommentAnchor({ path: shownPath, line, side })
+			composeRef.current?.focus()
+			pushToast('Comment the line, then send to agent')
+		},
+		[shownPath],
+	)
+
+	useFileKeyboardNav(files, activePath, selectFile)
 
 	if (state.status === 'idle') {
 		return <ReviewPlaceholder>No repository selected.</ReviewPlaceholder>
@@ -161,15 +286,15 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 			<div className="review__body stagger">
 				<ReviewTree
 					files={files}
-					selectedPath={selected?.path ?? null}
+					selectedPath={activePath}
 					onSelect={selectFile}
 				/>
-				{selected !== null && selectedMeta !== null ? (
+				{shownFile !== null && shownMeta !== null ? (
 					<ReviewDiffPane
-						file={selected}
-						meta={selectedMeta}
+						file={shownFile}
+						meta={shownMeta}
 						diffStyle={diffStyle}
-						annotations={annotationsFor(thread, selected.path)}
+						annotations={shownAnnotations}
 						onBeginComment={beginLineComment}
 					/>
 				) : (

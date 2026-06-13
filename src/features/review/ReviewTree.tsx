@@ -44,36 +44,32 @@ export const ReviewTree = ({
 			</div>
 			<ul className="review-tree__list">
 				{files.map(file => (
-					<li key={file.path}>
-						<div
+					<li key={file.path} className="review-tree__row">
+						<button
+							type="button"
 							className="review-tree__file"
 							data-viewed={Boolean(viewed[file.path])}
 							aria-current={
 								file.path === selectedPath ? 'true' : undefined
 							}
+							title={file.path}
+							onClick={() => onSelect(file.path)}
 						>
-							<button
-								type="button"
-								className="review-tree__select"
-								title={file.path}
-								onClick={() => onSelect(file.path)}
+							<span
+								className="review-tree__badge"
+								data-change={file.change}
 							>
-								<span
-									className="review-tree__badge"
-									data-change={file.change}
-								>
-									{CHANGE_BADGE[file.change]}
-								</span>
-								<span className="review-tree__name">
-									{fileName(file.path)}
-								</span>
-								<DiffStat
-									add={file.additions}
-									del={file.deletions}
-								/>
-							</button>
-							<ViewedCheck path={file.path} />
-						</div>
+								{CHANGE_BADGE[file.change]}
+							</span>
+							<span className="review-tree__name">
+								{fileName(file.path)}
+							</span>
+							<DiffStat
+								add={file.additions}
+								del={file.deletions}
+							/>
+						</button>
+						<ViewedCheck path={file.path} />
 					</li>
 				))}
 			</ul>

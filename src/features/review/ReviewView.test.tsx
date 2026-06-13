@@ -218,7 +218,7 @@ describe('ReviewView', () => {
 		await render()
 
 		const rows = container.querySelectorAll<HTMLElement>(
-			'.review-tree__select',
+			'.review-tree__file',
 		)
 		await act(async () => {
 			rows[1]?.click()
@@ -244,7 +244,7 @@ describe('ReviewView', () => {
 
 		expect(container.textContent).toContain('0 / 2 viewed')
 		const check = container.querySelector<HTMLButtonElement>(
-			'.review-tree__file button[aria-label="Mark src/api/limiter.ts viewed"]',
+			'.review-tree__row button[aria-label="Mark src/api/limiter.ts viewed"]',
 		)
 		expect(check?.getAttribute('data-done')).toBe('false')
 		await act(async () => {
@@ -259,7 +259,7 @@ describe('ReviewView', () => {
 		await render()
 
 		const check = container.querySelector<HTMLButtonElement>(
-			'.review-tree__file button[aria-label="Mark src/api/handler.ts viewed"]',
+			'.review-tree__row button[aria-label="Mark src/api/handler.ts viewed"]',
 		)
 		expect(check).not.toBeNull()
 		await act(async () => {
@@ -514,7 +514,7 @@ describe('ReviewView', () => {
 		)
 
 		const rows = container.querySelectorAll<HTMLElement>(
-			'.review-tree__select',
+			'.review-tree__file',
 		)
 		await act(async () => {
 			rows[1]?.click()
@@ -568,5 +568,60 @@ describe('ReviewView', () => {
 		await render()
 
 		expect(container.textContent).toContain('No changes')
+	})
+
+	const fileDiffName = (): string | null | undefined =>
+		container
+			.querySelector('[data-testid="file-diff-stub"]')
+			?.getAttribute('data-file-name')
+
+	const pressTab = async (shiftKey = false): Promise<void> => {
+		await act(async () => {
+			document.dispatchEvent(
+				new KeyboardEvent('keydown', {
+					key: 'Tab',
+					shiftKey,
+					bubbles: true,
+					cancelable: true,
+				}),
+			)
+		})
+	}
+
+	it('moves to the next file with Tab, wrapping past the last', async () => {
+		await render()
+		expect(fileDiffName()).toBe('src/api/limiter.ts')
+
+		await pressTab()
+		expect(fileDiffName()).toBe('src/api/handler.ts')
+
+		await pressTab()
+		expect(fileDiffName()).toBe('src/api/limiter.ts')
+	})
+
+	it('moves to the previous file with Shift+Tab, wrapping past the first', async () => {
+		await render()
+
+		await pressTab(true)
+		expect(fileDiffName()).toBe('src/api/handler.ts')
+	})
+
+	it('leaves Tab alone while the composer is focused', async () => {
+		store.set(startSessionAtom, {
+			id: 'agent-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		await render()
+
+		const textarea = container.querySelector('textarea')
+		await act(async () => {
+			textarea?.focus()
+		})
+		await pressTab()
+
+		// Focus stayed in the composer, so Tab kept its default behavior and the
+		// selected file did not change.
+		expect(fileDiffName()).toBe('src/api/limiter.ts')
 	})
 })

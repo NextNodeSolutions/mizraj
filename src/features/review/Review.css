@@ -101,6 +101,8 @@
 /* .stagger (components.css) reads --si per child for the riseIn delay. */
 .review__body > :nth-child(2) {
 	--si: 1;
+	/* The diff panel appears instantly — no entrance motion on the file view. */
+	animation: none;
 }
 
 .review__body > :nth-child(3) {
@@ -151,14 +153,27 @@
 	gap: 2px;
 }
 
+.review-tree__row {
+	position: relative;
+}
+
+/* The whole row is one button so the entire padded box selects the file — not
+   just the filename text. Right padding reserves the column the viewed check
+   overlays (positioned out of flow below). */
 .review-tree__file {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: 7px 9px;
+	width: 100%;
+	padding: 7px 34px 7px 9px;
 	border-radius: var(--r-sm);
 	cursor: pointer;
 	border: 1px solid transparent;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	box-shadow: none;
 	transition:
 		background var(--t-fast),
 		border-color var(--t-fast);
@@ -178,20 +193,13 @@
 	color: var(--text-3);
 }
 
-.review-tree__select {
-	flex: 1;
-	min-width: 0;
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 0;
-	font-size: inherit;
-	border: none;
-	background: transparent;
-	color: inherit;
-	box-shadow: none;
-	cursor: pointer;
-	text-align: left;
+/* Sits over the row button's reserved right column, outside it in the DOM so a
+   click on the check toggles "viewed" without selecting the file. */
+.review-tree__row .review__vchk-btn {
+	position: absolute;
+	top: 50%;
+	right: 9px;
+	transform: translateY(-50%);
 }
 
 .review-tree__badge {
@@ -323,9 +331,9 @@
 	padding: 6px 0 16px;
 }
 
-.review__diff-file {
-	animation: riseIn 0.3s var(--ease-out) both;
-}
+/* No entrance animation: a file must open and switch instantly, with no motion.
+   The FileDiff instance persists across switches (see ReviewDiffPane), so the
+   content updates in place. */
 
 /* hunk headers from hunkSeparators:'line-info' (design .hunk-head) */
 .review__diff-body [data-separator] {
@@ -584,7 +592,6 @@
 @media (prefers-reduced-motion: reduce) {
 	.review-tree__bar i,
 	.vchk[data-done='true'],
-	.review__diff-file,
 	.review__inline-cmt,
 	.review-rail__msg {
 		transition: none;
