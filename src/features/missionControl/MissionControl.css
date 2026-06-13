@@ -374,3 +374,52 @@
 	opacity: 1;
 	transform: none;
 }
+
+/* ---- dormant repos: the wall's compact tail (MP4) ---- */
+.mc-dormant {
+	margin-top: 18px;
+	border: 1px dashed var(--border);
+	border-radius: var(--r-md);
+	background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+
+.mc-dormant-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	padding: 10px 14px;
+	border: none;
+	background: none;
+	color: var(--text-3);
+	font-size: var(--fs-sm);
+	cursor: pointer;
+}
+
+.mc-dormant-head:hover {
+	color: var(--text-2);
+}
+
+.mc-dormant-list {
+	list-style: none;
+	margin: 0;
+	padding: 0 8px 8px;
+}
+
+.mc-dormant-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 7px 8px;
+	border-radius: var(--r-sm);
+}
+
+.mc-dormant-row:hover {
+	background: var(--fill-accent);
+}
+
+.mc-dormant-row .proj-dir {
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+	color: var(--text-3);
+}

@@ -5,6 +5,7 @@ import type { SessionState } from '@/features/sessions/sessions'
 import {
 	HUES,
 	compactPath,
+	dormantRepos,
 	groupSessionsByRepo,
 	orderProjectGroups,
 	projectHue,
@@ -105,6 +106,31 @@ describe('orderProjectGroups', () => {
 		expect(
 			orderProjectGroups(groups, null).map(group => group.repoPath),
 		).toEqual(['/repo/busy', '/repo/quiet'])
+	})
+})
+
+describe('dormantRepos', () => {
+	it('keeps registry repos with no live session, in registry order', () => {
+		const groups = groupSessionsByRepo([
+			session('a', { repoPath: '/repo/x' }),
+			session('loose', { repoPath: null }),
+		])
+
+		const dormant = dormantRepos(groups, [
+			'/repo/sleepy',
+			'/repo/x',
+			'/repo/idle',
+		])
+
+		expect(dormant).toEqual(['/repo/sleepy', '/repo/idle'])
+	})
+
+	it('is empty when every registered repo has sessions', () => {
+		const groups = groupSessionsByRepo([
+			session('a', { repoPath: '/repo/x' }),
+		])
+
+		expect(dormantRepos(groups, ['/repo/x'])).toEqual([])
 	})
 })
 

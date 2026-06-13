@@ -5,6 +5,7 @@ import {
 	parseMissionFilter,
 	useLocationSearch,
 } from '@/app/router'
+import { useProjects } from '@/features/projects/useProjects'
 import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
 import { RunAgentButton } from '@/features/sessions/RunAgentButton'
 import type { SessionState } from '@/features/sessions/sessions'
@@ -12,8 +13,13 @@ import { useSessions } from '@/features/sessions/useSessions'
 import { SDot } from '@/shared/ui/atoms'
 import { useNow } from '@/shared/useNow'
 
+import { DormantSection } from './DormantSection'
+import {
+	dormantRepos,
+	groupSessionsByRepo,
+	orderProjectGroups,
+} from './projectGroups'
 import { ProjectGroup } from './ProjectGroup'
-import { groupSessionsByRepo, orderProjectGroups } from './projectGroups'
 
 const AGE_REFRESH_MS = 30_000
 
@@ -61,10 +67,14 @@ export const MissionControl = ({
 	activeProjectPath,
 }: Props): React.JSX.Element => {
 	const sessions = useSessions()
+	const { projects } = useProjects()
 	const now = useNow(AGE_REFRESH_MS)
 	// The URL is the single source of truth — the topbar status cluster
 	// deep-links here with ?filter=running|review.
 	const filter = parseMissionFilter(useLocationSearch())
+
+	const sessionGroups = groupSessionsByRepo(sessions)
+	const dormant = dormantRepos(sessionGroups, projects)
 
 	if (sessions.length === 0) {
 		return (
@@ -76,6 +86,7 @@ export const MissionControl = ({
 						<RunAgentButton repoPath={activeProjectPath} />
 					)}
 				</div>
+				{dormant.length > 0 && <DormantSection repos={dormant} />}
 			</section>
 		)
 	}
@@ -83,10 +94,7 @@ export const MissionControl = ({
 	const countFor = (key: MissionFilter): number =>
 		key === 'all' ? sessions.length : countByStatus(sessions, key)
 
-	const groups = orderProjectGroups(
-		groupSessionsByRepo(sessions),
-		activeProjectPath,
-	)
+	const groups = orderProjectGroups(sessionGroups, activeProjectPath)
 	// A group whose every card is filtered out disappears entirely.
 	const visibleGroups = groups
 		.map(group => ({
@@ -146,6 +154,7 @@ export const MissionControl = ({
 					))}
 				</div>
 			)}
+			{dormant.length > 0 && <DormantSection repos={dormant} />}
 		</section>
 	)
 }

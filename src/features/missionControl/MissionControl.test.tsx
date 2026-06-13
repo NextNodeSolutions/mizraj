@@ -31,6 +31,7 @@ vi.mock('@/shared/logger', () => ({
 	},
 }))
 
+import { projectsAtom } from '@/features/projects/useProjects'
 import {
 	cellFramesAtom,
 	sessionsAtom,
@@ -104,6 +105,7 @@ describe('MissionControl', () => {
 	beforeEach(() => {
 		store.set(sessionsAtom, {})
 		store.set(cellFramesAtom, {})
+		store.set(projectsAtom, [])
 		invokeMock.mockReset()
 		invokeMock.mockResolvedValue(undefined)
 		navigateMock.mockReset()
@@ -426,6 +428,59 @@ describe('MissionControl', () => {
 			node => node.textContent,
 		)
 		expect(names).toEqual(['active', 'busy', 'no project'])
+	})
+
+	it('folds registered repos without sessions into a compact dormant section', () => {
+		seedSession('run-1', { repoPath: '/repo/x' })
+		store.set(projectsAtom, ['/repo/x', '/Users/me/dev/sleepy'])
+		render()
+
+		// The busy repo keeps its full group; only the idle one goes dormant.
+		expect(container.querySelectorAll('.proj-group')).toHaveLength(1)
+		const dormant = container.querySelector('.mc-dormant')
+		expect(dormant?.textContent).toContain('1 dormant repo')
+		// Collapsed by default: no rows until the section is opened.
+		expect(dormant?.querySelectorAll('.mc-dormant-row')).toHaveLength(0)
+
+		act(() => {
+			dormant
+				?.querySelector('.mc-dormant-head')
+				?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		})
+
+		const row = container.querySelector('.mc-dormant-row')
+		expect(row?.textContent).toContain('sleepy')
+		expect(row?.textContent).toContain('~/dev/sleepy')
+	})
+
+	it('launches a new agent on a dormant repo from its row CTA', () => {
+		store.set(projectsAtom, ['/repo/sleepy'])
+		seedSession('run-1', { repoPath: '/repo/x' })
+		render()
+
+		act(() => {
+			container
+				.querySelector('.mc-dormant-head')
+				?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		})
+		act(() => {
+			container
+				.querySelector('.mc-dormant-row button')
+				?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		})
+
+		expect(invokeMock).toHaveBeenCalledWith('session_create', {
+			binary: 'claude',
+			cwd: '/repo/sleepy',
+		})
+	})
+
+	it('shows dormant repos even when no session lives at all', () => {
+		store.set(projectsAtom, ['/repo/sleepy'])
+		render()
+
+		expect(container.textContent).toContain('No agents yet')
+		expect(container.querySelector('.mc-dormant')).not.toBeNull()
 	})
 
 	it('orders running cards before ended ones', () => {

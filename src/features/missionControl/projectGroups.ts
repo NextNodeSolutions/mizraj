@@ -49,6 +49,16 @@ export const groupSessionsByRepo = (
 
 export { compactPath, projectName } from '@/features/projects/repoPaths'
 
+/**
+ * MP4's hybrid partition: a registered repo with no live session is dormant —
+ * it folds into the compact section instead of holding a full wall group.
+ */
+export const dormantRepos = (
+	groups: ReadonlyArray<SessionGroup>,
+	registry: ReadonlyArray<string>,
+): ReadonlyArray<string> =>
+	registry.filter(path => !groups.some(group => group.repoPath === path))
+
 export const HUES = [
 	'blue',
 	'mauve',
