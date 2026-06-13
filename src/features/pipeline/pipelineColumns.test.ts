@@ -6,6 +6,7 @@ import type { Overview, Task } from '@/features/tasks/tasks'
 import { pipelineColumns } from './pipelineColumns'
 
 const task = (id: string, status: Task['status']): Task => ({
+	repoPath: '/repo/x',
 	id,
 	identifier: null,
 	origin: 'track',

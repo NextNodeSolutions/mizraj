@@ -38,6 +38,7 @@ import { launchTaskAgent, taskPrompt } from './launchTaskAgent'
 const store = getDefaultStore()
 
 const TASK: Task = {
+	repoPath: '/repo/x',
 	id: 'task-1',
 	identifier: 'T1',
 	origin: 'track',
@@ -95,6 +96,7 @@ describe('launchTaskAgent', () => {
 			cwd: '/repo',
 		})
 		expect(invokeMock).toHaveBeenCalledWith('tasks_update', {
+			repoPath: '/repo/x',
 			id: 'task-1',
 			title: TASK.title,
 			description: TASK.description,

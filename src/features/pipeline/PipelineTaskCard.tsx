@@ -20,6 +20,7 @@ const markDone = async (
 	onChanged: () => void,
 ): Promise<void> => {
 	await updateTask({
+		repoPath: entry.task.repoPath,
 		id: entry.task.id,
 		title: entry.task.title,
 		description: entry.task.description,

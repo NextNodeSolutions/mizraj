@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -101,39 +102,49 @@ async fn apply_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-/// The active project's database, swapped in by `set_active_project` and read by
-/// the task and session commands. Holds at most one open pool — the active
-/// project's — and closes the previous one on switch.
+/// Every open progress database, keyed by file path — one pool per repo,
+/// opened on demand (MP1: reads from any registered repo at any time, no
+/// active-project singleton). `projects_remove` closes the repo's pool.
 #[derive(Default)]
 pub struct Db {
-    pool: RwLock<Option<SqlitePool>>,
+    pools: RwLock<HashMap<PathBuf, SqlitePool>>,
 }
 
 impl Db {
-    /// Make `pool` the active database, closing any previously held one.
-    pub async fn set(&self, pool: SqlitePool) {
-        let previous = self.pool.write().await.replace(pool);
-        if let Some(old) = previous {
-            old.close().await;
+    /// The progress pool of `repo_path`'s project, opened on demand and
+    /// cached. `SqlitePool` is a cheap `Arc` clone.
+    pub async fn pool_for(&self, repo_path: &Path) -> Result<SqlitePool, String> {
+        let db_path = progress_db_path(&repo_slug(repo_path));
+        self.pool_at(&db_path).await
+    }
+
+    /// Close and forget `repo_path`'s pool; unknown repos are a no-op.
+    pub async fn close_for(&self, repo_path: &Path) {
+        let db_path = progress_db_path(&repo_slug(repo_path));
+        let removed = self.pools.write().await.remove(&db_path);
+        if let Some(pool) = removed {
+            pool.close().await;
         }
     }
 
-    /// Drop the active database (no project selected), closing its pool.
-    pub async fn clear(&self) {
-        let previous = self.pool.write().await.take();
-        if let Some(old) = previous {
-            old.close().await;
+    async fn pool_at(&self, db_path: &Path) -> Result<SqlitePool, String> {
+        if let Some(pool) = self.pools.read().await.get(db_path) {
+            return Ok(pool.clone());
         }
-    }
-
-    /// A handle to the active project's pool, or an error when no project is
-    /// active. `SqlitePool` is a cheap `Arc` clone.
-    pub async fn pool(&self) -> Result<SqlitePool, String> {
-        self.pool
-            .read()
+        let pool = open(db_path)
             .await
-            .clone()
-            .ok_or_else(|| "no active project selected".to_string())
+            .map_err(|err| format!("open {}: {err}", db_path.display()))?;
+        let mut pools = self.pools.write().await;
+        // Two callers can race past the read above; keep the first pool in
+        // the map and discard the late one so a db file never has two pools.
+        if let Some(existing) = pools.get(db_path) {
+            let existing = existing.clone();
+            drop(pools);
+            pool.close().await;
+            return Ok(existing);
+        }
+        pools.insert(db_path.to_path_buf(), pool.clone());
+        Ok(pool)
     }
 }
 
@@ -265,17 +276,69 @@ mod tests {
     }
 
     #[test]
-    fn db_pool_errs_until_a_project_is_set_then_clears() {
+    fn two_repos_get_isolated_pools_that_coexist() {
+        let tmp = tempdir().expect("tempdir");
+        let path_a = tmp.path().join("a").join("progress.db");
+        let path_b = tmp.path().join("b").join("progress.db");
         block_on(async {
             let db = Db::default();
-            assert!(db.pool().await.is_err(), "no project active yet");
+            let pool_a = db.pool_at(&path_a).await.expect("open a");
+            let pool_b = db.pool_at(&path_b).await.expect("open b");
 
-            let pool = connect_for_test().await;
-            db.set(pool).await;
-            assert!(db.pool().await.is_ok(), "pool available after set");
+            sqlx::query("INSERT INTO tasks (id, origin, title, status, created_at) VALUES ('t1', 'user', 'only in a', 'backlog', '2026-06-13')")
+                .execute(&pool_a)
+                .await
+                .expect("insert into a");
 
-            db.clear().await;
-            assert!(db.pool().await.is_err(), "pool gone after clear");
+            let (count_b,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tasks")
+                .fetch_one(&pool_b)
+                .await
+                .expect("count b");
+            assert_eq!(count_b, 0, "repo B must not see repo A's tasks");
+
+            let (count_a,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tasks")
+                .fetch_one(&pool_a)
+                .await
+                .expect("count a");
+            assert_eq!(count_a, 1);
+        });
+    }
+
+    #[test]
+    fn the_same_repo_reuses_one_cached_pool() {
+        let tmp = tempdir().expect("tempdir");
+        let path = tmp.path().join("progress.db");
+        block_on(async {
+            let db = Db::default();
+            db.pool_at(&path).await.expect("first open");
+            db.pool_at(&path).await.expect("second open");
+            assert_eq!(
+                db.pools.read().await.len(),
+                1,
+                "both opens share one cached pool"
+            );
+        });
+    }
+
+    #[test]
+    fn close_for_drops_the_pool_and_unknown_paths_are_noops() {
+        let tmp = tempdir().expect("tempdir");
+        let path = tmp.path().join("progress.db");
+        block_on(async {
+            let db = Db::default();
+            db.pool_at(&path).await.expect("open");
+            assert_eq!(db.pools.read().await.len(), 1);
+
+            // close_for resolves via repo slug; exercise the map removal
+            // directly at the db-path level.
+            let removed = db.pools.write().await.remove(&path);
+            assert!(removed.is_some());
+            if let Some(pool) = removed {
+                pool.close().await;
+            }
+            assert_eq!(db.pools.read().await.len(), 0);
+
+            db.close_for(Path::new("/never/registered")).await;
         });
     }
 }

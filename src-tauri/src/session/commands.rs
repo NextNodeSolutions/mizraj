@@ -133,7 +133,12 @@ pub async fn session_create<R: Runtime>(
     manager: tauri::State<'_, SessionManager>,
     db: tauri::State<'_, Db>,
 ) -> Result<SessionId, SessionError> {
-    let pool = db.pool().await.map_err(SessionError::Database)?;
+    // The session row lives in its own repo's progress.db — sessions on repo B
+    // never write into repo A's database, whatever the active project is.
+    let pool = db
+        .pool_for(std::path::Path::new(&cwd))
+        .await
+        .map_err(SessionError::Database)?;
     let scrollback_lines = crate::ghostty::scrollback_lines();
     session_create_inner(&manager, &pool, &binary, cwd, move |id, pty_input| {
         vec![

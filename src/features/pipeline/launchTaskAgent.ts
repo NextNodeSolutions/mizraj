@@ -41,6 +41,7 @@ export const launchTaskAgent = async (
 	}
 
 	await updateTask({
+		repoPath: task.repoPath,
 		id: task.id,
 		title: task.title,
 		description: task.description,

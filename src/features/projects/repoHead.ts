@@ -22,8 +22,8 @@ const isRepoHead = (value: unknown): value is RepoHead =>
 	'detached' in value &&
 	typeof value.detached === 'boolean'
 
-const fetchRepoHead = async (): Promise<RepoHead> => {
-	const payload = await invoke<unknown>('repo_head')
+const fetchRepoHead = async (repoPath: string): Promise<RepoHead> => {
+	const payload = await invoke<unknown>('repo_head', { repoPath })
 	if (!isRepoHead(payload)) {
 		throw new Error(`repo_head returned an unexpected payload`)
 	}

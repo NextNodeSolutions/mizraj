@@ -51,11 +51,17 @@ pub fn projects_add(
 }
 
 #[tauri::command]
-pub fn projects_remove(
+pub async fn projects_remove(
     repo_path: String,
     registry: tauri::State<'_, SharedRegistry>,
+    db: tauri::State<'_, crate::db::Db>,
 ) -> Result<(), String> {
-    registry.remove(Path::new(&repo_path))
+    let path = Path::new(&repo_path);
+    registry.remove(path)?;
+    // A removed repo releases its progress pool; reads of other repos keep
+    // their own pools untouched.
+    db.close_for(path).await;
+    Ok(())
 }
 
 #[derive(Debug)]

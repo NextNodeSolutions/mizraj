@@ -223,11 +223,16 @@ async fn tasks_overview_inner(pool: &SqlitePool) -> Result<Overview, sqlx::Error
     })
 }
 
-/// The structural milestone→track→task tree plus the flat user tasks of the
-/// active project. Returns empty collections when the project has no tasks yet.
+/// The structural milestone→track→task tree plus the flat user tasks of
+/// `repo_path`'s project. Returns empty collections when the project has no
+/// tasks yet. The repo is explicit (MP1): two repos can be read in parallel,
+/// each from its own pool, without touching the active-project preference.
 #[tauri::command]
-pub async fn tasks_overview(db: tauri::State<'_, Db>) -> Result<Overview, String> {
-    let pool = db.pool().await?;
+pub async fn tasks_overview(
+    repo_path: String,
+    db: tauri::State<'_, Db>,
+) -> Result<Overview, String> {
+    let pool = db.pool_for(std::path::Path::new(&repo_path)).await?;
     tasks_overview_inner(&pool)
         .await
         .map_err(|err| err.to_string())
@@ -287,6 +292,7 @@ async fn tasks_create_inner(
 /// `NULL`.
 #[tauri::command]
 pub async fn tasks_create(
+    repo_path: String,
     title: String,
     description: Option<String>,
     db: tauri::State<'_, Db>,
@@ -294,7 +300,7 @@ pub async fn tasks_create(
     let title = normalize_title(&title).ok_or_else(|| "title must not be empty".to_string())?;
     let description = normalize_description(description.as_deref());
 
-    let pool = db.pool().await?;
+    let pool = db.pool_for(std::path::Path::new(&repo_path)).await?;
     tasks_create_inner(&pool, title, description)
         .await
         .map_err(|err| err.to_string())
@@ -330,6 +336,7 @@ async fn tasks_update_inner(
 /// blank description is stored as `NULL` and an unknown id surfaces as an error.
 #[tauri::command]
 pub async fn tasks_update(
+    repo_path: String,
     id: String,
     title: String,
     description: Option<String>,
@@ -343,7 +350,7 @@ pub async fn tasks_update(
         return Err(format!("unknown status: {status}"));
     }
 
-    let pool = db.pool().await?;
+    let pool = db.pool_for(std::path::Path::new(&repo_path)).await?;
     tasks_update_inner(&pool, &id, title, description, &status)
         .await
         .map_err(|err| err.to_string())

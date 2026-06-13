@@ -121,6 +121,7 @@ const OVERVIEW: Overview = {
 					branch: 'feat/rate-limit',
 					tasks: [
 						{
+							repoPath: '/repo/x',
 							id: 'task-backlog',
 							identifier: 'T1',
 							origin: 'track',
@@ -140,6 +141,7 @@ const OVERVIEW: Overview = {
 							createdAt: '2026-01-01T00:00:00Z',
 						},
 						{
+							repoPath: '/repo/x',
 							id: 'task-blocked',
 							identifier: 'T2',
 							origin: 'track',
@@ -159,6 +161,7 @@ const OVERVIEW: Overview = {
 							createdAt: '2026-01-01T00:00:00Z',
 						},
 						{
+							repoPath: '/repo/x',
 							id: 'task-wip',
 							identifier: 'T3',
 							origin: 'track',
@@ -178,6 +181,7 @@ const OVERVIEW: Overview = {
 							createdAt: '2026-01-01T00:00:00Z',
 						},
 						{
+							repoPath: '/repo/x',
 							id: 'task-done',
 							identifier: 'T4',
 							origin: 'track',

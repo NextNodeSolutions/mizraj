@@ -7,8 +7,6 @@ use mizraj_vcs::branch::{current_branch, Head};
 use mizraj_vcs::repo_open;
 use serde::Serialize;
 
-use crate::db::{self, Db};
-
 /// The active project's repository path, shared as Tauri managed state and read
 /// by every command that operates on "the current project".
 #[derive(Default)]
@@ -37,7 +35,6 @@ impl ActiveProject {
 pub async fn set_active_project(
     repo_path: String,
     active_project: tauri::State<'_, ActiveProject>,
-    db: tauri::State<'_, Db>,
     registry: tauri::State<'_, registry::SharedRegistry>,
 ) -> Result<(), String> {
     let canonical = validate_repo_path(&repo_path)?;
@@ -46,26 +43,15 @@ pub async fn set_active_project(
     if let Err(err) = registry.add(canonical.clone()) {
         tracing::warn!(error = %err, "auto-register active project failed");
     }
-    // Resolve and open the project's own progress.db before flipping the active
-    // project, so a failed open leaves the previous selection intact.
-    let slug = db::repo_slug(&canonical);
-    let db_path = db::progress_db_path(&slug);
-    let pool = db::open(&db_path)
-        .await
-        .map_err(|err| format!("open {}: {err}", db_path.display()))?;
-    db.set(pool).await;
+    // No pool is opened here: progress databases are per-repo and open lazily
+    // on first read (Db::pool_for) — the active project is a UI preference.
     active_project.set(canonical);
     Ok(())
 }
 
 #[tauri::command]
-pub async fn clear_active_project(
-    active_project: tauri::State<'_, ActiveProject>,
-    db: tauri::State<'_, Db>,
-) -> Result<(), String> {
-    db.clear().await;
+pub fn clear_active_project(active_project: tauri::State<'_, ActiveProject>) {
     active_project.clear();
-    Ok(())
 }
 
 /// What the UI shows as "where am I": the checked-out branch, or a detached
@@ -76,13 +62,11 @@ pub struct RepoHead {
     pub detached: bool,
 }
 
-/// Return the active project's HEAD as a displayable payload.
+/// Return `repo_path`'s HEAD as a displayable payload. The repo is explicit
+/// (MP1): overview surfaces read any registered repo without switching.
 #[tauri::command]
-pub fn repo_head(active_project: tauri::State<'_, ActiveProject>) -> Result<RepoHead, String> {
-    let repo_path = active_project
-        .get()
-        .ok_or_else(|| "no active project".to_string())?;
-    repo_head_inner(&repo_path)
+pub fn repo_head(repo_path: String) -> Result<RepoHead, String> {
+    repo_head_inner(Path::new(&repo_path))
 }
 
 fn repo_head_inner(repo_path: &Path) -> Result<RepoHead, String> {
