@@ -37,6 +37,14 @@ pub fn run() {
                 .join("projects.json");
             let registry = project::registry::Registry::load(&registry_path)
                 .map_err(|err| format!("load project registry: {err}"))?;
+            // Every registered repo gets its filesystem watcher at startup
+            // (MP6): the registry is the single source of truth of what is
+            // watched. A repo deleted from disk logs an error and is skipped.
+            let watchers = project::watcher::RepoWatchers::default();
+            for repo in registry.list() {
+                project::watcher::watch_and_emit(&watchers, app.handle(), &repo);
+            }
+            app.manage(watchers);
             app.manage(project::registry::SharedRegistry::new(registry));
             #[cfg(target_os = "macos")]
             if let Some(path) = session::path::capture_login_shell_path() {

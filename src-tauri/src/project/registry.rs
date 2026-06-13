@@ -43,10 +43,14 @@ pub fn projects_list(registry: tauri::State<'_, SharedRegistry>) -> Vec<String> 
 #[tauri::command]
 pub fn projects_add(
     repo_path: String,
+    app: tauri::AppHandle,
     registry: tauri::State<'_, SharedRegistry>,
+    watchers: tauri::State<'_, super::watcher::RepoWatchers>,
 ) -> Result<String, String> {
     let canonical = super::validate_repo_path(&repo_path)?;
-    registry.add(canonical.clone())?;
+    if registry.add(canonical.clone())? {
+        super::watcher::watch_and_emit(&watchers, &app, &canonical);
+    }
     Ok(canonical.to_string_lossy().into_owned())
 }
 
@@ -55,11 +59,13 @@ pub async fn projects_remove(
     repo_path: String,
     registry: tauri::State<'_, SharedRegistry>,
     db: tauri::State<'_, crate::db::Db>,
+    watchers: tauri::State<'_, super::watcher::RepoWatchers>,
 ) -> Result<(), String> {
     let path = Path::new(&repo_path);
     registry.remove(path)?;
-    // A removed repo releases its progress pool; reads of other repos keep
-    // their own pools untouched.
+    // A removed repo releases everything it held: its watcher stops and its
+    // progress pool closes; other repos keep theirs untouched.
+    watchers.unwatch(path);
     db.close_for(path).await;
     Ok(())
 }

@@ -1,4 +1,5 @@
 pub mod registry;
+pub mod watcher;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
@@ -34,14 +35,20 @@ impl ActiveProject {
 #[tauri::command]
 pub async fn set_active_project(
     repo_path: String,
+    app: tauri::AppHandle,
     active_project: tauri::State<'_, ActiveProject>,
     registry: tauri::State<'_, registry::SharedRegistry>,
+    watchers: tauri::State<'_, watcher::RepoWatchers>,
 ) -> Result<(), String> {
     let canonical = validate_repo_path(&repo_path)?;
     // Auto-register (MP4): becoming active is the only gesture that grows the
     // registry. A persist failure must not block the switch itself.
-    if let Err(err) = registry.add(canonical.clone()) {
-        tracing::warn!(error = %err, "auto-register active project failed");
+    match registry.add(canonical.clone()) {
+        Ok(true) => watcher::watch_and_emit(&watchers, &app, &canonical),
+        Ok(false) => {}
+        Err(err) => {
+            tracing::warn!(error = %err, "auto-register active project failed");
+        }
     }
     // No pool is opened here: progress databases are per-repo and open lazily
     // on first read (Db::pool_for) — the active project is a UI preference.
