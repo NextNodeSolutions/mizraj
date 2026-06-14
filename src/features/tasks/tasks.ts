@@ -3,6 +3,9 @@ import { invoke } from '@tauri-apps/api/core'
 import type { RepoResource, ResourceState } from '@/shared/repoResource'
 import { useRepoResource } from '@/shared/repoResource'
 
+import type { WireOverview } from './tagOverview'
+import { tagOverview } from './tagOverview'
+
 export const TASK_STATUSES = [
 	'backlog',
 	'in_progress',
@@ -60,30 +63,6 @@ export type Overview = {
 }
 
 export type OverviewState = ResourceState<Overview>
-
-type WireTask = Omit<Task, 'repoPath'>
-
-type WireOverview = {
-	milestones: ReadonlyArray<
-		Omit<MilestoneGroup, 'tracks'> & {
-			tracks: ReadonlyArray<
-				Omit<TrackGroup, 'tasks'> & { tasks: ReadonlyArray<WireTask> }
-			>
-		}
-	>
-	userTasks: ReadonlyArray<WireTask>
-}
-
-const tagOverview = (wire: WireOverview, repoPath: string): Overview => ({
-	milestones: wire.milestones.map(milestone => ({
-		...milestone,
-		tracks: milestone.tracks.map(track => ({
-			...track,
-			tasks: track.tasks.map(task => ({ ...task, repoPath })),
-		})),
-	})),
-	userTasks: wire.userTasks.map(task => ({ ...task, repoPath })),
-})
 
 /**
  * Read `repoPath`'s grouped task tree plus its flat user tasks. The repo is
