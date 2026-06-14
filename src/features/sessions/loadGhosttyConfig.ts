@@ -13,12 +13,17 @@ const LOAD_COMMAND = 'load_ghostty_config'
 // The backend command never throws (bad config rides along in `diagnostics`),
 // so the only failure here is the IPC bridge itself being unavailable. We log
 // it and hand back the empty config rather than rejecting: the terminal must
-// still come up with its defaults.
+// still come up with its defaults. A null/undefined payload (an IPC that
+// resolves without a config) collapses to the same fallback, so every consumer
+// downstream gets a fully-shaped config and never dereferences null.
 export const loadGhosttyConfig = async (
 	appearance: Appearance,
 ): Promise<GhosttyConfig> => {
 	try {
-		return await invoke<GhosttyConfig>(LOAD_COMMAND, { appearance })
+		const config = await invoke<GhosttyConfig | null>(LOAD_COMMAND, {
+			appearance,
+		})
+		return config ?? EMPTY_CONFIG
 	} catch (error: unknown) {
 		const { message, stack } = describeError(error)
 		logger.warn(`loadGhosttyConfig: invoke failed: ${message}`, {

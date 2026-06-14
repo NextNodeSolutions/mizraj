@@ -50,12 +50,12 @@ Statut : décidé. Décline les `TODO(multi-project)` / `TODO(backend)` posés p
 
 ## Chantiers → milestones (plan.json)
 
-| Milestone | Branch | Dépend | Démo |
-| --- | --- | --- | --- |
-| M18 registre | `feat/project-registry` | — | picker dropdown + repos dormants repliés dans Mission Control |
-| M19 lectures par repo | `feat/repo-scoped-reads` | M18 | branche + diff par carte, 2 repos à la fois, zéro mutation |
-| M20 watchers FS | `feat/fs-watchers` | M19 | commit externe → stats à jour < 1 s, rebase débouncé |
-| M21 cockpit-follow + pipeline multi | `feat/cockpit-follow-session`, `feat/pipeline-multi-repo` | M18, M19 | clic session repo B → cockpit B ; pipeline groupé par repo |
+| Milestone                           | Branch                                                    | Dépend   | Démo                                                          |
+| ----------------------------------- | --------------------------------------------------------- | -------- | ------------------------------------------------------------- |
+| M18 registre                        | `feat/project-registry`                                   | —        | picker dropdown + repos dormants repliés dans Mission Control |
+| M19 lectures par repo               | `feat/repo-scoped-reads`                                  | M18      | branche + diff par carte, 2 repos à la fois, zéro mutation    |
+| M20 watchers FS                     | `feat/fs-watchers`                                        | M19      | commit externe → stats à jour < 1 s, rebase débouncé          |
+| M21 cockpit-follow + pipeline multi | `feat/cockpit-follow-session`, `feat/pipeline-multi-repo` | M18, M19 | clic session repo B → cockpit B ; pipeline groupé par repo    |
 
 ## TODOs de code résolus par ces milestones
 
