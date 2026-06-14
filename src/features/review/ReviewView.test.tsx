@@ -7,6 +7,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invokeMock = vi.hoisted(() => vi.fn())
 
+// A capturing appFocus stub so a test can fire a window-focus reload on demand
+// (the real bridge is driven by Tauri, unreachable from jsdom). useDiff's
+// reload-on-focus then re-fetches get_diff and re-parses the patch.
+const { focusSubscribers, fireAppFocus } = vi.hoisted(() => {
+	const subscribers = new Set<() => void>()
+	return {
+		focusSubscribers: subscribers,
+		fireAppFocus: (): void => {
+			for (const notify of subscribers) notify()
+		},
+	}
+})
+
 vi.mock('@tauri-apps/api/core', () => ({
 	invoke: invokeMock,
 }))
@@ -15,6 +28,18 @@ vi.mock('@tauri-apps/api/window', () => ({
 	getCurrentWindow: () => ({
 		onFocusChanged: vi.fn().mockResolvedValue(() => {}),
 	}),
+}))
+
+vi.mock('@/shared/appFocus', () => ({
+	onAppFocus: (onFocus: () => void): (() => void) => {
+		focusSubscribers.add(onFocus)
+		return () => {
+			focusSubscribers.delete(onFocus)
+		}
+	},
+	resetAppFocusForTests: (): void => {
+		focusSubscribers.clear()
+	},
 }))
 
 vi.mock('@/shared/logger', () => ({
@@ -142,6 +167,7 @@ describe('ReviewView', () => {
 		store.set(viewedFilesAtom, {})
 		store.set(conversationsAtom, {})
 		store.set(toastsAtom, [])
+		focusSubscribers.clear()
 		invokeMock.mockReset()
 		invokeMock.mockImplementation((command: string) =>
 			command === 'get_diff'
@@ -217,9 +243,8 @@ describe('ReviewView', () => {
 	it('switches the diff to a clicked file', async () => {
 		await render()
 
-		const rows = container.querySelectorAll<HTMLElement>(
-			'.review-tree__file',
-		)
+		const rows =
+			container.querySelectorAll<HTMLElement>('.review-tree__file')
 		await act(async () => {
 			rows[1]?.click()
 		})
@@ -513,9 +538,8 @@ describe('ReviewView', () => {
 			'↳ src/api/limiter.ts · line 2',
 		)
 
-		const rows = container.querySelectorAll<HTMLElement>(
-			'.review-tree__file',
-		)
+		const rows =
+			container.querySelectorAll<HTMLElement>('.review-tree__file')
 		await act(async () => {
 			rows[1]?.click()
 		})
@@ -623,5 +647,96 @@ describe('ReviewView', () => {
 		// Focus stayed in the composer, so Tab kept its default behavior and the
 		// selected file did not change.
 		expect(fileDiffName()).toBe('src/api/limiter.ts')
+	})
+
+	it('falls back to the first file when the deep link names an absent path, and Tab still advances', async () => {
+		window.history.pushState({}, '', reviewHref('src/api/ghost.ts'))
+		await render()
+
+		// The requested path is not in the parsed patch, so the first file shows.
+		expect(fileDiffName()).toBe('src/api/limiter.ts')
+		expect(
+			container.querySelector('.review-tree__file[aria-current="true"]')
+				?.textContent,
+		).toContain('limiter.ts')
+
+		// Tab navigation is unaffected by the dropped deep link.
+		await pressTab()
+		expect(fileDiffName()).toBe('src/api/handler.ts')
+	})
+
+	it('drops a stale line annotation once a reload removes its line from the diff', async () => {
+		store.set(startSessionAtom, {
+			id: 'agent-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		await render()
+
+		// Arm and send a line comment on limiter.ts line 2 (the stub hovers it).
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('.review__cmt-add')
+				?.click()
+		})
+		const textarea = container.querySelector('textarea')
+		await act(async () => {
+			const setter = Object.getOwnPropertyDescriptor(
+				window.HTMLTextAreaElement.prototype,
+				'value',
+			)?.set
+			setter?.call(textarea, 'gère le cas null ici')
+			textarea?.dispatchEvent(new Event('input', { bubbles: true }))
+		})
+		const send = Array.from(
+			container.querySelectorAll<HTMLButtonElement>('button'),
+		).find(button => button.textContent?.includes('Send to agent'))
+		await act(async () => {
+			send?.click()
+		})
+
+		expect(
+			container.querySelector(
+				'[data-testid="annotations"] [data-annotation-line="2"]',
+			),
+		).not.toBeNull()
+
+		// The agent edits the file: the reloaded patch reshapes limiter.ts so its
+		// only hunk now starts at line 5 — line 2 is no longer present.
+		const RELOADED = [
+			'diff --git a/src/api/limiter.ts b/src/api/limiter.ts',
+			'index 3f1e2d4..4a2b3c5 100644',
+			'--- a/src/api/limiter.ts',
+			'+++ b/src/api/limiter.ts',
+			'@@ -4,1 +4,2 @@',
+			' const ttl = 60',
+			'+export const rateLimit = () => {}',
+			'diff --git a/src/api/handler.ts b/src/api/handler.ts',
+			'index 1111111..2222222 100644',
+			'--- a/src/api/handler.ts',
+			'+++ b/src/api/handler.ts',
+			'@@ -1,2 +1,2 @@',
+			' import { router } from "./router"',
+			'-router.post("/send", send)',
+			'+router.use(rateLimit())',
+			'',
+		].join('\n')
+		invokeMock.mockImplementation((command: string) =>
+			command === 'get_diff'
+				? Promise.resolve({ patch: RELOADED })
+				: Promise.resolve(undefined),
+		)
+		await act(async () => {
+			fireAppFocus()
+		})
+
+		// The thread still holds the message (the comment text survives), but its
+		// annotation no longer maps to a present line, so the card is dropped.
+		expect(store.get(conversationsAtom)['/repo']).toHaveLength(1)
+		expect(
+			container.querySelector(
+				'[data-testid="annotations"] [data-annotation-line="2"]',
+			),
+		).toBeNull()
 	})
 })

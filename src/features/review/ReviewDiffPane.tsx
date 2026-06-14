@@ -36,10 +36,7 @@ type Props = {
 	meta: FileDiffMetadata
 	diffStyle: DiffStyle
 	annotations: Array<ReviewAnnotation>
-	onBeginComment: (
-		line: number,
-		side: 'additions' | 'deletions' | null,
-	) => void
+	onBeginComment: (line: number, side: 'additions' | 'deletions') => void
 }
 
 // Static renderer options; only diffStyle varies, merged in per render.

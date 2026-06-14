@@ -19,7 +19,11 @@ import { useConversation } from './agentConversation'
 import type { ReviewAnnotation } from './ReviewDiffPane'
 import { ReviewDiffPane } from './ReviewDiffPane'
 import type { ReviewFile } from './reviewFiles'
-import { diffTotals, reviewFilesFromParsed } from './reviewFiles'
+import {
+	diffLineIsPresent,
+	diffTotals,
+	reviewFilesFromParsed,
+} from './reviewFiles'
 import { ReviewHeader } from './ReviewHeader'
 import { ReviewRail } from './ReviewRail'
 import { ReviewTree } from './ReviewTree'
@@ -87,37 +91,45 @@ const composeContextFor = (
 	return { path: selected.path, line: null, side: null }
 }
 
-// Line-anchored remarks of one file, as the diff renderer's annotations.
+// Line-anchored remarks of one file, as the diff renderer's annotations. An
+// anchor is pinned to the absolute line captured at send time, so it is only
+// valid while that line is still present in the freshly parsed diff: when a
+// reload (window focus, agent edit) reshapes the file, any anchor that no
+// longer lands on a shown line is dropped rather than pinned to a shifted
+// neighbour. With ReviewRef coupling line⇔side, a line-anchored ref always
+// carries its side — no fallback needed.
 // TODO: persist line comments (backend has no review-comment storage; atom
 // state dies with the window).
 const annotationsFor = (
 	thread: ReadonlyArray<ReviewMessage>,
-	path: string | null,
+	meta: FileDiffMetadata | null,
 ): Array<ReviewAnnotation> =>
-	thread.flatMap(message =>
-		message.ref !== null &&
-		message.ref.path === path &&
-		message.ref.line !== null
-			? [
-					{
-						side: message.ref.side ?? 'additions',
-						lineNumber: message.ref.line,
-						metadata: message,
-					},
-				]
-			: [],
-	)
+	meta === null
+		? []
+		: thread.flatMap(message =>
+				message.ref !== null &&
+				message.ref.path === meta.name &&
+				message.ref.line !== null &&
+				diffLineIsPresent(meta, message.ref.line, message.ref.side)
+					? [
+							{
+								side: message.ref.side,
+								lineNumber: message.ref.line,
+								metadata: message,
+							},
+						]
+					: [],
+			)
 
-// Annotations for the selected file, stable across unrelated re-renders
-// (composer typing, toasts): a fresh array would make the persistent FileDiff
-// instance re-diff its annotations every time the rail re-renders.
+// Annotations for the shown file, stable across unrelated re-renders (composer
+// typing, toasts): a fresh array would make the persistent FileDiff instance
+// re-diff its annotations every time the rail re-renders. Keyed on the parsed
+// meta so a reload that drops a line re-filters the anchors.
 const useSelectedAnnotations = (
 	thread: ReadonlyArray<ReviewMessage>,
-	selected: ReviewFile | null,
-): Array<ReviewAnnotation> => {
-	const path = selected?.path ?? null
-	return useMemo(() => annotationsFor(thread, path), [thread, path])
-}
+	meta: FileDiffMetadata | null,
+): Array<ReviewAnnotation> =>
+	useMemo(() => annotationsFor(thread, meta), [thread, meta])
 
 type DiffTarget = {
 	shownFile: ReviewFile | null
@@ -141,7 +153,7 @@ const useDeferredDiffTarget = (
 	const shownFile = resolveFile(files, deferredPath)
 	const shownMeta =
 		parsedFiles.find(file => file.name === shownFile?.path) ?? null
-	const shownAnnotations = useSelectedAnnotations(thread, shownFile)
+	const shownAnnotations = useSelectedAnnotations(thread, shownMeta)
 	return {
 		shownFile,
 		shownMeta,
@@ -218,6 +230,16 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 			setCommentAnchor(null)
 		}
 	}
+	// An armed anchor outlives its file when a reload (agent edit) drops that
+	// file from the parsed patch — clear it so the composer doesn't stay pinned
+	// to a line that no longer exists. Render-time adjust over an effect: it
+	// converges in one pass and never paints the stale context.
+	if (
+		commentAnchor !== null &&
+		!files.some(file => file.path === commentAnchor.path)
+	) {
+		setCommentAnchor(null)
+	}
 	const { layout, toggleLayout, diffStyle } = useLayoutToggle()
 	const composeRef = useRef<HTMLTextAreaElement>(null)
 	const thread = useConversation(activeProjectPath)
@@ -242,7 +264,7 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 	}, [])
 
 	const beginLineComment = useCallback(
-		(line: number, side: 'additions' | 'deletions' | null): void => {
+		(line: number, side: 'additions' | 'deletions'): void => {
 			if (shownPath === null) return
 			setCommentAnchor({ path: shownPath, line, side })
 			composeRef.current?.focus()

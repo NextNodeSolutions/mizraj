@@ -1,6 +1,11 @@
+import { parsePatchFiles } from '@pierre/diffs'
 import { describe, expect, it } from 'vitest'
 
-import { diffTotals, reviewFilesFromPatch } from './reviewFiles'
+import {
+	diffLineIsPresent,
+	diffTotals,
+	reviewFilesFromPatch,
+} from './reviewFiles'
 
 const PATCH = [
 	'diff --git a/src/api/limiter.ts b/src/api/limiter.ts',
@@ -61,6 +66,72 @@ describe('reviewFilesFromPatch', () => {
 
 	it('returns no files for an empty patch', () => {
 		expect(reviewFilesFromPatch('')).toEqual([])
+	})
+})
+
+// A pure rename (100% similarity, no hunks) and a renamed-and-edited file at a
+// nested destination path. Both must surface as change:'renamed'.
+const RENAME_PATCH = [
+	'diff --git a/src/old/util.ts b/src/new/util.ts',
+	'similarity index 100%',
+	'rename from src/old/util.ts',
+	'rename to src/new/util.ts',
+	'diff --git a/src/components/Old.tsx b/src/components/nested/New.tsx',
+	'similarity index 72%',
+	'rename from src/components/Old.tsx',
+	'rename to src/components/nested/New.tsx',
+	'index 1111111..2222222 100644',
+	'--- a/src/components/Old.tsx',
+	'+++ b/src/components/nested/New.tsx',
+	'@@ -1,3 +1,4 @@',
+	' import React from "react"',
+	'-export const Old = () => null',
+	'+export const New = () => null',
+	'+export default New',
+	' // eof',
+	'',
+].join('\n')
+
+describe('reviewFilesFromPatch — renames', () => {
+	it('marks a pure rename renamed with no line changes', () => {
+		const files = reviewFilesFromPatch(RENAME_PATCH)
+
+		expect(files[0]).toEqual({
+			path: 'src/new/util.ts',
+			change: 'renamed',
+			additions: 0,
+			deletions: 0,
+		})
+	})
+
+	it('marks a renamed-and-edited file at a nested path renamed with its line stats', () => {
+		const files = reviewFilesFromPatch(RENAME_PATCH)
+
+		expect(files[1]).toEqual({
+			path: 'src/components/nested/New.tsx',
+			change: 'renamed',
+			additions: 2,
+			deletions: 1,
+		})
+	})
+})
+
+describe('diffLineIsPresent', () => {
+	const meta = parsePatchFiles(PATCH)
+		.flatMap(parsed => parsed.files)
+		.find(file => file.name === 'src/api/handler.ts')
+
+	it('reports a line inside a hunk as present', () => {
+		expect(meta).toBeDefined()
+		if (meta === undefined) return
+		// The handler hunk's addition side covers lines 8..11.
+		expect(diffLineIsPresent(meta, 9, 'additions')).toBe(true)
+	})
+
+	it('reports a line outside every hunk as absent', () => {
+		expect(meta).toBeDefined()
+		if (meta === undefined) return
+		expect(diffLineIsPresent(meta, 999, 'additions')).toBe(false)
 	})
 })
 

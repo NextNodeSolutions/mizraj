@@ -1,5 +1,8 @@
 import { getDefaultStore } from 'jotai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, createElement } from 'react'
+import { createRoot } from 'react-dom/client'
+import type { Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invokeMock = vi.hoisted(() => vi.fn())
 
@@ -22,8 +25,27 @@ import {
 	sendToAgent,
 	useConversation,
 } from './agentConversation'
+import type { ReviewMessage } from './agentConversation'
 
 const store = getDefaultStore()
+
+// A probe that reads one repo's thread and serializes its message texts, so a
+// test can assert what useConversation hands back for a given repoPath without
+// a component file. Kept JSX-free (createElement) to keep this a .ts test.
+const ThreadProbe = ({
+	repoPath,
+}: {
+	repoPath: string | null
+}): React.JSX.Element => {
+	const thread = useConversation(repoPath)
+	return createElement('output', null, thread.map(m => m.text).join('|'))
+}
+
+const message = (id: number, text: string): ReviewMessage => ({
+	id,
+	text,
+	ref: null,
+})
 
 describe('sendToAgent', () => {
 	beforeEach(() => {
@@ -134,7 +156,49 @@ describe('reviewRefLabel', () => {
 })
 
 describe('useConversation', () => {
-	it('is exported for components', () => {
-		expect(typeof useConversation).toBe('function')
+	let container: HTMLDivElement
+	let root: Root
+
+	beforeEach(() => {
+		store.set(conversationsAtom, {
+			'/repo-a': [message(1, 'a-one'), message(2, 'a-two')],
+			'/repo-b': [message(1, 'b-one')],
+		})
+		container = document.createElement('div')
+		document.body.appendChild(container)
+		root = createRoot(container)
+	})
+
+	afterEach(() => {
+		act(() => {
+			root.unmount()
+		})
+		container.remove()
+	})
+
+	const renderProbe = (repoPath: string | null): void => {
+		act(() => {
+			root.render(createElement(ThreadProbe, { repoPath }))
+		})
+	}
+
+	it('hands each repo only its own thread', () => {
+		renderProbe('/repo-a')
+		expect(container.querySelector('output')?.textContent).toBe(
+			'a-one|a-two',
+		)
+
+		renderProbe('/repo-b')
+		expect(container.querySelector('output')?.textContent).toBe('b-one')
+	})
+
+	it('yields an empty thread for a null repo', () => {
+		renderProbe(null)
+		expect(container.querySelector('output')?.textContent).toBe('')
+	})
+
+	it('yields an empty thread for a repo with no conversation', () => {
+		renderProbe('/repo-unknown')
+		expect(container.querySelector('output')?.textContent).toBe('')
 	})
 })

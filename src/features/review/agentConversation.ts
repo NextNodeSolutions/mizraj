@@ -6,14 +6,14 @@ import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
 /**
- * Where a remark anchors in the diff: a file, optionally narrowed to one
- * line of one side — the shape the diff pane needs to place annotations.
+ * Where a remark anchors in the diff: a whole file, or one line of one side.
+ * The two cases are coupled — a line anchor always carries the side it lives
+ * on, a file anchor carries neither — so consumers never face a line without
+ * its side (no `?? 'additions'` guesswork at the annotation boundary).
  */
-export type ReviewRef = {
-	path: string
-	line: number | null
-	side: 'additions' | 'deletions' | null
-}
+export type ReviewRef =
+	| { path: string; line: null; side: null }
+	| { path: string; line: number; side: 'additions' | 'deletions' }
 
 export type ReviewMessage = {
 	id: number
@@ -39,7 +39,12 @@ type ConversationsMap = Readonly<Record<string, ReadonlyArray<ReviewMessage>>>
 // session — a relaunched agent inherits the running discussion.
 export const conversationsAtom = atom<ConversationsMap>({})
 
-let nextMessageId = 0
+// The next id for a thread: one past its highest existing id (0 when empty).
+// Derived from the thread inside the store updater so the id stays a pure
+// function of state, never a module-global counter that two windows could
+// race or a test could leave dirty across runs.
+const nextMessageId = (thread: ReadonlyArray<ReviewMessage>): number =>
+	thread.reduce((max, message) => Math.max(max, message.id), 0) + 1
 
 type SendArgs = {
 	sessionId: string
@@ -76,14 +81,12 @@ export const sendToAgent = async ({
 	}
 
 	const store = getDefaultStore()
-	nextMessageId += 1
-	const conversations = store.get(conversationsAtom)
-	store.set(conversationsAtom, {
-		...conversations,
-		[repoPath]: [
-			...(conversations[repoPath] ?? []),
-			{ id: nextMessageId, text, ref },
-		],
+	store.set(conversationsAtom, conversations => {
+		const thread = conversations[repoPath] ?? []
+		return {
+			...conversations,
+			[repoPath]: [...thread, { id: nextMessageId(thread), text, ref }],
+		}
 	})
 	return true
 }
