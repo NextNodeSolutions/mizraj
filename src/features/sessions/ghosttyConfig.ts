@@ -1,11 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
-
-import { describeError } from '@/shared/errors'
-import { logger } from '@/shared/logger'
-
 import type { WireCursorStyle } from './terminalWire'
-
-const LOAD_COMMAND = 'load_ghostty_config'
 
 // The current renderer defaults, kept verbatim as the fallback so behavior is
 // unchanged when the user has no Ghostty config (or it carries no font keys).
@@ -248,25 +241,6 @@ export const resolvePadding = (config: GhosttyConfig): TerminalPadding => ({
 })
 
 export type Appearance = 'light' | 'dark'
-
-// The backend command never throws (bad config rides along in `diagnostics`),
-// so the only failure here is the IPC bridge itself being unavailable. We log
-// it and hand back the empty config rather than rejecting: the terminal must
-// still come up with its defaults.
-export const loadGhosttyConfig = async (
-	appearance: Appearance,
-): Promise<GhosttyConfig> => {
-	try {
-		return await invoke<GhosttyConfig>(LOAD_COMMAND, { appearance })
-	} catch (error: unknown) {
-		const { message, stack } = describeError(error)
-		logger.warn(`loadGhosttyConfig: invoke failed: ${message}`, {
-			scope: 'terminal-pane',
-			details: { stack, appearance },
-		})
-		return EMPTY_CONFIG
-	}
-}
 
 // One (family, synthetic weight, synthetic style) triple the canvas draws a
 // given attribute combination with. A configured variant family (e.g.

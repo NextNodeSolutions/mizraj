@@ -3,14 +3,11 @@ import { useEffect } from 'react'
 
 import { useAppearance } from '@/features/settings/useAppearance'
 
-import {
-	familyStackFrom,
-	loadGhosttyConfig,
-	resolveOptionAsAlt,
-} from './ghosttyConfig'
+import { familyStackFrom, resolveOptionAsAlt } from './ghosttyConfig'
 import { ghosttyConfigEpochAtom } from './ghosttyConfigBridge'
 import { ghosttyThemeTokens, THEME_TOKEN_KEYS } from './ghosttyTheme'
 import { keybindTableAtom, optionAsAltAtom } from './keybindRuntime'
+import { loadGhosttyConfig } from './loadGhosttyConfig'
 
 // The app-wide mono stack follows the config's font-family even when the
 // config carries no colors (ghosttyThemeTokens -> null): fonts and theme are
