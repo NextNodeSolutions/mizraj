@@ -54,6 +54,19 @@ fn classify(path: &Path) -> Option<ChangeKind> {
     }
     match components.next() {
         Some(Component::Normal(name)) if name == "HEAD" || name == "refs" => Some(ChangeKind::Git),
+        // A linked worktree's HEAD/refs live under `.git/worktrees/<name>/`;
+        // a branch switch there must still emit, or a worktree session never
+        // sees its own checkout move. Skip the `<name>` segment, then match
+        // HEAD/refs the same way as the main checkout's `.git/`.
+        Some(Component::Normal(name)) if name == "worktrees" => {
+            let _worktree_name = components.next();
+            match components.next() {
+                Some(Component::Normal(inner)) if inner == "HEAD" || inner == "refs" => {
+                    Some(ChangeKind::Git)
+                }
+                _ => None,
+            }
+        }
         _ => None,
     }
 }
@@ -132,23 +145,56 @@ pub fn watch_and_emit<R: tauri::Runtime>(
     });
 }
 
+/// The most repos watched at once. Generous on purpose: a user juggling a
+/// handful of repos never trips it, so eviction is rare. Bounds the live thread
+/// and file-handle count `notify` holds — past the cap the least-recently-used
+/// watcher is dropped (ending its debounce thread); that repo simply re-watches
+/// on its next `watch` call.
+const MAX_WATCHERS: usize = 32;
+
 /// The live watchers, one per registered repo — Tauri managed state. The
 /// registry drives this map: `projects_add`/startup start a watcher,
-/// `projects_remove` stops one (dropping the watcher ends its thread).
+/// `projects_remove` stops one (dropping the watcher ends its thread). An LRU
+/// recency list bounds the live set at [`MAX_WATCHERS`].
 #[derive(Default)]
-pub struct RepoWatchers(Mutex<HashMap<PathBuf, RecommendedWatcher>>);
+pub struct RepoWatchers(Mutex<WatcherSet>);
+
+#[derive(Default)]
+struct WatcherSet {
+    watchers: HashMap<PathBuf, RecommendedWatcher>,
+    /// Least-recently-used first, most-recently-used last.
+    recency: Vec<PathBuf>,
+}
+
+impl WatcherSet {
+    /// Move `repo_path` to the most-recently-used end of the recency list.
+    fn touch(&mut self, repo_path: &Path) {
+        self.recency.retain(|p| p != repo_path);
+        self.recency.push(repo_path.to_path_buf());
+    }
+}
 
 impl RepoWatchers {
-    /// Start watching `repo_path`; replaces any previous watcher for it.
-    /// A repo that cannot be watched (deleted from disk) logs once and is
-    /// skipped — never a panic.
+    /// Start watching `repo_path`. Idempotent: if a watcher already exists for
+    /// it, this only marks it recently-used and returns — it never spawns a
+    /// second watcher/thread (callers dedup via `registry.add() == true`, so a
+    /// double-watch is a no-op rather than a leak). A repo that cannot be
+    /// watched (deleted from disk) logs once and is skipped — never a panic.
+    /// Past [`MAX_WATCHERS`] the least-recently-used watcher is dropped first.
     pub fn watch<F>(&self, repo_path: &Path, on_change: F)
     where
         F: Fn(ChangeKind) + Send + 'static,
     {
+        let mut set = self.lock();
+        if set.watchers.contains_key(repo_path) {
+            set.touch(repo_path);
+            return;
+        }
         match spawn_repo_watcher(repo_path, on_change) {
             Ok(watcher) => {
-                self.lock().insert(repo_path.to_path_buf(), watcher);
+                set.watchers.insert(repo_path.to_path_buf(), watcher);
+                set.touch(repo_path);
+                evict_over_cap(&mut set);
             }
             Err(err) => {
                 tracing::error!(repo = %repo_path.display(), error = %err, "repo watcher failed to start");
@@ -158,11 +204,25 @@ impl RepoWatchers {
 
     /// Stop watching `repo_path`; unknown repos are a no-op.
     pub fn unwatch(&self, repo_path: &Path) {
-        self.lock().remove(repo_path);
+        let mut set = self.lock();
+        set.recency.retain(|p| p != repo_path);
+        set.watchers.remove(repo_path);
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<PathBuf, RecommendedWatcher>> {
+    fn lock(&self) -> std::sync::MutexGuard<'_, WatcherSet> {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// When the set grew past [`MAX_WATCHERS`], drop the least-recently-used
+/// watcher. Dropping the `RecommendedWatcher` unwatches its repo and ends its
+/// debounce thread.
+fn evict_over_cap(set: &mut WatcherSet) {
+    while set.watchers.len() > MAX_WATCHERS && !set.recency.is_empty() {
+        let victim = set.recency.remove(0);
+        if set.watchers.remove(&victim).is_some() {
+            tracing::debug!(repo = %victim.display(), "dropped least-recently-used watcher past the cap; it re-watches on next access");
+        }
     }
 }
 
@@ -286,6 +346,76 @@ mod tests {
     fn watching_a_missing_dir_logs_and_does_not_panic() {
         let watchers = RepoWatchers::default();
         watchers.watch(Path::new("/definitely/not/here/mizraj"), |_| {});
-        assert!(watchers.lock().is_empty());
+        assert!(watchers.lock().watchers.is_empty());
+    }
+
+    #[test]
+    fn classify_treats_linked_worktree_head_and_refs_as_git() {
+        assert_eq!(
+            classify(Path::new("/repo/.git/worktrees/feat/HEAD")),
+            Some(ChangeKind::Git)
+        );
+        assert_eq!(
+            classify(Path::new("/repo/.git/worktrees/feat/refs/heads/feat")),
+            Some(ChangeKind::Git)
+        );
+        // Internals under a linked worktree's gitdir stay noise.
+        assert_eq!(classify(Path::new("/repo/.git/worktrees/feat/index")), None);
+    }
+
+    #[test]
+    fn watch_is_idempotent_and_does_not_replace_the_existing_watcher() {
+        let dir = TempDir::new().expect("tempdir");
+        let watchers = RepoWatchers::default();
+
+        watchers.watch(dir.path(), |_| {});
+        let first = {
+            let set = watchers.lock();
+            assert_eq!(set.watchers.len(), 1);
+            // Identify the watcher by pointer so we can prove it was not replaced.
+            set.watchers.get(dir.path()).map(|w| w as *const _ as usize)
+        };
+
+        // A second watch of the same repo must NOT spawn a second watcher.
+        watchers.watch(dir.path(), |_| {});
+        let second = {
+            let set = watchers.lock();
+            assert_eq!(set.watchers.len(), 1, "no second watcher is spawned");
+            set.watchers.get(dir.path()).map(|w| w as *const _ as usize)
+        };
+        assert_eq!(first, second, "the existing watcher is kept, not replaced");
+    }
+
+    #[test]
+    fn watching_past_the_cap_evicts_the_least_recently_used_watcher() {
+        let dirs: Vec<TempDir> = (0..MAX_WATCHERS)
+            .map(|_| TempDir::new().expect("tempdir"))
+            .collect();
+        let watchers = RepoWatchers::default();
+        for dir in &dirs {
+            watchers.watch(dir.path(), |_| {});
+        }
+        assert_eq!(watchers.lock().watchers.len(), MAX_WATCHERS);
+
+        // Touch the first repo so it is no longer the LRU victim.
+        watchers.watch(dirs[0].path(), |_| {});
+
+        let extra = TempDir::new().expect("tempdir");
+        watchers.watch(extra.path(), |_| {});
+
+        let set = watchers.lock();
+        assert_eq!(set.watchers.len(), MAX_WATCHERS, "cap holds steady");
+        assert!(
+            set.watchers.contains_key(dirs[0].path()),
+            "the freshly-touched repo survives eviction"
+        );
+        assert!(
+            !set.watchers.contains_key(dirs[1].path()),
+            "the least-recently-used watcher was dropped"
+        );
+        assert!(
+            set.watchers.contains_key(extra.path()),
+            "the newcomer is watched"
+        );
     }
 }

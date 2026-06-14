@@ -13,7 +13,7 @@ pub mod worktree;
 pub use branch::{current_branch, Head};
 pub use diff::{diff_head_base, diff_session, diff_working_tree};
 pub use session_ref::create_session_ref;
-pub use worktree::{worktree_list, WorktreeInfo};
+pub use worktree::{main_workdir, worktree_list, WorktreeInfo};
 
 pub type Result<T> = std::result::Result<T, VcsError>;
 

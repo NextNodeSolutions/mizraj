@@ -35,7 +35,8 @@ pub fn map_diff(diff: &Diff<'_>) -> Value {
 /// at any time, the active project is a UI preference and plays no part here.
 #[tauri::command]
 pub fn get_diff(repo_path: String) -> Result<Value, String> {
-    get_diff_inner(Path::new(&repo_path))
+    let canonical = crate::project::validate_repo_path(&repo_path)?;
+    get_diff_inner(&canonical)
 }
 
 fn get_diff_inner(repo_path: &Path) -> Result<Value, String> {

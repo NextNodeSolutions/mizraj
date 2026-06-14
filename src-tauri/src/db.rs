@@ -102,49 +102,156 @@ async fn apply_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-/// Every open progress database, keyed by file path — one pool per repo,
-/// opened on demand (MP1: reads from any registered repo at any time, no
-/// active-project singleton). `projects_remove` closes the repo's pool.
+/// The most progress databases kept open at once. Generous on purpose: a user
+/// juggling a handful of repos never trips it, so eviction is rare. An evicted
+/// pool simply re-opens lazily on its repo's next access — closing it only drops
+/// idle connections, never data — so the cap bounds resource growth (open file
+/// handles, WAL connections) without changing observable behavior.
+const MAX_OPEN_POOLS: usize = 32;
+
+/// A cached pool plus the `db_path` its slug resolved to at open time. Keying
+/// the map by the **canonical repo path** (not the slug-derived db_path) means
+/// `close_for(repo_path)` still finds the pool after the repo dir is deleted —
+/// at which point `repo_slug` would fall back to a different name and miss it.
+struct CachedPool {
+    pool: SqlitePool,
+    db_path: PathBuf,
+}
+
+/// Every open progress database, keyed by canonical repo path — one pool per
+/// repo, opened on demand (MP1: reads from any registered repo at any time, no
+/// active-project singleton). `projects_remove` closes the repo's pool. An
+/// LRU recency list bounds the live set at [`MAX_OPEN_POOLS`].
 #[derive(Default)]
 pub struct Db {
-    pools: RwLock<HashMap<PathBuf, SqlitePool>>,
+    inner: RwLock<DbInner>,
+}
+
+#[derive(Default)]
+struct DbInner {
+    pools: HashMap<PathBuf, CachedPool>,
+    /// Least-recently-used first, most-recently-used last. Touched on every
+    /// hit/insert; the front is evicted when the map grows past the cap.
+    recency: Vec<PathBuf>,
+}
+
+impl DbInner {
+    /// Move `repo_path` to the most-recently-used end of the recency list.
+    fn touch(&mut self, repo_path: &Path) {
+        self.recency.retain(|p| p != repo_path);
+        self.recency.push(repo_path.to_path_buf());
+    }
 }
 
 impl Db {
     /// The progress pool of `repo_path`'s project, opened on demand and
-    /// cached. `SqlitePool` is a cheap `Arc` clone.
+    /// cached. `SqlitePool` is a cheap `Arc` clone. The blocking git2 slug
+    /// resolution runs off the async runtime.
     pub async fn pool_for(&self, repo_path: &Path) -> Result<SqlitePool, String> {
-        let db_path = progress_db_path(&repo_slug(repo_path));
-        self.pool_at(&db_path).await
+        // Fast path: an already-cached pool needs no slug resolution at all.
+        {
+            let mut inner = self.inner.write().await;
+            if let Some(cached) = inner.pools.get(repo_path) {
+                let pool = cached.pool.clone();
+                inner.touch(repo_path);
+                return Ok(pool);
+            }
+        }
+        let db_path = resolve_db_path(repo_path).await;
+        self.pool_at(repo_path, &db_path).await
     }
 
-    /// Close and forget `repo_path`'s pool; unknown repos are a no-op.
+    /// Close and forget `repo_path`'s pool; unknown repos are a no-op. The
+    /// canonical-path keying means this finds the pool even when the repo dir
+    /// has been deleted — no slug resolution is needed for a cached entry.
     pub async fn close_for(&self, repo_path: &Path) {
-        let db_path = progress_db_path(&repo_slug(repo_path));
-        let removed = self.pools.write().await.remove(&db_path);
-        if let Some(pool) = removed {
-            pool.close().await;
+        let removed = {
+            let mut inner = self.inner.write().await;
+            inner.recency.retain(|p| p != repo_path);
+            inner.pools.remove(repo_path)
+        };
+        if let Some(cached) = removed {
+            cached.pool.close().await;
         }
     }
 
-    async fn pool_at(&self, db_path: &Path) -> Result<SqlitePool, String> {
-        if let Some(pool) = self.pools.read().await.get(db_path) {
-            return Ok(pool.clone());
-        }
+    async fn pool_at(&self, repo_path: &Path, db_path: &Path) -> Result<SqlitePool, String> {
         let pool = open(db_path)
             .await
             .map_err(|err| format!("open {}: {err}", db_path.display()))?;
-        let mut pools = self.pools.write().await;
-        // Two callers can race past the read above; keep the first pool in
-        // the map and discard the late one so a db file never has two pools.
-        if let Some(existing) = pools.get(db_path) {
-            let existing = existing.clone();
-            drop(pools);
+        let mut inner = self.inner.write().await;
+        // Two callers can race past the fast path above; keep the first pool
+        // in the map and discard the late one so a db file never has two pools.
+        if let Some(existing) = inner.pools.get(repo_path) {
+            let existing = existing.pool.clone();
+            inner.touch(repo_path);
+            drop(inner);
             pool.close().await;
             return Ok(existing);
         }
-        pools.insert(db_path.to_path_buf(), pool.clone());
+        inner.pools.insert(
+            repo_path.to_path_buf(),
+            CachedPool {
+                pool: pool.clone(),
+                db_path: db_path.to_path_buf(),
+            },
+        );
+        inner.touch(repo_path);
+        let evicted = inner.evict_over_cap();
+        drop(inner);
+        if let Some(cached) = evicted {
+            tracing::debug!(
+                db = %cached.db_path.display(),
+                "evicted least-recently-used progress pool past the cap; it re-opens lazily on next access"
+            );
+            cached.pool.close().await;
+        }
         Ok(pool)
+    }
+}
+
+impl DbInner {
+    /// When the map grew past [`MAX_OPEN_POOLS`], pop the least-recently-used
+    /// repo and return its pool for the caller to close (closing holds no lock).
+    fn evict_over_cap(&mut self) -> Option<CachedPool> {
+        if self.pools.len() <= MAX_OPEN_POOLS {
+            return None;
+        }
+        // recency.front() is the LRU; skip any stale entries already removed.
+        while !self.recency.is_empty() {
+            let victim = self.recency.remove(0);
+            if let Some(cached) = self.pools.remove(&victim) {
+                return Some(cached);
+            }
+        }
+        None
+    }
+}
+
+/// Resolve `repo_path`'s `progress.db` path via the blocking git2 slug lookup,
+/// run off the Tokio runtime so origin reads never stall an async worker.
+async fn resolve_db_path(repo_path: &Path) -> PathBuf {
+    let repo_path = repo_path.to_path_buf();
+    tauri::async_runtime::spawn_blocking(move || progress_db_path(&repo_slug(&repo_path)))
+        .await
+        .unwrap_or_else(|err| {
+            // The blocking task only computes a path; a join failure is a
+            // runtime shutdown, in which case any fallback is moot.
+            tracing::warn!(error = %err, "slug resolution task failed");
+            progress_db_path("default")
+        })
+}
+
+#[cfg(test)]
+impl Db {
+    /// Touch an already-cached repo's recency without re-resolving its slug —
+    /// the same move-to-back the `pool_for` fast path performs on a cache hit.
+    /// Test-only: lets a test mark a pool recently-used to steer eviction.
+    async fn pool_for_existing_touch(&self, repo_path: &Path) {
+        let mut inner = self.inner.write().await;
+        if inner.pools.contains_key(repo_path) {
+            inner.touch(repo_path);
+        }
     }
 }
 
@@ -275,15 +382,34 @@ mod tests {
         });
     }
 
+    /// A real on-disk git repo under a temp dir, with an `origin` remote so its
+    /// slug resolves deterministically. Returned alongside its `TempDir` guard.
+    fn temp_git_repo(name: &str) -> (tempfile::TempDir, PathBuf) {
+        use mizraj_vcs::git2::{Repository, RepositoryInitOptions};
+        let tmp = tempdir().expect("tempdir");
+        let path = tmp.path().join(name);
+        std::fs::create_dir(&path).expect("create repo dir");
+        let mut opts = RepositoryInitOptions::new();
+        opts.external_template(false);
+        opts.initial_head("main");
+        let repo = Repository::init_opts(&path, &opts).expect("init repo");
+        repo.remote("origin", &format!("git@github.com:owner/{name}.git"))
+            .expect("set origin");
+        let canonical = path.canonicalize().expect("canonicalize repo path");
+        (tmp, canonical)
+    }
+
     #[test]
     fn two_repos_get_isolated_pools_that_coexist() {
         let tmp = tempdir().expect("tempdir");
+        let repo_a = tmp.path().join("repo-a");
+        let repo_b = tmp.path().join("repo-b");
         let path_a = tmp.path().join("a").join("progress.db");
         let path_b = tmp.path().join("b").join("progress.db");
         block_on(async {
             let db = Db::default();
-            let pool_a = db.pool_at(&path_a).await.expect("open a");
-            let pool_b = db.pool_at(&path_b).await.expect("open b");
+            let pool_a = db.pool_at(&repo_a, &path_a).await.expect("open a");
+            let pool_b = db.pool_at(&repo_b, &path_b).await.expect("open b");
 
             sqlx::query("INSERT INTO tasks (id, origin, title, status, created_at) VALUES ('t1', 'user', 'only in a', 'backlog', '2026-06-13')")
                 .execute(&pool_a)
@@ -307,13 +433,14 @@ mod tests {
     #[test]
     fn the_same_repo_reuses_one_cached_pool() {
         let tmp = tempdir().expect("tempdir");
+        let repo = tmp.path().join("repo");
         let path = tmp.path().join("progress.db");
         block_on(async {
             let db = Db::default();
-            db.pool_at(&path).await.expect("first open");
-            db.pool_at(&path).await.expect("second open");
+            db.pool_at(&repo, &path).await.expect("first open");
+            db.pool_at(&repo, &path).await.expect("second open");
             assert_eq!(
-                db.pools.read().await.len(),
+                db.inner.read().await.pools.len(),
                 1,
                 "both opens share one cached pool"
             );
@@ -323,22 +450,96 @@ mod tests {
     #[test]
     fn close_for_drops_the_pool_and_unknown_paths_are_noops() {
         let tmp = tempdir().expect("tempdir");
+        let repo = tmp.path().join("repo");
         let path = tmp.path().join("progress.db");
         block_on(async {
             let db = Db::default();
-            db.pool_at(&path).await.expect("open");
-            assert_eq!(db.pools.read().await.len(), 1);
+            db.pool_at(&repo, &path).await.expect("open");
+            assert_eq!(db.inner.read().await.pools.len(), 1);
 
-            // close_for resolves via repo slug; exercise the map removal
-            // directly at the db-path level.
-            let removed = db.pools.write().await.remove(&path);
-            assert!(removed.is_some());
-            if let Some(pool) = removed {
-                pool.close().await;
-            }
-            assert_eq!(db.pools.read().await.len(), 0);
+            // The map is keyed by the canonical repo path, so close_for finds
+            // and drops the pool directly.
+            db.close_for(&repo).await;
+            let inner = db.inner.read().await;
+            assert_eq!(inner.pools.len(), 0);
+            assert!(inner.recency.is_empty(), "recency tracks the live set");
+            drop(inner);
 
             db.close_for(Path::new("/never/registered")).await;
+        });
+    }
+
+    #[test]
+    fn pool_for_then_close_for_empties_the_map() {
+        let (_tmp, repo) = temp_git_repo("close-me");
+        block_on(async {
+            let db = Db::default();
+            db.pool_for(&repo).await.expect("open via pool_for");
+            assert_eq!(db.inner.read().await.pools.len(), 1);
+
+            db.close_for(&repo).await;
+            let inner = db.inner.read().await;
+            assert!(inner.pools.is_empty(), "close_for emptied the pool map");
+            assert!(inner.recency.is_empty());
+        });
+    }
+
+    #[test]
+    fn close_for_still_closes_after_the_repo_dir_is_removed() {
+        let (tmp, repo) = temp_git_repo("vanishing");
+        block_on(async {
+            let db = Db::default();
+            db.pool_for(&repo).await.expect("open via pool_for");
+            assert_eq!(db.inner.read().await.pools.len(), 1);
+
+            // The repo dir is gone: repo_slug would now fall back to a different
+            // name, but canonical-path keying still locates the pool.
+            drop(tmp);
+            assert!(!repo.exists(), "repo dir should be removed");
+
+            db.close_for(&repo).await;
+            assert!(
+                db.inner.read().await.pools.is_empty(),
+                "the pool must close even after its repo dir vanished"
+            );
+        });
+    }
+
+    #[test]
+    fn opening_past_the_cap_evicts_the_least_recently_used_pool() {
+        let tmp = tempdir().expect("tempdir");
+        block_on(async {
+            let db = Db::default();
+            // Fill exactly to the cap, recording each repo path so we can probe
+            // recency afterwards.
+            let mut repos = Vec::new();
+            for i in 0..MAX_OPEN_POOLS {
+                let repo = tmp.path().join(format!("repo-{i}"));
+                let dbp = tmp.path().join(format!("db-{i}")).join("progress.db");
+                db.pool_at(&repo, &dbp).await.expect("open within cap");
+                repos.push(repo);
+            }
+            assert_eq!(db.inner.read().await.pools.len(), MAX_OPEN_POOLS);
+
+            // Touch the oldest so it is no longer the LRU victim.
+            let oldest = repos[0].clone();
+            db.pool_for_existing_touch(&oldest).await;
+
+            // One more open trips the cap and evicts the new LRU (repos[1]).
+            let extra = tmp.path().join("repo-extra");
+            let extra_db = tmp.path().join("db-extra").join("progress.db");
+            db.pool_at(&extra, &extra_db).await.expect("open past cap");
+
+            let inner = db.inner.read().await;
+            assert_eq!(inner.pools.len(), MAX_OPEN_POOLS, "cap holds steady");
+            assert!(
+                inner.pools.contains_key(&oldest),
+                "the freshly-touched repo survives eviction"
+            );
+            assert!(
+                !inner.pools.contains_key(&repos[1]),
+                "the least-recently-used repo was evicted"
+            );
         });
     }
 }

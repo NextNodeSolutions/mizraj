@@ -73,12 +73,14 @@ pub struct RepoHead {
 /// (MP1): overview surfaces read any registered repo without switching.
 #[tauri::command]
 pub fn repo_head(repo_path: String) -> Result<RepoHead, String> {
-    repo_head_inner(Path::new(&repo_path))
+    let canonical = validate_repo_path(&repo_path)?;
+    repo_head_inner(&canonical)
 }
 
 fn repo_head_inner(repo_path: &Path) -> Result<RepoHead, String> {
-    let repo = repo_open(repo_path).map_err(|e| e.to_string())?;
-    match current_branch(&repo).map_err(|e| e.to_string())? {
+    let repo =
+        repo_open(repo_path).map_err(|e| format!("open repo {}: {e}", repo_path.display()))?;
+    match current_branch(&repo).map_err(|e| format!("read HEAD of {}: {e}", repo_path.display()))? {
         Head::Branch(name) => Ok(RepoHead {
             branch: Some(name),
             detached: false,
@@ -90,7 +92,13 @@ fn repo_head_inner(repo_path: &Path) -> Result<RepoHead, String> {
     }
 }
 
-fn validate_repo_path(repo_path: &str) -> Result<PathBuf, String> {
+/// Normalize a caller-supplied repo path into a canonical, on-disk directory:
+/// trim it, reject blank, `canonicalize`, and require a directory. Commands call
+/// this at the top and operate on the returned [`PathBuf`] rather than the raw
+/// string, so one place owns "is this a real repo path". Membership in the
+/// registry is deliberately NOT required (MP1): any real on-disk repo stays
+/// readable.
+pub(crate) fn validate_repo_path(repo_path: &str) -> Result<PathBuf, String> {
     let trimmed = repo_path.trim();
     if trimmed.is_empty() {
         return Err("repo_path must not be empty".to_string());

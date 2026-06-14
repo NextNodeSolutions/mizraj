@@ -232,7 +232,8 @@ pub async fn tasks_overview(
     repo_path: String,
     db: tauri::State<'_, Db>,
 ) -> Result<Overview, String> {
-    let pool = db.pool_for(std::path::Path::new(&repo_path)).await?;
+    let repo_path = crate::project::validate_repo_path(&repo_path)?;
+    let pool = db.pool_for(&repo_path).await?;
     tasks_overview_inner(&pool)
         .await
         .map_err(|err| err.to_string())
@@ -300,7 +301,8 @@ pub async fn tasks_create(
     let title = normalize_title(&title).ok_or_else(|| "title must not be empty".to_string())?;
     let description = normalize_description(description.as_deref());
 
-    let pool = db.pool_for(std::path::Path::new(&repo_path)).await?;
+    let repo_path = crate::project::validate_repo_path(&repo_path)?;
+    let pool = db.pool_for(&repo_path).await?;
     tasks_create_inner(&pool, title, description)
         .await
         .map_err(|err| err.to_string())
@@ -350,7 +352,8 @@ pub async fn tasks_update(
         return Err(format!("unknown status: {status}"));
     }
 
-    let pool = db.pool_for(std::path::Path::new(&repo_path)).await?;
+    let repo_path = crate::project::validate_repo_path(&repo_path)?;
+    let pool = db.pool_for(&repo_path).await?;
     tasks_update_inner(&pool, &id, title, description, &status)
         .await
         .map_err(|err| err.to_string())

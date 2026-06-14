@@ -78,12 +78,21 @@ pub async fn projects_remove(
     db: tauri::State<'_, crate::db::Db>,
     watchers: tauri::State<'_, super::watcher::RepoWatchers>,
 ) -> Result<(), String> {
-    let path = Path::new(&repo_path);
-    registry.remove(path)?;
-    // A removed repo releases everything it held: its watcher stops and its
-    // progress pool closes; other repos keep theirs untouched.
+    // Match `add`'s canonicalization so the teardown keys line up with what was
+    // registered. A removed/missing repo must stay removable, so a failed
+    // canonicalize (the dir vanished) falls back to the raw path rather than
+    // hard-failing the removal.
+    let canonical =
+        super::validate_repo_path(&repo_path).unwrap_or_else(|_| PathBuf::from(repo_path.trim()));
+    let path = canonical.as_path();
+    // Teardown FIRST — both steps are infallible. Running them before the
+    // persistable registry mutation means a later persist failure can never
+    // strand a live watcher or open pool.
     watchers.unwatch(path);
     db.close_for(path).await;
+    // Persist the registry removal last; an error here surfaces to the caller
+    // but leaves nothing live behind.
+    registry.remove(path)?;
     Ok(())
 }
 

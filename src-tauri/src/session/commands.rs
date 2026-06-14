@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use mizraj_vcs::{create_session_ref, repo_open};
+use mizraj_vcs::{create_session_ref, main_workdir, repo_open};
 use sqlx::SqlitePool;
 use tauri::async_runtime::Sender;
 use tauri::{AppHandle, Runtime};
@@ -125,6 +125,23 @@ where
     Ok(id)
 }
 
+/// Resolve the progress database key for a session's `cwd`: canonicalize it,
+/// then resolve it to the repository's **main** working directory. A linked
+/// worktree thus shares the main repo's `progress.db` that `tasks_overview`
+/// reads, instead of opening a sibling database keyed by the worktree path. If
+/// `cwd` isn't inside a repo (or its layout can't be resolved), fall back to the
+/// canonicalized `cwd`. Rejects a blank or non-existent `cwd`.
+fn resolve_pool_key(cwd: &str) -> Result<PathBuf, SessionError> {
+    let trimmed = cwd.trim();
+    if trimmed.is_empty() {
+        return Err(SessionError::Database("cwd must not be empty".to_string()));
+    }
+    let canonical = PathBuf::from(trimmed)
+        .canonicalize()
+        .map_err(|err| SessionError::Database(format!("canonicalize cwd {trimmed}: {err}")))?;
+    Ok(main_workdir(&canonical).unwrap_or(canonical))
+}
+
 #[tauri::command]
 pub async fn session_create<R: Runtime>(
     binary: String,
@@ -134,9 +151,12 @@ pub async fn session_create<R: Runtime>(
     db: tauri::State<'_, Db>,
 ) -> Result<SessionId, SessionError> {
     // The session row lives in its own repo's progress.db — sessions on repo B
-    // never write into repo A's database, whatever the active project is.
+    // never write into repo A's database, whatever the active project is. The
+    // pool is keyed by the repo's MAIN working dir so a linked worktree shares
+    // the main checkout's progress.db (the one tasks_overview reads).
+    let pool_key = resolve_pool_key(&cwd)?;
     let pool = db
-        .pool_for(std::path::Path::new(&cwd))
+        .pool_for(&pool_key)
         .await
         .map_err(SessionError::Database)?;
     let scrollback_lines = crate::ghostty::scrollback_lines();
