@@ -29,20 +29,36 @@ export const useRepoResource = <T>(
 	fetcher: (repoPath: string) => Promise<T>,
 	scope: string,
 	label: string,
+	// Optional identity test. When a focus/watcher reload yields data this
+	// deems equal to the last applied value, the state is left untouched so the
+	// `ready` object keeps its reference — downstream memo (re-parse, re-diff)
+	// then skips a no-op refresh instead of re-running on every window focus.
+	isEqual?: (previous: T, next: T) => boolean,
 ): RepoResource<T> => {
 	const [state, setState] = useState<ResourceState<T>>({ status: 'idle' })
 	// Monotonic token so overlapping reloads (mount, focus, refetch) never let a
 	// slower one clobber a newer one — only the latest request applies its result.
 	const requestRef = useRef(0)
+	// The last applied `ready` data, for the isEqual short-circuit. Reset
+	// whenever the resource leaves `ready` (repo switch, idle, error) so a stale
+	// value from a previous repo can never suppress the next load's first apply.
+	const dataRef = useRef<T | null>(null)
 
 	const reload = useCallback(async (): Promise<void> => {
 		if (repoPath === null) return
 		const request = (requestRef.current += 1)
 		try {
 			const data = await fetcher(repoPath)
-			if (request === requestRef.current) {
-				setState({ status: 'ready', data })
+			if (request !== requestRef.current) return
+			if (
+				isEqual !== undefined &&
+				dataRef.current !== null &&
+				isEqual(dataRef.current, data)
+			) {
+				return
 			}
+			dataRef.current = data
+			setState({ status: 'ready', data })
 		} catch (error: unknown) {
 			const { message, stack } = describeError(error)
 			logger.error(`${label} failed: ${message}`, {
@@ -50,18 +66,21 @@ export const useRepoResource = <T>(
 				details: { stack, repoPath },
 			})
 			if (request === requestRef.current) {
+				dataRef.current = null
 				setState({ status: 'error', message })
 			}
 		}
-	}, [repoPath, fetcher, scope, label])
+	}, [repoPath, fetcher, scope, label, isEqual])
 
 	useEffect(() => {
 		if (repoPath === null) {
 			requestRef.current += 1
+			dataRef.current = null
 			setState({ status: 'idle' })
 			return
 		}
 
+		dataRef.current = null
 		setState({ status: 'loading' })
 		void reload()
 

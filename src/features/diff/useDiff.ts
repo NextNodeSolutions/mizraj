@@ -27,5 +27,12 @@ const fetchDiff = async (repoPath: string): Promise<DiffPayload> => {
 	return payload
 }
 
+// A focus/watcher reload routinely returns the byte-identical patch (nothing
+// changed on disk). Skipping the state update on an equal patch keeps the
+// `ready` object stable, so usePatchFiles' useMemo([patch]) holds and
+// memo(ReviewDiffPane) is never re-diffed for a no-op refresh.
+const sameDiff = (previous: DiffPayload, next: DiffPayload): boolean =>
+	previous.patch === next.patch
+
 export const useDiff = (repoPath: string | null): DiffResource =>
-	useRepoResource(repoPath, fetchDiff, 'diff-panel', 'useDiff: get_diff')
+	useRepoResource(repoPath, fetchDiff, 'diff-panel', 'useDiff: get_diff', sameDiff)
