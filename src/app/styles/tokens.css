@@ -42,7 +42,6 @@
 	--fs-body: 13.5px;
 	--fs-sm: 12.5px;
 	--fs-xs: 11px;
-	--fs-mono: 12.5px;
 	--fs-mono-sm: 11.5px;
 }
 
@@ -54,12 +53,14 @@ html[data-density='compact'] {
 	--fs-body: 12.5px;
 	--fs-sm: 11.5px;
 	--fs-xs: 10.5px;
-	--fs-mono: 11.5px;
 	--fs-mono-sm: 11px;
 }
 
 /* ============================================================
    CATPPUCCIN LATTE (light — default)
+   The bare `:root` arm is the pre-hydration fallback only (before
+   App.tsx writes data-theme); html[data-theme='latte'] is the real
+   source once mounted. Both arms must be edited together.
    ============================================================ */
 :root,
 html[data-theme='latte'] {
