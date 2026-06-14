@@ -19,3 +19,35 @@ const HOME_PREFIX = /^\/(?:Users|home)\/[^/]+/
  */
 export const compactPath = (repoPath: string | null): string =>
 	repoPath === null ? NO_PROJECT_DIR : repoPath.replace(HOME_PREFIX, '~')
+
+export const HUES = [
+	'blue',
+	'mauve',
+	'teal',
+	'peach',
+	'green',
+	'sky',
+	'pink',
+	'yellow',
+] as const
+
+export type Hue = (typeof HUES)[number]
+
+const DJB2_SEED = 5381
+
+const DJB2_MULTIPLIER = 33
+
+const djb2 = (value: string): number => {
+	let hash = DJB2_SEED
+	for (let index = 0; index < value.length; index += 1) {
+		// Classic djb2 (hash * 33 + char), wrapped to unsigned 32 bits.
+		hash = (hash * DJB2_MULTIPLIER + value.charCodeAt(index)) >>> 0
+	}
+	return hash
+}
+
+/** A repo's stable accent hue — hashed from its path, never random. */
+export const projectHue = (repoPath: string | null): Hue =>
+	repoPath === null
+		? HUES[0]
+		: (HUES[djb2(repoPath) % HUES.length] ?? HUES[0])

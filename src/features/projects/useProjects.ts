@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import { atom, useAtom } from 'jotai'
 import { useEffect } from 'react'
 
@@ -50,6 +51,11 @@ export type ProjectsApi = {
 	missing: ReadonlyArray<string>
 	/** Register a repo; resolves to its canonical path, or null on failure. */
 	addProject: (path: string) => Promise<string | null>
+	/**
+	 * Open the native folder picker and register the chosen repo; resolves its
+	 * canonical path, or null if the dialog was cancelled or the add failed.
+	 */
+	addProjectViaDialog: () => Promise<string | null>
 	removeProject: (path: string) => Promise<void>
 	/** Re-probe the filesystem for vanished repos (cheap; call on menu open). */
 	refreshMissing: () => Promise<void>
@@ -120,6 +126,19 @@ export const useProjects = (): ProjectsApi => {
 		}
 	}
 
+	// Native folder picker + register, behind the registry seam so the picker
+	// component never reaches for the @tauri-apps/plugin-dialog IO directly.
+	const addProjectViaDialog = async (): Promise<string | null> => {
+		try {
+			const selected = await open({ directory: true })
+			if (selected === null) return null
+			return await addProject(selected)
+		} catch (error: unknown) {
+			logRegistryError('open dialog', error)
+			return null
+		}
+	}
+
 	const removeProject = async (path: string): Promise<void> => {
 		try {
 			await invoke('projects_remove', { repoPath: path })
@@ -130,7 +149,14 @@ export const useProjects = (): ProjectsApi => {
 		}
 	}
 
-	return { projects, missing, addProject, removeProject, refreshMissing }
+	return {
+		projects,
+		missing,
+		addProject,
+		addProjectViaDialog,
+		removeProject,
+		refreshMissing,
+	}
 }
 
 // Test-only escape hatch: clear the one-time load guard so each suite mounts

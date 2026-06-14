@@ -1,8 +1,9 @@
 /**
  * Pure helpers behind the project-grouped mission control wall: grouping
- * sessions by repo, naming/compacting repo paths and hashing them to a
- * stable accent hue.
+ * sessions by repo, ordering the wall, and deriving the filtered view. Repo
+ * path display/hue helpers live in repoPaths.ts (re-exported below).
  */
+import type { MissionFilter } from '@/app/router'
 import type { SessionDisplayStatus } from '@/features/sessions/displayStatus'
 import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
 import type { SessionState } from '@/features/sessions/sessions'
@@ -47,7 +48,12 @@ export const groupSessionsByRepo = (
 	)
 }
 
-export { compactPath, projectName } from '@/features/projects/repoPaths'
+export {
+	compactPath,
+	HUES,
+	projectHue,
+	projectName,
+} from '@/features/projects/repoPaths'
 
 /**
  * MP4's hybrid partition: a registered repo with no live session is dormant —
@@ -83,38 +89,6 @@ export const withActiveGroup = (
 	return [{ repoPath: activeProjectPath, sessions: [] }, ...groups]
 }
 
-export const HUES = [
-	'blue',
-	'mauve',
-	'teal',
-	'peach',
-	'green',
-	'sky',
-	'pink',
-	'yellow',
-] as const
-
-export type Hue = (typeof HUES)[number]
-
-const DJB2_SEED = 5381
-
-const DJB2_MULTIPLIER = 33
-
-const djb2 = (value: string): number => {
-	let hash = DJB2_SEED
-	for (let index = 0; index < value.length; index += 1) {
-		// Classic djb2 (hash * 33 + char), wrapped to unsigned 32 bits.
-		hash = (hash * DJB2_MULTIPLIER + value.charCodeAt(index)) >>> 0
-	}
-	return hash
-}
-
-/** A repo's stable accent hue — hashed from its path, never random. */
-export const projectHue = (repoPath: string | null): Hue =>
-	repoPath === null
-		? HUES[0]
-		: (HUES[djb2(repoPath) % HUES.length] ?? HUES[0])
-
 const latestStart = (group: SessionGroup): number =>
 	group.sessions.reduce(
 		(latest, session) => Math.max(latest, session.startedAt),
@@ -138,3 +112,54 @@ export const orderProjectGroups = (
 			Number(a.repoPath === activeProjectPath)
 		return active !== 0 ? active : latestStart(b) - latestStart(a)
 	})
+
+const matchesFilter = (session: SessionState, filter: MissionFilter): boolean =>
+	filter === 'all' || sessionDisplayStatus(session) === filter
+
+export type VisibleProjectGroup = {
+	group: SessionGroup
+	isActive: boolean
+	visibleSessions: ReadonlyArray<SessionState>
+}
+
+export type VisibleProjectGroups = {
+	/** All ordered groups (active-first), pre-filter — drives the project count. */
+	groups: ReadonlyArray<SessionGroup>
+	/** Groups surviving the filter; the active group stays pinned even if empty. */
+	visibleGroups: ReadonlyArray<VisibleProjectGroup>
+	/** Total cards across visibleGroups. */
+	visibleCardCount: number
+}
+
+/**
+ * The wall's render model: order the groups (active repo pinned, see
+ * orderProjectGroups), then drop groups whose every card is filtered out —
+ * except the followed repo, which keeps its (possibly empty) group on top.
+ */
+export const visibleProjectGroups = (
+	sessionGroups: ReadonlyArray<SessionGroup>,
+	activeProjectPath: string | null,
+	filter: MissionFilter,
+): VisibleProjectGroups => {
+	const groups = orderProjectGroups(
+		withActiveGroup(sessionGroups, activeProjectPath),
+		activeProjectPath,
+	)
+	const visibleGroups = groups
+		.map(group => ({
+			group,
+			isActive: group.repoPath === activeProjectPath,
+			visibleSessions: group.sessions.filter(session =>
+				matchesFilter(session, filter),
+			),
+		}))
+		.filter(
+			({ isActive, visibleSessions }) =>
+				isActive || visibleSessions.length > 0,
+		)
+	const visibleCardCount = visibleGroups.reduce(
+		(total, { visibleSessions }) => total + visibleSessions.length,
+		0,
+	)
+	return { groups, visibleGroups, visibleCardCount }
+}

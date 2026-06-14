@@ -1,9 +1,6 @@
 import { useState } from 'react'
 
-import { useDiff } from '@/features/diff/useDiff'
-import { repoHeadLabel, useRepoHead } from '@/features/projects/repoHead'
-import type { DiffTotals } from '@/features/review/reviewFiles'
-import { diffTotals, reviewFilesFromPatch } from '@/features/review/reviewFiles'
+import { useRepoStats } from '@/features/projects/useRepoStats'
 import type { SessionDisplayStatus } from '@/features/sessions/displayStatus'
 import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
 import { launchSession } from '@/features/sessions/launchSession'
@@ -41,16 +38,9 @@ export const ProjectGroup = ({
 	// A const binding so the null check narrows inside the launch closure.
 	const { repoPath } = group
 	const name = projectName(repoPath)
-	// One head + one working-tree read per repo group (MP1): every card of
-	// the group shows ITS repo's branch and diff stats, never the active
-	// project's.
-	const head = useRepoHead(repoPath)
-	const diff = useDiff(repoPath)
-	const branch = head.status === 'ready' ? repoHeadLabel(head.data) : null
-	const totals: DiffTotals | null =
-		diff.state.status === 'ready'
-			? diffTotals(reviewFilesFromPatch(diff.state.data.patch))
-			: null
+	// One head + one working-tree read per repo group (MP1): every card shows
+	// ITS repo's branch and diff stats, never the active project's.
+	const { branch, totals } = useRepoStats(repoPath)
 
 	const toggle = (): void => setCollapsed(current => !current)
 	// Header stats always describe the whole group, never the filtered view.

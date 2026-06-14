@@ -19,8 +19,7 @@ import { ProjectGroup } from './ProjectGroup'
 import {
 	dormantRepos,
 	groupSessionsByRepo,
-	orderProjectGroups,
-	withActiveGroup,
+	visibleProjectGroups,
 } from './projectGroups'
 import { restartStagger } from './restartStagger'
 
@@ -42,9 +41,6 @@ const CHIP_ORDER: ReadonlyArray<MissionFilter> = [
 
 const chipHref = (key: MissionFilter): string =>
 	key === 'all' ? missionControlHref() : missionControlHref(key)
-
-const matchesFilter = (session: SessionState, filter: MissionFilter): boolean =>
-	filter === 'all' || sessionDisplayStatus(session) === filter
 
 const countByStatus = (
 	sessions: ReadonlyArray<SessionState>,
@@ -101,28 +97,12 @@ export const MissionControl = ({
 	const countFor = (key: MissionFilter): number =>
 		key === 'all' ? sessions.length : countByStatus(sessions, key)
 
-	// The followed repo always keeps a top group, even with zero sessions.
-	const groups = orderProjectGroups(
-		withActiveGroup(sessionGroups, activeProjectPath),
+	// The followed repo always keeps a top group (even empty); a group whose
+	// every card is filtered out otherwise disappears.
+	const { groups, visibleGroups, visibleCardCount } = visibleProjectGroups(
+		sessionGroups,
 		activeProjectPath,
-	)
-	// A group whose every card is filtered out disappears entirely — except
-	// the followed repo, which keeps its (possibly empty) group pinned on top.
-	const visibleGroups = groups
-		.map(group => ({
-			group,
-			isActive: group.repoPath === activeProjectPath,
-			visibleSessions: group.sessions.filter(session =>
-				matchesFilter(session, filter),
-			),
-		}))
-		.filter(
-			({ isActive, visibleSessions }) =>
-				isActive || visibleSessions.length > 0,
-		)
-	const visibleCardCount = visibleGroups.reduce(
-		(total, { visibleSessions }) => total + visibleSessions.length,
-		0,
+		filter,
 	)
 
 	return (

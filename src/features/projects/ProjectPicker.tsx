@@ -1,19 +1,10 @@
-import { open } from '@tauri-apps/plugin-dialog'
-import {
-	Fragment,
-	useEffect,
-	useLayoutEffect,
-	useMemo,
-	useRef,
-	useState,
-} from 'react'
+import { Fragment, useMemo, useState } from 'react'
 
 import { matchMissionControlRoute, usePathname } from '@/app/router'
-import { describeError } from '@/shared/errors'
-import { logger } from '@/shared/logger'
 import { IconX } from '@/shared/ui/icons'
 
 import { compactPath, projectName } from './repoPaths'
+import { useListboxNavigation } from './useListboxNavigation'
 import { useProjects } from './useProjects'
 
 type Props = {
@@ -83,12 +74,16 @@ export const ProjectPicker = ({
 	onSelect,
 }: Props): React.JSX.Element => {
 	const pathname = usePathname()
-	const { projects, missing, addProject, removeProject, refreshMissing } =
-		useProjects()
+	const {
+		projects,
+		missing,
+		addProjectViaDialog,
+		removeProject,
+		refreshMissing,
+	} = useProjects()
 	const [menuOpen, setMenuOpen] = useState(false)
-	const [highlighted, setHighlighted] = useState(0)
 
-	// Stable identity so the keydown effect and clamp depend on a value that only
+	// Stable identity so the nav hook and clamp depend on a value that only
 	// changes when the registry does, not on every hover-driven re-render.
 	const entries = useMemo(
 		() => buildEntries(projects, missing),
@@ -102,39 +97,10 @@ export const ProjectPicker = ({
 		[entries],
 	)
 
-	// removeProject is async and re-orders the list; clamp against the freshly
-	// rendered length so the highlight can never point past the last entry once
-	// a pruned (or vanished) repo leaves. Layout phase keeps the row in bounds
-	// before paint.
-	useLayoutEffect(() => {
-		setHighlighted(current => Math.min(current, entries.length - 1))
-	}, [entries.length])
-
-	const openMenu = (): void => {
-		const activeIndex = entries.findIndex(
-			entry =>
-				entry.kind === 'project' && entry.path === activeProjectPath,
-		)
-		setHighlighted(Math.max(activeIndex, 0))
-		setMenuOpen(true)
-		// A repo can vanish while the app runs; re-probe so the menu is truthful.
-		void refreshMissing()
-	}
-
 	const addRepoThenSwitch = (): void => {
-		open({ directory: true })
-			.then(async selected => {
-				if (selected === null) return
-				const canonical = await addProject(selected)
-				if (canonical !== null) onSelect(canonical)
-			})
-			.catch((error: unknown) => {
-				const { message, stack } = describeError(error)
-				logger.error(`ProjectPicker: open dialog failed: ${message}`, {
-					scope: 'project-picker',
-					details: { stack },
-				})
-			})
+		void addProjectViaDialog().then(canonical => {
+			if (canonical !== null) onSelect(canonical)
+		})
 	}
 
 	const choose = (entry: MenuEntry | undefined): void => {
@@ -151,59 +117,35 @@ export const ProjectPicker = ({
 	}
 
 	const prune = (path: string): void => {
-		// removeProject re-renders a re-ordered, shorter list; the highlight clamp
-		// runs in the layout effect keyed on entries.length, not on a stale count.
+		// removeProject re-renders a re-ordered, shorter list; useListboxNavigation
+		// clamps the highlight in its layout effect keyed on entries.length.
 		void removeProject(path)
 	}
 
-	// The keydown listener subscribes once per open (deps: [menuOpen]); reading
-	// the live highlight/entries and actions through a ref keeps it from
-	// re-subscribing the window capture listener on every hover-driven render.
-	const keyStateRef = useRef({ entries, highlighted, choose, prune })
-	keyStateRef.current = { entries, highlighted, choose, prune }
+	const { highlighted, setHighlighted } = useListboxNavigation<MenuEntry>({
+		entries,
+		isOpen: menuOpen,
+		onClose: () => setMenuOpen(false),
+		onChoose: choose,
+		onRemove: entry => {
+			// Only registered repos are removable; the "Add repo…" row lets the
+			// key fall through.
+			if (entry.kind !== 'project') return false
+			prune(entry.path)
+			return true
+		},
+	})
 
-	// The menu owns its keys at the window's capture phase, like the palette,
-	// so the embedded terminal never sees a handled chord.
-	useEffect(() => {
-		if (!menuOpen) return
-		const onKeydown = (event: KeyboardEvent): void => {
-			const state = keyStateRef.current
-			if (event.key === 'Escape') {
-				event.preventDefault()
-				event.stopPropagation()
-				setMenuOpen(false)
-				return
-			}
-			if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-				event.preventDefault()
-				event.stopPropagation()
-				const step = event.key === 'ArrowDown' ? 1 : -1
-				setHighlighted(current =>
-					Math.max(
-						0,
-						Math.min(current + step, state.entries.length - 1),
-					),
-				)
-				return
-			}
-			if (event.key === 'Delete' || event.key === 'Backspace') {
-				const entry = state.entries[state.highlighted]
-				if (entry?.kind !== 'project') return
-				event.preventDefault()
-				event.stopPropagation()
-				state.prune(entry.path)
-				return
-			}
-			if (event.key === 'Enter') {
-				event.preventDefault()
-				event.stopPropagation()
-				state.choose(state.entries[state.highlighted])
-			}
-		}
-		window.addEventListener('keydown', onKeydown, { capture: true })
-		return () =>
-			window.removeEventListener('keydown', onKeydown, { capture: true })
-	}, [menuOpen])
+	const openMenu = (): void => {
+		const activeIndex = entries.findIndex(
+			entry =>
+				entry.kind === 'project' && entry.path === activeProjectPath,
+		)
+		setHighlighted(Math.max(activeIndex, 0))
+		setMenuOpen(true)
+		// A repo can vanish while the app runs; re-probe so the menu is truthful.
+		void refreshMissing()
+	}
 
 	return (
 		<div className="mz-projwrap">
