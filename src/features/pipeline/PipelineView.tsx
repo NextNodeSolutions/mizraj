@@ -123,7 +123,22 @@ export const PipelineView = ({
 	useEffect(() => {
 		const liveIds =
 			liveSessionIdsKey === '' ? [] : liveSessionIdsKey.split('\n')
-		pruneApprovedSessions(new Set(liveIds))
+		const live = new Set(liveIds)
+		pruneApprovedSessions(live)
+		// Mirror that prune for the fresh-animation set. A card normally drops
+		// its id on animationEnd, but under `prefers-reduced-motion: reduce`
+		// the entrance animation (and its end event) never fires, so without
+		// this the set would only ever grow as sessions launch. Bounding it to
+		// live sessions keeps it from leaking across the session's lifetime.
+		setFreshSessionIds(previous => {
+			let changed = false
+			const next = new Set<string>()
+			for (const id of previous) {
+				if (live.has(id)) next.add(id)
+				else changed = true
+			}
+			return changed ? next : previous
+		})
 	}, [liveSessionIdsKey, pruneApprovedSessions])
 
 	const approve = (sessionId: string): void => {

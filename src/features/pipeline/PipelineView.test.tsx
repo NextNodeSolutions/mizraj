@@ -670,6 +670,46 @@ describe('PipelineView', () => {
 		)
 	})
 
+	it('evicts a fresh session id when its session leaves the store', async () => {
+		// jsdom never fires animationend — exactly like `prefers-reduced-motion:
+		// reduce`, where the entrance animation (and its end event) is stilled.
+		// The fresh-animation set then only shrinks via the live-session prune:
+		// approve marks a card fresh, and when its session later leaves the
+		// store the id must be evicted, or a later session reusing that id would
+		// wrongly spring as fresh.
+		reviewableSession('rev-1')
+		await render()
+
+		await act(async () => {
+			approveButtons()[0]?.click()
+		})
+		expect(
+			column('Done')?.querySelector('.pipeline__card[data-anim="in"]'),
+		).not.toBeNull()
+
+		// The session leaves the store: the prune must drop its id from the
+		// fresh set, not strand it for the session's whole lifetime.
+		await act(async () => {
+			store.set(sessionsAtom, {})
+		})
+
+		// The same id reappears as a fresh-eligible running session. It was not
+		// just launched, so it must NOT carry the entrance animation.
+		await act(async () => {
+			store.set(startSessionAtom, {
+				id: 'rev-1',
+				binary: 'claude',
+				repoPath: '/repo',
+			})
+		})
+
+		const card = Array.from(
+			column('Running')?.querySelectorAll('.pipeline__card') ?? [],
+		).find(candidate => candidate.textContent?.includes('claude'))
+		expect(card).toBeDefined()
+		expect(card?.getAttribute('data-anim')).toBeNull()
+	})
+
 	it('springs the freshly launched session card into running', async () => {
 		await render()
 
