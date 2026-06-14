@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 
 /**
- * The current epoch ms, refreshed every `intervalMs` — one timer per caller,
- * meant to be held once per screen and passed down so relative-time labels
- * ("4m") tick without each card owning a clock.
+ * The current epoch ms, refreshed every `intervalMs` — one timer per caller.
+ * Hold it once per screen and pass the value down to tick many relative-time
+ * labels ("4m") off a single clock, or call it per leaf (e.g. SessionAgeLabel)
+ * to confine each tick's re-render to that leaf. Both are valid; the caller
+ * picks the trade-off.
  */
 export const useNow = (intervalMs: number): number => {
 	const [now, setNow] = useState(() => Date.now())
