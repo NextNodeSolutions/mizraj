@@ -39,7 +39,6 @@ const session = (
 	binary: 'claude',
 	repoPath: '/repo',
 	title: null,
-	output: [],
 	status,
 	exitCode,
 	startedAt: 0,

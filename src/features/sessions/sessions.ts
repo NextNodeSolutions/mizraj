@@ -6,13 +6,6 @@ import { logger } from '@/shared/logger'
 
 import type { CellFramePayload } from './terminalWire'
 
-export type OutputChunkKind = 'stdout' | 'stderr'
-
-export type OutputChunk = {
-	kind: OutputChunkKind
-	text: string
-}
-
 export type SessionStatus = 'running' | 'ended'
 
 export type SessionState = {
@@ -26,7 +19,6 @@ export type SessionState = {
 	/// The OSC 0/2 title the program set, when any — overrides the derived
 	/// label while present (TP13).
 	title: string | null
-	output: ReadonlyArray<OutputChunk>
 	status: SessionStatus
 	exitCode: number | null
 	/// Epoch ms the session was registered — what relative "age" labels are
@@ -34,18 +26,10 @@ export type SessionState = {
 	startedAt: number
 }
 
-export type AgentOutputPayload = {
-	session_id: string
-	kind: OutputChunkKind
-	text: string
-}
-
 export type SessionEndPayload = {
 	session_id: string
 	exit_code: number
 }
-
-export const AGENT_OUTPUT_EVENT = 'agent:output'
 
 export const AGENT_END_EVENT = 'agent:end'
 
@@ -74,28 +58,9 @@ export const startSessionAtom = atom(
 				binary,
 				repoPath,
 				title: null,
-				output: [],
 				status: 'running',
 				exitCode: null,
 				startedAt: Date.now(),
-			},
-		})
-	},
-)
-
-type AppendOutputArgs = { sessionId: string; chunk: OutputChunk }
-
-export const appendOutputAtom = atom(
-	null,
-	(get, set, { sessionId, chunk }: AppendOutputArgs) => {
-		const sessions = get(sessionsAtom)
-		const existing = sessions[sessionId]
-		if (!existing) return
-		set(sessionsAtom, {
-			...sessions,
-			[sessionId]: {
-				...existing,
-				output: [...existing.output, chunk],
 			},
 		})
 	},
@@ -210,16 +175,6 @@ export const startAgentEventsBridge = (): void => {
 			)
 		})
 	}
-
-	forwardSessionEvent<AgentOutputPayload>(
-		AGENT_OUTPUT_EVENT,
-		({ session_id, kind, text }) => {
-			store.set(appendOutputAtom, {
-				sessionId: session_id,
-				chunk: { kind, text },
-			})
-		},
-	)
 
 	forwardSessionEvent<SessionEndPayload>(
 		AGENT_END_EVENT,

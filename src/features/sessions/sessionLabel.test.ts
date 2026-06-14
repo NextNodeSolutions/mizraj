@@ -8,7 +8,6 @@ const session = (overrides: Partial<SessionState>): SessionState => ({
 	binary: '/bin/zsh',
 	repoPath: '/Users/me/dev/mizraj',
 	title: null,
-	output: [],
 	status: 'running',
 	exitCode: null,
 	startedAt: 0,

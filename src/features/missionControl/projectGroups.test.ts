@@ -21,7 +21,6 @@ const session = (
 	binary: 'claude',
 	repoPath: '/Users/me/dev/mizraj',
 	title: null,
-	output: [],
 	status: 'running',
 	exitCode: null,
 	startedAt: 1_000,

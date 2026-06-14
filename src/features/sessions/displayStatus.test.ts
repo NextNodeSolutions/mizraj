@@ -8,7 +8,6 @@ const session = (overrides: Partial<SessionState>): SessionState => ({
 	binary: 'claude',
 	repoPath: '/repo',
 	title: null,
-	output: [],
 	status: 'running',
 	exitCode: null,
 	startedAt: 0,
