@@ -1,18 +1,7 @@
-import { useState } from 'react'
-
-import { terminalTail } from '@/features/sessions/terminalTail'
-import { useCellFrame } from '@/features/sessions/useCellFrame'
-import { useSessions } from '@/features/sessions/useSessions'
-import { pushToast } from '@/shared/toasts'
-
 import type { ReviewRef } from './agentConversation'
-import {
-	reviewRefLabel,
-	sendToAgent,
-	useConversation,
-} from './agentConversation'
-import { pickAgentSession } from './pickAgentSession'
+import { reviewRefLabel, useConversation } from './agentConversation'
 import type { DiffTotals } from './reviewFiles'
+import { useReviewCompose } from './useReviewCompose'
 
 type Props = {
 	repoPath: string | null
@@ -28,36 +17,9 @@ export const ReviewRail = ({
 	context,
 	composeRef,
 }: Props): React.JSX.Element => {
-	const sessions = useSessions()
 	const thread = useConversation(repoPath)
-	const [draft, setDraft] = useState('')
-	const [sending, setSending] = useState(false)
-	const target = pickAgentSession(sessions, repoPath)
-	// What the agent is showing right now — only when its frame is cached
-	// (the session was subscribed at least once); absent otherwise.
-	const targetFrame = useCellFrame(target?.id ?? '')
-	const [tailLine] = terminalTail(targetFrame, 1)
-
-	const submit = (): void => {
-		const text = draft.trim()
-		if (text === '' || target === null || repoPath === null) return
-		setSending(true)
-		void sendToAgent({
-			sessionId: target.id,
-			repoPath,
-			text,
-			ref: context,
-		})
-			.then(sent => {
-				if (!sent) {
-					pushToast('Delivery failed — is the agent still running?')
-					return
-				}
-				setDraft('')
-				pushToast('Sent to agent ↻')
-			})
-			.finally(() => setSending(false))
-	}
+	const { draft, setDraft, sending, target, tailLine, submit } =
+		useReviewCompose(repoPath, context)
 
 	return (
 		<aside className="panel review-rail" aria-label="Review conversation">

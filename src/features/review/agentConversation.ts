@@ -53,24 +53,17 @@ type SendArgs = {
 	ref: ReviewRef | null
 }
 
-/**
- * Deliver a review remark to the agent's prompt: paste the text (bracketed
- * paste keeps it one block), then submit with Enter. Only a delivered
- * message joins the thread — a dead session records nothing and resolves
- * false so the composer can tell the user.
- */
-export const sendToAgent = async ({
-	sessionId,
-	repoPath,
-	text,
-	ref,
-}: SendArgs): Promise<boolean> => {
+// The transport seam: paste the text into the agent's prompt (bracketed paste
+// keeps it one block), then submit with Enter. Resolves false on a logged
+// failure (a dead session) so the caller can keep it out of the thread.
+const deliverRemark = async (
+	sessionId: string,
+	text: string,
+): Promise<boolean> => {
 	try {
-		await invoke('session_paste', {
-			sessionId,
-			text: `${refPrefix(ref)}${text}`,
-		})
+		await invoke('session_paste', { sessionId, text })
 		await invoke('session_write', { sessionId, text: '\r' })
+		return true
 	} catch (error: unknown) {
 		const { message, stack } = describeError(error)
 		logger.error(`sendToAgent: delivery failed: ${message}`, {
@@ -79,6 +72,21 @@ export const sendToAgent = async ({
 		})
 		return false
 	}
+}
+
+/**
+ * Send a review remark to the agent: deliver it, and only on success append it
+ * to the repo's thread — a dead session records nothing and resolves false so
+ * the composer can tell the user.
+ */
+export const sendToAgent = async ({
+	sessionId,
+	repoPath,
+	text,
+	ref,
+}: SendArgs): Promise<boolean> => {
+	const delivered = await deliverRemark(sessionId, `${refPrefix(ref)}${text}`)
+	if (!delivered) return false
 
 	const store = getDefaultStore()
 	store.set(conversationsAtom, conversations => {

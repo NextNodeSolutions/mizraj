@@ -1,29 +1,18 @@
-import { parsePatchFiles } from '@pierre/diffs'
-import type { FileDiffMetadata } from '@pierre/diffs'
-import { FileDiff } from '@pierre/diffs/react'
 import { useMemo, useState } from 'react'
 
 import { navigate, reviewHref } from '@/app/router'
 import { reviewFilesFromParsed } from '@/features/review/reviewFiles'
-import { NEXTNODE_DIFF_THEME } from '@/shared/theme/shiki-nextnode'
 import { PanelHead } from '@/shared/ui/atoms'
 
 import { DiffPanelBody } from './DiffPanelBody'
 import { DiffPanelFiles } from './DiffPanelFiles'
+import { DiffPanelPreview } from './DiffPanelPreview'
 import { useDiff } from './useDiff'
+import { usePatchFiles } from './usePatchFiles'
 
 type Props = {
 	repoPath: string | null
 }
-
-const usePatchFiles = (patch: string | null): ReadonlyArray<FileDiffMetadata> =>
-	useMemo(
-		() =>
-			patch === null
-				? []
-				: parsePatchFiles(patch).flatMap(parsed => parsed.files),
-		[patch],
-	)
 
 /**
  * The cockpit's diff dock: a preview-only panel over the active project's
@@ -80,13 +69,9 @@ export const DiffPanel = ({ repoPath }: Props): React.JSX.Element => {
 				/>
 				<div className="fc-dhunk">
 					{selectedMeta !== null && (
-						<FileDiff
+						<DiffPanelPreview
 							key={selectedMeta.name}
 							fileDiff={selectedMeta}
-							options={{
-								diffStyle: 'unified',
-								theme: NEXTNODE_DIFF_THEME,
-							}}
 						/>
 					)}
 				</div>
