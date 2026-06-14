@@ -154,7 +154,12 @@ pub async fn session_create<R: Runtime>(
     // never write into repo A's database, whatever the active project is. The
     // pool is keyed by the repo's MAIN working dir so a linked worktree shares
     // the main checkout's progress.db (the one tasks_overview reads).
-    let pool_key = resolve_pool_key(&cwd)?;
+    // resolve_pool_key canonicalizes and opens the repo via git2 (both
+    // blocking); run it off the async worker like db.rs's slug lookup does.
+    let cwd_for_key = cwd.clone();
+    let pool_key = tauri::async_runtime::spawn_blocking(move || resolve_pool_key(&cwd_for_key))
+        .await
+        .map_err(|err| SessionError::Database(format!("resolve_pool_key task failed: {err}")))??;
     let pool = db
         .pool_for(&pool_key)
         .await

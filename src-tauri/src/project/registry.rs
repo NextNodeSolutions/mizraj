@@ -81,9 +81,13 @@ pub async fn projects_remove(
     // Match `add`'s canonicalization so the teardown keys line up with what was
     // registered. A removed/missing repo must stay removable, so a failed
     // canonicalize (the dir vanished) falls back to the raw path rather than
-    // hard-failing the removal.
-    let canonical =
-        super::validate_repo_path(&repo_path).unwrap_or_else(|_| PathBuf::from(repo_path.trim()));
+    // hard-failing the removal. canonicalize() is blocking, so run it off the
+    // async worker.
+    let canonical = tauri::async_runtime::spawn_blocking(move || {
+        super::validate_repo_path(&repo_path).unwrap_or_else(|_| PathBuf::from(repo_path.trim()))
+    })
+    .await
+    .map_err(|err| format!("canonicalize task failed: {err}"))?;
     let path = canonical.as_path();
     // Teardown FIRST — both steps are infallible. Running them before the
     // persistable registry mutation means a later persist failure can never

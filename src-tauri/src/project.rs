@@ -40,7 +40,10 @@ pub async fn set_active_project(
     registry: tauri::State<'_, registry::SharedRegistry>,
     watchers: tauri::State<'_, watcher::RepoWatchers>,
 ) -> Result<(), String> {
-    let canonical = validate_repo_path(&repo_path)?;
+    // canonicalize() hits the filesystem; run it off the async worker.
+    let canonical = tauri::async_runtime::spawn_blocking(move || validate_repo_path(&repo_path))
+        .await
+        .map_err(|err| format!("validate_repo_path task failed: {err}"))??;
     // Auto-register (MP4): becoming active is the only gesture that grows the
     // registry. A persist failure must not block the switch itself.
     match registry.add(canonical.clone()) {
