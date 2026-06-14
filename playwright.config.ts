@@ -1,7 +1,13 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const PREVIEW_PORT = 4180
-const BASE_URL = `http://127.0.0.1:${PREVIEW_PORT}`
+// Bind the preview to the exact interface Playwright polls. Left to its default
+// `localhost`, vite preview resolves to ::1 (IPv6) first on the Linux CI runner
+// while the webServer health check hits 127.0.0.1 (IPv4) — the URL never answers
+// and the run dies on the 180s webServer timeout. Pinning the host on both sides
+// keeps the build (cheap, fast) and the unreachable-preview failure apart.
+const PREVIEW_HOST = '127.0.0.1'
+const BASE_URL = `http://${PREVIEW_HOST}:${PREVIEW_PORT}`
 
 export default defineConfig({
 	testDir: './e2e',
@@ -17,7 +23,7 @@ export default defineConfig({
 	// preview serves a fresh dist/ (the bare `vite preview` the specs used to
 	// spawn themselves silently served a stale or missing build — fatal in CI).
 	webServer: {
-		command: `pnpm build && pnpm vite preview --port ${PREVIEW_PORT} --strictPort`,
+		command: `pnpm build && pnpm vite preview --host ${PREVIEW_HOST} --port ${PREVIEW_PORT} --strictPort`,
 		url: BASE_URL,
 		reuseExistingServer: !process.env.CI,
 		timeout: 180_000,
