@@ -5,10 +5,12 @@ import { describeError } from '@/shared/errors'
 import { createTask } from './tasks'
 
 type CreateFormProps = {
+	repoPath: string
 	onCreated: () => void
 }
 
 export const TaskCreateForm = ({
+	repoPath,
 	onCreated,
 }: CreateFormProps): React.JSX.Element => {
 	const [title, setTitle] = useState('')
@@ -27,7 +29,7 @@ export const TaskCreateForm = ({
 		setSubmitting(true)
 		setError(null)
 		try {
-			await createTask(trimmedTitle, description)
+			await createTask(repoPath, trimmedTitle, description)
 			setTitle('')
 			setDescription('')
 			onCreated()

@@ -49,6 +49,7 @@ export const TaskEditor = ({
 		setError(null)
 		try {
 			await updateTask({
+				repoPath: task.repoPath,
 				id: task.id,
 				title: trimmedTitle,
 				description: deriveDescription(),

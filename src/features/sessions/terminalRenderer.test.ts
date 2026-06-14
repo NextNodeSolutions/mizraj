@@ -1027,11 +1027,11 @@ describe('drawFrame run drift correction', () => {
 	})
 })
 
-describe('drawFrame selection', () => {
-	const selectionOf = (col: number, row: number): DrawFrameOptions => ({
-		selection: { anchor: { col, row }, head: { col, row } },
-	})
+const selectionOf = (col: number, row: number): DrawFrameOptions => ({
+	selection: { anchor: { col, row }, head: { col, row } },
+})
 
+describe('drawFrame selection', () => {
 	it('paints a selected cell with the configured selection colors', () => {
 		const { context, paints } = recordingContext()
 		const fontTable = buildFontTable(resolveFont(EMPTY_CONFIG))

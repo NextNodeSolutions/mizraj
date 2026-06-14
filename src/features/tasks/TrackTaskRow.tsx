@@ -36,7 +36,7 @@ export const TrackTaskRow = ({
 			) : (
 				<>
 					<div className="tasks-view__body">
-						<span className="tasks-tree__row-head">
+						<span className="tasks-view__row-head">
 							{task.identifier !== null && (
 								<span className="tasks-view__identifier">
 									{task.identifier}

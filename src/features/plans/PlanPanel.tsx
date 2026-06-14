@@ -21,7 +21,7 @@ export const PlanPanel = ({ src, title }: Props): React.JSX.Element => {
 	}, [src])
 
 	return (
-		<div className="plan-panel__container">
+		<div className="pl-doc-frame">
 			<iframe
 				className="plan-panel"
 				src={src}
@@ -32,7 +32,7 @@ export const PlanPanel = ({ src, title }: Props): React.JSX.Element => {
 			/>
 			{status === 'loading' && (
 				<p
-					className="plan-panel__placeholder"
+					className="pl-doc-placeholder"
 					role="status"
 					aria-live="polite"
 				>
@@ -41,7 +41,7 @@ export const PlanPanel = ({ src, title }: Props): React.JSX.Element => {
 			)}
 			{status === 'timeout' && (
 				<p
-					className="plan-panel__placeholder plan-panel__placeholder--error"
+					className="pl-doc-placeholder"
 					role="alert"
 					aria-live="assertive"
 				>

@@ -3,6 +3,9 @@ import { invoke } from '@tauri-apps/api/core'
 import type { RepoResource, ResourceState } from '@/shared/repoResource'
 import { useRepoResource } from '@/shared/repoResource'
 
+import type { WireOverview } from './tagOverview'
+import { tagOverview } from './tagOverview'
+
 export const TASK_STATUSES = [
 	'backlog',
 	'in_progress',
@@ -14,6 +17,12 @@ export type TaskStatus = (typeof TASK_STATUSES)[number]
 export type TaskOrigin = 'user' | 'track'
 
 export type Task = {
+	/**
+	 * The repo this task belongs to, tagged at the fetch boundary (the wire
+	 * payload carries no repo): every action on a task — status change, edit,
+	 * launch — targets the task's own repo, never the active project (MP5).
+	 */
+	repoPath: string
 	id: string
 	identifier: string | null
 	origin: TaskOrigin
@@ -56,26 +65,28 @@ export type Overview = {
 export type OverviewState = ResourceState<Overview>
 
 /**
- * Read the active project's grouped task tree plus its flat user tasks. The
- * backend resolves the active project itself, so this takes no arguments — a
- * nullary fetcher is assignable where {@link useRepoResource} expects its
- * `(repoPath: string) => Promise<T>` signature, so the keyed `repoPath` still
- * re-triggers the fetch on project switch without this function reading it.
+ * Read `repoPath`'s grouped task tree plus its flat user tasks. The repo is
+ * explicit (MP1): any registered repo can be read at any time, in parallel
+ * with the others — no active-project switch involved.
  */
-const fetchOverview = (): Promise<Overview> =>
-	invoke<Overview>('tasks_overview')
+export const fetchOverview = async (repoPath: string): Promise<Overview> => {
+	const wire = await invoke<WireOverview>('tasks_overview', { repoPath })
+	return tagOverview(wire, repoPath)
+}
 
 /**
- * Create a `user`-origin task in the active project and return the persisted
- * row. The backend rejects a blank title and stores a blank description as
- * `NULL`.
+ * Create a `user`-origin task in `repoPath`'s project and return the
+ * persisted row. The backend rejects a blank title and stores a blank
+ * description as `NULL`.
  */
 export const createTask = (
+	repoPath: string,
 	title: string,
 	description: string,
 ): Promise<Task> => {
 	const trimmed = description.trim()
 	return invoke<Task>('tasks_create', {
+		repoPath,
 		title,
 		description: trimmed === '' ? null : trimmed,
 	})
@@ -90,6 +101,7 @@ export const createTask = (
  * description as `NULL`, and rejects a status outside {@link TASK_STATUSES}.
  */
 export const updateTask = (input: {
+	repoPath: string
 	id: string
 	title: string
 	description: string | null

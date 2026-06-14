@@ -62,8 +62,22 @@ describe('ghosttyThemeTokens', () => {
 		expect(tokens).not.toBeNull()
 		expect(tokens?.['--gx-background']).toBe(LATTE_BG)
 		expect(tokens?.['--gx-foreground']).toBe(LATTE_FG)
-		expect(tokens?.['--color-bg']).toBe(LATTE_BG)
-		expect(tokens?.['--color-text']).toBe(LATTE_FG)
+	})
+
+	it('emits no retired v1 token (--color-* / --shadow-*)', () => {
+		const tokens = ghosttyThemeTokens({
+			...EMPTY_CONFIG,
+			background: '#1e1e2e',
+		})
+
+		const v1Keys = [
+			...THEME_TOKEN_KEYS,
+			...Object.keys(tokens ?? {}),
+		].filter(
+			key => key.startsWith('--color-') || key.startsWith('--shadow-'),
+		)
+
+		expect(v1Keys).toEqual([])
 	})
 
 	it('drives the terminal container colors from the theme so the dark frame is gone', () => {
@@ -84,7 +98,6 @@ describe('ghosttyThemeTokens', () => {
 
 			// Latte bg is light, so the foreground falls back to near-black.
 			expect(tokens?.['--gx-foreground']).toBe('#11111b')
-			expect(tokens?.['--color-text']).toBe('#11111b')
 		})
 
 		it('derives a light contrast foreground for a dark background', () => {
@@ -97,7 +110,6 @@ describe('ghosttyThemeTokens', () => {
 
 			// Mocha bg is dark, so the foreground falls back to near-white.
 			expect(tokens?.['--gx-foreground']).toBe('#cdd6f4')
-			expect(tokens?.['--color-text']).toBe('#cdd6f4')
 		})
 
 		it('expands a short #rgb background before judging its luminance', () => {
@@ -178,21 +190,6 @@ describe('ghosttyThemeTokens', () => {
 			expect(tokens?.['--ctp-sky']).toBe('#27aeeb') // 14 bright cyan
 		})
 
-		it('maps the semantic accent/link tokens from the blue, cyan and magenta slots', () => {
-			const tokens = ghosttyThemeTokens(latteConfig(FULL_PALETTE))
-
-			expect(tokens?.['--color-accent']).toBe('#1e66f5') // 4 blue
-			expect(tokens?.['--color-accent-hover']).toBe('#179299') // 6 cyan
-			expect(tokens?.['--color-link']).toBe('#1e66f5') // 4 blue
-			expect(tokens?.['--color-link-hover']).toBe('#fe85fb') // 13 bright magenta
-		})
-
-		it('maps the danger token from the red slot', () => {
-			const tokens = ghosttyThemeTokens(latteConfig(FULL_PALETTE))
-
-			expect(tokens?.['--color-danger']).toBe('#d20f39') // 1 red
-		})
-
 		it('still defines every accent from xterm defaults when the palette is sparse', () => {
 			// Only index 4 (blue) overridden: blue is the override, but every other
 			// accent still resolves against the renderer's xterm defaults via
@@ -201,82 +198,94 @@ describe('ghosttyThemeTokens', () => {
 				latteConfig([{ index: 4, color: '#1e66f5' }]),
 			)
 
-			expect(tokens?.['--color-accent']).toBe('#1e66f5')
 			expect(tokens?.['--ctp-blue']).toBe('#1e66f5')
 			// xterm ANSI defaults (terminalRenderer ANSI_16): red=#cd0000,
 			// green=#00cd00, cyan=#00cdcd, bright magenta(13)=#ff00ff.
 			expect(tokens?.['--ctp-red']).toBe('#cd0000')
 			expect(tokens?.['--ctp-green']).toBe('#00cd00')
 			expect(tokens?.['--ctp-teal']).toBe('#00cdcd')
-			expect(tokens?.['--color-link-hover']).toBe('#ff00ff')
+			expect(tokens?.['--ctp-mauve']).toBe('#ff00ff')
 		})
 	})
 
-	describe('semantic surfaces and overlays', () => {
-		it('derives surfaces and borders as color-mix steps off the bg/fg pair', () => {
+	describe('v2 surface tokens', () => {
+		it('derives the v2 surface steps between base and surface0', () => {
 			const tokens = ghosttyThemeTokens(latteConfig([]))
 
-			expect(tokens?.['--color-bg-elevated']).toBe(
-				'color-mix(in srgb, var(--gx-background) 95%, var(--gx-foreground))',
+			expect(tokens?.['--surface-2']).toBe(
+				'color-mix(in srgb, var(--gx-background) 93%, var(--gx-foreground))',
 			)
-			expect(tokens?.['--color-surface']).toBe(
+			expect(tokens?.['--surface-hi']).toBe(
 				'color-mix(in srgb, var(--gx-background) 90%, var(--gx-foreground))',
 			)
-			expect(tokens?.['--color-border']).toBe(
+		})
+
+		it('paints the v2 terminal chrome from the theme background', () => {
+			const tokens = ghosttyThemeTokens(latteConfig([]))
+
+			expect(tokens?.['--term-bg']).toBe(LATTE_BG)
+			expect(tokens?.['--term-border']).toBe(
 				'color-mix(in srgb, var(--gx-background) 82%, var(--gx-foreground))',
 			)
-			expect(tokens?.['--color-border-subtle']).toBe(
-				'color-mix(in srgb, var(--gx-background) 88%, var(--gx-foreground))',
-			)
 		})
 
-		it('mirrors muted text onto the subtext0 ramp step', () => {
-			const tokens = ghosttyThemeTokens(latteConfig([]))
+		it('softens the glow on a light background and deepens it on a dark one', () => {
+			const lightTokens = ghosttyThemeTokens(latteConfig([]))
+			const darkTokens = ghosttyThemeTokens({
+				...EMPTY_CONFIG,
+				background: '#1e1e2e',
+			})
 
-			expect(tokens?.['--color-text-muted']).toBe(
-				tokens?.['--ctp-subtext0'],
-			)
-			expect(tokens?.['--color-text-muted']).toBe(
-				'color-mix(in srgb, var(--gx-background) 34%, var(--gx-foreground))',
-			)
+			expect(lightTokens?.['--glow-alpha']).toBe('0.16')
+			expect(darkTokens?.['--glow-alpha']).toBe('0.3')
 		})
 
-		it('derives hover, active and backdrop overlays as transparent mixes toward the foreground', () => {
-			const tokens = ghosttyThemeTokens(latteConfig([]))
+		it('treats an unparseable background as dark for the glow, like the contrast fallback', () => {
+			const tokens = ghosttyThemeTokens({
+				...EMPTY_CONFIG,
+				background: 'rgb(20, 20, 20)',
+			})
 
-			expect(tokens?.['--color-hover-overlay']).toBe(
-				'color-mix(in srgb, transparent 92%, var(--gx-foreground))',
-			)
-			expect(tokens?.['--color-active-overlay']).toBe(
-				'color-mix(in srgb, transparent 86%, var(--gx-foreground))',
-			)
-			expect(tokens?.['--color-backdrop']).toBe(
-				'color-mix(in srgb, transparent 55%, var(--gx-foreground))',
-			)
+			expect(tokens?.['--glow-alpha']).toBe('0.3')
 		})
-	})
 
-	describe('shadows', () => {
-		it('anchors both shadows on the theme crust rather than a Catppuccin color', () => {
-			const tokens = ghosttyThemeTokens(latteConfig([]))
+		it('inks on-accent per background — crust mix on dark, white on light', () => {
+			const darkTokens = ghosttyThemeTokens({
+				...EMPTY_CONFIG,
+				background: '#1e1e2e',
+			})
+			const lightTokens = ghosttyThemeTokens(latteConfig([]))
 
-			expect(tokens?.['--shadow-elevated']).toBe(
-				'0 20px 60px color-mix(in srgb, transparent 72%, var(--ctp-crust))',
+			expect(darkTokens?.['--on-accent-theme']).toBe(
+				'color-mix(in srgb, var(--gx-background) 92%, var(--gx-foreground))',
 			)
-			expect(tokens?.['--shadow-input']).toBe(
-				'0 2px 2px color-mix(in srgb, transparent 82%, var(--ctp-crust))',
-			)
+			// Explicit white on light: relying on the stylesheet fallback fails
+			// when data-theme is a dark palette (its --on-accent-theme alias
+			// would resolve against the bridge's light crust mix).
+			expect(lightTokens?.['--on-accent-theme']).toBe('#ffffff')
 		})
 	})
 
-	it('emits exactly the keys declared in THEME_TOKEN_KEYS so cleanup cannot drift', () => {
-		const tokens = ghosttyThemeTokens(latteConfig(FULL_PALETTE))
+	it('emits exactly the keys declared in THEME_TOKEN_KEYS on a dark background so cleanup cannot drift', () => {
+		const tokens = ghosttyThemeTokens({
+			...EMPTY_CONFIG,
+			background: '#1e1e2e',
+		})
 
 		expect(tokens).not.toBeNull()
 		expect(new Set(Object.keys(tokens ?? {}))).toEqual(
 			new Set(THEME_TOKEN_KEYS),
 		)
 		expect(Object.keys(tokens ?? {})).toHaveLength(THEME_TOKEN_KEYS.length)
+	})
+
+	it('emits exactly the declared keys on a light background too', () => {
+		const tokens = ghosttyThemeTokens(latteConfig(FULL_PALETTE))
+
+		expect(tokens).not.toBeNull()
+		expect(new Set(Object.keys(tokens ?? {}))).toEqual(
+			new Set(THEME_TOKEN_KEYS),
+		)
 	})
 
 	it('has no duplicate property names in THEME_TOKEN_KEYS', () => {

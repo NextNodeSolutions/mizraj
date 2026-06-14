@@ -8,18 +8,19 @@ vi.mock('@tauri-apps/api/event', () => ({
 }))
 
 import {
+	resetAgentEventsBridgeForTests,
+	startAgentEventsBridge,
+} from './agentEventsBridge'
+import {
 	AGENT_CELLS_EVENT,
 	AGENT_END_EVENT,
-	AGENT_OUTPUT_EVENT,
-	resetAgentEventsBridgeForTests,
-	appendOutputAtom,
+	AGENT_TITLE_EVENT,
 	cellFramesAtom,
 	endSessionAtom,
 	sessionsAtom,
-	startAgentEventsBridge,
 	startSessionAtom,
 } from './sessions'
-import type { AgentOutputPayload, SessionEndPayload } from './sessions'
+import type { SessionEndPayload } from './sessions'
 import type { CellFramePayload } from './terminalWire'
 
 const store = getDefaultStore()
@@ -29,7 +30,10 @@ describe('sessions atoms', () => {
 		store.set(sessionsAtom, {})
 	})
 
-	it('startSessionAtom registers a fresh session with empty output and running status', () => {
+	it('startSessionAtom registers a fresh running session', () => {
+		vi.useFakeTimers()
+		vi.setSystemTime(1_750_000_000_000)
+
 		store.set(startSessionAtom, {
 			id: 'sess-a',
 			binary: 'claude',
@@ -41,41 +45,11 @@ describe('sessions atoms', () => {
 			binary: 'claude',
 			repoPath: '/repo',
 			title: null,
-			output: [],
 			status: 'running',
 			exitCode: null,
+			startedAt: 1_750_000_000_000,
 		})
-	})
-
-	it('appendOutputAtom pushes chunks in order onto the matching session', () => {
-		store.set(startSessionAtom, {
-			id: 'sess-a',
-			binary: 'claude',
-			repoPath: '/repo',
-		})
-		store.set(appendOutputAtom, {
-			sessionId: 'sess-a',
-			chunk: { kind: 'stdout', text: 'hello ' },
-		})
-		store.set(appendOutputAtom, {
-			sessionId: 'sess-a',
-			chunk: { kind: 'stdout', text: 'world' },
-		})
-
-		expect(store.get(sessionsAtom)['sess-a']?.output).toEqual([
-			{ kind: 'stdout', text: 'hello ' },
-			{ kind: 'stdout', text: 'world' },
-		])
-	})
-
-	it('appendOutputAtom is a no-op when the session is unknown', () => {
-		const before = store.get(sessionsAtom)
-		store.set(appendOutputAtom, {
-			sessionId: 'ghost',
-			chunk: { kind: 'stdout', text: 'x' },
-		})
-
-		expect(store.get(sessionsAtom)).toBe(before)
+		vi.useRealTimers()
 	})
 
 	it('endSessionAtom flips status to ended and stores the exit code', () => {
@@ -102,10 +76,7 @@ describe('sessions atoms', () => {
 			binary: 'claude',
 			repoPath: '/repo',
 		})
-		store.set(appendOutputAtom, {
-			sessionId: 'sess-a',
-			chunk: { kind: 'stdout', text: 'hi' },
-		})
+		store.set(endSessionAtom, { sessionId: 'sess-a', exitCode: 0 })
 
 		unsubscribe()
 		expect(seen).toHaveLength(2)
@@ -125,63 +96,33 @@ describe('startAgentEventsBridge', () => {
 		listenMock.mockResolvedValue(unlistenMock)
 	})
 
-	const getCapturedHandler = (): ((event: {
-		payload: AgentOutputPayload
-	}) => void) => {
-		const call = listenMock.mock.calls[0]
-		if (!call) throw new Error('listen() was not called')
-		const handler = call[1]
-		if (typeof handler !== 'function') {
-			throw new Error('listen() handler was not a function')
-		}
-		return handler
-	}
-
-	it('subscribes to agent:output, agent:end, agent:cells and agent:title exactly once each', () => {
+	it('subscribes to agent:end, agent:cells and agent:title exactly once each', () => {
 		startAgentEventsBridge()
 		startAgentEventsBridge()
 		startAgentEventsBridge()
 
-		expect(listenMock).toHaveBeenCalledTimes(4)
+		expect(listenMock).toHaveBeenCalledTimes(3)
 		expect(listenMock).toHaveBeenNthCalledWith(
 			1,
-			AGENT_OUTPUT_EVENT,
-			expect.any(Function),
-		)
-		expect(listenMock).toHaveBeenNthCalledWith(
-			2,
 			AGENT_END_EVENT,
 			expect.any(Function),
 		)
 		expect(listenMock).toHaveBeenNthCalledWith(
-			3,
+			2,
 			AGENT_CELLS_EVENT,
 			expect.any(Function),
 		)
-	})
-
-	it('routes each agent:output payload into the matching session', () => {
-		startAgentEventsBridge()
-		const handler = getCapturedHandler()
-
-		store.set(startSessionAtom, {
-			id: 'sess-a',
-			binary: 'claude',
-			repoPath: '/repo',
-		})
-		handler({
-			payload: { session_id: 'sess-a', kind: 'stderr', text: 'boom' },
-		})
-
-		expect(store.get(sessionsAtom)['sess-a']?.output).toEqual([
-			{ kind: 'stderr', text: 'boom' },
-		])
+		expect(listenMock).toHaveBeenNthCalledWith(
+			3,
+			AGENT_TITLE_EVENT,
+			expect.any(Function),
+		)
 	})
 
 	const getCapturedEndHandler = (): ((event: {
 		payload: SessionEndPayload
 	}) => void) => {
-		const call = listenMock.mock.calls[1]
+		const call = listenMock.mock.calls[0]
 		if (!call) throw new Error('agent:end listen() was not called')
 		const handler = call[1]
 		if (typeof handler !== 'function') {
@@ -209,7 +150,7 @@ describe('startAgentEventsBridge', () => {
 	const getCapturedCellsHandler = (): ((event: {
 		payload: CellFramePayload
 	}) => void) => {
-		const call = listenMock.mock.calls[2]
+		const call = listenMock.mock.calls[1]
 		if (!call) throw new Error('agent:cells listen() was not called')
 		const handler = call[1]
 		if (typeof handler !== 'function') {

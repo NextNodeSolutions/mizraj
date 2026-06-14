@@ -3,10 +3,11 @@ import ReactDOM from 'react-dom/client'
 
 import { App } from '@/app/App'
 import { ErrorBoundary } from '@/app/ErrorBoundary'
+import { startAgentEventsBridge } from '@/features/sessions/agentEventsBridge'
 import { startGhosttyConfigBridge } from '@/features/sessions/ghosttyConfigBridge'
-import { startAgentEventsBridge } from '@/features/sessions/sessions'
 import { startSplitLifecycle } from '@/features/sessions/splitLayout'
 import { startTerminalInputRouter } from '@/features/sessions/terminalInput'
+import { DiffWorkerPool } from '@/shared/diffWorkerPool'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 import { runUpdaterCheck } from '@/shared/updater'
@@ -66,11 +67,16 @@ const reactErrorHandlers: Parameters<typeof ReactDOM.createRoot>[1] =
 			}
 
 ReactDOM.createRoot(rootElement, reactErrorHandlers).render(
-	<React.StrictMode>
-		<ErrorBoundary>
-			<App />
-		</ErrorBoundary>
-	</React.StrictMode>,
+	// The diff worker pool sits above StrictMode so its session-long singleton
+	// initializes once, instead of being torn down and rebuilt by StrictMode's
+	// double-invoked effects in development.
+	<DiffWorkerPool>
+		<React.StrictMode>
+			<ErrorBoundary>
+				<App />
+			</ErrorBoundary>
+		</React.StrictMode>
+	</DiffWorkerPool>,
 )
 
 if (import.meta.env.PROD) {

@@ -30,6 +30,31 @@ pub fn run() {
         .manage(Db::default())
         .register_uri_scheme_protocol(plans::protocol::SCHEME, plans::protocol::handle_request)
         .setup(|app| {
+            let registry_path = app
+                .path()
+                .app_data_dir()
+                .map_err(|err| format!("resolve app data dir: {err}"))?
+                .join("projects.json");
+            let registry = project::registry::Registry::load(&registry_path)
+                .map_err(|err| format!("load project registry: {err}"))?;
+            // Every registered repo gets its filesystem watcher at startup
+            // (MP6): the registry is the single source of truth of what is
+            // watched. A repo deleted from disk logs an error and is skipped.
+            //
+            // Watcher startup is N blocking `notify::watch` syscalls plus a
+            // thread spawn each, so it runs in a background task rather than on
+            // the setup thread — `setup` returns fast and the window paints
+            // without waiting for the filesystem watches to arm.
+            app.manage(project::watcher::RepoWatchers::default());
+            let repos = registry.list();
+            app.manage(project::registry::SharedRegistry::new(registry));
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let watchers = handle.state::<project::watcher::RepoWatchers>();
+                for repo in repos {
+                    project::watcher::watch_and_emit(&watchers, &handle, &repo);
+                }
+            });
             #[cfg(target_os = "macos")]
             if let Some(path) = session::path::capture_login_shell_path() {
                 std::env::set_var("PATH", path);
@@ -53,7 +78,12 @@ pub fn run() {
             ghostty::load_ghostty_config,
             plans::list::list_plans,
             project::set_active_project,
+            project::registry::projects_list,
+            project::registry::projects_missing,
+            project::registry::projects_add,
+            project::registry::projects_remove,
             project::clear_active_project,
+            project::repo_head,
             tasks::tasks_overview,
             tasks::tasks_create,
             tasks::tasks_update,

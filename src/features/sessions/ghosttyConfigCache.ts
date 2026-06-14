@@ -1,8 +1,9 @@
 import { getDefaultStore } from 'jotai'
 
 import type { Appearance, GhosttyConfig, ResolvedFont } from './ghosttyConfig'
-import { loadGhosttyConfig, resolveFont } from './ghosttyConfig'
+import { resolveFont } from './ghosttyConfig'
 import { ghosttyConfigEpochAtom } from './ghosttyConfigBridge'
+import { loadGhosttyConfig } from './loadGhosttyConfig'
 import { buildFontTable, fontCss } from './terminalAttrs'
 import { buildPalette } from './terminalPalette'
 import { measureCell } from './terminalRenderer'

@@ -24,6 +24,7 @@ export const StatusSelect = ({
 		setError(null)
 		try {
 			await updateTask({
+				repoPath: task.repoPath,
 				id: task.id,
 				title: task.title,
 				description: task.description,

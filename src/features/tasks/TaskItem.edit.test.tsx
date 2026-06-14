@@ -13,6 +13,7 @@ import { TaskItem } from './TaskItem'
 import type { Task } from './tasks'
 
 const USER_TASK: Task = {
+	repoPath: '/repo/x',
 	id: 'task-1',
 	identifier: null,
 	origin: 'user',
@@ -108,6 +109,7 @@ describe('TaskItem inline editing', () => {
 		const [command, payload] = invokeMock.mock.lastCall ?? []
 		expect(command).toBe('tasks_update')
 		expect(payload).toEqual({
+			repoPath: '/repo/x',
 			id: 'task-1',
 			title: 'Edited title',
 			description: 'Edited description',

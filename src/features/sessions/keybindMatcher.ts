@@ -71,7 +71,9 @@ const NAMED_KEYS: Record<string, string> = {
 	nine: '9',
 }
 
-for (let n = 1; n <= 25; n += 1) {
+// Ghostty supports F1–F25 (the extended function-key range).
+const MAX_FUNCTION_KEY = 25
+for (let n = 1; n <= MAX_FUNCTION_KEY; n += 1) {
 	NAMED_KEYS[`f${n}`] = `F${n}`
 }
 
@@ -96,7 +98,10 @@ const PHYSICAL_CODES: Record<string, string> = {
 	slash: 'Slash',
 }
 
-for (let code = 97; code <= 122; code += 1) {
+// ASCII 'a'..'z' → KeyA..KeyZ.
+const LOWERCASE_A_CHARCODE = 97
+const LOWERCASE_Z_CHARCODE = 122
+for (let code = LOWERCASE_A_CHARCODE; code <= LOWERCASE_Z_CHARCODE; code += 1) {
 	const letter = String.fromCharCode(code)
 	PHYSICAL_CODES[letter] = `Key${letter.toUpperCase()}`
 }

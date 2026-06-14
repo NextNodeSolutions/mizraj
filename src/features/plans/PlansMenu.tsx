@@ -1,11 +1,12 @@
-import { navigate, planRouteHref } from '@/app/router'
+import { navigate, planRouteHref, usePathname } from '@/app/router'
+import { IconDoc } from '@/shared/ui/icons'
 
 import type { PlanEntry, PlanKind, PlansState } from './plans'
-import { usePlans } from './plans'
+import { updatedLabel } from './updatedLabel'
 
 const SECTIONS: ReadonlyArray<{ title: string; kind: PlanKind }> = [
-	{ title: 'Interviews', kind: 'interview' },
 	{ title: 'Plans', kind: 'plan' },
+	{ title: 'Interviews', kind: 'interview' },
 ]
 
 const defaultSelect = (entry: PlanEntry): void => {
@@ -13,59 +14,91 @@ const defaultSelect = (entry: PlanEntry): void => {
 }
 
 type Props = {
-	repoPath: string | null
+	state: PlansState
+	nowMs: number
 	onSelect?: (entry: PlanEntry) => void
+}
+
+type RowProps = {
+	entry: PlanEntry
+	nowMs: number
+	onSelect: (entry: PlanEntry) => void
+}
+
+const PlanRow = ({ entry, nowMs, onSelect }: RowProps): React.JSX.Element => {
+	const pathname = usePathname()
+	return (
+		<a
+			className="lrow"
+			href={planRouteHref(entry)}
+			aria-current={
+				planRouteHref(entry) === pathname ? 'page' : undefined
+			}
+			onClick={event => {
+				event.preventDefault()
+				onSelect(entry)
+			}}
+			title={entry.slug}
+		>
+			{entry.kind === 'plan' ? (
+				<span className="pl-glyph">
+					<IconDoc />
+				</span>
+			) : (
+				<span className="pl-glyph pl-glyph-pen">✎</span>
+			)}
+			<span className="pl-row-text">
+				<span className="lr-t">{entry.title}</span>
+				{/* TODO: interview question count — read_interview_state(slug) returns untyped state.json (phase, rounds_completed); no qa/question count guaranteed */}
+				<span className="lr-b">{updatedLabel(nowMs, entry.mtime)}</span>
+			</span>
+		</a>
+	)
 }
 
 type SectionProps = {
 	title: string
 	entries: ReadonlyArray<PlanEntry>
+	nowMs: number
 	onSelect: (entry: PlanEntry) => void
 }
 
 const PlansMenuSection = ({
 	title,
 	entries,
+	nowMs,
 	onSelect,
 }: SectionProps): React.JSX.Element => (
-	<section className="plans-menu__section">
-		<h3 className="plans-menu__heading">{title}</h3>
+	<>
+		<div className="lgroup">{title}</div>
 		{entries.length === 0 ? (
-			<p className="plans-menu__empty">None yet.</p>
+			<p className="pl-empty">None yet.</p>
 		) : (
-			<ul className="plans-menu__list">
-				{entries.map(entry => (
-					<li key={`${entry.kind}:${entry.slug}`}>
-						<a
-							className="plans-menu__link"
-							href={planRouteHref(entry)}
-							onClick={event => {
-								event.preventDefault()
-								onSelect(entry)
-							}}
-							title={entry.slug}
-						>
-							{entry.title}
-						</a>
-					</li>
-				))}
-			</ul>
+			entries.map(entry => (
+				<PlanRow
+					key={`${entry.kind}:${entry.slug}`}
+					entry={entry}
+					nowMs={nowMs}
+					onSelect={onSelect}
+				/>
+			))
 		)}
-	</section>
+	</>
 )
 
 const renderState = (
 	state: PlansState,
+	nowMs: number,
 	onSelect: (entry: PlanEntry) => void,
 ): React.JSX.Element => {
 	if (state.status === 'idle') {
-		return <p className="plans-menu__empty">No project selected.</p>
+		return <p className="pl-empty">No project selected.</p>
 	}
 	if (state.status === 'loading') {
-		return <p className="plans-menu__empty">Loading…</p>
+		return <p className="pl-empty">Loading…</p>
 	}
 	if (state.status === 'error') {
-		return <p className="plans-menu__empty">Failed to load plans.</p>
+		return <p className="pl-empty">Failed to load plans.</p>
 	}
 	return (
 		<>
@@ -76,6 +109,7 @@ const renderState = (
 					entries={state.data.filter(
 						entry => entry.kind === section.kind,
 					)}
+					nowMs={nowMs}
 					onSelect={onSelect}
 				/>
 			))}
@@ -83,12 +117,12 @@ const renderState = (
 	)
 }
 
-export const PlansMenu = ({ repoPath, onSelect }: Props): React.JSX.Element => {
-	const state = usePlans(repoPath)
-	const handleSelect = onSelect ?? defaultSelect
-	return (
-		<nav className="plans-menu" aria-label="Plans">
-			{renderState(state, handleSelect)}
-		</nav>
-	)
-}
+export const PlansMenu = ({
+	state,
+	nowMs,
+	onSelect,
+}: Props): React.JSX.Element => (
+	<nav className="pl-list" aria-label="Plans and interviews">
+		{renderState(state, nowMs, onSelect ?? defaultSelect)}
+	</nav>
+)

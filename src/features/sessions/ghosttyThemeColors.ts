@@ -56,12 +56,17 @@ export const hexLuminance = (color: string): number | null => {
 	return weightedSum / MAX_CHANNEL
 }
 
-// A near-black or near-white that stays legible on `background`. Uses the
-// perceptual (Rec. 601) luminance of the background: a light background gets
-// dark text, a dark one gets light text. An unparseable background is treated
-// as dark, the safe default for a terminal. Pure: color string in, color out.
-export const contrastColor = (background: string): string => {
-	const luminance = hexLuminance(background)
-	if (luminance === null) return CONTRAST_LIGHT
-	return luminance > LUMINANCE_MIDPOINT ? CONTRAST_DARK : CONTRAST_LIGHT
+// Whether `color` reads as a LIGHT background (perceptual Rec. 601 luminance
+// above the midpoint). An unparseable color counts as dark — the safe default
+// for a terminal. The single light/dark judgment shared by the contrast
+// fallback and the theme tokens (glow depth, on-accent ink).
+export const isLightBackground = (color: string): boolean => {
+	const luminance = hexLuminance(color)
+	return luminance !== null && luminance > LUMINANCE_MIDPOINT
 }
+
+// A near-black or near-white that stays legible on `background`: a light
+// background gets dark text, a dark one gets light text. Pure: color string
+// in, color out.
+export const contrastColor = (background: string): string =>
+	isLightBackground(background) ? CONTRAST_DARK : CONTRAST_LIGHT

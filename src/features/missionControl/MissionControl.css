@@ -1,0 +1,456 @@
+.mc-wrap {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	padding: 0 var(--sp-panel) var(--sp-panel);
+}
+
+/* mc-wrap already pads horizontally — keep the head 18px from the edge */
+.mc-wrap .view-head {
+	padding-left: 0;
+	padding-right: 0;
+}
+
+.mc-filters {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	padding: 14px 2px;
+	flex: none;
+}
+
+.mc-scope {
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+	color: var(--text-3);
+	white-space: nowrap;
+}
+
+.mc-projects {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-gap);
+	padding: 4px 2px 24px;
+}
+
+.mc-empty {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	color: var(--text-3);
+	font-size: var(--fs-body);
+}
+
+.mc-empty p {
+	margin: 0;
+}
+
+/* ---- project group: one large card per repo ---- */
+.proj-group {
+	background: color-mix(in srgb, var(--bg-deep) 40%, transparent);
+	border: 1px solid var(--border);
+	border-radius: var(--r-xl);
+	overflow: hidden;
+	transition:
+		border-color var(--t-med),
+		box-shadow var(--t-med);
+}
+
+.proj-group:hover {
+	border-color: color-mix(
+		in srgb,
+		var(--proj-hue, var(--accent)) 30%,
+		var(--border)
+	);
+}
+
+/* djb2-hashed hue → accent custom property (data attribute, not inline). */
+.proj-group[data-hue='blue'] {
+	--proj-hue: var(--ctp-blue);
+}
+
+.proj-group[data-hue='mauve'] {
+	--proj-hue: var(--ctp-mauve);
+}
+
+.proj-group[data-hue='teal'] {
+	--proj-hue: var(--ctp-teal);
+}
+
+.proj-group[data-hue='peach'] {
+	--proj-hue: var(--ctp-peach);
+}
+
+.proj-group[data-hue='green'] {
+	--proj-hue: var(--ctp-green);
+}
+
+.proj-group[data-hue='sky'] {
+	--proj-hue: var(--ctp-sky);
+}
+
+.proj-group[data-hue='pink'] {
+	--proj-hue: var(--ctp-pink);
+}
+
+.proj-group[data-hue='yellow'] {
+	--proj-hue: var(--ctp-yellow);
+}
+
+.proj-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 11px 14px;
+}
+
+/* The disclosure is a real <button>; reset it to the old header row look. */
+.proj-disclosure {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 0;
+	margin: 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	user-select: none;
+}
+
+.proj-disclosure:hover .proj-chev {
+	color: var(--text);
+}
+
+.proj-glyph {
+	width: 22px;
+	height: 22px;
+	border-radius: var(--r-sm);
+	flex: none;
+	background: color-mix(
+		in srgb,
+		var(--proj-hue, var(--accent)) 18%,
+		transparent
+	);
+	color: var(--proj-hue, var(--accent));
+	display: grid;
+	place-items: center;
+	font-family: var(--font-mono);
+	font-size: 11px;
+	font-weight: 700;
+}
+
+.proj-name {
+	font-size: var(--fs-body);
+	font-weight: 650;
+	letter-spacing: -0.012em;
+	white-space: nowrap;
+}
+
+.proj-dir {
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+	color: var(--text-3);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.proj-stats {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+}
+
+.proj-stats .ps {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+	color: var(--text-2);
+	white-space: nowrap;
+}
+
+.proj-stats .ps-dim {
+	color: var(--text-3);
+}
+
+.proj-add {
+	width: 24px;
+	height: 24px;
+	font-size: 11px;
+	opacity: 0;
+	transition: opacity var(--t-fast);
+}
+
+.proj-head:hover .proj-add,
+.proj-add:focus-visible {
+	opacity: 1;
+}
+
+.proj-chev {
+	color: var(--text-3);
+	font-size: 11px;
+	transition:
+		transform var(--t-med) var(--ease-spring),
+		color var(--t-fast);
+}
+
+.proj-chev[data-collapsed='true'] {
+	transform: rotate(-90deg);
+}
+
+.proj-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: calc(var(--sp-gap) - 2px);
+	padding: 2px 12px 12px;
+}
+
+/* cards stagger in like the groups do (delay set inline per card) */
+.proj-grid > * {
+	animation: riseIn var(--t-slow) var(--ease-out) both;
+}
+
+@media (max-width: 1100px) {
+	.proj-grid {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.proj-grid > * {
+		animation: none !important;
+	}
+}
+
+/* ---- agent card v2 ---- */
+.agent-card {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--r-lg);
+	padding: var(--sp-card);
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 11px;
+	cursor: pointer;
+	position: relative;
+	box-shadow: var(--shadow-1);
+	text-align: left;
+	color: var(--text);
+	font-size: var(--fs-body);
+	transition:
+		transform var(--t-med) var(--ease-out),
+		box-shadow var(--t-med),
+		border-color var(--t-med);
+}
+
+.agent-card:hover {
+	transform: translateY(-3px);
+	box-shadow: var(--shadow-2);
+	border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.agent-card:active {
+	transform: translateY(-1px) scale(0.99);
+}
+
+.agent-card[data-status='review']:hover {
+	border-color: color-mix(in srgb, var(--c-rev) 45%, var(--border));
+}
+
+/* a review card glows softly — it is the one waiting on the human */
+.agent-card[data-status='review']::before {
+	content: '';
+	position: absolute;
+	inset: -1px;
+	border-radius: inherit;
+	pointer-events: none;
+	border: 1px solid color-mix(in srgb, var(--c-rev) 40%, transparent);
+	box-shadow: 0 0 0 3px
+		color-mix(
+			in srgb,
+			var(--c-rev) calc(var(--glow-alpha) * 50%),
+			transparent
+		);
+}
+
+/* not in the design: the real status axis carries 'failed' too */
+.agent-card[data-status='failed']:hover {
+	border-color: color-mix(in srgb, var(--c-del) 45%, var(--border));
+}
+
+.ac-top {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.ac-top .branch {
+	margin-left: auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ac-task {
+	font-size: calc(var(--fs-body) + 1px);
+	font-weight: 600;
+	letter-spacing: -0.012em;
+	line-height: 1.3;
+}
+
+/* Two fixed rows so every card foot lines up. Chrome tokens, not
+   --terminal-*: those are :root-defined so the fallback never fired
+   (unthemed latte cards went #1e1e1e), and a themed Ghostty config
+   writes the same background into --term-bg anyway. */
+.agent-card .mini-term {
+	min-height: calc(1.65em * 2 + 18px);
+	background: var(--term-bg);
+	color: var(--ctp-text);
+}
+
+.ac-subs {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.ac-sub {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	min-width: 0;
+	font-family: var(--font-mono);
+	font-size: calc(var(--fs-mono-sm) - 0.5px);
+}
+
+.ac-sub .tree {
+	color: var(--text-3);
+	flex: none;
+}
+
+.ac-sub .sdot {
+	width: 6px;
+	height: 6px;
+}
+
+.ac-sub .sub-name {
+	color: var(--text-2);
+	font-weight: 500;
+	flex: none;
+}
+
+.ac-sub .ln {
+	color: var(--text-3);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ac-foot {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 24px;
+}
+
+.ac-foot .time {
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+	color: var(--text-3);
+	margin-left: auto;
+}
+
+.ac-foot .gobtn {
+	margin-left: auto;
+	opacity: 0;
+	transform: translateX(-4px);
+	transition:
+		opacity var(--t-fast),
+		transform var(--t-fast) var(--ease-out);
+}
+
+.agent-card:hover .gobtn {
+	opacity: 1;
+	transform: none;
+}
+
+/* ---- dormant repos: the wall's compact tail (MP4) ---- */
+.mc-dormant {
+	margin-top: 18px;
+	border: 1px dashed var(--border);
+	border-radius: var(--r-md);
+	background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+
+.mc-dormant-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	padding: 10px 14px;
+	border: none;
+	background: none;
+	color: var(--text-3);
+	font-size: var(--fs-sm);
+	cursor: pointer;
+}
+
+.mc-dormant-head:hover {
+	color: var(--text-2);
+}
+
+.mc-dormant-list {
+	list-style: none;
+	margin: 0;
+	padding: 0 8px 8px;
+}
+
+.mc-dormant-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 7px 8px;
+	border-radius: var(--r-sm);
+}
+
+.mc-dormant-row:hover {
+	background: var(--fill-accent);
+}
+
+.mc-dormant-row .proj-dir {
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+	color: var(--text-3);
+}
+
+.ac-diff {
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+}
+
+.ac-diff .add {
+	color: var(--c-add);
+	font-weight: 600;
+}
+
+.ac-diff .del {
+	color: var(--c-del);
+	font-weight: 600;
+}

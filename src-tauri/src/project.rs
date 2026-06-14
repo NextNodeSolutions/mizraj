@@ -1,7 +1,12 @@
-use std::path::PathBuf;
+pub mod registry;
+pub mod watcher;
+
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
 
-use crate::db::{self, Db};
+use mizraj_vcs::branch::{current_branch, Head};
+use mizraj_vcs::repo_open;
+use serde::Serialize;
 
 /// The active project's repository path, shared as Tauri managed state and read
 /// by every command that operates on "the current project".
@@ -30,33 +35,73 @@ impl ActiveProject {
 #[tauri::command]
 pub async fn set_active_project(
     repo_path: String,
+    app: tauri::AppHandle,
     active_project: tauri::State<'_, ActiveProject>,
-    db: tauri::State<'_, Db>,
+    registry: tauri::State<'_, registry::SharedRegistry>,
+    watchers: tauri::State<'_, watcher::RepoWatchers>,
 ) -> Result<(), String> {
-    let canonical = validate_repo_path(&repo_path)?;
-    // Resolve and open the project's own progress.db before flipping the active
-    // project, so a failed open leaves the previous selection intact.
-    let slug = db::repo_slug(&canonical);
-    let db_path = db::progress_db_path(&slug);
-    let pool = db::open(&db_path)
+    // canonicalize() hits the filesystem; run it off the async worker.
+    let canonical = tauri::async_runtime::spawn_blocking(move || validate_repo_path(&repo_path))
         .await
-        .map_err(|err| format!("open {}: {err}", db_path.display()))?;
-    db.set(pool).await;
+        .map_err(|err| format!("validate_repo_path task failed: {err}"))??;
+    // Auto-register (MP4): becoming active is the only gesture that grows the
+    // registry. A persist failure must not block the switch itself.
+    match registry.add(canonical.clone()) {
+        Ok(true) => watcher::watch_and_emit(&watchers, &app, &canonical),
+        Ok(false) => {}
+        Err(err) => {
+            tracing::warn!(error = %err, "auto-register active project failed");
+        }
+    }
+    // No pool is opened here: progress databases are per-repo and open lazily
+    // on first read (Db::pool_for) — the active project is a UI preference.
     active_project.set(canonical);
     Ok(())
 }
 
 #[tauri::command]
-pub async fn clear_active_project(
-    active_project: tauri::State<'_, ActiveProject>,
-    db: tauri::State<'_, Db>,
-) -> Result<(), String> {
-    db.clear().await;
+pub fn clear_active_project(active_project: tauri::State<'_, ActiveProject>) {
     active_project.clear();
-    Ok(())
 }
 
-fn validate_repo_path(repo_path: &str) -> Result<PathBuf, String> {
+/// What the UI shows as "where am I": the checked-out branch, or a detached
+/// HEAD marker.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub struct RepoHead {
+    pub branch: Option<String>,
+    pub detached: bool,
+}
+
+/// Return `repo_path`'s HEAD as a displayable payload. The repo is explicit
+/// (MP1): overview surfaces read any registered repo without switching.
+#[tauri::command]
+pub fn repo_head(repo_path: String) -> Result<RepoHead, String> {
+    let canonical = validate_repo_path(&repo_path)?;
+    repo_head_inner(&canonical)
+}
+
+fn repo_head_inner(repo_path: &Path) -> Result<RepoHead, String> {
+    let repo =
+        repo_open(repo_path).map_err(|e| format!("open repo {}: {e}", repo_path.display()))?;
+    match current_branch(&repo).map_err(|e| format!("read HEAD of {}: {e}", repo_path.display()))? {
+        Head::Branch(name) => Ok(RepoHead {
+            branch: Some(name),
+            detached: false,
+        }),
+        Head::Detached => Ok(RepoHead {
+            branch: None,
+            detached: true,
+        }),
+    }
+}
+
+/// Normalize a caller-supplied repo path into a canonical, on-disk directory:
+/// trim it, reject blank, `canonicalize`, and require a directory. Commands call
+/// this at the top and operate on the returned [`PathBuf`] rather than the raw
+/// string, so one place owns "is this a real repo path". Membership in the
+/// registry is deliberately NOT required (MP1): any real on-disk repo stays
+/// readable.
+pub(crate) fn validate_repo_path(repo_path: &str) -> Result<PathBuf, String> {
     let trimmed = repo_path.trim();
     if trimmed.is_empty() {
         return Err("repo_path must not be empty".to_string());
@@ -129,5 +174,33 @@ mod tests {
         let path = tmp.path().to_string_lossy().to_string();
         let canonical = validate_repo_path(&path).expect("validate");
         assert!(canonical.is_dir());
+    }
+
+    #[test]
+    fn repo_head_reports_the_checked_out_branch() {
+        use mizraj_vcs::git2::{Repository, RepositoryInitOptions};
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut opts = RepositoryInitOptions::new();
+        opts.external_template(false);
+        opts.initial_head("feat/ui");
+        Repository::init_opts(dir.path(), &opts).expect("init repo");
+
+        let head = repo_head_inner(dir.path()).expect("repo_head");
+
+        assert_eq!(
+            head,
+            RepoHead {
+                branch: Some("feat/ui".to_string()),
+                detached: false,
+            }
+        );
+    }
+
+    #[test]
+    fn repo_head_fails_outside_a_repository() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let err = repo_head_inner(dir.path()).expect_err("non-repo should fail");
+        assert!(!err.is_empty());
     }
 }
