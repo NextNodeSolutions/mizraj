@@ -1,5 +1,5 @@
 import { useAtomValue, useSetAtom } from 'jotai'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 import {
 	projectHue,
@@ -27,6 +27,7 @@ import {
 import { PipelineMergedCard } from './PipelineMergedCard'
 import { PipelineSessionCard } from './PipelineSessionCard'
 import { PipelineTaskCard } from './PipelineTaskCard'
+import { useFreshSessionIds } from './useFreshSessionIds'
 
 type Props = {
 	activeProjectPath: string | null
@@ -93,52 +94,20 @@ export const PipelineView = ({
 	const approvedSessionIds = useAtomValue(approvedSessionIdsAtom)
 	const approveSession = useSetAtom(approveSessionAtom)
 	const pruneApprovedSessions = useSetAtom(pruneApprovedSessionsAtom)
-	// Session ids whose card is currently playing its spring entrance (just
-	// launched or approved). Bounded to in-flight animations: each card drops
-	// its id on animationEnd, so the set does not grow unbounded.
-	const [freshSessionIds, setFreshSessionIds] = useState<ReadonlySet<string>>(
-		new Set(),
-	)
-
-	const markFresh = (sessionId: string): void => {
-		setFreshSessionIds(previous => new Set(previous).add(sessionId))
-	}
-
-	const clearFresh = (sessionId: string): void => {
-		setFreshSessionIds(previous => {
-			if (!previous.has(sessionId)) return previous
-			const next = new Set(previous)
-			next.delete(sessionId)
-			return next
-		})
-	}
+	// The joined live-id string is the stable dependency for the bounding
+	// effects below — a fresh id array every render would re-run them forever.
+	const liveSessionIdsKey = sessions.map(session => session.id).join('\n')
+	const { freshSessionIds, markFresh, clearFresh } =
+		useFreshSessionIds(liveSessionIdsKey)
 
 	// Keep the client-only approved set bounded: when a session the user
 	// approved vanishes from the live registry, evict its id. Synchronizes
 	// local intent with the external sessions store, so it belongs in an
 	// effect; the prune atom no-ops when nothing is stale, breaking the loop.
-	// The joined key is the stable dependency — a fresh id array every render
-	// would re-run the effect forever.
-	const liveSessionIdsKey = sessions.map(session => session.id).join('\n')
 	useEffect(() => {
 		const liveIds =
 			liveSessionIdsKey === '' ? [] : liveSessionIdsKey.split('\n')
-		const live = new Set(liveIds)
-		pruneApprovedSessions(live)
-		// Mirror that prune for the fresh-animation set. A card normally drops
-		// its id on animationEnd, but under `prefers-reduced-motion: reduce`
-		// the entrance animation (and its end event) never fires, so without
-		// this the set would only ever grow as sessions launch. Bounding it to
-		// live sessions keeps it from leaking across the session's lifetime.
-		setFreshSessionIds(previous => {
-			let changed = false
-			const next = new Set<string>()
-			for (const id of previous) {
-				if (live.has(id)) next.add(id)
-				else changed = true
-			}
-			return changed ? next : previous
-		})
+		pruneApprovedSessions(new Set(liveIds))
 	}, [liveSessionIdsKey, pruneApprovedSessions])
 
 	const approve = (sessionId: string): void => {

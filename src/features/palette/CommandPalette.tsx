@@ -8,13 +8,11 @@ import { useSessions } from '@/features/sessions/useSessions'
 import { paletteOpenAtom } from './palette'
 import type { PaletteItem } from './paletteItems'
 import { buildPaletteItems, filterPaletteItems } from './paletteItems'
+import { usePaletteKeyboard } from './usePaletteKeyboard'
 
 type Props = {
 	activeProjectPath: string | null
 }
-
-const isToggleChord = (event: KeyboardEvent): boolean =>
-	(event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k'
 
 export const CommandPalette = ({
 	activeProjectPath,
@@ -58,65 +56,17 @@ export const CommandPalette = ({
 		item.run()
 	}
 
-	// The keydown handler reads these every keystroke; refs keep them current
-	// without re-binding the window listener on every render (only on open).
-	const handlerRef = useRef<(event: KeyboardEvent) => void>(() => {})
-	handlerRef.current = (event: KeyboardEvent): void => {
-		if (isToggleChord(event)) {
-			event.preventDefault()
-			event.stopPropagation()
-			if (open) {
-				close()
-			} else {
-				setOpen(true)
-			}
-			return
-		}
-		if (!open) return
-		if (event.key === 'Escape') {
-			event.preventDefault()
-			event.stopPropagation()
-			close()
-			return
-		}
-		// Trap Tab inside the dialog: the input is its only tabbable element,
-		// so keeping focus there is the whole trap.
-		if (event.key === 'Tab') {
-			event.preventDefault()
-			event.stopPropagation()
-			inputRef.current?.focus()
-			return
-		}
-		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-			event.preventDefault()
-			event.stopPropagation()
-			const step = event.key === 'ArrowDown' ? 1 : -1
+	usePaletteKeyboard({
+		open,
+		openPalette: () => setOpen(true),
+		close,
+		focusInput: () => inputRef.current?.focus(),
+		moveSelection: step =>
 			setSelection(current =>
 				Math.max(0, Math.min(current + step, filtered.length - 1)),
-			)
-			return
-		}
-		if (event.key === 'Enter') {
-			event.preventDefault()
-			event.stopPropagation()
-			run(filtered[selected])
-		}
-	}
-
-	// The palette owns its shortcuts at the window's capture phase so the
-	// terminal's own window-level key router (and any Ghostty cmd+K binding)
-	// never sees a handled chord. The listener is bound once and delegates to
-	// the latest handler through the ref.
-	useEffect(() => {
-		const onKeydown = (event: KeyboardEvent): void => {
-			handlerRef.current(event)
-		}
-		window.addEventListener('keydown', onKeydown, { capture: true })
-		return () =>
-			window.removeEventListener('keydown', onKeydown, {
-				capture: true,
-			})
-	}, [])
+			),
+		runSelected: () => run(filtered[selected]),
+	})
 
 	// Mounted-but-hidden component (the data-open transition needs a live
 	// element): focus is the one thing that must follow the open state.

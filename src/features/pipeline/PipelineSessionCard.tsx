@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { useDiff } from '@/features/diff/useDiff'
-import type { DiffTotals } from '@/features/review/reviewFiles'
-import { diffTotals, reviewFilesFromPatch } from '@/features/review/reviewFiles'
+import { useWorkingTreeTotals } from '@/features/review/useWorkingTreeTotals'
 import { closeSession } from '@/features/sessions/closeSession'
 import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
 import { openSession, openSessionReview } from '@/features/sessions/openSession'
@@ -15,6 +13,8 @@ import { subscribeToCellFrames } from '@/features/sessions/sessionSubscription'
 import { terminalTail } from '@/features/sessions/terminalTail'
 import { useCellFrame } from '@/features/sessions/useCellFrame'
 import { DiffStat, StatusTag } from '@/shared/ui/atoms'
+
+import { TerminalPreview } from './TerminalPreview'
 
 const TAIL_LINES = 2
 
@@ -30,39 +30,9 @@ type Props = {
 	onAnimationEnd?: () => void
 }
 
-// The card's own repo working-tree totals — never the active project's
-// (MP5). The same diff the Review screen opens for this repo.
-//TODO: per-session diff stats — needs a session/branch-scoped diff command
-// (mizraj_vcs::diff_session exists in the crate but is not exposed as a
-// Tauri command)
-const useWorkingTreeTotals = (repoPath: string | null): DiffTotals | null => {
-	const { state } = useDiff(repoPath)
-	const patch = state.status === 'ready' ? state.data.patch : null
-	return useMemo(
-		() => (patch === null ? null : diffTotals(reviewFilesFromPatch(patch))),
-		[patch],
-	)
-}
-
 const stopSession = (sessionId: string): void => {
 	void closeSession(sessionId)
 }
-
-type TerminalPreviewProps = {
-	tail: ReadonlyArray<string>
-}
-
-// At most TAIL_LINES lines, rendered without a list so no synthetic keys are
-// needed; the blinking caret rides the most recent line.
-const TerminalPreview = ({ tail }: TerminalPreviewProps): React.JSX.Element => (
-	<div className="term mini-term pipeline__term">
-		{tail.length > 1 && <div className="term-line">{tail[0]}</div>}
-		<div className="term-line">
-			{tail.length === 0 ? '…' : tail[tail.length - 1]}
-			<span className="caret" />
-		</div>
-	</div>
-)
 
 export const PipelineSessionCard = ({
 	session,
