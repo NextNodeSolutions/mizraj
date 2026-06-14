@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const PREVIEW_PORT = 4180
+const BASE_URL = `http://127.0.0.1:${PREVIEW_PORT}`
+
 export default defineConfig({
 	testDir: './e2e',
 	fullyParallel: true,
@@ -7,7 +10,19 @@ export default defineConfig({
 	retries: process.env.CI ? 2 : 0,
 	reporter: 'list',
 	use: {
+		baseURL: BASE_URL,
 		trace: 'on-first-retry',
+	},
+	// One framework-managed server for every spec: it builds first so the
+	// preview serves a fresh dist/ (the bare `vite preview` the specs used to
+	// spawn themselves silently served a stale or missing build — fatal in CI).
+	webServer: {
+		command: `pnpm build && pnpm vite preview --port ${PREVIEW_PORT} --strictPort`,
+		url: BASE_URL,
+		reuseExistingServer: !process.env.CI,
+		timeout: 180_000,
+		stdout: 'ignore',
+		stderr: 'pipe',
 	},
 	projects: [
 		{

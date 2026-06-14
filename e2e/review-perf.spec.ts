@@ -18,14 +18,9 @@
  * Lives in its own non-parallel Playwright project (see playwright.config.ts)
  * so nothing else steals the main thread mid-measurement.
  */
-import { spawn } from 'node:child_process'
-import type { ChildProcess } from 'node:child_process'
-
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
 
-const PREVIEW_PORT = 4181
-const BASE_URL = `http://127.0.0.1:${PREVIEW_PORT}`
 const REPO = '/Users/demo/dev/alpha'
 
 // A switch that renders under this wall-clock is imperceptible; the old
@@ -340,35 +335,6 @@ const installPerfProbes = (): void => {
 	}
 }
 
-let preview: ChildProcess | null = null
-
-const waitForServer = async (url: string): Promise<void> => {
-	const deadline = Date.now() + 30_000
-	for (;;) {
-		try {
-			if ((await fetch(url)).ok) return
-		} catch {
-			// keep polling until preview binds
-		}
-		if (Date.now() > deadline)
-			throw new Error(`vite preview silent at ${url}`)
-		await new Promise(resolve => setTimeout(resolve, 250))
-	}
-}
-
-test.beforeAll(async () => {
-	preview = spawn(
-		'pnpm',
-		['vite', 'preview', '--port', String(PREVIEW_PORT), '--strictPort'],
-		{ stdio: 'ignore' },
-	)
-	await waitForServer(BASE_URL)
-})
-
-test.afterAll(() => {
-	preview?.kill()
-})
-
 const fileLabel = (file: FileSpec): string =>
 	file.path.split('/').pop() ?? file.path
 
@@ -409,10 +375,8 @@ const openReviewWith = async (
 ): Promise<void> => {
 	await page.addInitScript(installPerfProbes)
 	await page.addInitScript(installMock, { repo: REPO, patch })
-	await page.goto(`${BASE_URL}/review`)
-	await expect(page.locator('.review-tree__file')).toHaveCount(
-		expectedCount,
-	)
+	await page.goto('/review')
+	await expect(page.locator('.review-tree__file')).toHaveCount(expectedCount)
 }
 
 const openReview = (page: Page): Promise<void> =>

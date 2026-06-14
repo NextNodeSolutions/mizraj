@@ -1,6 +1,3 @@
-import { spawn } from 'node:child_process'
-import type { ChildProcess } from 'node:child_process'
-
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
@@ -11,44 +8,31 @@ import {
 	installTauriMock,
 } from './fixtures/tauriMock'
 
-const PREVIEW_PORT = 4180
-const BASE_URL = `http://127.0.0.1:${PREVIEW_PORT}`
-
-let preview: ChildProcess | null = null
-
-const waitForServer = async (url: string): Promise<void> => {
-	const deadline = Date.now() + 30_000
-	for (;;) {
-		try {
-			const response = await fetch(url)
-			if (response.ok) return
-		} catch {
-			// keep polling until the dev server binds
+declare global {
+	interface Window {
+		__TAURI_INTERNALS__?: {
+			invoke<T>(
+				command: string,
+				args?: Record<string, unknown>,
+			): Promise<T>
 		}
-		if (Date.now() > deadline) {
-			throw new Error(`vite preview never answered at ${url}`)
-		}
-		await new Promise(resolve => setTimeout(resolve, 250))
 	}
 }
 
-test.beforeAll(async () => {
-	preview = spawn(
-		'pnpm',
-		['vite', 'preview', '--port', String(PREVIEW_PORT), '--strictPort'],
-		{ stdio: 'ignore' },
-	)
-	await waitForServer(BASE_URL)
-})
-
-test.afterAll(() => {
-	preview?.kill()
-})
-
+// The framework-managed webServer (playwright.config.ts) builds + serves on
+// baseURL, so specs navigate relative and never spawn their own preview.
 const openApp = async (page: Page): Promise<void> => {
+	const errors: Array<string> = []
+	page.on('console', message => {
+		if (message.type() === 'error') errors.push(message.text())
+	})
+	page.on('pageerror', error => errors.push(error.message))
 	await page.addInitScript(installTauriMock, defaultFixtures())
-	await page.goto(BASE_URL)
+	await page.goto('/')
 	await expect(page.locator('.mz-topbar')).toBeVisible()
+	// A render error or an unmocked-command rejection would only surface here —
+	// fail loudly rather than let a broken page pass the selector assertions.
+	expect(errors, errors.join('\n')).toEqual([])
 }
 
 test('the TopBar picker lists every registered repo and Add repo…', async ({
@@ -113,7 +97,7 @@ test('the Pipeline shows both repos at once, grouped per repo, no mutation', asy
 	page,
 }) => {
 	await openApp(page)
-	await page.goto(`${BASE_URL}/pipeline`)
+	await page.goto('/pipeline')
 
 	const backlog = page
 		.locator('.pipeline__col')
@@ -138,31 +122,29 @@ test('repos stay siloed: each repo reads its own branch and diff', async ({
 	page,
 }) => {
 	await openApp(page)
-	await page.goto(`${BASE_URL}/pipeline`)
+	await page.goto('/pipeline')
 	await expect(
 		page.locator('.pipeline__col').filter({ hasText: 'Backlog' }),
 	).toContainText('Ship the alpha feature')
 
 	// Both repos were read explicitly — by path, not via an active singleton.
-	const overviewReads = await page.evaluate(() => {
-		type Internals = {
-			invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown>
-		}
-		const internals = (
-			window as unknown as { __TAURI_INTERNALS__: Internals }
-		).__TAURI_INTERNALS__
+	// invoke is generically typed (see the Window augmentation above) so the
+	// overview shape flows through without an `as` cast.
+	const [alphaOverview, betaOverview] = await page.evaluate(() => {
+		const internals = window.__TAURI_INTERNALS__
+		if (!internals) throw new Error('tauri internals missing')
+		const overview = (
+			repoPath: string,
+		): Promise<{ userTasks: Array<{ title: string }> }> =>
+			internals.invoke<{ userTasks: Array<{ title: string }> }>(
+				'tasks_overview',
+				{ repoPath },
+			)
 		return Promise.all([
-			internals.invoke('tasks_overview', {
-				repoPath: '/Users/demo/dev/alpha',
-			}),
-			internals.invoke('tasks_overview', {
-				repoPath: '/Users/demo/dev/beta',
-			}),
+			overview('/Users/demo/dev/alpha'),
+			overview('/Users/demo/dev/beta'),
 		])
 	})
-	const [alphaOverview, betaOverview] = overviewReads as Array<{
-		userTasks: Array<{ title: string }>
-	}>
 	expect(alphaOverview?.userTasks[0]?.title).toBe('Ship the alpha feature')
 	expect(betaOverview?.userTasks[0]?.title).toBe('Fix the beta bug')
 	expect(REPO_ALPHA).not.toBe(REPO_BETA)
