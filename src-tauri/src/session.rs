@@ -10,6 +10,7 @@ pub mod mouse;
 pub mod path;
 pub mod pty;
 pub mod sink;
+mod store;
 pub mod tauri_sink;
 pub mod term_sink;
 
