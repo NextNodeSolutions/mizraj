@@ -17,10 +17,7 @@ import {
 	launchSession,
 	launchShellSession,
 } from '@/features/sessions/launchSession'
-import {
-	openSession,
-	openSessionReview,
-} from '@/features/sessions/openSession'
+import { openSession } from '@/features/sessions/openSession'
 import {
 	sessionLabel,
 	sessionRepoLabel,
