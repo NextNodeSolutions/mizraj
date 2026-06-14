@@ -70,6 +70,9 @@ vi.mock('@pierre/diffs/react', () => {
 			getHoveredLine: () => HoveredLine | undefined,
 		) => ReactNode
 	}
+	// Lives inside the hoisted vi.mock factory (can't reference outer scope), so
+	// it cannot move to module scope despite capturing nothing.
+	// oxlint-disable-next-line consistent-function-scoping
 	const FileDiff = ({
 		fileDiff,
 		options,
@@ -156,6 +159,19 @@ const PATCH = [
 	'+router.use(rateLimit())',
 	'',
 ].join('\n')
+
+const pressTab = async (shiftKey = false): Promise<void> => {
+	await act(async () => {
+		document.dispatchEvent(
+			new KeyboardEvent('keydown', {
+				key: 'Tab',
+				shiftKey,
+				bubbles: true,
+				cancelable: true,
+			}),
+		)
+	})
+}
 
 describe('ReviewView', () => {
 	let container: HTMLDivElement
@@ -598,19 +614,6 @@ describe('ReviewView', () => {
 		container
 			.querySelector('[data-testid="file-diff-stub"]')
 			?.getAttribute('data-file-name')
-
-	const pressTab = async (shiftKey = false): Promise<void> => {
-		await act(async () => {
-			document.dispatchEvent(
-				new KeyboardEvent('keydown', {
-					key: 'Tab',
-					shiftKey,
-					bubbles: true,
-					cancelable: true,
-				}),
-			)
-		})
-	}
 
 	it('moves to the next file with Tab, wrapping past the last', async () => {
 		await render()

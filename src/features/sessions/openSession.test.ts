@@ -1,19 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as RouterModule from '@/app/router'
+import type * as SettingsModule from '@/features/settings/settings'
+
 const { navigateMock, setLastProjectPathMock } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
 	setLastProjectPathMock: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/app/router', async importOriginal => ({
-	...(await importOriginal<typeof import('@/app/router')>()),
+	...(await importOriginal<typeof RouterModule>()),
 	navigate: navigateMock,
 }))
 
 vi.mock('@/features/settings/settings', async importOriginal => ({
-	...(await importOriginal<
-		typeof import('@/features/settings/settings')
-	>()),
+	...(await importOriginal<typeof SettingsModule>()),
 	setLastProjectPath: setLastProjectPathMock,
 }))
 

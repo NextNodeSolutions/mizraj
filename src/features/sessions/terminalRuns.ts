@@ -16,6 +16,9 @@ export type TextRun = {
 	selected: boolean
 }
 
+// A wide (double-width) glyph occupies two grid columns.
+const WIDE_SPAN = 2
+
 const isBlank = (cell: WireCell): boolean => cell.ch === ' ' || cell.ch === ''
 
 // Wide glyphs and multi-codepoint grapheme clusters break the 1 char = 1
@@ -97,7 +100,7 @@ export const coalesceTextRuns = (
 					row,
 					startCol: col,
 					text: cell.ch,
-					span: cell.wide === 'wide' ? 2 : 1,
+					span: cell.wide === 'wide' ? WIDE_SPAN : 1,
 					cell,
 					selected,
 				})

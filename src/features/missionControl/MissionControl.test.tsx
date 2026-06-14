@@ -5,6 +5,7 @@ import type { Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as RouterModule from '@/app/router'
+import type * as SettingsModule from '@/features/settings/settings'
 
 const { invokeMock, navigateMock, setLastProjectPathMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
@@ -13,7 +14,7 @@ const { invokeMock, navigateMock, setLastProjectPathMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/features/settings/settings', async importOriginal => ({
-	...(await importOriginal<typeof import('@/features/settings/settings')>()),
+	...(await importOriginal<typeof SettingsModule>()),
 	setLastProjectPath: setLastProjectPathMock,
 }))
 

@@ -80,7 +80,8 @@ export const defaultFixtures = (): TauriMockFixtures => ({
 export const installTauriMock = (fixtures: TauriMockFixtures): void => {
 	const state = { projects: [...fixtures.projects] }
 	const repoOf = (args: Record<string, unknown>): RepoFixture | null => {
-		const path = typeof args['repoPath'] === 'string' ? args['repoPath'] : ''
+		const path =
+			typeof args['repoPath'] === 'string' ? args['repoPath'] : ''
 		return fixtures.repos[path] ?? null
 	}
 
@@ -144,7 +145,10 @@ export const installTauriMock = (fixtures: TauriMockFixtures): void => {
 			return Promise.reject(new Error(`unmocked command: ${command}`))
 		},
 		transformCallback: (callback: (payload: unknown) => void): number => {
-			const id = Math.floor(Math.random() * 1_000_000)
+			// Local (not a module const): this whole mock is serialized into the
+			// page by Playwright, so it must reference no outer scope.
+			const CALLBACK_ID_RANGE = 1_000_000
+			const id = Math.floor(Math.random() * CALLBACK_ID_RANGE)
 			Object.defineProperty(window, `_${id}`, {
 				value: callback,
 				writable: true,

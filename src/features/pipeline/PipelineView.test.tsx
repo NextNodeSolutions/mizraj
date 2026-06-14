@@ -209,6 +209,26 @@ const OVERVIEW: Overview = {
 	userTasks: [],
 }
 
+const wireUserTask = (title: string): unknown => ({
+	id: `task-${title}`,
+	identifier: null,
+	origin: 'user',
+	milestoneId: null,
+	trackId: null,
+	step: null,
+	title,
+	description: null,
+	doneWhen: null,
+	size: null,
+	sliceOf: [],
+	sinkId: null,
+	position: 0,
+	status: 'backlog',
+	blockedReason: null,
+	commitSha: null,
+	createdAt: '2026-01-01T00:00:00Z',
+})
+
 describe('PipelineView', () => {
 	let container: HTMLDivElement
 	let root: Root
@@ -253,25 +273,6 @@ describe('PipelineView', () => {
 
 	it('shows the cards of every registered repo, grouped per repo', async () => {
 		store.set(projectsAtom, ['/repo/alpha', '/repo/beta'])
-		const wireUserTask = (title: string): unknown => ({
-			id: `task-${title}`,
-			identifier: null,
-			origin: 'user',
-			milestoneId: null,
-			trackId: null,
-			step: null,
-			title,
-			description: null,
-			doneWhen: null,
-			size: null,
-			sliceOf: [],
-			sinkId: null,
-			position: 0,
-			status: 'backlog',
-			blockedReason: null,
-			commitSha: null,
-			createdAt: '2026-01-01T00:00:00Z',
-		})
 		invokeMock.mockImplementation(
 			(command: string, args?: { repoPath?: string }) => {
 				if (command === 'tasks_overview') {

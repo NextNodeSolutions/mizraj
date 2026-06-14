@@ -463,18 +463,16 @@ export type DrawFrameOptions = {
 	hoveredLink?: GridLink | null
 }
 
-export const drawFrame = (
+// Background/selection/decoration pass: per-cell, skipping spacers behind wide
+// glyphs. Runs before the glyph pass so text always lands on top.
+const drawCellBackgrounds = (
 	context: CanvasRenderingContext2D,
 	frame: CellFramePayload,
 	metrics: CellMetrics,
 	config: TerminalConfig,
 	fontTable: readonly string[],
-	options: DrawFrameOptions = {},
+	selection: SelectionRange | null,
 ): void => {
-	clearToBackground(context, config.colors.background, config.backgroundAlpha)
-	context.textBaseline = 'top'
-	const selection = options.selection ?? null
-
 	for (let row = 0; row < frame.rows; row += 1) {
 		for (let col = 0; col < frame.cols; col += 1) {
 			const cell = frame.cells[row * frame.cols + col]
@@ -491,10 +489,19 @@ export const drawFrame = (
 			)
 		}
 	}
+}
 
-	// Glyph pass, by run: one fillText per same-style stretch lets the font
-	// shaper form ligatures (=>, !=) exactly like Ghostty's harfbuzz pass,
-	// while bg/selection/decorations above stayed per-cell.
+// Glyph pass, by run: one fillText per same-style stretch lets the font shaper
+// form ligatures (=>, !=) exactly like Ghostty's harfbuzz pass, while
+// bg/selection/decorations stayed per-cell in drawCellBackgrounds.
+const drawGlyphRuns = (
+	context: CanvasRenderingContext2D,
+	frame: CellFramePayload,
+	metrics: CellMetrics,
+	config: TerminalConfig,
+	fontTable: readonly string[],
+	selection: SelectionRange | null,
+): void => {
 	const runs = coalesceTextRuns(frame, (col, row) =>
 		selection ? isCellSelected(col, row, selection) : false,
 	)
@@ -508,31 +515,67 @@ export const drawFrame = (
 		fillRunText(context, run.text, run.startCol, rect, metrics)
 		context.globalAlpha = FULL_ALPHA
 	}
+}
 
-	const hovered = options.hoveredLink
-	if (hovered) {
-		context.fillStyle = config.colors.foreground
-		for (let col = hovered.startCol; col <= hovered.endCol; col += 1) {
-			const rect = cellRect(col, hovered.row, metrics)
-			context.fillRect(
-				rect.x,
-				rect.y + rect.height - UNDERLINE_OFFSET_PX,
-				rect.width,
-				UNDERLINE_THICKNESS_PX,
-			)
-		}
+// Hover affordance: underline the cells of the link under the pointer.
+const drawHoveredLink = (
+	context: CanvasRenderingContext2D,
+	metrics: CellMetrics,
+	config: TerminalConfig,
+	hovered: GridLink,
+): void => {
+	context.fillStyle = config.colors.foreground
+	for (let col = hovered.startCol; col <= hovered.endCol; col += 1) {
+		const rect = cellRect(col, hovered.row, metrics)
+		context.fillRect(
+			rect.x,
+			rect.y + rect.height - UNDERLINE_OFFSET_PX,
+			rect.width,
+			UNDERLINE_THICKNESS_PX,
+		)
 	}
+}
 
+// Cursor pass: draw a steady cursor always, a blinking one only on its on-phase.
+const drawFrameCursor = (
+	context: CanvasRenderingContext2D,
+	frame: CellFramePayload,
+	metrics: CellMetrics,
+	config: TerminalConfig,
+	fontTable: readonly string[],
+	cursorBlinkOn: boolean,
+): void => {
 	const cursor = frame.cursor
-	const blinkOn = options.cursorBlinkOn ?? true
-	if (
-		cursor &&
-		cursor.visible &&
-		(!cursorBlinks(config, cursor) || blinkOn)
-	) {
-		const cellUnder = frame.cells[cursor.y * frame.cols + cursor.x]
-		drawCursor(context, cursor, cellUnder, metrics, config, fontTable)
+	if (!cursor || !cursor.visible) return
+	if (cursorBlinks(config, cursor) && !cursorBlinkOn) return
+	const cellUnder = frame.cells[cursor.y * frame.cols + cursor.x]
+	drawCursor(context, cursor, cellUnder, metrics, config, fontTable)
+}
+
+export const drawFrame = (
+	context: CanvasRenderingContext2D,
+	frame: CellFramePayload,
+	metrics: CellMetrics,
+	config: TerminalConfig,
+	fontTable: readonly string[],
+	options: DrawFrameOptions = {},
+): void => {
+	clearToBackground(context, config.colors.background, config.backgroundAlpha)
+	context.textBaseline = 'top'
+	const selection = options.selection ?? null
+	drawCellBackgrounds(context, frame, metrics, config, fontTable, selection)
+	drawGlyphRuns(context, frame, metrics, config, fontTable, selection)
+	if (options.hoveredLink) {
+		drawHoveredLink(context, metrics, config, options.hoveredLink)
 	}
+	drawFrameCursor(
+		context,
+		frame,
+		metrics,
+		config,
+		fontTable,
+		options.cursorBlinkOn ?? true,
+	)
 }
 
 // Grid dimensions (whole cells) that fit a CSS-pixel box. The terminal grid
