@@ -91,7 +91,10 @@ const anchorIsStale = (
 ): boolean => {
 	const meta = parsedFiles.find(file => file.name === anchor.path) ?? null
 	if (meta === null) return true
-	return anchor.line !== null && !diffLineIsPresent(meta, anchor.line, anchor.side)
+	return (
+		anchor.line !== null &&
+		!diffLineIsPresent(meta, anchor.line, anchor.side)
+	)
 }
 
 // Where the composer anchors: the armed line while its file stays selected,

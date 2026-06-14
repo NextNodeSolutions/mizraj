@@ -35,4 +35,10 @@ const sameDiff = (previous: DiffPayload, next: DiffPayload): boolean =>
 	previous.patch === next.patch
 
 export const useDiff = (repoPath: string | null): DiffResource =>
-	useRepoResource(repoPath, fetchDiff, 'diff-panel', 'useDiff: get_diff', sameDiff)
+	useRepoResource(
+		repoPath,
+		fetchDiff,
+		'diff-panel',
+		'useDiff: get_diff',
+		sameDiff,
+	)

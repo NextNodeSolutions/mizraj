@@ -45,7 +45,8 @@ const sameDiff = (previous: Payload, next: Payload): boolean =>
 
 // A fresh object every call, but always the same patch — the on-disk state did
 // not change between focus reloads.
-const constPatchFetcher = (): Promise<Payload> => Promise.resolve({ patch: 'X' })
+const constPatchFetcher = (): Promise<Payload> =>
+	Promise.resolve({ patch: 'X' })
 
 describe('useRepoResource', () => {
 	let container: HTMLDivElement
