@@ -51,13 +51,37 @@ export { compactPath, projectName } from '@/features/projects/repoPaths'
 
 /**
  * MP4's hybrid partition: a registered repo with no live session is dormant —
- * it folds into the compact section instead of holding a full wall group.
+ * it folds into the compact section instead of holding a full wall group. The
+ * followed repo is never dormant: it always keeps a top group on the wall
+ * (see `withActiveGroup`), so it is excluded here even with zero sessions.
  */
 export const dormantRepos = (
 	groups: ReadonlyArray<SessionGroup>,
 	registry: ReadonlyArray<string>,
-): ReadonlyArray<string> =>
-	registry.filter(path => !groups.some(group => group.repoPath === path))
+	activeProjectPath: string | null,
+): ReadonlyArray<string> => {
+	const deduped = Array.from(new Set(registry))
+	return deduped.filter(
+		path =>
+			path !== activeProjectPath &&
+			!groups.some(group => group.repoPath === path),
+	)
+}
+
+/**
+ * Guarantees the followed repo a wall group: if `activeProjectPath` has no
+ * live session it gets an empty group so it is never hidden in the dormant
+ * tail. Ordering still pins it to the top (see `orderProjectGroups`).
+ */
+export const withActiveGroup = (
+	groups: ReadonlyArray<SessionGroup>,
+	activeProjectPath: string | null,
+): ReadonlyArray<SessionGroup> => {
+	if (activeProjectPath === null) return groups
+	if (groups.some(group => group.repoPath === activeProjectPath))
+		return groups
+	return [{ repoPath: activeProjectPath, sessions: [] }, ...groups]
+}
 
 export const HUES = [
 	'blue',

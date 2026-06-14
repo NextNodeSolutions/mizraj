@@ -13,9 +13,7 @@ const { invokeMock, navigateMock, setLastProjectPathMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/features/settings/settings', async importOriginal => ({
-	...(await importOriginal<
-		typeof import('@/features/settings/settings')
-	>()),
+	...(await importOriginal<typeof import('@/features/settings/settings')>()),
 	setLastProjectPath: setLastProjectPathMock,
 }))
 
@@ -356,7 +354,7 @@ describe('MissionControl', () => {
 		seedSession('run-1', { repoPath: '/repo/x' })
 		seedSession('run-2', { repoPath: '/repo/y' })
 		seedSession('done-1', { repoPath: '/repo/x', ended: { exitCode: 0 } })
-		render()
+		render(null)
 
 		expect(container.querySelector('.view-head h2')?.textContent).toBe(
 			'Mission Control',
@@ -369,7 +367,7 @@ describe('MissionControl', () => {
 	it('groups cards per project with the repo name and compacted path', () => {
 		seedSession('run-1', { repoPath: '/Users/me/dev/mizraj' })
 		seedSession('run-2', { repoPath: '/Users/me/dev/api' })
-		render()
+		render(null)
 
 		const groups = Array.from(container.querySelectorAll('.proj-group'))
 		expect(groups).toHaveLength(2)
@@ -389,7 +387,7 @@ describe('MissionControl', () => {
 		seedSession('run-2')
 		seedSession('done-1', { ended: { exitCode: 0 } })
 		seedSession('fail-1', { ended: { exitCode: 9 } })
-		render()
+		render(null)
 
 		const stats = container.querySelector('.proj-stats')
 		expect(stats?.textContent).toContain('2 running')
@@ -397,26 +395,28 @@ describe('MissionControl', () => {
 		expect(stats?.textContent).toContain('1 failed')
 	})
 
-	it('folds a project on header click and reopens it on the next', () => {
+	it('folds a project on its disclosure click and reopens it on the next', () => {
 		seedSession('run-1')
-		render()
+		render(null)
 
-		const head = container.querySelector('.proj-head')
-		expect(head?.getAttribute('aria-expanded')).toBe('true')
+		const disclosure = container.querySelector('.proj-disclosure')
+		expect(disclosure?.getAttribute('aria-expanded')).toBe('true')
 
 		act(() => {
-			head?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+			disclosure?.dispatchEvent(
+				new MouseEvent('click', { bubbles: true }),
+			)
 		})
 		expect(cards()).toHaveLength(0)
 		expect(
 			container
-				.querySelector('.proj-head')
+				.querySelector('.proj-disclosure')
 				?.getAttribute('aria-expanded'),
 		).toBe('false')
 
 		act(() => {
 			container
-				.querySelector('.proj-head')
+				.querySelector('.proj-disclosure')
 				?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 		})
 		expect(cards()).toHaveLength(1)
@@ -425,7 +425,7 @@ describe('MissionControl', () => {
 	it('launches a claude agent in the project from the header + button, without folding', () => {
 		seedSession('run-1', { repoPath: '/repo/x' })
 		seedSession('loose-1', { repoPath: null })
-		render()
+		render('/repo/x')
 
 		const addButtons = Array.from(container.querySelectorAll('.proj-add'))
 		// The repo-less bucket cannot host a launch — no cwd to give it.
@@ -454,6 +454,22 @@ describe('MissionControl', () => {
 			node => node.textContent,
 		)
 		expect(names).toEqual(['active', 'busy', 'no project'])
+	})
+
+	it('keeps the followed repo as a top group even with no live session', () => {
+		seedSession('busy-1', { repoPath: '/Users/me/dev/other' })
+		store.set(projectsAtom, ['/Users/me/dev/followed'])
+		render('/Users/me/dev/followed')
+
+		const names = Array.from(container.querySelectorAll('.proj-name')).map(
+			node => node.textContent,
+		)
+		// The followed repo leads the wall with an empty group, never folded
+		// away into the dormant tail.
+		expect(names[0]).toBe('followed')
+		expect(container.querySelector('.mc-dormant')).toBeNull()
+		const topGroup = container.querySelector('.proj-group')
+		expect(topGroup?.querySelectorAll('.agent-card')).toHaveLength(0)
 	})
 
 	it('shows each card the branch and diff stats of its OWN repo', async () => {
@@ -487,9 +503,7 @@ describe('MissionControl', () => {
 		})
 
 		const groups = Array.from(container.querySelectorAll('.proj-group'))
-		const alpha = groups.find(group =>
-			group.textContent?.includes('alpha'),
-		)
+		const alpha = groups.find(group => group.textContent?.includes('alpha'))
 		const beta = groups.find(group => group.textContent?.includes('beta'))
 		expect(alpha?.textContent).toContain('feat/alpha-work')
 		expect(beta?.textContent).toContain('fix/beta-bug')
@@ -508,7 +522,9 @@ describe('MissionControl', () => {
 			root.render(<MissionControl activeProjectPath="/repo/alpha" />)
 		})
 		await act(async () => {
-			cards()[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+			cards()[0]?.dispatchEvent(
+				new MouseEvent('click', { bubbles: true }),
+			)
 		})
 
 		expect(setLastProjectPathMock).toHaveBeenCalledWith('/repo/beta')
@@ -518,7 +534,7 @@ describe('MissionControl', () => {
 	it('folds registered repos without sessions into a compact dormant section', () => {
 		seedSession('run-1', { repoPath: '/repo/x' })
 		store.set(projectsAtom, ['/repo/x', '/Users/me/dev/sleepy'])
-		render()
+		render('/repo/x')
 
 		// The busy repo keeps its full group; only the idle one goes dormant.
 		expect(container.querySelectorAll('.proj-group')).toHaveLength(1)

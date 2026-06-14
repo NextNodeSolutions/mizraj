@@ -23,6 +23,18 @@ describe('formatSessionAge', () => {
 		expect(formatSessionAge(3 * DAY_MS + HOUR_MS, 0)).toBe('3d')
 	})
 
+	it('rolls over to minutes exactly at one minute', () => {
+		expect(formatSessionAge(MINUTE_MS, 0)).toBe('1m')
+	})
+
+	it('still reads minutes one millisecond before the hour', () => {
+		expect(formatSessionAge(HOUR_MS - 1, 0)).toBe('59m')
+	})
+
+	it('rolls over to days exactly at one day', () => {
+		expect(formatSessionAge(DAY_MS, 0)).toBe('1d')
+	})
+
 	it('clamps a clock skew to zero seconds', () => {
 		expect(formatSessionAge(0, 5_000)).toBe('0s')
 	})

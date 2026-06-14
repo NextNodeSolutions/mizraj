@@ -10,6 +10,7 @@ import {
 	orderProjectGroups,
 	projectHue,
 	projectName,
+	withActiveGroup,
 } from './projectGroups'
 
 const session = (
@@ -116,11 +117,11 @@ describe('dormantRepos', () => {
 			session('loose', { repoPath: null }),
 		])
 
-		const dormant = dormantRepos(groups, [
-			'/repo/sleepy',
-			'/repo/x',
-			'/repo/idle',
-		])
+		const dormant = dormantRepos(
+			groups,
+			['/repo/sleepy', '/repo/x', '/repo/idle'],
+			null,
+		)
 
 		expect(dormant).toEqual(['/repo/sleepy', '/repo/idle'])
 	})
@@ -130,7 +131,67 @@ describe('dormantRepos', () => {
 			session('a', { repoPath: '/repo/x' }),
 		])
 
-		expect(dormantRepos(groups, ['/repo/x'])).toEqual([])
+		expect(dormantRepos(groups, ['/repo/x'], null)).toEqual([])
+	})
+
+	it('dedupes a registry that lists the same repo twice', () => {
+		const groups = groupSessionsByRepo([
+			session('a', { repoPath: '/repo/x' }),
+		])
+
+		const dormant = dormantRepos(
+			groups,
+			['/repo/sleepy', '/repo/sleepy', '/repo/idle'],
+			null,
+		)
+
+		expect(dormant).toEqual(['/repo/sleepy', '/repo/idle'])
+	})
+
+	it('never lists the followed repo as dormant, even with no session', () => {
+		const groups = groupSessionsByRepo([
+			session('a', { repoPath: '/repo/x' }),
+		])
+
+		const dormant = dormantRepos(
+			groups,
+			['/repo/active', '/repo/idle'],
+			'/repo/active',
+		)
+
+		expect(dormant).toEqual(['/repo/idle'])
+	})
+})
+
+describe('withActiveGroup', () => {
+	it('pins an empty group for a followed repo that has no session', () => {
+		const groups = groupSessionsByRepo([
+			session('a', { repoPath: '/repo/busy' }),
+		])
+
+		const withActive = withActiveGroup(groups, '/repo/active')
+
+		expect(withActive.map(group => group.repoPath)).toEqual([
+			'/repo/active',
+			'/repo/busy',
+		])
+		expect(withActive[0]?.sessions).toEqual([])
+	})
+
+	it('leaves the groups untouched when the followed repo already has one', () => {
+		const groups = groupSessionsByRepo([
+			session('a', { repoPath: '/repo/active' }),
+		])
+
+		expect(withActiveGroup(groups, '/repo/active')).toBe(groups)
+	})
+
+	it('adds nothing when no repo is followed', () => {
+		const groups = groupSessionsByRepo([
+			session('a', { repoPath: '/repo/x' }),
+		])
+
+		expect(withActiveGroup(groups, null)).toBe(groups)
 	})
 })
 

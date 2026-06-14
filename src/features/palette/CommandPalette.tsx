@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue } from 'jotai'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 import { usePlans } from '@/features/plans/plans'
 import { activeSessionIdAtom } from '@/features/sessions/sessions'
@@ -26,6 +26,11 @@ export const CommandPalette = ({
 	const [query, setQuery] = useState('')
 	const [selection, setSelection] = useState(0)
 	const inputRef = useRef<HTMLInputElement>(null)
+	// One stable base for the listbox + its options, so the input's
+	// aria-activedescendant can name the highlighted row for a screen reader.
+	const baseId = useId()
+	const listboxId = `${baseId}-listbox`
+	const optionId = (index: number): string => `${baseId}-opt-${index}`
 
 	const plans = plansState.status === 'ready' ? plansState.data : []
 	const items = buildPaletteItems({
@@ -36,6 +41,7 @@ export const CommandPalette = ({
 	})
 	const filtered = filterPaletteItems(items, query)
 	const selected = Math.min(selection, Math.max(0, filtered.length - 1))
+	const activeOptionId = filtered.length > 0 ? optionId(selected) : undefined
 
 	const close = (): void => {
 		setOpen(false)
@@ -52,49 +58,65 @@ export const CommandPalette = ({
 		item.run()
 	}
 
+	// The keydown handler reads these every keystroke; refs keep them current
+	// without re-binding the window listener on every render (only on open).
+	const handlerRef = useRef<(event: KeyboardEvent) => void>(() => {})
+	handlerRef.current = (event: KeyboardEvent): void => {
+		if (isToggleChord(event)) {
+			event.preventDefault()
+			event.stopPropagation()
+			if (open) {
+				close()
+			} else {
+				setOpen(true)
+			}
+			return
+		}
+		if (!open) return
+		if (event.key === 'Escape') {
+			event.preventDefault()
+			event.stopPropagation()
+			close()
+			return
+		}
+		// Trap Tab inside the dialog: the input is its only tabbable element,
+		// so keeping focus there is the whole trap.
+		if (event.key === 'Tab') {
+			event.preventDefault()
+			event.stopPropagation()
+			inputRef.current?.focus()
+			return
+		}
+		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+			event.preventDefault()
+			event.stopPropagation()
+			const step = event.key === 'ArrowDown' ? 1 : -1
+			setSelection(current =>
+				Math.max(0, Math.min(current + step, filtered.length - 1)),
+			)
+			return
+		}
+		if (event.key === 'Enter') {
+			event.preventDefault()
+			event.stopPropagation()
+			run(filtered[selected])
+		}
+	}
+
 	// The palette owns its shortcuts at the window's capture phase so the
 	// terminal's own window-level key router (and any Ghostty cmd+K binding)
-	// never sees a handled chord.
+	// never sees a handled chord. The listener is bound once and delegates to
+	// the latest handler through the ref.
 	useEffect(() => {
 		const onKeydown = (event: KeyboardEvent): void => {
-			if (isToggleChord(event)) {
-				event.preventDefault()
-				event.stopPropagation()
-				if (open) {
-					close()
-				} else {
-					setOpen(true)
-				}
-				return
-			}
-			if (!open) return
-			if (event.key === 'Escape') {
-				event.preventDefault()
-				event.stopPropagation()
-				close()
-				return
-			}
-			if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-				event.preventDefault()
-				event.stopPropagation()
-				const step = event.key === 'ArrowDown' ? 1 : -1
-				setSelection(current =>
-					Math.max(0, Math.min(current + step, filtered.length - 1)),
-				)
-				return
-			}
-			if (event.key === 'Enter') {
-				event.preventDefault()
-				event.stopPropagation()
-				run(filtered[selected])
-			}
+			handlerRef.current(event)
 		}
 		window.addEventListener('keydown', onKeydown, { capture: true })
 		return () =>
 			window.removeEventListener('keydown', onKeydown, {
 				capture: true,
 			})
-	})
+	}, [])
 
 	// Mounted-but-hidden component (the data-open transition needs a live
 	// element): focus is the one thing that must follow the open state.
@@ -117,18 +139,31 @@ export const CommandPalette = ({
 				data-open={openAttr}
 				role="dialog"
 				aria-label="Command palette"
+				// Closed-but-mounted: take the whole dialog out of the tab order
+				// and the accessibility tree until it is summoned.
+				inert={!open}
 			>
 				<input
 					ref={inputRef}
 					type="text"
 					value={query}
 					placeholder="Search agents, plans, actions…"
+					role="combobox"
+					aria-expanded={open}
+					aria-controls={listboxId}
+					aria-activedescendant={activeOptionId}
+					aria-autocomplete="list"
 					onChange={event => {
 						setQuery(event.target.value)
 						setSelection(0)
 					}}
 				/>
-				<ul className="pal-list" role="listbox" aria-label="Results">
+				<ul
+					id={listboxId}
+					className="pal-list"
+					role="listbox"
+					aria-label="Results"
+				>
 					{filtered.length === 0 && (
 						<li className="pal-empty" role="presentation">
 							no results for “{query}”
@@ -139,6 +174,7 @@ export const CommandPalette = ({
 							key={`${item.group}:${item.label}`}
 							item={item}
 							previous={filtered[index - 1]}
+							optionId={optionId(index)}
 							active={index === selected}
 							onHover={() => setSelection(index)}
 							onRun={run}
@@ -153,6 +189,7 @@ export const CommandPalette = ({
 type RowProps = {
 	item: PaletteItem
 	previous: PaletteItem | undefined
+	optionId: string
 	active: boolean
 	onHover: () => void
 	onRun: (item: PaletteItem) => void
@@ -161,6 +198,7 @@ type RowProps = {
 const PaletteRow = ({
 	item,
 	previous,
+	optionId,
 	active,
 	onHover,
 	onRun,
@@ -172,6 +210,7 @@ const PaletteRow = ({
 			</li>
 		)}
 		<li
+			id={optionId}
 			className="pal-item"
 			role="option"
 			aria-selected={active}

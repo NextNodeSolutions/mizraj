@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+
 import type { MissionControlFilter, MissionFilter } from '@/app/router'
 import {
 	missionControlHref,
@@ -11,17 +13,16 @@ import { RunAgentButton } from '@/features/sessions/RunAgentButton'
 import type { SessionState } from '@/features/sessions/sessions'
 import { useSessions } from '@/features/sessions/useSessions'
 import { SDot } from '@/shared/ui/atoms'
-import { useNow } from '@/shared/useNow'
 
 import { DormantSection } from './DormantSection'
+import { ProjectGroup } from './ProjectGroup'
 import {
 	dormantRepos,
 	groupSessionsByRepo,
 	orderProjectGroups,
+	withActiveGroup,
 } from './projectGroups'
-import { ProjectGroup } from './ProjectGroup'
-
-const AGE_REFRESH_MS = 30_000
+import { restartStagger } from './restartStagger'
 
 // TODO(backend): merge tracking — no merged state; the 4th chip filters
 // 'failed' instead of design's 'Done'
@@ -68,13 +69,19 @@ export const MissionControl = ({
 }: Props): React.JSX.Element => {
 	const sessions = useSessions()
 	const { projects } = useProjects()
-	const now = useNow(AGE_REFRESH_MS)
 	// The URL is the single source of truth — the topbar status cluster
 	// deep-links here with ?filter=running|review.
 	const filter = parseMissionFilter(useLocationSearch())
+	const staggerRef = useRef<HTMLDivElement>(null)
+
+	// A filter switch replays the entrance on the still-mounted groups, so the
+	// stagger returns without remounting (and re-firing repo_head/get_diff).
+	useEffect(() => {
+		restartStagger(staggerRef.current)
+	}, [filter])
 
 	const sessionGroups = groupSessionsByRepo(sessions)
-	const dormant = dormantRepos(sessionGroups, projects)
+	const dormant = dormantRepos(sessionGroups, projects, activeProjectPath)
 
 	if (sessions.length === 0) {
 		return (
@@ -94,16 +101,29 @@ export const MissionControl = ({
 	const countFor = (key: MissionFilter): number =>
 		key === 'all' ? sessions.length : countByStatus(sessions, key)
 
-	const groups = orderProjectGroups(sessionGroups, activeProjectPath)
-	// A group whose every card is filtered out disappears entirely.
+	// The followed repo always keeps a top group, even with zero sessions.
+	const groups = orderProjectGroups(
+		withActiveGroup(sessionGroups, activeProjectPath),
+		activeProjectPath,
+	)
+	// A group whose every card is filtered out disappears entirely — except
+	// the followed repo, which keeps its (possibly empty) group pinned on top.
 	const visibleGroups = groups
 		.map(group => ({
 			group,
+			isActive: group.repoPath === activeProjectPath,
 			visibleSessions: group.sessions.filter(session =>
 				matchesFilter(session, filter),
 			),
 		}))
-		.filter(({ visibleSessions }) => visibleSessions.length > 0)
+		.filter(
+			({ isActive, visibleSessions }) =>
+				isActive || visibleSessions.length > 0,
+		)
+	const visibleCardCount = visibleGroups.reduce(
+		(total, { visibleSessions }) => total + visibleSessions.length,
+		0,
+	)
 
 	return (
 		<section className="mc-wrap" aria-label="Mission control">
@@ -124,10 +144,11 @@ export const MissionControl = ({
 				))}
 				<span className="mz-spacer" />
 				<span className="mc-scope">
-					{groups.length} projects · {countFor('running')} agents live
+					{groups.length + dormant.length} projects ·{' '}
+					{countFor('running')} agents live
 				</span>
 			</div>
-			{visibleGroups.length === 0 ? (
+			{visibleCardCount === 0 ? (
 				<div className="mc-empty mc-empty--filter">
 					<p>
 						Nothing {FILTER_LABEL[filter].toLowerCase()} right now.
@@ -141,14 +162,12 @@ export const MissionControl = ({
 					</button>
 				</div>
 			) : (
-				/* key={filter}: a filter switch remounts the wall and replays the stagger */
-				<div className="mc-projects stagger" key={filter}>
+				<div className="mc-projects stagger" ref={staggerRef}>
 					{visibleGroups.map(({ group, visibleSessions }, index) => (
 						<ProjectGroup
 							key={group.repoPath ?? 'no-project'}
 							group={group}
 							visibleSessions={visibleSessions}
-							now={now}
 							index={index}
 						/>
 					))}

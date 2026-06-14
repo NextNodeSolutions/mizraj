@@ -108,13 +108,29 @@
 .proj-head {
 	display: flex;
 	align-items: center;
-	gap: 10px;
+	gap: 6px;
 	padding: 11px 14px;
+}
+
+/* The disclosure is a real <button>; reset it to the old header row look. */
+.proj-disclosure {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 0;
+	margin: 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
 	cursor: pointer;
 	user-select: none;
 }
 
-.proj-head:hover .proj-chev {
+.proj-disclosure:hover .proj-chev {
 	color: var(--text);
 }
 

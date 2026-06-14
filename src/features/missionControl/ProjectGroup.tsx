@@ -28,14 +28,12 @@ const countOf = (
 type Props = {
 	group: SessionGroup
 	visibleSessions: ReadonlyArray<SessionState>
-	now: number
 	index: number
 }
 
 export const ProjectGroup = ({
 	group,
 	visibleSessions,
-	now,
 	index,
 }: Props): React.JSX.Element => {
 	// Per-group, not persisted: a fold is a quick "mute this project" gesture.
@@ -55,12 +53,6 @@ export const ProjectGroup = ({
 			: null
 
 	const toggle = (): void => setCollapsed(current => !current)
-
-	const toggleFromKeyboard = (event: React.KeyboardEvent): void => {
-		if (event.key !== 'Enter' && event.key !== ' ') return
-		event.preventDefault()
-		toggle()
-	}
 	// Header stats always describe the whole group, never the filtered view.
 	const runningCount = countOf(group.sessions, 'running')
 	const reviewCount = countOf(group.sessions, 'review')
@@ -72,46 +64,52 @@ export const ProjectGroup = ({
 			data-hue={projectHue(repoPath)}
 			style={{ animationDelay: `${index * STAGGER_STEP_MS}ms` }}
 		>
-			{/* Not a <button>: the header nests the real .proj-add button. */}
-			<header
-				className="proj-head"
-				role="button"
-				tabIndex={0}
-				aria-expanded={!collapsed}
-				onClick={toggle}
-				onKeyDown={toggleFromKeyboard}
-			>
-				<span className="proj-glyph">
-					{name.charAt(0).toUpperCase()}
-				</span>
-				<span className="proj-name">{name}</span>
-				<span className="proj-dir">{compactPath(repoPath)}</span>
-				<span className="mz-spacer" />
-				<span className="proj-stats">
-					{runningCount > 0 && (
-						<span className="ps">
-							<SDot s="run" /> {runningCount} running
-						</span>
-					)}
-					{reviewCount > 0 && (
-						<span className="ps">
-							<SDot s="rev" /> {reviewCount} review
-						</span>
-					)}
-					{failedCount > 0 && (
-						<span className="ps">
-							<SDot s="fail" /> {failedCount} failed
-						</span>
-					)}
-					{/* TODO(backend): subagent counts — "{nSub} subagents" as .ps.ps-dim once sessions expose subagents */}
-				</span>
+			{/* The disclosure toggle and the launch button are siblings — neither
+			    nests the other (no invalid nested interactives). */}
+			<header className="proj-head">
+				<button
+					type="button"
+					className="proj-disclosure"
+					aria-expanded={!collapsed}
+					onClick={toggle}
+				>
+					<span className="proj-glyph">
+						{name.charAt(0).toUpperCase()}
+					</span>
+					<span className="proj-name">{name}</span>
+					<span className="proj-dir">{compactPath(repoPath)}</span>
+					<span className="mz-spacer" />
+					<span className="proj-stats">
+						{runningCount > 0 && (
+							<span className="ps">
+								<SDot s="run" /> {runningCount} running
+							</span>
+						)}
+						{reviewCount > 0 && (
+							<span className="ps">
+								<SDot s="rev" /> {reviewCount} review
+							</span>
+						)}
+						{failedCount > 0 && (
+							<span className="ps">
+								<SDot s="fail" /> {failedCount} failed
+							</span>
+						)}
+						{/* TODO(backend): subagent counts — "{nSub} subagents" as .ps.ps-dim once sessions expose subagents */}
+					</span>
+					<span
+						className="proj-chev"
+						data-collapsed={collapsed ? 'true' : 'false'}
+					>
+						▾
+					</span>
+				</button>
 				{repoPath !== null && (
 					<button
 						type="button"
 						className="mz-iconbtn proj-add"
 						aria-label={`New agent in ${name}`}
-						onClick={event => {
-							event.stopPropagation()
+						onClick={() => {
 							void launchSession({
 								binary: AGENT_BINARY,
 								repoPath,
@@ -121,12 +119,6 @@ export const ProjectGroup = ({
 						<IconPlus />
 					</button>
 				)}
-				<span
-					className="proj-chev"
-					data-collapsed={collapsed ? 'true' : 'false'}
-				>
-					▾
-				</span>
 			</header>
 			{/* Collapsing unmounts the cards, which releases their frame subscriptions. */}
 			{!collapsed && (
@@ -135,7 +127,6 @@ export const ProjectGroup = ({
 						<AgentCard
 							key={session.id}
 							session={session}
-							now={now}
 							branch={branch}
 							diff={totals}
 							style={{

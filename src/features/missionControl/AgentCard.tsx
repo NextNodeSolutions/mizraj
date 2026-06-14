@@ -12,7 +12,7 @@ import { useCellFrame } from '@/features/sessions/useCellFrame'
 import type { SDotKind } from '@/shared/ui/atoms'
 import { SDot, StatusTag } from '@/shared/ui/atoms'
 
-import { formatSessionAge } from './sessionAge'
+import { SessionAgeLabel } from './SessionAgeLabel'
 
 const TERMINAL_TAIL_LINES = 2
 
@@ -92,40 +92,8 @@ const MiniTerm = ({ session, status }: MiniTermProps): React.JSX.Element => {
 	)
 }
 
-type SubAgent = {
-	name: string
-	status: 'run' | 'done'
-	line: string
-}
-
-type SubAgentsProps = {
-	subs: ReadonlyArray<SubAgent> | undefined
-}
-
-// Forward spec: nothing feeds `subs` yet, so this renders null today. The
-// tree markup/CSS are ready for the day session telemetry exposes spawns.
-const SubAgents = ({ subs }: SubAgentsProps): React.JSX.Element | null => {
-	if (subs === undefined || subs.length === 0) return null
-
-	return (
-		<div className="ac-subs">
-			{subs.map((sub, index) => (
-				<div key={sub.name} className="ac-sub">
-					<span className="tree">
-						{index === subs.length - 1 ? '└' : '├'}
-					</span>
-					<SDot s={sub.status} />
-					<span className="sub-name">{sub.name}</span>
-					<span className="ln">{sub.line}</span>
-				</div>
-			))}
-		</div>
-	)
-}
-
 type Props = {
 	session: SessionState
-	now: number
 	/** The checked-out branch of the card's own repo, when known. */
 	branch: string | null
 	/** Working-tree +/− of the card's own repo, when known. */
@@ -135,7 +103,6 @@ type Props = {
 
 export const AgentCard = ({
 	session,
-	now,
 	branch,
 	diff,
 	style,
@@ -163,11 +130,6 @@ export const AgentCard = ({
 			</span>
 			<span className="ac-task">{sessionLabel(session)}</span>
 			<MiniTerm session={session} status={status} />
-			{status === 'running' && (
-				// TODO(backend): subagent telemetry — no Tauri event exposes
-				// Claude subagent spawns yet
-				<SubAgents subs={undefined} />
-			)}
 			<span className="ac-foot">
 				{diff !== null && diff.files > 0 && (
 					<span className="ac-diff">
@@ -178,9 +140,7 @@ export const AgentCard = ({
 				{status === 'review' ? (
 					<span className="btn btn-sm gobtn">Review →</span>
 				) : (
-					<span className="time">
-						{formatSessionAge(now, session.startedAt)}
-					</span>
+					<SessionAgeLabel startedAt={session.startedAt} />
 				)}
 			</span>
 		</button>
