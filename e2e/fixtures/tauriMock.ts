@@ -87,6 +87,12 @@ export const installTauriMock = (fixtures: TauriMockFixtures): void => {
 	const commands: Record<string, (args: Record<string, unknown>) => unknown> =
 		{
 			projects_list: () => state.projects,
+			// No fixture repo is ever absent from disk in the mock world, so the
+			// missing set is empty. Present so the boot probe in useProjects
+			// resolves instead of rejecting — without it the rejection is only
+			// swallowed because the prod logger gates console output on DEV, so
+			// `expect(errors).toEqual([])` would pass over a real bug.
+			projects_missing: () => [],
 			projects_add: args => {
 				const path = String(args['repoPath'])
 				if (!state.projects.includes(path)) state.projects.push(path)
