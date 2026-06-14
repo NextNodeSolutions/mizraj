@@ -2,13 +2,15 @@ import { useState } from 'react'
 
 import { agentRunHref } from '@/app/router'
 import { formatSessionAge } from '@/features/missionControl/sessionAge'
-import type { SDotKind } from '@/shared/ui/atoms'
 import { Panel, PanelHead, SDot } from '@/shared/ui/atoms'
 import { IconPlus } from '@/shared/ui/icons'
 import { useNow } from '@/shared/useNow'
 
-import type { SessionDisplayStatus } from './displayStatus'
-import { DISPLAY_STATUS_LABEL, sessionDisplayStatus } from './displayStatus'
+import {
+	DISPLAY_STATUS_LABEL,
+	sessionDisplayStatus,
+	sessionDotKind,
+} from './displayStatus'
 import { launchSession } from './launchSession'
 import { openSession } from './openSession'
 import { sessionLabel, sessionRepoLabel } from './sessionLabel'
@@ -18,16 +20,6 @@ import { useSessions } from './useSessions'
 const AGENT_BINARY = 'claude'
 
 const AGE_REFRESH_MS = 30_000
-
-const DOT_KIND: Readonly<Record<SessionDisplayStatus, SDotKind>> = {
-	running: 'run',
-	review: 'rev',
-	failed: 'fail',
-}
-
-/** The status-dot flavor a session renders as (shared with the term tab). */
-export const sessionDotKind = (session: SessionState): SDotKind =>
-	DOT_KIND[sessionDisplayStatus(session)]
 
 // TODO(backend): per-session branch — sessions are not bound to a worktree/branch (worktree.rs exposes no command; repo_head covers only the active project). Render sessionRepoLabel(session) until a session→branch mapping exists.
 // TODO(backend): per-session diff stats unavailable — get_diff is the active project's working tree, not attributable to one session. Omit +/− in session rows; show repo · age instead.

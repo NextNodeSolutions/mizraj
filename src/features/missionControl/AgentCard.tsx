@@ -2,25 +2,21 @@ import { useEffect } from 'react'
 
 import type { DiffTotals } from '@/features/review/reviewFiles'
 import type { SessionDisplayStatus } from '@/features/sessions/displayStatus'
-import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
+import {
+	DISPLAY_STATUS_DOT,
+	sessionDisplayStatus,
+} from '@/features/sessions/displayStatus'
 import { openSession, openSessionReview } from '@/features/sessions/openSession'
 import { sessionLabel } from '@/features/sessions/sessionLabel'
 import type { SessionState } from '@/features/sessions/sessions'
 import { subscribeToCellFrames } from '@/features/sessions/sessionSubscription'
 import { terminalTail } from '@/features/sessions/terminalTail'
 import { useCellFrame } from '@/features/sessions/useCellFrame'
-import type { SDotKind } from '@/shared/ui/atoms'
 import { SDot, StatusTag } from '@/shared/ui/atoms'
 
 import { SessionAgeLabel } from './SessionAgeLabel'
 
 const TERMINAL_TAIL_LINES = 2
-
-const DOT_KIND: Readonly<Record<SessionDisplayStatus, SDotKind>> = {
-	running: 'run',
-	review: 'rev',
-	failed: 'fail',
-}
 
 // A running or failed agent re-opens its terminal; a cleanly ended one goes
 // to the diff review. Both follow the session's repo (MP2/MP5): the cockpit
@@ -122,7 +118,7 @@ export const AgentCard = ({
 			onClick={() => openCard(session)}
 		>
 			<span className="ac-top">
-				<SDot s={DOT_KIND[status]} />
+				<SDot s={DISPLAY_STATUS_DOT[status]} />
 				<StatusTag status={status} />
 				{branch !== null && (
 					<span className="branch-chip">⎇ {branch}</span>

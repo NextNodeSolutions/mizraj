@@ -1,3 +1,5 @@
+import type { SDotKind } from '@/shared/ui/atoms'
+
 import type { SessionState } from './sessions'
 
 /**
@@ -22,3 +24,17 @@ export const DISPLAY_STATUS_LABEL: Readonly<
 	review: 'needs review',
 	failed: 'failed',
 }
+
+// The status-dot flavor per display status — the single home for the
+// status→dot mapping, shared by the cockpit list, the term tab and the
+// mission-control cards.
+export const DISPLAY_STATUS_DOT: Readonly<
+	Record<SessionDisplayStatus, SDotKind>
+> = {
+	running: 'run',
+	review: 'rev',
+	failed: 'fail',
+}
+
+export const sessionDotKind = (session: SessionState): SDotKind =>
+	DISPLAY_STATUS_DOT[sessionDisplayStatus(session)]

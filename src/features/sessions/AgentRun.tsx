@@ -1,14 +1,12 @@
-import { invoke } from '@tauri-apps/api/core'
-
 import { DiffPanel } from '@/features/diff/DiffPanel'
 import { repoHeadLabel, useRepoHead } from '@/features/projects/repoHead'
-import { describeError } from '@/shared/errors'
-import { logger } from '@/shared/logger'
 import { pushToast } from '@/shared/toasts'
 import { SDot } from '@/shared/ui/atoms'
 
-import { CockpitSessions, sessionDotKind } from './CockpitSessions'
-import { sessionLabel } from './sessionLabel'
+import { closeSession } from './closeSession'
+import { CockpitSessions } from './CockpitSessions'
+import { sessionDotKind } from './displayStatus'
+import { contextLabel, sessionLabel } from './sessionLabel'
 import type { SessionState } from './sessions'
 import { SplitTreeView } from './SplitTreeView'
 import { useSession } from './useSession'
@@ -19,23 +17,10 @@ type Props = {
 }
 
 const stopSession = (sessionId: string): void => {
-	invoke('session_close', { sessionId })
-		.then(() => pushToast('Session stopped'))
-		.catch((error: unknown) => {
-			const { message, stack } = describeError(error)
-			logger.error(`AgentRun: session_close failed: ${message}`, {
-				scope: 'agent-run',
-				details: { stack, sessionId },
-			})
-		})
+	void closeSession(sessionId).then(ok => {
+		if (ok) pushToast('Session stopped')
+	})
 }
-
-const binaryBasename = (binary: string): string =>
-	binary.split('/').pop() ?? binary
-
-// TODO(backend): load_ghostty_config DTO (src-tauri/src/ghostty/dto.rs) exposes resolved colors but not the theme name. Render 'ghostty · {basename(session.binary)}' until the name field is added.
-const contextLabel = (session: SessionState): string =>
-	`ghostty · ${binaryBasename(session.binary)}`
 
 type TermTabProps = {
 	session: SessionState | undefined

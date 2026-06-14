@@ -8,14 +8,16 @@ vi.mock('@tauri-apps/api/event', () => ({
 }))
 
 import {
+	resetAgentEventsBridgeForTests,
+	startAgentEventsBridge,
+} from './agentEventsBridge'
+import {
 	AGENT_CELLS_EVENT,
 	AGENT_END_EVENT,
 	AGENT_TITLE_EVENT,
-	resetAgentEventsBridgeForTests,
 	cellFramesAtom,
 	endSessionAtom,
 	sessionsAtom,
-	startAgentEventsBridge,
 	startSessionAtom,
 } from './sessions'
 import type { SessionEndPayload } from './sessions'

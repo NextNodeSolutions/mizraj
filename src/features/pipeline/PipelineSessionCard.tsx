@@ -1,9 +1,9 @@
-import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useMemo, useState } from 'react'
 
 import { useDiff } from '@/features/diff/useDiff'
 import type { DiffTotals } from '@/features/review/reviewFiles'
 import { diffTotals, reviewFilesFromPatch } from '@/features/review/reviewFiles'
+import { closeSession } from '@/features/sessions/closeSession'
 import { sessionDisplayStatus } from '@/features/sessions/displayStatus'
 import { openSession, openSessionReview } from '@/features/sessions/openSession'
 import {
@@ -14,8 +14,6 @@ import type { SessionState } from '@/features/sessions/sessions'
 import { subscribeToCellFrames } from '@/features/sessions/sessionSubscription'
 import { terminalTail } from '@/features/sessions/terminalTail'
 import { useCellFrame } from '@/features/sessions/useCellFrame'
-import { describeError } from '@/shared/errors'
-import { logger } from '@/shared/logger'
 import { DiffStat, StatusTag } from '@/shared/ui/atoms'
 
 const TAIL_LINES = 2
@@ -47,13 +45,7 @@ const useWorkingTreeTotals = (repoPath: string | null): DiffTotals | null => {
 }
 
 const stopSession = (sessionId: string): void => {
-	invoke('session_close', { sessionId }).catch((error: unknown) => {
-		const { message, stack } = describeError(error)
-		logger.error(`PipelineSessionCard: session_close failed: ${message}`, {
-			scope: 'pipeline',
-			details: { stack, sessionId },
-		})
-	})
+	void closeSession(sessionId)
 }
 
 type TerminalPreviewProps = {
