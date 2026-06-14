@@ -71,6 +71,15 @@ pub fn projects_add(
     Ok(canonical.to_string_lossy().into_owned())
 }
 
+/// The path to remove from the registry: the canonical form while the directory
+/// still resolves, else the raw trimmed path. A repo registered canonically and
+/// then deleted/moved can no longer be canonicalized, so falling back to the raw
+/// path (which the frontend passes in canonical form) keeps it removable instead
+/// of stranding a dead entry.
+fn removal_key(repo_path: &str) -> PathBuf {
+    super::validate_repo_path(repo_path).unwrap_or_else(|_| PathBuf::from(repo_path.trim()))
+}
+
 #[tauri::command]
 pub async fn projects_remove(
     repo_path: String,
@@ -78,16 +87,12 @@ pub async fn projects_remove(
     db: tauri::State<'_, crate::db::Db>,
     watchers: tauri::State<'_, super::watcher::RepoWatchers>,
 ) -> Result<(), String> {
-    // Match `add`'s canonicalization so the teardown keys line up with what was
-    // registered. A removed/missing repo must stay removable, so a failed
-    // canonicalize (the dir vanished) falls back to the raw path rather than
-    // hard-failing the removal. canonicalize() is blocking, so run it off the
-    // async worker.
-    let canonical = tauri::async_runtime::spawn_blocking(move || {
-        super::validate_repo_path(&repo_path).unwrap_or_else(|_| PathBuf::from(repo_path.trim()))
-    })
-    .await
-    .map_err(|err| format!("canonicalize task failed: {err}"))?;
+    // removal_key matches `add`'s canonicalization so the teardown keys line up
+    // with what was registered, falling back to the raw path when the directory
+    // has vanished. canonicalize() is blocking, so run it off the async worker.
+    let canonical = tauri::async_runtime::spawn_blocking(move || removal_key(&repo_path))
+        .await
+        .map_err(|err| format!("canonicalize task failed: {err}"))?;
     let path = canonical.as_path();
     // Teardown FIRST — both steps are infallible. Running them before the
     // persistable registry mutation means a later persist failure can never
@@ -223,6 +228,43 @@ mod tests {
             registry.missing(),
             vec![PathBuf::from("/tmp/mizraj/definitely-gone")],
         );
+    }
+
+    #[test]
+    fn removal_key_canonicalizes_an_existing_directory() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let raw = dir.path().to_string_lossy().to_string();
+
+        let key = removal_key(&raw);
+
+        assert!(key.is_dir());
+        assert_eq!(key, dir.path().canonicalize().expect("canonicalize"));
+    }
+
+    #[test]
+    fn removal_key_falls_back_to_the_raw_trimmed_path_when_the_dir_is_gone() {
+        // The directory existed at registration but is gone now: canonicalize
+        // fails, so the raw trimmed path is used.
+        let key = removal_key("  /tmp/mizraj/definitely-gone-xyz  ");
+
+        assert_eq!(key, PathBuf::from("/tmp/mizraj/definitely-gone-xyz"));
+    }
+
+    #[test]
+    fn a_canonically_registered_repo_is_removable_after_its_dir_vanishes() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = dir.path().join("projects.json");
+        // Mimic a repo registered while it existed (stored as an absolute path)
+        // whose directory was later deleted — canonicalize would now fail.
+        let gone = "/tmp/mizraj/removable-gone-xyz";
+
+        let mut registry = Registry::load(&file).expect("load");
+        registry.add(PathBuf::from(gone)).expect("add");
+
+        // The fallback key must still match the stored entry so the removal lands.
+        registry.remove(&removal_key(gone)).expect("remove");
+
+        assert!(Registry::load(&file).expect("reload").list().is_empty());
     }
 
     #[test]
