@@ -387,7 +387,7 @@ describe('PlansView', () => {
 		const messages = getDefaultStore()
 			.get(toastsAtom)
 			.map(toast => toast.message)
-		expect(messages).toContain('1/2 agents lancés, 1 échoués')
+		expect(messages).toContain('1/2 agents launched, 1 failed')
 		expect(window.location.pathname).toBe('/')
 	})
 

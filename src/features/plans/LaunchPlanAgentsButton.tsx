@@ -54,7 +54,7 @@ export const LaunchPlanAgentsButton = ({
 		pushToast(
 			failed === 0
 				? `${launched} agents launched from this plan`
-				: `${launched}/${total} agents lancés, ${failed} échoués`,
+				: `${launched}/${total} agents launched, ${failed} failed`,
 		)
 		navigate(missionControlHref())
 	}
