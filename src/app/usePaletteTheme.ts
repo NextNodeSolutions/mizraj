@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { useAppearance } from '@/features/settings/settings'
+import { useAppearance } from '@/features/settings/useAppearance'
 
 // The v2 stylesheet themes (tokens.css) are keyed by CONCRETE palette name
 // (html[data-theme="latte|frappe|macchiato|mocha"]), so <html data-theme>

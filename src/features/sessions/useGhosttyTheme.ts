@@ -1,7 +1,7 @@
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect } from 'react'
 
-import { useAppearance } from '@/features/settings/settings'
+import { useAppearance } from '@/features/settings/useAppearance'
 
 import {
 	familyStackFrom,

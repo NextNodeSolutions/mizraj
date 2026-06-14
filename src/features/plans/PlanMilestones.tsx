@@ -9,6 +9,25 @@ const STATE_TAG_CLASS: Readonly<Record<MilestoneState, string>> = {
 	todo: 'tag',
 }
 
+/**
+ * Extend a doc meta line with what the milestones section will show below —
+ * only meaningful when that section renders (plan docs, non-empty overview).
+ */
+export const appendOverviewCounts = (
+	meta: string,
+	milestones: ReadonlyArray<MilestoneGroup>,
+): string => {
+	if (milestones.length === 0) return meta
+	const milestoneCount = milestones.length
+	const trackCount = milestones.reduce(
+		(sum, milestone) => sum + milestone.tracks.length,
+		0,
+	)
+	const milestoneLabel = `${milestoneCount} milestone${milestoneCount === 1 ? '' : 's'}`
+	const trackLabel = `${trackCount} track${trackCount === 1 ? '' : 's'}`
+	return `${meta} · ${milestoneLabel} · ${trackLabel}`
+}
+
 const STAGGER_STEP_S = 0.045
 
 type CheckProps = {

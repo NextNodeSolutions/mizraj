@@ -4,7 +4,7 @@ import { getDefaultStore, useAtomValue } from 'jotai'
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 
-import { useAppearance } from '@/features/settings/settings'
+import { useAppearance } from '@/features/settings/useAppearance'
 import { describeError, isSessionError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 

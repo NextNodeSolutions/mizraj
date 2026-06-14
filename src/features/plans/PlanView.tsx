@@ -1,21 +1,13 @@
-import { invoke } from '@tauri-apps/api/core'
-import { useEffect, useState } from 'react'
-
 import type { PlanRoute } from '@/app/router'
 import { matchPlanRoute, usePathname } from '@/app/router'
-import { describeError } from '@/shared/errors'
-import { logger } from '@/shared/logger'
+import type { MilestoneGroup } from '@/features/tasks/tasks'
+import { useTasks } from '@/features/tasks/tasks'
 
 import { buildPlanDoc } from './planDoc'
 import { PlanPaper } from './PlanPaper'
 import type { PlanEntry } from './plans'
-
-type ResolvedPlan = { url: string }
-
-type Resolution =
-	| { status: 'loading' }
-	| { status: 'ready'; url: string }
-	| { status: 'error'; message: string }
+import { generatedPlanFor } from './plans'
+import { useResolvedPlan } from './useResolvedPlan'
 
 const planKey = ({ kind, slug }: PlanRoute): string => `${kind}/${slug}`
 
@@ -40,40 +32,11 @@ export const PlanView = ({
 }: Props): React.JSX.Element => {
 	const pathname = usePathname()
 	const route = matchPlanRoute(pathname)
-	const [resolution, setResolution] = useState<Resolution>({
-		status: 'loading',
-	})
-
-	const routeKind = route?.kind
-	const routeSlug = route?.slug
-
-	useEffect(() => {
-		if (routeKind === undefined || routeSlug === undefined) return
-		let cancelled = false
-		setResolution({ status: 'loading' })
-		invoke<ResolvedPlan>('resolve_plan', {
-			kind: routeKind,
-			slug: routeSlug,
-		})
-			.then(resolved => {
-				if (!cancelled) {
-					setResolution({ status: 'ready', url: resolved.url })
-				}
-			})
-			.catch((error: unknown) => {
-				const { message, stack } = describeError(error)
-				logger.error(`PlanView: resolve_plan failed: ${message}`, {
-					scope: 'plan-view',
-					details: { stack, kind: routeKind, slug: routeSlug },
-				})
-				if (!cancelled) {
-					setResolution({ status: 'error', message })
-				}
-			})
-		return () => {
-			cancelled = true
-		}
-	}, [routeKind, routeSlug])
+	const resolution = useResolvedPlan(route)
+	// TODO: no plan->milestones linkage in backend; tasks_overview is
+	// per-project, so the milestones/launch UI reflects the active project
+	// regardless of which plan doc is open. Left as-is by review decision.
+	const tasks = useTasks(repoPath)
 
 	if (!route) {
 		return <p className="pl-doc-empty">Select a plan from the list.</p>
@@ -92,6 +55,14 @@ export const PlanView = ({
 			</p>
 		)
 	}
+
+	const milestones: ReadonlyArray<MilestoneGroup> =
+		route.kind === 'plan' && tasks.state.status === 'ready'
+			? tasks.state.data.milestones
+			: []
+	const generatedPlan =
+		route.kind === 'interview' ? generatedPlanFor(plans, route.slug) : null
+
 	return (
 		<PlanPaper
 			key={planKey(route)}
@@ -101,7 +72,8 @@ export const PlanView = ({
 				matchingEntry(plans, route),
 				nowMs,
 			)}
-			plans={plans}
+			milestones={milestones}
+			generatedPlan={generatedPlan}
 			repoPath={repoPath}
 		/>
 	)
