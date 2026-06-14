@@ -25,6 +25,7 @@ vi.mock('@/shared/logger', () => ({
 }))
 
 import { ProjectPicker } from './ProjectPicker'
+import { resetProjectsForTests } from './useProjects'
 
 const REGISTRY = ['/Users/dev/repo-a', '/Users/dev/repo-b']
 
@@ -40,6 +41,7 @@ describe('ProjectPicker', () => {
 	let onSelect: ReturnType<typeof vi.fn<(path: string) => void>>
 
 	beforeEach(() => {
+		resetProjectsForTests()
 		invokeMock.mockReset()
 		openDialogMock.mockReset()
 		onSelect = vi.fn<(path: string) => void>()
@@ -188,5 +190,54 @@ describe('ProjectPicker', () => {
 			repoPath: '/Users/dev/repo-b',
 		})
 		expect(onSelect).not.toHaveBeenCalled()
+	})
+
+	it('a pruned repo leaves the menu and the highlight stays in bounds', async () => {
+		await renderPicker('/Users/dev/repo-a')
+		await openMenu()
+
+		const remove =
+			menuOptions()[1]?.querySelector<HTMLButtonElement>('.pal-rm')
+		await act(async () => {
+			remove?.click()
+		})
+
+		const options = menuOptions()
+		expect(options.map(option => option.textContent)).not.toContainEqual(
+			expect.stringContaining('repo-b'),
+		)
+		const highlighted = options.filter(
+			option => option.getAttribute('data-on') === 'true',
+		)
+		expect(highlighted.length).toBeLessThanOrEqual(1)
+	})
+
+	it('pruning the highlighted last entry clamps the highlight in bounds', async () => {
+		await renderPicker('/Users/dev/repo-a')
+		await openMenu()
+
+		// Highlight repo-b (index 1), then push the highlight onto the trailing
+		// "Add repo…" row (index 2) so it sits at the list's end.
+		await press('ArrowDown')
+		await press('ArrowDown')
+		const before = menuOptions()
+		expect(before).toHaveLength(3)
+		expect(before[2]?.getAttribute('data-on')).toBe('true')
+
+		// Prune repo-b — the list shrinks to two rows; the old index 2 is now
+		// the end, so the highlight must clamp rather than dangle past it.
+		const remove =
+			menuOptions()[1]?.querySelector<HTMLButtonElement>('.pal-rm')
+		await act(async () => {
+			remove?.click()
+		})
+
+		const after = menuOptions()
+		expect(after).toHaveLength(2)
+		const highlightedIndex = after.findIndex(
+			option => option.getAttribute('data-on') === 'true',
+		)
+		expect(highlightedIndex).toBeGreaterThanOrEqual(0)
+		expect(highlightedIndex).toBeLessThan(after.length)
 	})
 })

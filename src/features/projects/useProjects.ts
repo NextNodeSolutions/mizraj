@@ -39,6 +39,11 @@ const logRegistryError = (operation: string, error: unknown): void => {
 	})
 }
 
+// The registry is global truth: the first surface to mount loads it, every later
+// surface (picker, pipeline, mission control, ×StrictMode) reuses the atoms
+// rather than refetching. Mirrors the `bridgeStarted` guard in repoEvents.ts.
+let registryLoaded = false
+
 export type ProjectsApi = {
 	projects: ReadonlyArray<string>
 	/** Registered repos whose folder is gone from disk (subset of `projects`). */
@@ -55,12 +60,15 @@ export const useProjects = (): ProjectsApi => {
 	const [missing, setMissing] = useAtom(missingProjectsAtom)
 
 	useEffect(() => {
+		if (registryLoaded) return
+		registryLoaded = true
 		let cancelled = false
 		fetchPathList('projects_list')
 			.then(list => {
 				if (!cancelled) setProjects(list)
 			})
 			.catch((error: unknown) => {
+				registryLoaded = false
 				logRegistryError('projects_list', error)
 			})
 		fetchPathList('projects_missing')
@@ -88,9 +96,11 @@ export const useProjects = (): ProjectsApi => {
 			const canonical = await invoke<string>('projects_add', {
 				repoPath: path,
 			})
-			setProjects(known =>
-				known.includes(canonical) ? known : [...known, canonical],
-			)
+			// `projects_add` returns the backend-canonicalized path, which may
+			// differ from the stored form (symlink, trailing slash, macOS case),
+			// so a local includes() can't tell new from existing. Re-list to
+			// reconcile with backend truth and avoid a duplicate entry.
+			setProjects(await fetchPathList('projects_list'))
 			return canonical
 		} catch (error: unknown) {
 			logRegistryError('projects_add', error)
@@ -109,4 +119,10 @@ export const useProjects = (): ProjectsApi => {
 	}
 
 	return { projects, missing, addProject, removeProject, refreshMissing }
+}
+
+// Test-only escape hatch: clear the one-time load guard so each suite mounts
+// against a clean registry (mirrors resetRepoEventsForTests in repoEvents.ts).
+export const resetProjectsForTests = (): void => {
+	registryLoaded = false
 }

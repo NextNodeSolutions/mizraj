@@ -139,4 +139,52 @@ describe('repo-changed invalidation', () => {
 
 		expect(listenMock).toHaveBeenCalledTimes(1)
 	})
+
+	it('keeps refetching for the survivor after a co-subscriber unmounts', async () => {
+		const secondContainer = document.createElement('div')
+		document.body.appendChild(secondContainer)
+		const secondRoot = createRoot(secondContainer)
+
+		await renderProbe('/repo/alpha')
+		await act(async () => {
+			secondRoot.render(<DiffProbe repoPath="/repo/alpha" />)
+		})
+
+		// Drop one of the two subscribers on /repo/alpha.
+		await act(async () => {
+			secondRoot.unmount()
+		})
+		secondContainer.remove()
+		const callsBefore = invokeMock.mock.calls.length
+
+		await act(async () => {
+			emitRepoChanged?.({
+				payload: { repoPath: '/repo/alpha', kind: 'worktree' },
+			})
+		})
+
+		// The survivor still refetches — losing a co-subscriber didn't tear down
+		// the repo's subscription.
+		expect(invokeMock.mock.calls.length).toBe(callsBefore + 1)
+		expect(invokeMock).toHaveBeenLastCalledWith('get_diff', {
+			repoPath: '/repo/alpha',
+		})
+	})
+
+	it('an event after the last subscriber unmounts is a no-op', async () => {
+		await renderProbe('/repo/alpha')
+
+		await act(async () => {
+			root.unmount()
+		})
+		const callsBefore = invokeMock.mock.calls.length
+
+		await act(async () => {
+			emitRepoChanged?.({
+				payload: { repoPath: '/repo/alpha', kind: 'worktree' },
+			})
+		})
+
+		expect(invokeMock.mock.calls.length).toBe(callsBefore)
+	})
 })

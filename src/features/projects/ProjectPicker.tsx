@@ -1,5 +1,12 @@
 import { open } from '@tauri-apps/plugin-dialog'
-import { Fragment, useEffect, useState } from 'react'
+import {
+	Fragment,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react'
 
 import { matchMissionControlRoute, usePathname } from '@/app/router'
 import { describeError } from '@/shared/errors'
@@ -81,10 +88,27 @@ export const ProjectPicker = ({
 	const [menuOpen, setMenuOpen] = useState(false)
 	const [highlighted, setHighlighted] = useState(0)
 
-	const entries = buildEntries(projects, missing)
-	const firstGoneIndex = entries.findIndex(
-		entry => entry.kind === 'project' && entry.missing,
+	// Stable identity so the keydown effect and clamp depend on a value that only
+	// changes when the registry does, not on every hover-driven re-render.
+	const entries = useMemo(
+		() => buildEntries(projects, missing),
+		[projects, missing],
 	)
+	const firstGoneIndex = useMemo(
+		() =>
+			entries.findIndex(
+				entry => entry.kind === 'project' && entry.missing,
+			),
+		[entries],
+	)
+
+	// removeProject is async and re-orders the list; clamp against the freshly
+	// rendered length so the highlight can never point past the last entry once
+	// a pruned (or vanished) repo leaves. Layout phase keeps the row in bounds
+	// before paint.
+	useLayoutEffect(() => {
+		setHighlighted(current => Math.min(current, entries.length - 1))
+	}, [entries.length])
 
 	const openMenu = (): void => {
 		const activeIndex = entries.findIndex(
@@ -127,19 +151,23 @@ export const ProjectPicker = ({
 	}
 
 	const prune = (path: string): void => {
+		// removeProject re-renders a re-ordered, shorter list; the highlight clamp
+		// runs in the layout effect keyed on entries.length, not on a stale count.
 		void removeProject(path)
-		// The pruned repo leaves the list, so the highlight can't outrun its end.
-		const remainingCount = entries.length - 1
-		setHighlighted(current =>
-			Math.max(0, Math.min(current, remainingCount - 1)),
-		)
 	}
+
+	// The keydown listener subscribes once per open (deps: [menuOpen]); reading
+	// the live highlight/entries and actions through a ref keeps it from
+	// re-subscribing the window capture listener on every hover-driven render.
+	const keyStateRef = useRef({ entries, highlighted, choose, prune })
+	keyStateRef.current = { entries, highlighted, choose, prune }
 
 	// The menu owns its keys at the window's capture phase, like the palette,
 	// so the embedded terminal never sees a handled chord.
 	useEffect(() => {
 		if (!menuOpen) return
 		const onKeydown = (event: KeyboardEvent): void => {
+			const state = keyStateRef.current
 			if (event.key === 'Escape') {
 				event.preventDefault()
 				event.stopPropagation()
@@ -151,28 +179,31 @@ export const ProjectPicker = ({
 				event.stopPropagation()
 				const step = event.key === 'ArrowDown' ? 1 : -1
 				setHighlighted(current =>
-					Math.max(0, Math.min(current + step, entries.length - 1)),
+					Math.max(
+						0,
+						Math.min(current + step, state.entries.length - 1),
+					),
 				)
 				return
 			}
 			if (event.key === 'Delete' || event.key === 'Backspace') {
-				const entry = entries[highlighted]
+				const entry = state.entries[state.highlighted]
 				if (entry?.kind !== 'project') return
 				event.preventDefault()
 				event.stopPropagation()
-				prune(entry.path)
+				state.prune(entry.path)
 				return
 			}
 			if (event.key === 'Enter') {
 				event.preventDefault()
 				event.stopPropagation()
-				choose(entries[highlighted])
+				state.choose(state.entries[state.highlighted])
 			}
 		}
 		window.addEventListener('keydown', onKeydown, { capture: true })
 		return () =>
 			window.removeEventListener('keydown', onKeydown, { capture: true })
-	})
+	}, [menuOpen])
 
 	return (
 		<div className="mz-projwrap">
