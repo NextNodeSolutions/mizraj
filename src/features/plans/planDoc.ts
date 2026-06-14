@@ -61,9 +61,12 @@ export const appendOverviewCounts = (
 	milestones: ReadonlyArray<MilestoneGroup>,
 ): string => {
 	if (milestones.length === 0) return meta
+	const milestoneCount = milestones.length
 	const trackCount = milestones.reduce(
 		(sum, milestone) => sum + milestone.tracks.length,
 		0,
 	)
-	return `${meta} · ${milestones.length} milestones · ${trackCount} tracks`
+	const milestoneLabel = `${milestoneCount} milestone${milestoneCount === 1 ? '' : 's'}`
+	const trackLabel = `${trackCount} track${trackCount === 1 ? '' : 's'}`
+	return `${meta} · ${milestoneLabel} · ${trackLabel}`
 }

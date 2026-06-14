@@ -363,6 +363,63 @@ describe('PlansView', () => {
 		expect(window.location.pathname).toBe('/')
 	})
 
+	it('warns with the tally when some agents fail to launch', async () => {
+		let spawnCalls = 0
+		serveOverview({
+			overview: overviewOf(
+				trackOf('track-a', 'backlog'),
+				trackOf('track-b', 'backlog'),
+			),
+			spawn: () => {
+				spawnCalls += 1
+				return spawnCalls === 1
+					? Promise.resolve('session-1')
+					: Promise.reject(new Error('spawn failed'))
+			},
+		})
+		window.history.pushState({}, '', '/plans/plan/auth-hardening')
+		await render()
+
+		await act(async () => {
+			launchButton()?.click()
+		})
+
+		const messages = getDefaultStore()
+			.get(toastsAtom)
+			.map(toast => toast.message)
+		expect(messages).toContain('1/2 agents lancés, 1 échoués')
+		expect(window.location.pathname).toBe('/')
+	})
+
+	it('ignores a second click while a launch is in flight', async () => {
+		let releaseSpawn: ((sessionId: string) => void) | undefined
+		serveOverview({
+			overview: overviewOf(trackOf('track-a', 'backlog')),
+			spawn: () =>
+				new Promise<string>(resolve => {
+					releaseSpawn = resolve
+				}),
+		})
+		window.history.pushState({}, '', '/plans/plan/auth-hardening')
+		await render()
+
+		await act(async () => {
+			launchButton()?.click()
+		})
+		await act(async () => {
+			launchButton()?.click()
+		})
+
+		const spawns = invokeMock.mock.calls.filter(
+			call => call[0] === 'session_create',
+		)
+		expect(spawns).toHaveLength(1)
+
+		await act(async () => {
+			releaseSpawn?.('session-1')
+		})
+	})
+
 	it('derives milestone and track states under a plan doc', async () => {
 		serveOverview()
 		window.history.pushState({}, '', '/plans/plan/auth-hardening')
@@ -384,7 +441,7 @@ describe('PlansView', () => {
 		await render()
 
 		expect(container.querySelector('.pl-doc-meta')?.textContent).toContain(
-			'· 1 milestones · 2 tracks',
+			'· 1 milestone · 2 tracks',
 		)
 	})
 

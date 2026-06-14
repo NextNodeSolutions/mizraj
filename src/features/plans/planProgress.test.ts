@@ -89,4 +89,8 @@ describe('milestoneState', () => {
 			),
 		).toBe('todo')
 	})
+
+	it('is todo when the milestone has no tracks', () => {
+		expect(milestoneState(milestone([]))).toBe('todo')
+	})
 })

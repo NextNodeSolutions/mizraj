@@ -47,9 +47,15 @@ export const LaunchPlanAgentsButton = ({
 
 	const launchAgents = async (path: string): Promise<void> => {
 		setLaunching(true)
+		const total = pendingTracks.length
 		const launched = await spawnAgentsFor(pendingTracks, path)
 		setLaunching(false)
-		pushToast(`${launched} agents launched from this plan`)
+		const failed = total - launched
+		pushToast(
+			failed === 0
+				? `${launched} agents launched from this plan`
+				: `${launched}/${total} agents lancés, ${failed} échoués`,
+		)
 		navigate(missionControlHref())
 	}
 

@@ -17,6 +17,7 @@ const hasStartedTask = (milestone: MilestoneGroup): boolean =>
  * waiting otherwise.
  */
 export const milestoneState = (milestone: MilestoneGroup): MilestoneState => {
+	if (milestone.tracks.length === 0) return 'todo'
 	const doneTracks = milestone.tracks.filter(isTrackDone).length
 	if (doneTracks === milestone.tracks.length) return 'done'
 	if (hasStartedTask(milestone) || doneTracks > 0) return 'in progress'

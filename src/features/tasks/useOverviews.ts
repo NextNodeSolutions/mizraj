@@ -61,5 +61,5 @@ export const useOverviews = (
 		}
 	}, [reposKey, reload])
 
-	return { overviews, refetch: () => void reload() }
+	return { overviews, refetch: reload }
 }

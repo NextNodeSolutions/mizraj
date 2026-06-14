@@ -31,7 +31,7 @@ export const PlanPaper = ({
 	plans,
 	repoPath,
 }: Props): React.JSX.Element => {
-	// TODO: no plan->milestones linkage in backend; tasks_overview is per-project, shown for the active project regardless of which plan doc is open
+	// TODO: no plan->milestones linkage in backend; tasks_overview is per-project, so the milestones/launch UI reflects the active project regardless of which plan doc is open. Left as-is by review decision — gating this to the open plan needs backend plan->milestones linkage first.
 	const tasks = useTasks(repoPath)
 	const milestones: ReadonlyArray<MilestoneGroup> =
 		doc.kind === 'plan' && tasks.state.status === 'ready'
