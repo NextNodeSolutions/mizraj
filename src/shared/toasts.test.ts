@@ -1,7 +1,7 @@
 import { getDefaultStore } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { pushToast, toastsAtom, TOAST_TTL_MS } from './toasts'
+import { MAX_TOASTS, pushToast, toastsAtom, TOAST_TTL_MS } from './toasts'
 
 const store = getDefaultStore()
 
@@ -43,12 +43,29 @@ describe('toasts store', () => {
 		])
 	})
 
-	it('two toasts with the same message expire without clobbering each other', () => {
+	it('dedups a message already on screen instead of stacking it', () => {
 		pushToast('same')
 		pushToast('same')
+
+		expect(store.get(toastsAtom).map(toast => toast.message)).toEqual([
+			'same',
+		])
 
 		vi.advanceTimersByTime(TOAST_TTL_MS)
-
 		expect(store.get(toastsAtom)).toEqual([])
+	})
+
+	it('caps the queue, dropping the oldest past MAX_TOASTS', () => {
+		const messages = Array.from(
+			{ length: MAX_TOASTS + 1 },
+			(_unused, index) => `toast-${index}`,
+		)
+		for (const message of messages) pushToast(message)
+
+		// The very first toast was dropped to keep the column bounded; the
+		// MAX_TOASTS newest remain, oldest-first.
+		expect(store.get(toastsAtom).map(toast => toast.message)).toEqual(
+			messages.slice(1),
+		)
 	})
 })
