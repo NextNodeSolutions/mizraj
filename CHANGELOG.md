@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0](https://github.com/NextNodeSolutions/mizraj/compare/v0.2.0...v0.3.0) (2026-06-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* bundle identifier changed from fr.nextnode.mizraj to dev.mizraj.desktop; builds installed as v0.2.0 will not auto-update and require a manual reinstall. The macOS app-data dir also moves from ~/Library/Application Support/fr.nextnode.mizraj/ to ~/Library/Application Support/dev.mizraj.desktop/.
+
+### Features
+
+* **ghostty:** drive app theming from the user's Ghostty config ([#14](https://github.com/NextNodeSolutions/mizraj/issues/14)) ([8ee1b04](https://github.com/NextNodeSolutions/mizraj/commit/8ee1b04124bbfbda1c4382dae12058dcf06cb141))
+
+
+### Bug Fixes
+
+* change bundle identifier to dev.mizraj.desktop ([dd84fb3](https://github.com/NextNodeSolutions/mizraj/commit/dd84fb3df85af2a23518d7eddea14e9cead0722e))
+
 ## [0.2.0](https://github.com/NextNodeSolutions/mizraj/compare/v0.1.0...v0.2.0) (2026-06-02)
 
 
