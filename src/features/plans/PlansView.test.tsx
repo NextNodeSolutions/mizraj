@@ -351,6 +351,9 @@ describe('PlansView', () => {
 		window.history.pushState({}, '', '/plans/plan/auth-hardening')
 		await render()
 
+		// Idle: aria-busy is absent rather than the literal string "false".
+		expect(launchButton()?.getAttribute('aria-busy')).toBeNull()
+
 		await act(async () => {
 			launchButton()?.click()
 		})

@@ -66,7 +66,7 @@ export const LaunchPlanAgentsButton = ({
 			disabled={
 				launching || repoPath === null || pendingTracks.length === 0
 			}
-			aria-busy={launching}
+			aria-busy={launching || undefined}
 			onClick={() => {
 				if (repoPath !== null) void launchAgents(repoPath)
 			}}
