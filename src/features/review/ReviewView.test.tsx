@@ -739,4 +739,52 @@ describe('ReviewView', () => {
 			),
 		).toBeNull()
 	})
+
+	it('drops a stale composer line anchor once a reload removes its line', async () => {
+		store.set(startSessionAtom, {
+			id: 'agent-1',
+			binary: 'claude',
+			repoPath: '/repo',
+		})
+		await render()
+
+		// Arm (without sending) a line comment on limiter.ts line 2 — the
+		// composer context narrows to that line.
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('.review__cmt-add')
+				?.click()
+		})
+		expect(container.querySelector('.review-rail__ctx')?.textContent).toBe(
+			'↳ src/api/limiter.ts · line 2',
+		)
+
+		// The agent edits the file: the reloaded patch reshapes limiter.ts so
+		// its only hunk now starts at line 4 — line 2 is no longer present.
+		const RELOADED = [
+			'diff --git a/src/api/limiter.ts b/src/api/limiter.ts',
+			'index 3f1e2d4..4a2b3c5 100644',
+			'--- a/src/api/limiter.ts',
+			'+++ b/src/api/limiter.ts',
+			'@@ -4,1 +4,2 @@',
+			' const ttl = 60',
+			'+export const rateLimit = () => {}',
+			'',
+		].join('\n')
+		invokeMock.mockImplementation((command: string) =>
+			command === 'get_diff'
+				? Promise.resolve({ patch: RELOADED })
+				: Promise.resolve(undefined),
+		)
+		await act(async () => {
+			fireAppFocus()
+		})
+
+		// The armed anchor pointed at a line that no longer exists, so the
+		// composer falls back to file-level context instead of pinning a dead
+		// line into the chip and the next pasted `[path:line]` prefix.
+		expect(container.querySelector('.review-rail__ctx')?.textContent).toBe(
+			'↳ src/api/limiter.ts',
+		)
+	})
 })

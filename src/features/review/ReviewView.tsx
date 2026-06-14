@@ -80,6 +80,20 @@ const resolveFile = (
 ): ReviewFile | null =>
 	files.find(file => file.path === path) ?? files[0] ?? null
 
+// An armed anchor is stale once it no longer maps to shown content: its file
+// left the parsed patch, or a reload (agent edit, window focus) reshaped the
+// hunks so its line is gone. The composer must then drop it rather than pin the
+// chip / pasted `[path:line]` prefix to a vanished line — the same
+// line-presence test the diff annotations apply (diffLineIsPresent).
+const anchorIsStale = (
+	anchor: ReviewRef,
+	parsedFiles: ReadonlyArray<FileDiffMetadata>,
+): boolean => {
+	const meta = parsedFiles.find(file => file.name === anchor.path) ?? null
+	if (meta === null) return true
+	return anchor.line !== null && !diffLineIsPresent(meta, anchor.line, anchor.side)
+}
+
 // Where the composer anchors: the armed line while its file stays selected,
 // else the selected file — so switching files resets the context by itself.
 const composeContextFor = (
@@ -230,14 +244,10 @@ export const ReviewView = ({ activeProjectPath }: Props): React.JSX.Element => {
 			setCommentAnchor(null)
 		}
 	}
-	// An armed anchor outlives its file when a reload (agent edit) drops that
-	// file from the parsed patch — clear it so the composer doesn't stay pinned
-	// to a line that no longer exists. Render-time adjust over an effect: it
-	// converges in one pass and never paints the stale context.
-	if (
-		commentAnchor !== null &&
-		!files.some(file => file.path === commentAnchor.path)
-	) {
+	// Clear an armed anchor the moment a reload makes it stale (file gone, or
+	// its line reshaped away) so the composer never paints a vanished line.
+	// Render-time adjust over an effect: it converges in one pass.
+	if (commentAnchor !== null && anchorIsStale(commentAnchor, parsedFiles)) {
 		setCommentAnchor(null)
 	}
 	const { layout, toggleLayout, diffStyle } = useLayoutToggle()
