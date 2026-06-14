@@ -2,7 +2,10 @@ import { getDefaultStore } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { activeSessionIdAtom } from './sessions'
-import { startTerminalInputRouter } from './terminalInput'
+import {
+	resetTerminalInputRouterForTests,
+	startTerminalInputRouter,
+} from './terminalInput'
 
 const COMPOSER_LABEL = 'Terminal input'
 
@@ -18,6 +21,10 @@ describe('terminal input router focus reclaim', () => {
 	})
 
 	afterEach(() => {
+		// Tear the router down so the next beforeEach starts it fresh — the
+		// once-guard otherwise no-ops every start after the first, leaking the
+		// composer and document listeners across tests.
+		resetTerminalInputRouterForTests()
 		vi.useRealTimers()
 		getDefaultStore().set(activeSessionIdAtom, null)
 	})

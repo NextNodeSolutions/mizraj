@@ -21,6 +21,10 @@ import { endSessionAtom, sessionsAtom, startSessionAtom } from './sessions'
 
 const store = getDefaultStore()
 
+// A fixed epoch so seed-time startedAt and useNow's initial read share one
+// clock — the '0s' age cannot flake across a 1000ms boundary.
+const FROZEN_NOW = new Date('2026-06-14T12:00:00.000Z').getTime()
+
 describe('CockpitSessions', () => {
 	let container: HTMLDivElement
 	let root: Root
@@ -39,6 +43,9 @@ describe('CockpitSessions', () => {
 			root.unmount()
 		})
 		container.remove()
+		// Restore the real clock even if a frozen-time test threw before its own
+		// teardown, so fake timers never leak into the next test.
+		vi.useRealTimers()
 	})
 
 	const seed = (
@@ -129,6 +136,10 @@ describe('CockpitSessions', () => {
 	})
 
 	it('lists only sessions of the followed repo', () => {
+		// Freeze the clock so startedAt and useNow's initial read share it and
+		// the age cannot tick to 1s on a millisecond boundary.
+		vi.useFakeTimers()
+		vi.setSystemTime(FROZEN_NOW)
 		seed('mizraj-1')
 		seed('scribe-1', undefined, '/repo/scribe')
 		render('mizraj-1', '/repo/mizraj')
@@ -140,7 +151,8 @@ describe('CockpitSessions', () => {
 		const metas = Array.from(container.querySelectorAll('.lr-b')).map(
 			meta => meta.textContent,
 		)
-		expect(metas).toEqual(['mizraj · 0s'])
+		// Scoped to one repo, the row drops the repo chip — it is redundant.
+		expect(metas).toEqual(['0s'])
 	})
 
 	it('shows sessions from every repo when no repo is followed', () => {
@@ -159,6 +171,8 @@ describe('CockpitSessions', () => {
 	})
 
 	it('metas running rows with repo · age and ended rows with repo · status', () => {
+		vi.useFakeTimers()
+		vi.setSystemTime(FROZEN_NOW)
 		seed('run-1')
 		seed('rev-1', { exitCode: 0 })
 		seed('fail-1', { exitCode: 1 })

@@ -337,6 +337,11 @@ const createComposer = (activeSessionId: () => string | null): Composer => {
 
 let routerStarted = false
 
+// Captured only when the router starts, so a test-only reset can undo exactly
+// what `startTerminalInputRouter` wired up — the listeners, the store
+// subscriptions and the composer.
+let teardownRouter: (() => void) | null = null
+
 // One window-level keydown listener routes every keystroke to whichever pane is
 // active (activeSessionIdAtom), read live from the default store so it always
 // targets the current pane — never broadcasting to all of them. The keybind
@@ -353,7 +358,7 @@ export const startTerminalInputRouter = (): void => {
 	const activeSessionId = (): string | null => store.get(activeSessionIdAtom)
 
 	let matcher = createKeybindMatcher(store.get(keybindTableAtom))
-	store.sub(keybindTableAtom, () => {
+	const unsubKeybindTable = store.sub(keybindTableAtom, () => {
 		matcher = createKeybindMatcher(store.get(keybindTableAtom))
 	})
 
@@ -417,23 +422,50 @@ export const startTerminalInputRouter = (): void => {
 		composerBusy,
 	})
 
-	window.addEventListener('keydown', event => {
+	const onKeydown = (event: KeyboardEvent): void => {
 		trackAltSide(event, true)
 		route(event)
-	})
-	window.addEventListener('keyup', event => {
+	}
+	const onKeyup = (event: KeyboardEvent): void => {
 		trackAltSide(event, false)
-	})
-	window.addEventListener('blur', () => {
+	}
+	const onWindowBlur = (): void => {
 		leftAltDown = false
 		rightAltDown = false
-	})
+	}
+
+	window.addEventListener('keydown', onKeydown)
+	window.addEventListener('keyup', onKeyup)
+	window.addEventListener('blur', onWindowBlur)
 	window.addEventListener('focus', syncSoon)
 	document.addEventListener('click', syncSoon)
 	// Document-level so ANY field handing focus back to the body returns the
 	// keyboard to the terminal — the palette's Escape/⌘K close and other
 	// keyboard-only dismissals never produce a click or window refocus.
 	document.addEventListener('focusout', syncSoon)
-	store.sub(activeSessionIdAtom, syncSoon)
+	const unsubActiveSession = store.sub(activeSessionIdAtom, syncSoon)
 	syncComposerFocus()
+
+	teardownRouter = (): void => {
+		window.removeEventListener('keydown', onKeydown)
+		window.removeEventListener('keyup', onKeyup)
+		window.removeEventListener('blur', onWindowBlur)
+		window.removeEventListener('focus', syncSoon)
+		document.removeEventListener('click', syncSoon)
+		document.removeEventListener('focusout', syncSoon)
+		unsubKeybindTable()
+		unsubActiveSession()
+		composer.remove()
+	}
+}
+
+// Test-only escape hatch: tear down the router (listeners, store subscriptions,
+// composer) and re-arm the once-guard so each test starts from a clean slate.
+// Mirrors resetSettingsForTests — without it the module-level `routerStarted`
+// makes every start after the first a no-op, leaking the composer and four
+// document listeners and making tests order-dependent.
+export const resetTerminalInputRouterForTests = (): void => {
+	teardownRouter?.()
+	teardownRouter = null
+	routerStarted = false
 }

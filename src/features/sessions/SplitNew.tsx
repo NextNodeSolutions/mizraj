@@ -69,7 +69,10 @@ export const SplitNew = ({ repoPath }: Props): React.JSX.Element => {
 
 	const handleAgent = (binary: string): void => {
 		setOpen(false)
-		void launchSession({ binary, repoPath })
+		setPending(true)
+		void launchSession({ binary, repoPath }).finally(() => {
+			setPending(false)
+		})
 	}
 
 	return (
@@ -89,6 +92,7 @@ export const SplitNew = ({ repoPath }: Props): React.JSX.Element => {
 					className="btn btn-primary mz-split-chev"
 					aria-label="Choose an agent"
 					aria-expanded={open}
+					disabled={pending}
 					onClick={() => setOpen(current => !current)}
 				>
 					▾
@@ -106,6 +110,7 @@ export const SplitNew = ({ repoPath }: Props): React.JSX.Element => {
 						type="button"
 						className="mz-menu-item"
 						role="menuitem"
+						disabled={pending}
 						onClick={() => handleAgent(agent.id)}
 					>
 						<span

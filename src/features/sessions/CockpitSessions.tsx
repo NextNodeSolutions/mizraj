@@ -32,12 +32,16 @@ export const sessionDotKind = (session: SessionState): SDotKind =>
 // TODO(backend): per-session branch — sessions are not bound to a worktree/branch (worktree.rs exposes no command; repo_head covers only the active project). Render sessionRepoLabel(session) until a session→branch mapping exists.
 // TODO(backend): per-session diff stats unavailable — get_diff is the active project's working tree, not attributable to one session. Omit +/− in session rows; show repo · age instead.
 // TODO(backend): no merged/landed tracking for ended sessions. Ended rows show DISPLAY_STATUS_LABEL (needs review / failed) only.
-const sessionMeta = (session: SessionState, now: number): string => {
+const sessionMeta = (
+	session: SessionState,
+	now: number,
+	showRepo: boolean,
+): string => {
 	const tail =
 		session.status === 'running'
 			? formatSessionAge(now, session.startedAt)
 			: DISPLAY_STATUS_LABEL[sessionDisplayStatus(session)]
-	const repo = sessionRepoLabel(session)
+	const repo = showRepo ? sessionRepoLabel(session) : null
 	return repo === null ? tail : `${repo} · ${tail}`
 }
 
@@ -77,9 +81,15 @@ type RowProps = {
 	session: SessionState
 	active: boolean
 	now: number
+	showRepo: boolean
 }
 
-const SessionRow = ({ session, active, now }: RowProps): React.JSX.Element => (
+const SessionRow = ({
+	session,
+	active,
+	now,
+	showRepo,
+}: RowProps): React.JSX.Element => (
 	<a
 		className="lrow"
 		href={agentRunHref(session.id)}
@@ -97,7 +107,7 @@ const SessionRow = ({ session, active, now }: RowProps): React.JSX.Element => (
 		<div style={{ minWidth: 0 }}>
 			{/* TODO(backend): no task/prompt is stored for a session (SessionState has no task field). Render sessionLabel(session) — OSC title or binary basename — as the row title. */}
 			<div className="lr-t">{sessionLabel(session)}</div>
-			<div className="lr-b">{sessionMeta(session, now)}</div>
+			<div className="lr-b">{sessionMeta(session, now, showRepo)}</div>
 		</div>
 	</a>
 )
@@ -107,6 +117,7 @@ type GroupProps = {
 	sessions: ReadonlyArray<SessionState>
 	activeSessionId: string
 	now: number
+	showRepo: boolean
 }
 
 const SessionGroup = ({
@@ -114,6 +125,7 @@ const SessionGroup = ({
 	sessions,
 	activeSessionId,
 	now,
+	showRepo,
 }: GroupProps): React.JSX.Element | null => {
 	if (sessions.length === 0) return null
 	return (
@@ -127,6 +139,7 @@ const SessionGroup = ({
 					session={session}
 					active={session.id === activeSessionId}
 					now={now}
+					showRepo={showRepo}
 				/>
 			))}
 		</>
@@ -153,6 +166,9 @@ export const CockpitSessions = ({
 			: sessions.filter(session => session.repoPath === activeProjectPath)
 	const running = repoSessions.filter(session => session.status === 'running')
 	const ended = repoSessions.filter(session => session.status === 'ended')
+	// The list spans repos only when no repo is followed; once scoped to one,
+	// every row shares the same repo so the chip is noise.
+	const showRepo = activeProjectPath === null
 
 	return (
 		<Panel className="fc-sess">
@@ -167,12 +183,14 @@ export const CockpitSessions = ({
 					sessions={running}
 					activeSessionId={activeSessionId}
 					now={now}
+					showRepo={showRepo}
 				/>
 				<SessionGroup
 					title="Ended"
 					sessions={ended}
 					activeSessionId={activeSessionId}
 					now={now}
+					showRepo={showRepo}
 				/>
 			</nav>
 			<div className="fc-sess-foot">
