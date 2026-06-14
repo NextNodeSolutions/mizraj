@@ -3,11 +3,11 @@ import type {
 	WorkerInitializationRenderOptions,
 	WorkerPoolOptions,
 } from '@pierre/diffs/react'
-import { useEffect } from 'react'
 // Vite bundles the @pierre/diffs worker entry as a dedicated worker chunk; the
 // `?worker` default export is a zero-arg Worker constructor.
 // oxlint-disable-next-line import/default -- Vite virtual module; the default export exists at build time, not in the resolved .js
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker'
+import { useEffect } from 'react'
 
 import { warmDiffPool } from '@/shared/diffPoolWarmup'
 import { NEXTNODE_DIFF_THEME } from '@/shared/theme/shiki-nextnode'
@@ -85,6 +85,12 @@ const DiffPoolWarmup = (): null => {
 	return null
 }
 
+// NOTE: this provider mounts ABOVE the app's ErrorBoundary (and outside
+// StrictMode), so a throw during worker init here would escape that boundary
+// and blank the app. It is safe only because @pierre/diffs defers worker
+// creation to idle and self-catches init failures internally — the provider
+// itself never throws synchronously on mount. Keep worker setup off the render
+// path if this ever changes.
 export const DiffWorkerPool = ({ children }: Props): React.JSX.Element => (
 	<WorkerPoolContextProvider
 		poolOptions={POOL_OPTIONS}

@@ -9,8 +9,35 @@ export const useNow = (intervalMs: number): number => {
 	const [now, setNow] = useState(() => Date.now())
 
 	useEffect(() => {
-		const timer = setInterval(() => setNow(Date.now()), intervalMs)
-		return () => clearInterval(timer)
+		let timer: ReturnType<typeof setInterval> | null = null
+
+		// Only burn a timer while the window is visible; a hidden window has no
+		// labels to refresh. On re-show, tick once to resync the clock that
+		// drifted while paused, then resume ticking.
+		const start = (): void => {
+			if (timer !== null) return
+			timer = setInterval(() => setNow(Date.now()), intervalMs)
+		}
+		const stop = (): void => {
+			if (timer === null) return
+			clearInterval(timer)
+			timer = null
+		}
+		const onVisibilityChange = (): void => {
+			if (document.visibilityState === 'hidden') {
+				stop()
+				return
+			}
+			setNow(Date.now())
+			start()
+		}
+
+		if (document.visibilityState !== 'hidden') start()
+		document.addEventListener('visibilitychange', onVisibilityChange)
+		return () => {
+			document.removeEventListener('visibilitychange', onVisibilityChange)
+			stop()
+		}
 	}, [intervalMs])
 
 	return now

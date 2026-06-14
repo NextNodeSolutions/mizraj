@@ -19,6 +19,20 @@ const chordIndex = (event: KeyboardEvent): number | null => {
 	return Number(event.key) - Number(FIRST_CHORD_KEY)
 }
 
+// Don't hijack ⌘/Ctrl+digit while the caret sits in editable text — the digit
+// is a character the user is typing, and stealing it would swallow keystrokes.
+const isEditableTarget = (): boolean => {
+	const active = document.activeElement
+	if (active === null) return false
+	if (
+		active instanceof HTMLInputElement ||
+		active instanceof HTMLTextAreaElement
+	) {
+		return true
+	}
+	return active instanceof HTMLElement && active.isContentEditable
+}
+
 /**
  * ⌘/Ctrl+1..5 jump between the five views (mission, cockpit, board, plans,
  * review). Registered at the window's CAPTURE phase with the chord fully
@@ -40,6 +54,7 @@ export const useShellShortcuts = (): void => {
 		const onKeydown = (event: KeyboardEvent): void => {
 			const index = chordIndex(event)
 			if (index === null) return
+			if (isEditableTarget()) return
 			const href = targets[index]
 			if (href === undefined) return
 			event.preventDefault()

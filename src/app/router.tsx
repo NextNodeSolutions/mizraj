@@ -137,6 +137,10 @@ const useLocationValue = (read: () => string): string => {
 	useEffect(() => {
 		const handler = (): void => setValue(read())
 		window.addEventListener('popstate', handler)
+		// Resync once after attaching: a popstate fired between this hook's
+		// initial render and the effect mounting would otherwise be missed,
+		// leaving `value` stale against the live location.
+		setValue(read())
 		return () => window.removeEventListener('popstate', handler)
 	}, [read])
 	return value

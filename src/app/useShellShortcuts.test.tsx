@@ -124,6 +124,25 @@ describe('useShellShortcuts', () => {
 		expect(event?.defaultPrevented).toBe(false)
 	})
 
+	it('lets cmd+digit through while the caret is in an editable field', () => {
+		const input = document.createElement('input')
+		document.body.appendChild(input)
+		input.focus()
+		expect(document.activeElement).toBe(input)
+
+		let event: KeyboardEvent | undefined
+		act(() => {
+			event = pressGlobal({ key: '3', metaKey: true })
+		})
+
+		// Typing isn't hijacked: no navigation, and the event stays unclaimed
+		// so the field receives the keystroke.
+		expect(window.location.pathname).toBe('/')
+		expect(event?.defaultPrevented).toBe(false)
+
+		input.remove()
+	})
+
 	it('stops handled chords before they reach deeper key routers', () => {
 		const downstream = vi.fn()
 		document.addEventListener('keydown', downstream)

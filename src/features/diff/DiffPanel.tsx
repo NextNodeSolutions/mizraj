@@ -43,6 +43,11 @@ export const DiffPanel = ({ repoPath }: Props): React.JSX.Element => {
 
 	const selected =
 		files.find(file => file.path === selectedPath) ?? files[0] ?? null
+	// Selection and the FileDiff `key` both index by `FileDiffMetadata.name`,
+	// which assumes names are unique within the patch. That holds here: this is
+	// always one working-tree patch (`git diff`), where each path appears once.
+	// A multi-commit or rename-tracked patch could repeat a name and break the
+	// lookup — out of scope for this preview-only dock.
 	const selectedMeta =
 		parsedFiles.find(file => file.name === selected?.path) ?? null
 

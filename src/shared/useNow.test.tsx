@@ -5,9 +5,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useNow } from './useNow'
 
-const Clock = ({ intervalMs }: { intervalMs: number }): React.JSX.Element => {
-	const now = useNow(intervalMs)
-	return <time>{now}</time>
+const INTERVAL_MS = 1000
+
+let latest = 0
+
+const Probe = (): React.JSX.Element => {
+	latest = useNow(INTERVAL_MS)
+	return <output>{latest}</output>
+}
+
+const setVisibility = (state: DocumentVisibilityState): void => {
+	Object.defineProperty(document, 'visibilityState', {
+		configurable: true,
+		get: () => state,
+	})
+	document.dispatchEvent(new Event('visibilitychange'))
 }
 
 describe('useNow', () => {
@@ -16,10 +28,13 @@ describe('useNow', () => {
 
 	beforeEach(() => {
 		vi.useFakeTimers()
-		vi.setSystemTime(1_000)
+		setVisibility('visible')
 		container = document.createElement('div')
 		document.body.appendChild(container)
 		root = createRoot(container)
+		act(() => {
+			root.render(<Probe />)
+		})
 	})
 
 	afterEach(() => {
@@ -28,25 +43,50 @@ describe('useNow', () => {
 		})
 		container.remove()
 		vi.useRealTimers()
+		setVisibility('visible')
 	})
 
-	it('returns the current time on first render', () => {
+	it('ticks on the interval while the window is visible', () => {
+		const first = latest
+
 		act(() => {
-			root.render(<Clock intervalMs={30_000} />)
+			vi.setSystemTime(Date.now() + INTERVAL_MS)
+			vi.advanceTimersByTime(INTERVAL_MS)
 		})
 
-		expect(container.querySelector('time')?.textContent).toBe('1000')
+		expect(latest).not.toBe(first)
+		expect(latest).toBeGreaterThan(first)
 	})
 
-	it('re-renders with fresh time every interval', () => {
+	it('stops ticking while the window is hidden', () => {
 		act(() => {
-			root.render(<Clock intervalMs={30_000} />)
+			setVisibility('hidden')
 		})
+		const parked = latest
 
 		act(() => {
-			vi.advanceTimersByTime(30_000)
+			vi.setSystemTime(Date.now() + INTERVAL_MS * 5)
+			vi.advanceTimersByTime(INTERVAL_MS * 5)
 		})
 
-		expect(container.querySelector('time')?.textContent).toBe('31000')
+		// No interval fires while hidden, so the value never moves.
+		expect(latest).toBe(parked)
+	})
+
+	it('resyncs once when the window becomes visible again', () => {
+		act(() => {
+			setVisibility('hidden')
+			vi.setSystemTime(Date.now() + INTERVAL_MS * 3)
+			vi.advanceTimersByTime(INTERVAL_MS * 3)
+		})
+		const parked = latest
+
+		act(() => {
+			setVisibility('visible')
+		})
+
+		// Re-show ticks once immediately to catch up the drifted clock.
+		expect(latest).not.toBe(parked)
+		expect(latest).toBeGreaterThan(parked)
 	})
 })

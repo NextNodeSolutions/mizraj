@@ -42,4 +42,20 @@ describe('useLocationSearch', () => {
 			'?filter=review',
 		)
 	})
+
+	it('resyncs to the live location its mount effect would otherwise miss', () => {
+		// Simulate a popstate that fired before the listener attached: change
+		// the URL with a bare pushState (no popstate dispatched), then mount.
+		// Without the in-effect resync the hook would render stale; with it the
+		// fresh listener's catch-up read picks up the current search.
+		window.history.pushState({}, '', '/?filter=failed')
+
+		act(() => {
+			root.render(<SearchProbe />)
+		})
+
+		expect(container.querySelector('output')?.textContent).toBe(
+			'?filter=failed',
+		)
+	})
 })
