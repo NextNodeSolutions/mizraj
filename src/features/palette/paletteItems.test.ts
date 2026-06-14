@@ -117,6 +117,27 @@ describe('buildPaletteItems', () => {
 		expect(agents[1]?.hint).toBe('needs review')
 	})
 
+	it('gives every item a unique id even when two sessions share a label', () => {
+		const items = build({
+			sessions: [
+				session('run-1', { repoPath: '/Users/me/dev/mizraj' }),
+				session('run-2', { repoPath: '/Users/me/dev/mizraj' }),
+			],
+			plans: [PLAN],
+			activeProjectPath: '/repo',
+		})
+
+		// Two claude sessions in the same repo collide on the label — the React
+		// key must come from the id, which stays unique.
+		const agents = items.filter(item => item.group === 'Agents')
+		expect(agents.map(item => item.label)).toEqual([
+			'claude — mizraj',
+			'claude — mizraj',
+		])
+		const ids = items.map(item => item.id)
+		expect(new Set(ids).size).toBe(ids.length)
+	})
+
 	it('labels agents with their repo when known', () => {
 		const items = build({
 			sessions: [session('run-1', { repoPath: '/Users/me/dev/mizraj' })],

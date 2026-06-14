@@ -28,6 +28,8 @@ import {
 import type { SessionState } from '@/features/sessions/sessions'
 
 export type PaletteItem = {
+	/** Stable, unique React key — two sessions can share a label, never an id. */
+	id: string
 	group: string
 	label: string
 	hint?: string
@@ -49,6 +51,7 @@ const sessionItems = (
 	sessions.map(session => {
 		const repo = sessionRepoLabel(session)
 		return {
+			id: `agent:${session.id}`,
 			group: 'Agents',
 			label:
 				repo === null
@@ -67,6 +70,7 @@ const reviewItems = (
 	sessions
 		.filter(session => sessionDisplayStatus(session) === 'review')
 		.map(session => ({
+			id: `review:${session.id}`,
 			group: 'Review',
 			label: `${sessionLabel(session)} — needs review`,
 			run: () => navigate(reviewHref()),
@@ -76,6 +80,7 @@ const planItems = (
 	plans: ReadonlyArray<PlanEntry>,
 ): ReadonlyArray<PaletteItem> =>
 	plans.map(entry => ({
+		id: `plan:${entry.kind}:${entry.slug}`,
 		group: 'Plans',
 		label: entry.title,
 		hint: entry.kind,
@@ -84,36 +89,46 @@ const planItems = (
 
 const screenItems = (cockpitHref: string): ReadonlyArray<PaletteItem> => [
 	{
+		id: 'screen:mission-control',
 		group: 'Go to',
 		label: 'Mission Control',
 		hint: '⌘1',
 		run: () => navigate(missionControlHref()),
 	},
 	{
+		id: 'screen:cockpit',
 		group: 'Go to',
 		label: 'Cockpit',
 		hint: '⌘2',
 		run: () => navigate(cockpitHref),
 	},
 	{
+		id: 'screen:pipeline',
 		group: 'Go to',
 		label: 'Pipeline board',
 		hint: '⌘3',
 		run: () => navigate(pipelineHref()),
 	},
 	{
+		id: 'screen:plans',
 		group: 'Go to',
 		label: 'Plans',
 		hint: '⌘4',
 		run: () => navigate(plansIndexHref()),
 	},
 	{
+		id: 'screen:review',
 		group: 'Go to',
 		label: 'Diff review',
 		hint: '⌘5',
 		run: () => navigate(reviewHref()),
 	},
-	{ group: 'Go to', label: 'Tasks', run: () => navigate(tasksHref()) },
+	{
+		id: 'screen:tasks',
+		group: 'Go to',
+		label: 'Tasks',
+		run: () => navigate(tasksHref()),
+	},
 ]
 
 const actionItems = (
@@ -122,6 +137,7 @@ const actionItems = (
 	if (activeProjectPath === null) return []
 	return [
 		{
+			id: 'action:new-agent',
 			group: 'Actions',
 			label: 'New agent…',
 			hint: '↵',
@@ -133,6 +149,7 @@ const actionItems = (
 			},
 		},
 		{
+			id: 'action:new-terminal',
 			group: 'Actions',
 			label: 'New terminal',
 			run: () => {

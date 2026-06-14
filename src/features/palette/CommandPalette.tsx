@@ -171,7 +171,7 @@ export const CommandPalette = ({
 					)}
 					{filtered.map((item, index) => (
 						<PaletteRow
-							key={`${item.group}:${item.label}`}
+							key={item.id}
 							item={item}
 							previous={filtered[index - 1]}
 							optionId={optionId(index)}
