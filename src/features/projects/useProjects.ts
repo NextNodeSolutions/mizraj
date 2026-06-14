@@ -63,11 +63,17 @@ export const useProjects = (): ProjectsApi => {
 		if (registryLoaded) return
 		registryLoaded = true
 		let cancelled = false
+		// Whether the gating load (projects_list) has resolved/rejected. The
+		// guard means "registry loaded"; until the load settles it has loaded
+		// nothing, so an unmount before then must release the guard.
+		let settled = false
 		fetchPathList('projects_list')
 			.then(list => {
+				settled = true
 				if (!cancelled) setProjects(list)
 			})
 			.catch((error: unknown) => {
+				settled = true
 				registryLoaded = false
 				logRegistryError('projects_list', error)
 			})
@@ -80,6 +86,12 @@ export const useProjects = (): ProjectsApi => {
 			})
 		return () => {
 			cancelled = true
+			// Unmounted before the load settled (StrictMode's
+			// mount→unmount→remount, or a fast route change): release the
+			// one-time guard so the remount refetches. Otherwise the guard
+			// stays true against a registry that never populated and every
+			// surface reads an empty list for the whole session.
+			if (!settled) registryLoaded = false
 		}
 	}, [setProjects, setMissing])
 

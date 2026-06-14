@@ -91,6 +91,50 @@ describe('useProjects', () => {
 		expect(container.textContent).toContain('/tmp/repo-b')
 	})
 
+	it('refetches after an unmount interrupts the initial load (StrictMode strand)', async () => {
+		// projects_list stays pending through the first mount; we unmount before
+		// it settles, then remount. The one-time guard must release on that
+		// unmount so the second mount actually refetches — otherwise the guard
+		// stays true against a registry that never populated and every surface
+		// reads an empty list for the whole session.
+		let resolveFirst: ((value: ReadonlyArray<string>) => void) | null = null
+		let listCalls = 0
+		invokeMock.mockImplementation((command: string) => {
+			if (command === 'projects_list') {
+				listCalls += 1
+				if (listCalls === 1) {
+					return new Promise<ReadonlyArray<string>>(resolve => {
+						resolveFirst = resolve
+					})
+				}
+				return Promise.resolve(['/tmp/repo-a'])
+			}
+			return Promise.resolve(null)
+		})
+
+		// First mount starts the load, then unmounts before it settles.
+		await renderProbe()
+		act(() => {
+			root.unmount()
+		})
+		container.remove()
+
+		// The first (now cancelled) load resolving late must not repopulate.
+		await act(async () => {
+			resolveFirst?.(['/tmp/stale'])
+		})
+
+		// Remount on a fresh root: the released guard lets it refetch.
+		container = document.createElement('div')
+		document.body.appendChild(container)
+		root = createRoot(container)
+		await renderProbe()
+
+		expect(listCalls).toBe(2)
+		expect(container.textContent).toContain('/tmp/repo-a')
+		expect(container.textContent).not.toContain('/tmp/stale')
+	})
+
 	it('re-lists after an add so the canonical path reconciles with backend truth', async () => {
 		// The backend canonicalizes the path; the picker shows whatever the
 		// re-fetched registry holds, never a locally-guessed entry.
