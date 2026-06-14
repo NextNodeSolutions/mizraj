@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { useDiff } from '@/features/diff/useDiff'
 import type { DiffTotals } from '@/features/review/reviewFiles'
@@ -28,6 +28,8 @@ type Props = {
 	isFirst?: boolean
 	/** Approve handler for review cards; the view owns the optimistic move. */
 	onApprove?: () => void
+	/** Fires when the entrance animation ends, so the view can drop its id. */
+	onAnimationEnd?: () => void
 }
 
 // The card's own repo working-tree totals — never the active project's
@@ -75,6 +77,7 @@ export const PipelineSessionCard = ({
 	fresh = false,
 	isFirst = false,
 	onApprove,
+	onAnimationEnd,
 }: Props): React.JSX.Element => {
 	const status = sessionDisplayStatus(session)
 	const frame = useCellFrame(session.id)
@@ -87,6 +90,16 @@ export const PipelineSessionCard = ({
 	// Rendering sessionRepoLabel(session) as the branch-slot stand-in until
 	// sessions carry a ref_name/worktree.
 	const repoLabel = sessionRepoLabel(session)
+	// Guards the approve action: the optimistic move + (future) merge command
+	// must fire once. A second click before the card leaves Review would
+	// double-fire it, so the button latches disabled on the first click.
+	const [approving, setApproving] = useState(false)
+
+	const runApprove = (): void => {
+		if (approving) return
+		setApproving(true)
+		onApprove?.()
+	}
 
 	useEffect(() => subscribeToCellFrames(session.id), [session.id])
 
@@ -95,6 +108,7 @@ export const PipelineSessionCard = ({
 			className="pipeline__card"
 			data-status={status}
 			data-anim={fresh ? 'in' : undefined}
+			onAnimationEnd={onAnimationEnd}
 		>
 			<div className="pipeline__card-row">
 				<StatusTag status={status} />
@@ -121,7 +135,8 @@ export const PipelineSessionCard = ({
 									? 'btn btn-primary btn-sm'
 									: 'btn btn-outline btn-sm'
 							}
-							onClick={onApprove}
+							disabled={approving}
+							onClick={runApprove}
 						>
 							✓ Approve
 						</button>

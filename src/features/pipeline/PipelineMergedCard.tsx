@@ -8,12 +8,15 @@ type Props = {
 	session: SessionState
 	/** Just approved — mounts with the spring entrance. */
 	fresh?: boolean
+	/** Fires when the entrance animation ends, so the view can drop its id. */
+	onAnimationEnd?: () => void
 }
 
 /** A session approved from Review, parked in Done with its merged note. */
 export const PipelineMergedCard = ({
 	session,
 	fresh = false,
+	onAnimationEnd,
 }: Props): React.JSX.Element => {
 	const repoLabel = sessionRepoLabel(session)
 
@@ -22,6 +25,7 @@ export const PipelineMergedCard = ({
 			className="pipeline__card"
 			data-done="true"
 			data-anim={fresh ? 'in' : undefined}
+			onAnimationEnd={onAnimationEnd}
 		>
 			<div className="pipeline__card-row">
 				<span className="tag">merged</span>

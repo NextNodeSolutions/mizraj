@@ -1,5 +1,9 @@
+import { useState } from 'react'
+
 import type { Task } from '@/features/tasks/tasks'
 import { updateTask } from '@/features/tasks/tasks'
+import { describeError } from '@/shared/errors'
+import { logger } from '@/shared/logger'
 import { pushToast } from '@/shared/toasts'
 
 import { launchTaskAgent } from './launchTaskAgent'
@@ -18,24 +22,41 @@ const markDone = async (
 	entry: TaskEntry,
 	onChanged: () => void,
 ): Promise<void> => {
-	await updateTask({
-		repoPath: entry.task.repoPath,
-		id: entry.task.id,
-		title: entry.task.title,
-		description: entry.task.description,
-		status: 'done',
-	})
-	pushToast('Task done ✓')
-	onChanged()
+	try {
+		await updateTask({
+			repoPath: entry.task.repoPath,
+			id: entry.task.id,
+			title: entry.task.title,
+			description: entry.task.description,
+			status: 'done',
+		})
+		pushToast('Task done ✓')
+		onChanged()
+	} catch (error: unknown) {
+		const { message, stack } = describeError(error)
+		logger.error(`PipelineTaskCard: mark done failed: ${message}`, {
+			scope: 'pipeline',
+			details: { stack, taskId: entry.task.id },
+		})
+		pushToast('Could not mark the task done — see logs')
+	}
 }
 
-const launch = (
+const launch = async (
 	task: Task,
 	onSpawned: (sessionId: string) => void,
-): void => {
-	void launchTaskAgent(task).then(sessionId => {
+): Promise<void> => {
+	try {
+		const sessionId = await launchTaskAgent(task)
 		if (sessionId !== null) onSpawned(sessionId)
-	})
+	} catch (error: unknown) {
+		const { message, stack } = describeError(error)
+		logger.error(`PipelineTaskCard: launch failed: ${message}`, {
+			scope: 'pipeline',
+			details: { stack, taskId: task.id },
+		})
+		pushToast('Agent launch failed — see logs')
+	}
 }
 
 type MetaRowProps = {
@@ -66,6 +87,25 @@ export const PipelineTaskCard = ({
 	const { task } = entry
 	const blocked = task.status === 'blocked'
 	const done = task.status === 'done'
+	// Guards the async spawn→update chain: a second click while the first is
+	// in flight would spawn a second agent, so the button disables itself and
+	// ignores re-clicks until the promise settles.
+	const [pending, setPending] = useState(false)
+
+	const runLaunch = (): void => {
+		if (pending) return
+		setPending(true)
+		void launch(task, sessionId => {
+			onLaunched?.(sessionId)
+			onChanged()
+		}).finally(() => setPending(false))
+	}
+
+	const runMarkDone = (): void => {
+		if (pending) return
+		setPending(true)
+		void markDone(entry, onChanged).finally(() => setPending(false))
+	}
 
 	return (
 		<article
@@ -93,13 +133,8 @@ export const PipelineTaskCard = ({
 								? 'btn btn-primary btn-sm'
 								: 'btn btn-outline btn-sm'
 						}
-						disabled={blocked}
-						onClick={() => {
-							launch(task, sessionId => {
-								onLaunched?.(sessionId)
-								onChanged()
-							})
-						}}
+						disabled={blocked || pending}
+						onClick={runLaunch}
 					>
 						▶ Launch agent
 					</button>
@@ -110,7 +145,8 @@ export const PipelineTaskCard = ({
 					<button
 						type="button"
 						className="btn btn-outline btn-sm"
-						onClick={() => void markDone(entry, onChanged)}
+						disabled={pending}
+						onClick={runMarkDone}
 					>
 						✓ Mark done
 					</button>

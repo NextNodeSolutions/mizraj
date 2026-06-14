@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest'
 import type { SessionState } from '@/features/sessions/sessions'
 import type { Overview, Task } from '@/features/tasks/tasks'
 
-import { groupColumnByRepo, pipelineColumns } from './pipelineColumns'
+import {
+	groupColumnByRepo,
+	pipelineColumns,
+	primaryApproveSessionId,
+} from './pipelineColumns'
 
 const task = (id: string, status: Task['status']): Task => ({
 	repoPath: '/repo/x',
@@ -59,6 +63,8 @@ const overview = (
 })
 
 const NONE_APPROVED: ReadonlySet<string> = new Set()
+
+const isReviewable = (ended: SessionState): boolean => ended.exitCode === 0
 
 describe('pipelineColumns', () => {
 	it('routes tasks and sessions to their columns', () => {
@@ -147,7 +153,10 @@ describe('pipelineColumns', () => {
 			{ ...session('s2', 'running'), repoPath: '/repo/alpha' },
 		]
 		const entries = [
-			{ task: { ...task('t1', 'in_progress'), repoPath: '/repo/alpha' }, branch: null },
+			{
+				task: { ...task('t1', 'in_progress'), repoPath: '/repo/alpha' },
+				branch: null,
+			},
 		]
 
 		const groups = groupColumnByRepo(sessions, entries)
@@ -169,5 +178,48 @@ describe('pipelineColumns', () => {
 
 		expect(columns.backlog).toEqual([])
 		expect(columns.runningSessions.map(s => s.id)).toEqual(['run'])
+	})
+})
+
+describe('primaryApproveSessionId', () => {
+	const ofRepo = (
+		id: string,
+		repoPath: string,
+		exitCode: number,
+	): SessionState => ({
+		...session(id, 'ended', exitCode),
+		repoPath,
+	})
+
+	it('targets the first reviewable card of the first repo group', () => {
+		// Flat order puts beta's reviewable first, but alpha's group is seen
+		// first (its failed card), so alpha's reviewable owns the primary.
+		const ended = [
+			ofRepo('alpha-fail', '/repo/alpha', 2),
+			ofRepo('beta-review', '/repo/beta', 0),
+			ofRepo('alpha-review', '/repo/alpha', 0),
+		]
+
+		expect(primaryApproveSessionId(ended, isReviewable)).toBe(
+			'alpha-review',
+		)
+	})
+
+	it('skips a group with no reviewable card', () => {
+		const ended = [
+			ofRepo('alpha-fail', '/repo/alpha', 2),
+			ofRepo('beta-review', '/repo/beta', 0),
+		]
+
+		expect(primaryApproveSessionId(ended, isReviewable)).toBe('beta-review')
+	})
+
+	it('returns null when nothing is reviewable', () => {
+		const ended = [
+			ofRepo('alpha-fail', '/repo/alpha', 2),
+			ofRepo('beta-fail', '/repo/beta', 1),
+		]
+
+		expect(primaryApproveSessionId(ended, isReviewable)).toBe(null)
 	})
 })

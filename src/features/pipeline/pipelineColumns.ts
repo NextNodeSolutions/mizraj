@@ -57,6 +57,26 @@ export const groupColumnByRepo = (
 	}))
 }
 
+/**
+ * The session that carries the primary Approve button in the Review column.
+ * The column re-orders cards by repo ({@link groupColumnByRepo}), so the
+ * visually-first Approve is the first reviewable session of the first group
+ * that has one — NOT the first in the flat order, which can sit in a later
+ * repo group on a multi-repo board. Returns null when no card offers Approve
+ * (every ended session failed). `isReviewable` is injected so this module
+ * stays free of the display-status layer.
+ */
+export const primaryApproveSessionId = (
+	endedSessions: ReadonlyArray<SessionState>,
+	isReviewable: (session: SessionState) => boolean,
+): string | null => {
+	for (const group of groupColumnByRepo(endedSessions, [])) {
+		const reviewable = group.sessions.find(isReviewable)
+		if (reviewable !== undefined) return reviewable.id
+	}
+	return null
+}
+
 const byStatus = (
 	entries: ReadonlyArray<TaskEntry>,
 	statuses: ReadonlyArray<Task['status']>,

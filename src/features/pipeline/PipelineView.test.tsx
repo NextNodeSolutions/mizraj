@@ -40,6 +40,7 @@ vi.mock('@/shared/logger', () => ({
 	},
 }))
 
+import { projectsAtom } from '@/features/projects/useProjects'
 import {
 	cellFramesAtom,
 	endSessionAtom,
@@ -53,8 +54,6 @@ import type {
 } from '@/features/sessions/terminalWire'
 import type { Overview } from '@/features/tasks/tasks'
 import { toastsAtom } from '@/shared/toasts'
-
-import { projectsAtom } from '@/features/projects/useProjects'
 
 import { approvedSessionIdsAtom } from './approvedSessions'
 import { PipelineView } from './PipelineView'
@@ -520,6 +519,63 @@ describe('PipelineView', () => {
 		expect(approves[0]?.className).toContain('btn-primary')
 		expect(approves[1]?.className).toContain('btn-outline')
 		expect(approves[1]?.className).not.toContain('btn-primary')
+	})
+
+	it('puts the primary Approve on the first repo group after grouping', async () => {
+		store.set(projectsAtom, ['/repo/alpha', '/repo/beta'])
+		invokeMock.mockImplementation((command: string) => {
+			if (command === 'tasks_overview') {
+				return Promise.resolve({ milestones: [], userTasks: [] })
+			}
+			if (command === 'get_diff') return Promise.resolve({ patch: '' })
+			return Promise.resolve(undefined)
+		})
+		// Flat order: alpha's failed card, then beta's review, then alpha's
+		// review. The flat-first *reviewable* session is beta's — but the
+		// Review column re-orders by repo, so alpha's group renders first and
+		// owns the visually-first Approve. The primary must land there.
+		store.set(startSessionAtom, {
+			id: 'alpha-fail',
+			binary: 'claude',
+			repoPath: '/repo/alpha',
+		})
+		store.set(endSessionAtom, { sessionId: 'alpha-fail', exitCode: 2 })
+		store.set(startSessionAtom, {
+			id: 'beta-review',
+			binary: 'claude',
+			repoPath: '/repo/beta',
+		})
+		store.set(endSessionAtom, { sessionId: 'beta-review', exitCode: 0 })
+		store.set(startSessionAtom, {
+			id: 'alpha-review',
+			binary: 'claude',
+			repoPath: '/repo/alpha',
+		})
+		store.set(endSessionAtom, { sessionId: 'alpha-review', exitCode: 0 })
+		await render('/repo/alpha')
+
+		const reviewColumn = column('Review')
+		const groups = Array.from(
+			reviewColumn?.querySelectorAll('.pipeline__repo-group') ?? [],
+		)
+		// alpha's group is rendered first (first-seen via alpha-fail).
+		expect(groups[0]?.querySelector('.pipeline__repo')?.textContent).toBe(
+			'alpha',
+		)
+		const approves = Array.from(
+			reviewColumn?.querySelectorAll<HTMLButtonElement>('button') ?? [],
+		).filter(button => button.textContent?.includes('Approve'))
+		expect(approves).toHaveLength(2)
+		// The first Approve in DOM order belongs to alpha's review card and is
+		// the primary; beta's stays an outline despite being first in the flat
+		// session order.
+		expect(approves[0]?.className).toContain('btn-primary')
+		expect(approves[1]?.className).toContain('btn-outline')
+		expect(approves[1]?.className).not.toContain('btn-primary')
+		const primaries = approves.filter(button =>
+			button.className.includes('btn-primary'),
+		)
+		expect(primaries).toHaveLength(1)
 	})
 
 	it('shows the working-tree diff totals on ended-session cards', async () => {

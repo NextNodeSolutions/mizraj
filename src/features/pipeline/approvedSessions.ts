@@ -19,3 +19,22 @@ export const approveSessionAtom = atom(
 		)
 	},
 )
+
+/**
+ * Drop approved ids whose session no longer exists in the live set — a
+ * session can vanish (closed, pruned) after the user approved it, and the
+ * client-only approved set has no other way to forget it, so it would only
+ * grow. A no-op (returns the same reference) when nothing is stale, so the
+ * caller can skip a redundant write.
+ */
+export const pruneApprovedSessionsAtom = atom(
+	null,
+	(get, set, liveSessionIds: ReadonlySet<string>): void => {
+		const approved = get(approvedSessionIdsAtom)
+		const pruned = new Set(
+			[...approved].filter(id => liveSessionIds.has(id)),
+		)
+		if (pruned.size === approved.size) return
+		set(approvedSessionIdsAtom, pruned)
+	},
+)

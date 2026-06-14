@@ -118,4 +118,25 @@ describe('launchTaskAgent', () => {
 		)
 		expect(navigateMock).not.toHaveBeenCalled()
 	})
+
+	it('still succeeds when the spawn lands but the task update fails', async () => {
+		// The agent is the real side effect: once it spawned, the launch is a
+		// success even if the post-spawn task flag rejects. The session id must
+		// still come back, and because launchTaskAgent swallows the update
+		// rejection internally this await resolves rather than rejecting — a
+		// leaked rejection would surface here as a failing (rejected) test.
+		invokeMock.mockImplementation((command: string) =>
+			command === 'session_create'
+				? Promise.resolve('sess-9')
+				: Promise.reject(new Error('db locked')),
+		)
+
+		const sessionId = await launchTaskAgent(TASK)
+
+		expect(sessionId).toBe('sess-9')
+		expect(invokeMock).toHaveBeenCalledWith(
+			'tasks_update',
+			expect.objectContaining({ id: 'task-1' }),
+		)
+	})
 })
