@@ -1,8 +1,27 @@
-/* Bundled fallback fonts — parity with Ghostty's embedded JetBrains Mono +
- * Nerd symbols: when the user's configured font-family is missing (or lacks
- * Nerd glyphs), the terminal still gets ligatures and icons instead of Menlo.
- * Faces load lazily on first use; ghosttyConfigCache pre-loads them before
- * measuring the cell box so metrics never come from an interim fallback. */
+/* App-level sheet: the v2 token/component layers load first, then the
+ * per-screen sheets; below them only what genuinely lives at the shell
+ * level remains — fonts, base, the not-yet-redesigned tasks screen,
+ * the terminal canvas panes, the settings dialog and the error
+ * boundary. Palettes and semantic tokens live in styles/tokens.css. */
+@import './styles/tokens.css';
+@import './styles/components.css';
+
+@import './Toasts.css';
+@import '../features/missionControl/MissionControl.css';
+@import '../features/review/Review.css';
+@import '../features/pipeline/Pipeline.css';
+@import '../features/palette/Palette.css';
+@import '../features/plans/Plans.css';
+@import '../features/sessions/Cockpit.css';
+
+/* ============================================================
+   Bundled fallback fonts — parity with Ghostty's embedded JetBrains
+   Mono + Nerd symbols: when the user's configured font-family is
+   missing (or lacks Nerd glyphs), the terminal still gets ligatures
+   and icons instead of Menlo. Faces load lazily on first use;
+   ghosttyConfigCache pre-loads them before measuring the cell box so
+   metrics never come from an interim fallback.
+   ============================================================ */
 @font-face {
 	font-family: 'JetBrainsMono Nerd Font Mono';
 	src: url('/fonts/JetBrainsMonoNerdFontMono-Regular.ttf') format('truetype');
@@ -35,73 +54,31 @@
 	font-style: normal;
 }
 
-/* Catppuccin palettes
- * https://github.com/catppuccin/catppuccin
- */
+/* ============================================================
+   Base — terminal defaults + shell typography. Theme switching is
+   html[data-theme='latte'|'frappe'|'macchiato'|'mocha'] in tokens.css
+   (usePaletteTheme writes the resolved palette name).
+   ============================================================ */
 :root {
-	/* Latte (light) — default semantic tokens */
-	--ctp-rosewater: #dc8a78;
-	--ctp-flamingo: #dd7878;
-	--ctp-pink: #ea76cb;
-	--ctp-mauve: #8839ef;
-	--ctp-red: #d20f39;
-	--ctp-maroon: #e64553;
-	--ctp-peach: #fe640b;
-	--ctp-yellow: #df8e1d;
-	--ctp-green: #40a02b;
-	--ctp-teal: #179299;
-	--ctp-sky: #04a5e5;
-	--ctp-sapphire: #209fb5;
-	--ctp-blue: #1e66f5;
-	--ctp-lavender: #7287fd;
-	--ctp-text: #4c4f69;
-	--ctp-subtext1: #5c5f77;
-	--ctp-subtext0: #6c6f85;
-	--ctp-overlay2: #7c7f93;
-	--ctp-overlay1: #8c8fa1;
-	--ctp-overlay0: #9ca0b0;
-	--ctp-surface2: #acb0be;
-	--ctp-surface1: #bcc0cc;
-	--ctp-surface0: #ccd0da;
-	--ctp-base: #eff1f5;
-	--ctp-mantle: #e6e9ef;
-	--ctp-crust: #dce0e8;
-
-	/* Semantic tokens — light */
-	--color-bg: var(--ctp-base);
-	--color-bg-elevated: #ffffff;
-	--color-surface: var(--ctp-mantle);
-	--color-text: var(--ctp-text);
-	--color-text-muted: var(--ctp-subtext0);
-	--color-border: var(--ctp-surface1);
-	--color-border-subtle: var(--ctp-surface0);
-	--color-accent: var(--ctp-blue);
-	--color-accent-hover: var(--ctp-sapphire);
-	--color-link: var(--ctp-blue);
-	--color-link-hover: var(--ctp-lavender);
-	--color-hover-overlay: rgba(76, 79, 105, 0.08);
-	--color-active-overlay: rgba(76, 79, 105, 0.14);
-	--color-backdrop: rgba(76, 79, 105, 0.45);
-	--shadow-elevated: 0 20px 60px rgba(76, 79, 105, 0.25);
-	--shadow-input: 0 2px 2px rgba(76, 79, 105, 0.15);
-
 	/* Terminal default colors — what a cell's `Color::Default` resolves to.
 	   Single source of truth: the canvas renderer reads these via
 	   getComputedStyle (see useTerminalCanvas). Theme-independent on purpose —
-	   the terminal stays dark regardless of the app's light/dark theme, so they
-	   live in base :root only, not the per-theme overrides. */
+	   the terminal stays dark regardless of the app theme, so they live in
+	   base :root only; a resolved Ghostty theme overrides them inline on
+	   <html> (useGhosttyTheme). */
 	--terminal-bg: #1e1e1e;
 	--terminal-fg: #e6e6e6;
 
-	font-family:
-		'MonoLisa Nerd Font', 'MonoLisa', ui-monospace, SFMono-Regular,
-		'SF Mono', Menlo, Consolas, monospace;
+	/* The app chrome is sans (--font-ui); mono is opt-in via --font-mono.
+	 * The terminal canvas resolves its own fonts from the Ghostty config and
+	 * never reads this. */
+	font-family: var(--font-ui);
 	font-size: 14px;
 	line-height: 22px;
 	font-weight: 400;
 
-	color: var(--color-text);
-	background-color: var(--color-bg);
+	color: var(--text);
+	background-color: var(--bg);
 
 	font-synthesis: none;
 	text-rendering: optimizeLegibility;
@@ -110,320 +87,10 @@
 	-webkit-text-size-adjust: 100%;
 }
 
-/* Mocha (dark) palette + semantic tokens */
-:root[data-theme='dark'] {
-	--ctp-rosewater: #f5e0dc;
-	--ctp-flamingo: #f2cdcd;
-	--ctp-pink: #f5c2e7;
-	--ctp-mauve: #cba6f7;
-	--ctp-red: #f38ba8;
-	--ctp-maroon: #eba0ac;
-	--ctp-peach: #fab387;
-	--ctp-yellow: #f9e2af;
-	--ctp-green: #a6e3a1;
-	--ctp-teal: #94e2d5;
-	--ctp-sky: #89dceb;
-	--ctp-sapphire: #74c7ec;
-	--ctp-blue: #89b4fa;
-	--ctp-lavender: #b4befe;
-	--ctp-text: #cdd6f4;
-	--ctp-subtext1: #bac2de;
-	--ctp-subtext0: #a6adc8;
-	--ctp-overlay2: #9399b2;
-	--ctp-overlay1: #7f849c;
-	--ctp-overlay0: #6c7086;
-	--ctp-surface2: #585b70;
-	--ctp-surface1: #45475a;
-	--ctp-surface0: #313244;
-	--ctp-base: #1e1e2e;
-	--ctp-mantle: #181825;
-	--ctp-crust: #11111b;
-
-	--color-bg: var(--ctp-base);
-	--color-bg-elevated: var(--ctp-mantle);
-	--color-surface: var(--ctp-surface0);
-	--color-text: var(--ctp-text);
-	--color-text-muted: var(--ctp-subtext0);
-	--color-border: var(--ctp-surface1);
-	--color-border-subtle: var(--ctp-surface0);
-	--color-accent: var(--ctp-blue);
-	--color-accent-hover: var(--ctp-sapphire);
-	--color-link: var(--ctp-blue);
-	--color-link-hover: var(--ctp-lavender);
-	--color-hover-overlay: rgba(205, 214, 244, 0.08);
-	--color-active-overlay: rgba(205, 214, 244, 0.14);
-	--color-backdrop: rgba(17, 17, 27, 0.6);
-	--shadow-elevated: 0 20px 60px rgba(0, 0, 0, 0.55);
-	--shadow-input: 0 2px 2px rgba(0, 0, 0, 0.35);
-}
-
-@media (prefers-color-scheme: dark) {
-	:root[data-theme='system'] {
-		--ctp-rosewater: #f5e0dc;
-		--ctp-flamingo: #f2cdcd;
-		--ctp-pink: #f5c2e7;
-		--ctp-mauve: #cba6f7;
-		--ctp-red: #f38ba8;
-		--ctp-maroon: #eba0ac;
-		--ctp-peach: #fab387;
-		--ctp-yellow: #f9e2af;
-		--ctp-green: #a6e3a1;
-		--ctp-teal: #94e2d5;
-		--ctp-sky: #89dceb;
-		--ctp-sapphire: #74c7ec;
-		--ctp-blue: #89b4fa;
-		--ctp-lavender: #b4befe;
-		--ctp-text: #cdd6f4;
-		--ctp-subtext1: #bac2de;
-		--ctp-subtext0: #a6adc8;
-		--ctp-overlay2: #9399b2;
-		--ctp-overlay1: #7f849c;
-		--ctp-overlay0: #6c7086;
-		--ctp-surface2: #585b70;
-		--ctp-surface1: #45475a;
-		--ctp-surface0: #313244;
-		--ctp-base: #1e1e2e;
-		--ctp-mantle: #181825;
-		--ctp-crust: #11111b;
-
-		--color-bg: var(--ctp-base);
-		--color-bg-elevated: var(--ctp-mantle);
-		--color-surface: var(--ctp-surface0);
-		--color-text: var(--ctp-text);
-		--color-text-muted: var(--ctp-subtext0);
-		--color-border: var(--ctp-surface1);
-		--color-border-subtle: var(--ctp-surface0);
-		--color-accent: var(--ctp-blue);
-		--color-accent-hover: var(--ctp-sapphire);
-		--color-link: var(--ctp-blue);
-		--color-link-hover: var(--ctp-lavender);
-		--color-hover-overlay: rgba(205, 214, 244, 0.08);
-		--color-active-overlay: rgba(205, 214, 244, 0.14);
-		--color-backdrop: rgba(17, 17, 27, 0.6);
-		--shadow-elevated: 0 20px 60px rgba(0, 0, 0, 0.55);
-		--shadow-input: 0 2px 2px rgba(0, 0, 0, 0.35);
-	}
-}
-
-.container {
-	margin: 0;
-	display: flex;
-	flex-direction: column;
-	min-height: 100vh;
-}
-
-.layout {
-	display: flex;
-	flex: 1;
-	min-height: 0;
-}
-
-.sidebar {
-	width: 16rem;
-	padding: 0.75rem 1rem;
-	border-right: 1px solid var(--color-border-subtle);
-	overflow-y: auto;
-	display: flex;
-	flex-direction: column;
-	gap: 1.25rem;
-}
-
-.main-content {
-	flex: 1;
-	padding: 1rem 1.5rem;
-	overflow-y: auto;
-}
-
-.sidebar-nav {
-	display: flex;
-	flex-direction: column;
-	margin-bottom: 1rem;
-	padding-bottom: 1rem;
-	border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.sidebar-nav__link {
-	display: block;
-	padding: 0.35rem 0.5rem;
-	border-radius: 6px;
-	color: var(--color-text);
-	text-decoration: none;
-	font-size: 0.9rem;
-	font-weight: 600;
-}
-
-.sidebar-nav__link:hover {
-	background: var(--color-hover-overlay);
-	color: var(--color-text);
-}
-
-.plans-menu {
-	display: flex;
-	flex-direction: column;
-	gap: 1rem;
-}
-
-.plans-menu__section {
-	display: flex;
-	flex-direction: column;
-	gap: 0.25rem;
-}
-
-.plans-menu__heading {
-	margin: 0;
-	font-size: 0.75rem;
-	font-weight: 600;
-	letter-spacing: 0.05em;
-	text-transform: uppercase;
-	text-align: left;
-	color: var(--color-text-muted);
-}
-
-.plans-menu__list {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-	display: flex;
-	flex-direction: column;
-}
-
-.plans-menu__link {
-	display: block;
-	padding: 0.35rem 0.5rem;
-	border-radius: 6px;
-	color: var(--color-text);
-	text-decoration: none;
-	font-size: 0.9rem;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.plans-menu__link:hover {
-	background: var(--color-hover-overlay);
-	color: var(--color-text);
-}
-
-.plans-menu__empty {
-	margin: 0;
-	padding: 0.25rem 0.5rem;
-	font-size: 0.85rem;
-	color: var(--color-text-muted);
-	text-align: left;
-}
-
-.session-sidebar {
-	display: flex;
-	flex-direction: column;
-	gap: 0.25rem;
-}
-
-.session-sidebar__heading {
-	margin: 0;
-	font-size: 0.75rem;
-	font-weight: 600;
-	letter-spacing: 0.05em;
-	text-transform: uppercase;
-	text-align: left;
-	color: var(--color-text-muted);
-}
-
-.session-sidebar__list {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-	display: flex;
-	flex-direction: column;
-}
-
-.session-sidebar__link {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 0.5rem;
-	padding: 0.35rem 0.5rem;
-	border-radius: 6px;
-	color: var(--color-text);
-	text-decoration: none;
-	font-size: 0.9rem;
-}
-
-.session-sidebar__link:hover {
-	background: var(--color-hover-overlay);
-	color: var(--color-text);
-}
-
-.session-sidebar__link[aria-current='page'] {
-	background: var(--color-active-overlay);
-	color: var(--color-text);
-	font-weight: 600;
-}
-
-.session-sidebar__label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.session-sidebar__status {
-	flex-shrink: 0;
-	font-size: 0.7rem;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-	color: var(--color-text-muted);
-}
-
-.session-sidebar__status[data-status='running'] {
-	color: var(--color-text);
-}
-
-.session-sidebar__empty {
-	margin: 0;
-	padding: 0.25rem 0.5rem;
-	font-size: 0.85rem;
-	color: var(--color-text-muted);
-	text-align: left;
-}
-
-.plan-panel__container {
-	position: relative;
-	width: 100%;
-	height: 100%;
-}
-
-.plan-panel {
-	display: block;
-	width: 100%;
-	height: 100%;
-	border: 0;
-	background: var(--color-surface, #ffffff);
-}
-
-.plan-panel__placeholder {
-	position: absolute;
-	inset: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	margin: 0;
-	padding: 1rem;
-	color: var(--color-text-muted);
-	background: var(--color-surface, #ffffff);
-	font-size: 0.95rem;
-}
-
-.plan-panel__placeholder--error {
-	color: var(--color-danger, #d33);
-}
-
-.plan-view__empty {
-	margin: 0;
-	padding: 2rem 1rem;
-	text-align: center;
-	color: var(--color-text-muted);
-	font-size: 0.95rem;
-}
-
+/* ============================================================
+   Tasks screen (.tasks-view / .tasks-tree) — not part of the v2
+   redesign; the v1 layout stays as-is, colors read the v2 tokens.
+   ============================================================ */
 .tasks-view {
 	display: flex;
 	flex-direction: column;
@@ -457,9 +124,9 @@
 	font-size: 0.85rem;
 	font-weight: 600;
 	border-radius: 6px;
-	border: 1px solid var(--color-border-subtle);
-	background: var(--color-accent);
-	color: #fff;
+	border: 1px solid var(--border);
+	background: var(--accent);
+	color: var(--on-accent);
 	box-shadow: none;
 }
 
@@ -472,7 +139,7 @@
 	flex: 1 1 100%;
 	margin: 0;
 	font-size: 0.8rem;
-	color: var(--color-danger, var(--ctp-red));
+	color: var(--c-del);
 }
 
 .tasks-view__group {
@@ -490,7 +157,7 @@
 	font-weight: 600;
 	letter-spacing: 0.05em;
 	text-transform: uppercase;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__count {
@@ -500,9 +167,9 @@
 	min-width: 1.25rem;
 	padding: 0 0.4rem;
 	border-radius: 999px;
-	background: var(--color-surface);
+	background: var(--surface-2);
 	font-size: 0.7rem;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__list {
@@ -519,19 +186,19 @@
 	align-items: flex-start;
 	gap: 0.5rem;
 	padding: 0.5rem 0.6rem;
-	border: 1px solid var(--color-border-subtle);
+	border: 1px solid var(--border);
 	border-radius: 6px;
-	background: var(--color-bg-elevated);
+	background: var(--surface);
 }
 
 .tasks-view__marker {
 	flex: 0 0 auto;
 	font-size: 0.85rem;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__item--done .tasks-view__marker {
-	color: var(--color-accent);
+	color: var(--accent);
 }
 
 .tasks-view__body {
@@ -544,28 +211,16 @@
 
 .tasks-view__title {
 	font-size: 0.9rem;
-	color: var(--color-text);
+	color: var(--text);
 }
 
 .tasks-view__item--done .tasks-view__title {
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__description {
 	font-size: 0.8rem;
-	color: var(--color-text-muted);
-}
-
-.tasks-view__origin {
-	flex: 0 0 auto;
-	align-self: flex-start;
-	padding: 0.05rem 0.4rem;
-	border-radius: 999px;
-	background: var(--color-surface);
-	font-size: 0.65rem;
-	letter-spacing: 0.04em;
-	text-transform: uppercase;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__status {
@@ -582,9 +237,9 @@
 	padding: 0.2rem 0.4rem;
 	font-size: 0.75rem;
 	border-radius: 6px;
-	border: 1px solid var(--color-border-subtle);
-	background: var(--color-surface);
-	color: var(--color-text);
+	border: 1px solid var(--border);
+	background: var(--surface-2);
+	color: var(--text);
 	box-shadow: none;
 	cursor: pointer;
 }
@@ -607,9 +262,9 @@
 	padding: 0.2rem 0.5rem;
 	font-size: 0.75rem;
 	border-radius: 6px;
-	border: 1px solid var(--color-border-subtle);
-	background: var(--color-surface);
-	color: var(--color-text);
+	border: 1px solid var(--border);
+	background: var(--surface-2);
+	color: var(--text);
 	box-shadow: none;
 	cursor: pointer;
 }
@@ -634,9 +289,9 @@
 	font-size: 0.85rem;
 	font-weight: 600;
 	border-radius: 6px;
-	border: 1px solid var(--color-border-subtle);
-	background: var(--color-surface);
-	color: var(--color-text);
+	border: 1px solid var(--border);
+	background: var(--surface-2);
+	color: var(--text);
 	box-shadow: none;
 	cursor: pointer;
 }
@@ -648,22 +303,22 @@
 
 .tasks-view__item-error {
 	font-size: 0.75rem;
-	color: var(--color-danger, var(--ctp-red));
+	color: var(--c-del);
 }
 
 .tasks-view__empty {
 	margin: 0;
 	padding: 0.25rem 0.5rem;
 	font-size: 0.85rem;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__empty--error {
-	color: var(--color-danger, var(--ctp-red));
+	color: var(--c-del);
 }
 
 .tasks-view__item--blocked .tasks-view__marker {
-	color: var(--color-danger, var(--ctp-red));
+	color: var(--c-del);
 }
 
 .tasks-view__row-head {
@@ -675,23 +330,23 @@
 
 .tasks-view__identifier {
 	font-size: 0.75rem;
-	font-family: var(--font-mono, monospace);
-	color: var(--color-text-muted);
+	font-family: var(--font-mono);
+	color: var(--text-2);
 }
 
 .tasks-view__size {
 	flex: 0 0 auto;
 	padding: 0.05rem 0.35rem;
 	border-radius: 999px;
-	background: var(--color-surface);
+	background: var(--surface-2);
 	font-size: 0.65rem;
 	letter-spacing: 0.04em;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-view__blocked-reason {
 	font-size: 0.8rem;
-	color: var(--color-danger, var(--ctp-red));
+	color: var(--c-del);
 }
 
 .tasks-view__user-tasks {
@@ -722,28 +377,28 @@
 .tasks-tree__milestone-id {
 	font-size: 0.95rem;
 	font-weight: 600;
-	color: var(--color-text);
+	color: var(--text);
 }
 
 .tasks-tree__milestone-demo {
 	font-size: 0.85rem;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-tree__badge {
 	flex: 0 0 auto;
 	padding: 0.05rem 0.4rem;
 	border-radius: 999px;
-	background: var(--color-surface);
+	background: var(--surface-2);
 	font-size: 0.65rem;
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-tree__needs {
 	font-size: 0.7rem;
-	color: var(--color-text-muted);
+	color: var(--text-2);
 }
 
 .tasks-tree__track {
@@ -751,7 +406,7 @@
 	flex-direction: column;
 	gap: 0.3rem;
 	padding-left: 0.75rem;
-	border-left: 2px solid var(--color-border-subtle);
+	border-left: 2px solid var(--border);
 }
 
 .tasks-tree__track-header {
@@ -763,128 +418,20 @@
 .tasks-tree__track-id {
 	font-size: 0.8rem;
 	font-weight: 600;
-	color: var(--color-text);
+	color: var(--text);
 }
 
 .tasks-tree__track-branch {
 	font-size: 0.75rem;
-	font-family: var(--font-mono, monospace);
-	color: var(--color-text-muted);
+	font-family: var(--font-mono);
+	color: var(--text-2);
 }
 
-.agent-run {
-	display: flex;
-	gap: 1rem;
-	height: 100%;
-	min-height: 0;
-	position: relative;
-	overflow: hidden;
-}
-
-.agent-run__log {
-	flex: 1 1 0;
-	min-width: 0;
-	min-height: 0;
-	display: flex;
-	flex-direction: column;
-	background: var(--terminal-bg);
-	border-radius: 0.375rem;
-	padding: 0.5rem;
-	overflow: hidden;
-}
-
-.agent-run__diff {
-	position: absolute;
-	top: 0;
-	right: 0;
-	bottom: 0;
-	width: min(55%, 720px);
-	display: flex;
-	flex-direction: column;
-	min-height: 0;
-	background: var(--color-bg, #f0f1f4);
-	border-left: 1px solid var(--color-border-subtle);
-	box-shadow: -8px 0 24px rgb(0 0 0 / 18%);
-	transform: translateX(100%);
-	transition: transform 0.25s ease;
-	z-index: 2;
-}
-
-.agent-run__diff[data-open='true'] {
-	transform: translateX(0);
-}
-
-.agent-run__stop {
-	position: absolute;
-	top: 1rem;
-	left: 1rem;
-	z-index: 1;
-	padding: 0.35rem 0.75rem;
-	font-size: 0.8rem;
-	letter-spacing: 0.04em;
-	border: 1px solid var(--color-border-subtle);
-	border-radius: 0.375rem;
-	background: var(--color-surface, #fff);
-	color: var(--color-text, #1f2430);
-	cursor: pointer;
-}
-
-.agent-run__stop:hover:not(:disabled) {
-	background: var(--color-border-subtle);
-}
-
-.agent-run__stop:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
-}
-
-.agent-run__diff-handle {
-	position: absolute;
-	top: 1rem;
-	right: 0;
-	z-index: 1;
-	padding: 0.5rem 0.4rem;
-	font-size: 0.8rem;
-	letter-spacing: 0.04em;
-	writing-mode: vertical-rl;
-	border: 1px solid var(--color-border-subtle);
-	border-right: none;
-	border-radius: 0.375rem 0 0 0.375rem;
-	background: var(--color-surface, #fff);
-	color: var(--color-text, #1f2430);
-	cursor: pointer;
-}
-
-.agent-run__diff-handle:hover {
-	background: var(--color-border-subtle);
-}
-
-.diff-panel__toolbar {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-}
-
-.diff-panel__close {
-	margin-left: auto;
-	width: 1.85rem;
-	height: 1.85rem;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 1.25rem;
-	line-height: 1;
-	border: 1px solid var(--color-border-subtle);
-	border-radius: 0.375rem;
-	background: var(--color-surface, #fff);
-	color: var(--color-text, #1f2430);
-	cursor: pointer;
-}
-
-.diff-panel__close:hover {
-	background: var(--color-border-subtle);
-}
-
+/* ============================================================
+   Terminal canvas panes — the rendering pipeline's containers
+   (TerminalPane / SplitTreeView), sized by the cockpit's
+   .fc-term-body flex column.
+   ============================================================ */
 .terminal-pane {
 	width: 100%;
 	height: 100%;
@@ -907,7 +454,7 @@
 	min-width: 0;
 	min-height: 0;
 	gap: 1px;
-	background: var(--color-border-subtle, #808080);
+	background: var(--term-border);
 }
 
 .terminal-split--row {
@@ -923,7 +470,10 @@
 	flex: 1 1 0;
 }
 
-.terminal-split .terminal-pane {
+/* Unconditional: the canvas paints --terminal-bg, and the pane's inline
+   window-padding (Ghostty window_padding_*) must ring it with the same
+   color — a lone pane left transparent showed the chrome's --term-bg. */
+.terminal-pane {
 	background: var(--terminal-bg);
 }
 
@@ -931,99 +481,36 @@
 	opacity: 0.8;
 }
 
-.top-bar {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 1rem 1.5rem;
-	border-bottom: 1px solid var(--color-border-subtle);
+/* ============================================================
+   Shared chrome
+   ============================================================ */
+/* The checked-out branch as bare mono text, the design's .branch look
+   (review header). No letter-spacing: tracking kills mono ligatures. */
+.branch-chip {
+	font-family: var(--font-mono);
+	font-size: var(--fs-mono-sm);
+	color: var(--text-2);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.top-bar h1 {
-	margin: 0;
-	font-size: 1.25rem;
-	text-align: left;
-}
-
-.top-bar__brand {
-	display: flex;
-	align-items: baseline;
-	gap: 0.75rem;
-}
-
-.top-bar__session-count {
-	font-size: 0.8rem;
-	color: var(--color-text-muted);
-}
-
-.top-bar__actions {
-	display: flex;
-	align-items: center;
-	gap: 0.75rem;
-}
-
-.project-picker {
-	padding: 0.4rem 0.9rem;
-	font-size: 0.9rem;
-	border-radius: 0.375rem;
-	border: 1px solid var(--color-border-subtle);
-	background: transparent;
-	color: inherit;
-	cursor: pointer;
-}
-
-.project-picker:hover {
-	background: var(--color-hover-overlay);
-}
-
-.run-agent-button {
-	padding: 0.4rem 0.9rem;
-	font-size: 0.9rem;
-	border-radius: 0.375rem;
-	border: 1px solid var(--color-border-subtle);
-	background: var(--color-accent, #2563eb);
-	color: #fff;
-	cursor: pointer;
-}
-
-.run-agent-button:disabled {
-	opacity: 0.6;
-	cursor: progress;
-}
-
-.settings-trigger {
-	font-size: 1.1rem;
-	line-height: 1;
-	padding: 0.35em 0.55em;
-	background: transparent;
-	border-color: transparent;
-	box-shadow: none;
-	color: inherit;
-}
-
-.settings-trigger:hover {
-	background: var(--color-hover-overlay);
-	border-color: transparent;
-}
-
-.settings-trigger:active {
-	background: var(--color-active-overlay);
-	border-color: transparent;
-}
-
+/* ============================================================
+   Settings dialog
+   ============================================================ */
 .settings-panel {
-	border: 1px solid var(--color-border);
+	border: 1px solid var(--border-strong);
 	border-radius: 12px;
 	padding: 1.5rem;
 	min-width: 22rem;
 	max-width: 32rem;
-	color: var(--color-text);
-	background-color: var(--color-bg-elevated);
-	box-shadow: var(--shadow-elevated);
+	color: var(--text);
+	background-color: var(--surface);
+	box-shadow: var(--shadow-3);
 }
 
 .settings-panel::backdrop {
-	background-color: var(--color-backdrop);
+	background-color: color-mix(in srgb, var(--ctp-crust) 45%, transparent);
 	backdrop-filter: blur(3px);
 }
 
@@ -1049,13 +536,9 @@
 	color: inherit;
 }
 
-.settings-panel__close:hover {
-	background: var(--color-hover-overlay);
-	border-color: transparent;
-}
-
+.settings-panel__close:hover,
 .settings-panel__close:active {
-	background: var(--color-active-overlay);
+	background: var(--fill-hover);
 	border-color: transparent;
 }
 
@@ -1086,8 +569,8 @@
 	padding: 0.5rem 0.75rem;
 	font-family: inherit;
 	overflow-wrap: anywhere;
-	background: var(--color-surface);
-	color: var(--color-text-muted);
+	background: var(--surface-2);
+	color: var(--text-2);
 	border-radius: 6px;
 	text-align: left;
 }
@@ -1097,77 +580,30 @@
 	gap: 0.5rem;
 }
 
-.logo {
-	height: 6em;
-	padding: 1.5em;
-	will-change: filter;
-	transition: 0.75s;
-}
-
-.logo.vite:hover {
-	filter: drop-shadow(0 0 2em var(--ctp-blue));
-}
-
-.logo.react:hover {
-	filter: drop-shadow(0 0 2em var(--ctp-sky));
-}
-
-.logo.tauri:hover {
-	filter: drop-shadow(0 0 2em var(--ctp-sapphire));
-}
-
-.row {
-	display: flex;
-	justify-content: center;
-}
-
-a {
-	font-weight: 500;
-	color: var(--color-link);
-	text-decoration: inherit;
-}
-
-a:hover {
-	color: var(--color-link-hover);
-}
-
-input,
-button {
+/* ============================================================
+   Error boundary — the crash fallback is the one surface that still
+   renders a bare <button>; its element rules stay scoped to it so the
+   v2 component classes never inherit them.
+   ============================================================ */
+.error-boundary button {
 	border-radius: 8px;
-	border: 1px solid var(--color-border);
+	border: 1px solid var(--border-strong);
 	padding: 0.6em 1.2em;
 	font-size: 1em;
 	font-weight: 500;
 	font-family: inherit;
-	color: var(--color-text);
-	background-color: var(--color-bg-elevated);
+	color: var(--text);
+	background-color: var(--surface);
 	transition: border-color 0.25s;
-	box-shadow: var(--shadow-input);
-}
-
-button {
+	box-shadow: var(--shadow-1);
 	cursor: pointer;
 }
 
-button:hover {
-	border-color: var(--color-accent);
+.error-boundary button:hover {
+	border-color: var(--accent);
 }
 
-button:active {
-	border-color: var(--color-accent-hover);
-	background-color: var(--color-surface);
-}
-
-input,
-button {
-	outline: none;
-}
-
-input:focus,
-button:focus-visible {
-	border-color: var(--color-accent);
-}
-
-#greet-input {
-	margin-right: 5px;
+.error-boundary button:active {
+	border-color: var(--accent);
+	background-color: var(--surface-2);
 }

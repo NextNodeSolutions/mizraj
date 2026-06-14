@@ -1,0 +1,257 @@
+/* ============================================================
+   PLANS v2 — screen-specific styles (pl-* / interview-q only).
+   Shared primitives (.panel, .panel-head, .lrow, .lgroup, .tag,
+   .branch, .btn, .mz-iconbtn, .stagger) live in
+   src/app/styles/components.css — never redeclared here.
+   ============================================================ */
+
+.pl-wrap {
+	flex: 1;
+	min-height: 0;
+	display: grid;
+	grid-template-columns: 262px 1fr;
+	gap: var(--sp-gap);
+	padding: var(--sp-gap) var(--sp-panel) var(--sp-panel);
+}
+.pl-list-panel,
+.pl-doc-panel {
+	overflow: hidden;
+}
+/* stagger index of the second panel (the first keeps the --si default 0) */
+.pl-wrap > .pl-doc-panel {
+	--si: 1;
+}
+
+/* ---- list panel ---- */
+.pl-list-panel .panel-head .mz-iconbtn {
+	width: 24px;
+	height: 24px;
+	font-size: 12px;
+}
+.pl-list-panel .panel-head .mz-iconbtn svg {
+	width: 12px;
+	height: 12px;
+}
+.pl-list {
+	flex: 1;
+	overflow-y: auto;
+	padding: 4px 8px 10px;
+}
+.pl-list .lrow {
+	text-decoration: none;
+	color: inherit;
+}
+/* the design keys selection on data-on; the app keeps anchor semantics */
+.pl-list .lrow[aria-current='page'] {
+	background: var(--fill-accent);
+	border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.pl-glyph {
+	margin-top: 3px;
+	color: var(--text-3);
+}
+.pl-glyph-pen {
+	font-family: var(--font-mono);
+	font-size: 13px;
+}
+.pl-row-text {
+	min-width: 0;
+}
+.pl-empty {
+	margin: 0;
+	padding: 4px 10px;
+	font-size: var(--fs-sm);
+	color: var(--text-3);
+	text-align: left;
+}
+
+/* ---- doc panel ---- */
+.pl-doc {
+	flex: 1;
+	overflow-y: auto;
+	padding: 30px 40px 60px;
+}
+.pl-paper {
+	max-width: 680px;
+	margin: 0 auto;
+}
+/* stagger indices follow paper order: head, meta, frame, h3, cards, actions */
+.pl-paper > :nth-child(2) {
+	--si: 1;
+}
+.pl-paper > :nth-child(3) {
+	--si: 2;
+}
+.pl-paper > :nth-child(4) {
+	--si: 3;
+}
+.pl-paper > :nth-child(5) {
+	--si: 4;
+}
+.pl-paper > :nth-child(6) {
+	--si: 5;
+}
+.pl-doc-head {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+.pl-doc-head h1 {
+	margin: 0;
+	font-size: 24px;
+	font-weight: 700;
+	letter-spacing: -0.025em;
+	flex: 1;
+}
+.pl-doc-meta {
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+	color: var(--text-3);
+	margin: 8px 0 0;
+}
+.pl-doc-frame {
+	height: min(62vh, 720px);
+	margin-top: 18px;
+	border: 1px solid var(--border);
+	border-radius: var(--r-md);
+	overflow: hidden;
+	background: var(--surface-2);
+	position: relative;
+}
+.pl-doc-frame .plan-panel {
+	display: block;
+	width: 100%;
+	height: 100%;
+	border: 0;
+	background: var(--surface-2);
+}
+.pl-doc-placeholder {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	margin: 0;
+	padding: 0 16px;
+	text-align: center;
+	font-size: var(--fs-sm);
+	color: var(--text-3);
+}
+/* design plan-doc typography, unused until docs ship structured content */
+.pl-intro {
+	font-size: 14.5px;
+	line-height: 1.65;
+	color: var(--text-2);
+	margin: 18px 0 0;
+}
+.pl-doc-empty {
+	margin: 0;
+	padding: 48px 16px;
+	text-align: center;
+	color: var(--text-3);
+	font-size: var(--fs-sm);
+}
+
+/* ---- milestones ---- */
+.pl-h3 {
+	font-size: var(--fs-xs);
+	font-weight: 700;
+	letter-spacing: 0.09em;
+	text-transform: uppercase;
+	color: var(--text-3);
+	margin: 30px 0 12px;
+}
+.pl-milestone {
+	border: 1px solid var(--border);
+	border-radius: var(--r-md);
+	padding: 13px 15px;
+	margin-bottom: 11px;
+	background: var(--surface-2);
+	transition:
+		border-color var(--t-fast),
+		box-shadow var(--t-fast);
+}
+.pl-milestone:hover {
+	border-color: var(--border-strong);
+	box-shadow: var(--shadow-1);
+}
+.pl-milestone .mh {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+.pl-milestone .mh b {
+	font-size: var(--fs-body);
+	font-weight: 650;
+	letter-spacing: -0.01em;
+	flex: 1;
+}
+.pl-check {
+	width: 16px;
+	height: 16px;
+	flex: none;
+	border: 1.5px solid var(--border-strong);
+	border-radius: var(--r-xs);
+	display: grid;
+	place-items: center;
+	font-size: 10px;
+	color: var(--on-accent);
+	transition: all var(--t-fast);
+}
+.pl-check[data-done='true'] {
+	border-color: var(--c-add);
+	background: var(--c-add);
+}
+.pl-tracks {
+	margin-top: 10px;
+	display: flex;
+	flex-direction: column;
+}
+.pl-track {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 7px 0 7px 14px;
+	border-left: 2px solid var(--border);
+	margin-left: 7px;
+	transition: border-color var(--t-fast);
+}
+.pl-track:hover {
+	border-left-color: var(--accent);
+}
+.pl-track .tk {
+	font-size: var(--fs-sm);
+	font-weight: 500;
+}
+/* .branch keeps the shared mono styling; only its placement is ours */
+.pl-track .branch {
+	margin-left: auto;
+}
+
+/* ---- doc actions ---- */
+.pl-actions {
+	display: flex;
+	gap: 9px;
+	margin-top: 24px;
+	flex-wrap: wrap;
+}
+
+/* ---- interview Q&A typography ----
+   Unused until docs ship structured content (see the native-rendering
+   TODO in PlanPaper); defines the plan-doc voice for that future. */
+.interview-q {
+	border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+	padding: 2px 0 2px 16px;
+	margin: 0 0 18px;
+}
+.interview-q .q {
+	font-size: var(--fs-body);
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
+.interview-q .a {
+	font-size: var(--fs-body);
+	color: var(--text-2);
+	line-height: 1.55;
+	margin-top: 4px;
+}

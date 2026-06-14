@@ -1,0 +1,600 @@
+/* ============================================================
+   Diff Review v2 — header strip over three floating panels
+   (tree / diff / rail). Consumes the shared v2 tokens and the
+   components.css primitives (.panel/.btn/.stagger/.sdot/.stat);
+   only review-scoped rules live here.
+   ============================================================ */
+
+.review {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	height: 100%;
+	min-height: 0;
+}
+
+.review--empty {
+	align-items: center;
+	justify-content: center;
+	color: var(--text-2);
+}
+
+.review--empty p {
+	margin: 0;
+	font-size: var(--fs-body);
+}
+
+/* ---- header ---- */
+.review__top {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 11px;
+	padding: 12px var(--sp-panel);
+	flex: none;
+}
+
+.review__title {
+	margin: 0;
+	font-size: 15px;
+	font-weight: 650;
+	letter-spacing: -0.015em;
+}
+
+.review__actions {
+	margin-left: auto;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+/* segmented Split/Unified toggle (design .rv-seg) */
+.review__view-seg {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px;
+	gap: 2px;
+	background: color-mix(in srgb, var(--bg-deep) 70%, transparent);
+	border: 1px solid var(--border);
+	border-radius: var(--r-sm);
+}
+
+.review__view-seg button {
+	border: 0;
+	background: transparent;
+	color: var(--text-3);
+	font-size: var(--fs-xs);
+	font-weight: 600;
+	padding: 4px 11px;
+	border-radius: 5px;
+	cursor: pointer;
+	transition: all var(--t-fast);
+}
+
+.review__view-seg button[aria-pressed='true'] {
+	background: var(--surface);
+	color: var(--text);
+	box-shadow: 0 1px 2px color-mix(in srgb, var(--ctp-crust) 25%, transparent);
+}
+
+/* Disabled until a review_merge backend command exists. */
+.review__approve:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.review__approve:disabled:hover {
+	transform: none;
+	filter: none;
+}
+
+/* ---- body: three floating panels ---- */
+.review__body {
+	flex: 1;
+	min-height: 0;
+	display: grid;
+	grid-template-columns: 260px minmax(0, 1fr) 320px;
+	gap: var(--sp-gap);
+	padding: 0 var(--sp-panel) var(--sp-panel);
+}
+
+/* .stagger (components.css) reads --si per child for the riseIn delay. */
+.review__body > :nth-child(2) {
+	--si: 1;
+	/* The diff panel appears instantly — no entrance motion on the file view. */
+	animation: none;
+}
+
+.review__body > :nth-child(3) {
+	--si: 2;
+}
+
+.review__body > .panel {
+	overflow: hidden;
+}
+
+/* ---- left: file tree ---- */
+.review-tree__progress {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	padding: 12px 13px 4px;
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+	color: var(--text-2);
+	white-space: nowrap;
+	flex: none;
+}
+
+.review-tree__bar {
+	flex: 1;
+	height: 5px;
+	border-radius: 5px;
+	background: var(--fill-hover);
+	overflow: hidden;
+}
+
+.review-tree__bar i {
+	display: block;
+	height: 100%;
+	background: linear-gradient(90deg, var(--accent), var(--accent-2));
+	border-radius: 5px;
+	transition: width var(--t-slow) var(--ease-out);
+}
+
+.review-tree__list {
+	list-style: none;
+	margin: 0;
+	flex: 1;
+	overflow-y: auto;
+	padding: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.review-tree__row {
+	position: relative;
+}
+
+/* The whole row is one button so the entire padded box selects the file — not
+   just the filename text. Right padding reserves the column the viewed check
+   overlays (positioned out of flow below). */
+.review-tree__file {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 7px 34px 7px 9px;
+	border-radius: var(--r-sm);
+	cursor: pointer;
+	border: 1px solid transparent;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	box-shadow: none;
+	transition:
+		background var(--t-fast),
+		border-color var(--t-fast);
+}
+
+.review-tree__file:hover {
+	background: var(--fill-hover);
+}
+
+.review-tree__file[aria-current='true'] {
+	background: var(--fill-accent);
+	border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* viewed files dim — the design keeps names readable, no strikethrough */
+.review-tree__file[data-viewed='true'] .review-tree__name {
+	color: var(--text-3);
+}
+
+/* Sits over the row button's reserved right column, outside it in the DOM so a
+   click on the check toggles "viewed" without selecting the file. */
+.review-tree__row .review__vchk-btn {
+	position: absolute;
+	top: 50%;
+	right: 9px;
+	transform: translateY(-50%);
+}
+
+.review-tree__badge {
+	width: 16px;
+	height: 16px;
+	display: grid;
+	place-items: center;
+	border-radius: var(--r-xs);
+	font-family: var(--font-mono);
+	font-size: 9.5px;
+	font-weight: 700;
+	flex: none;
+}
+
+.review-tree__badge[data-change='added'] {
+	color: var(--c-add);
+	background: var(--fill-add);
+}
+
+/* Yellow, not peach: the design keeps M/R badges distinct from the
+   review-status hue (--c-rev). */
+.review-tree__badge[data-change='modified'],
+.review-tree__badge[data-change='renamed'] {
+	color: var(--c-warn);
+	background: color-mix(in srgb, var(--c-warn) 15%, transparent);
+}
+
+.review-tree__badge[data-change='deleted'] {
+	color: var(--c-del);
+	background: var(--fill-del);
+}
+
+.review-tree__name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+	color: var(--text-2);
+}
+
+.review-tree__file .stat {
+	flex: none;
+}
+
+/* ---- viewed toggle (design .vchk) ---- */
+.review__vchk-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	border: 0;
+	padding: 0;
+	background: transparent;
+	color: var(--text-2);
+	font-size: var(--fs-xs);
+	cursor: pointer;
+	user-select: none;
+	flex: none;
+}
+
+.vchk {
+	width: 16px;
+	height: 16px;
+	display: grid;
+	place-items: center;
+	border: 1.5px solid var(--border-strong);
+	border-radius: var(--r-xs);
+	background: transparent;
+	color: var(--on-accent);
+	font-size: 10px;
+	line-height: 1;
+	transition: all var(--t-fast) var(--ease-spring);
+}
+
+.review__vchk-btn:hover .vchk {
+	border-color: var(--c-add);
+	transform: scale(1.12);
+}
+
+.vchk[data-done='true'] {
+	border-color: var(--c-add);
+	background: var(--c-add);
+	animation: chkPop 0.35s var(--ease-spring);
+}
+
+@keyframes chkPop {
+	0% {
+		transform: scale(0.6);
+	}
+	60% {
+		transform: scale(1.2);
+	}
+	100% {
+		transform: scale(1);
+	}
+}
+
+/* ---- center: diff pane ---- */
+.review__diff-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 14px;
+	border-bottom: 1px solid var(--border);
+	flex: none;
+}
+
+.review__diff-path {
+	font-family: var(--font-mono);
+	font-size: var(--fs-mono-sm);
+	font-weight: 500;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.review__viewed-label {
+	margin-left: auto;
+	color: var(--text-2);
+}
+
+.review__diff-body {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 6px 0 16px;
+}
+
+/* No entrance animation: a file must open and switch instantly, with no motion.
+   The FileDiff instance persists across switches (see ReviewDiffPane), so the
+   content updates in place. */
+
+/* hunk headers from hunkSeparators:'line-info' (design .hunk-head) */
+.review__diff-body [data-separator] {
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+	color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+.review__diff-body [data-separator-content] {
+	padding: 10px 16px 5px;
+}
+
+/* hover affordance in the gutter utility slot */
+.review__cmt-add {
+	font-size: 10px;
+	font-weight: 600;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--r-xs);
+	padding: 2px 7px;
+	background: var(--surface);
+	color: var(--text-2);
+	cursor: pointer;
+	white-space: nowrap;
+	transition:
+		color var(--t-fast),
+		border-color var(--t-fast),
+		opacity var(--t-fast);
+}
+
+.review__cmt-add:hover {
+	color: var(--accent);
+	border-color: var(--accent);
+}
+
+/* inline comment card anchored under its line (design .inline-cmt) */
+.review__inline-cmt {
+	margin: 5px 16px 9px 98px;
+	border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+	border-radius: var(--r-md);
+	padding: 10px 13px;
+	background: var(--fill-accent);
+	font-family: var(--font-ui);
+	animation: riseIn 0.35s var(--ease-out) both;
+}
+
+.review__inline-cmt .who {
+	font-size: var(--fs-xs);
+	font-weight: 650;
+	color: var(--accent);
+}
+
+.review__inline-cmt .txt {
+	font-size: var(--fs-sm);
+	margin-top: 3px;
+	line-height: 1.45;
+}
+
+.review__inline-cmt .chip2 {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	margin-top: 8px;
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--text-2);
+	border: 1px dashed var(--border-strong);
+	border-radius: 20px;
+	padding: 2px 9px;
+}
+
+/* ---- right: rail ---- */
+.review-rail__summary {
+	padding: 14px 15px;
+	border-bottom: 1px solid var(--border);
+	flex: none;
+}
+
+.review-rail__summary h4 {
+	margin: 0 0 7px;
+	font-size: var(--fs-xs);
+	font-weight: 700;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: var(--text-3);
+}
+
+.review-rail__summary p {
+	margin: 0;
+	font-size: var(--fs-sm);
+	line-height: 1.6;
+	color: var(--text-2);
+}
+
+.review-rail__summary .add {
+	color: var(--c-add);
+}
+
+.review-rail__summary .del {
+	color: var(--c-del);
+}
+
+.review-rail__tail {
+	font-family: var(--font-mono);
+	font-size: var(--fs-mono-sm);
+	color: var(--text-3);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Unrendered until a backend reports the branch's test run — kept ready. */
+.test-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+	color: var(--c-add);
+	background: var(--fill-add);
+	border-radius: 20px;
+	padding: 4px 11px;
+	margin-top: 10px;
+}
+
+.review-rail__thread {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 13px 15px;
+	display: flex;
+	flex-direction: column;
+	gap: 9px;
+}
+
+.review-rail__thread ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 9px;
+}
+
+.review-rail__msg {
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--border);
+	border-radius: var(--r-md);
+	padding: 9px 12px;
+	background: var(--surface-2);
+	animation: riseIn 0.3s var(--ease-out) both;
+}
+
+.review-rail__msg[data-me='true'] {
+	background: var(--fill-accent);
+	border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.review-rail__msg .who {
+	font-size: var(--fs-xs);
+	font-weight: 650;
+	color: var(--text-3);
+}
+
+.review-rail__msg .ref {
+	font-family: var(--font-mono);
+	font-weight: 400;
+	color: var(--accent);
+}
+
+.review-rail__msg .txt {
+	font-size: var(--fs-sm);
+	line-height: 1.5;
+	margin-top: 3px;
+}
+
+.review-rail__hint {
+	margin: 0 0 6px;
+	font-size: var(--fs-sm);
+	color: var(--text-2);
+}
+
+.review-rail__compose {
+	display: flex;
+	flex-direction: column;
+	gap: 9px;
+	padding: 12px 15px;
+	border-top: 1px solid var(--border);
+	flex: none;
+}
+
+.review-rail__compose textarea {
+	width: 100%;
+	min-height: 60px;
+	resize: none;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--r-md);
+	background: var(--surface-2);
+	color: var(--text);
+	font-size: var(--fs-sm);
+	padding: 9px 11px;
+	line-height: 1.5;
+	outline: none;
+	transition:
+		border-color var(--t-fast),
+		box-shadow var(--t-fast);
+}
+
+.review-rail__compose textarea::placeholder {
+	color: var(--text-3);
+}
+
+.review-rail__compose textarea:focus {
+	border-color: var(--accent);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.review-rail__compose-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.review-rail__ctx {
+	font-family: var(--font-mono);
+	font-size: var(--fs-xs);
+	color: var(--text-3);
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.review-rail__send {
+	margin-left: auto;
+}
+
+.review-rail__send:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+@media (max-width: 1180px) {
+	.review__body {
+		grid-template-columns: 230px minmax(0, 1fr);
+	}
+
+	.review-rail {
+		display: none;
+	}
+}
+
+/* reduced motion: review-scoped animations show their end state */
+@media (prefers-reduced-motion: reduce) {
+	.review-tree__bar i,
+	.vchk[data-done='true'],
+	.review__inline-cmt,
+	.review-rail__msg {
+		transition: none;
+		animation: none;
+	}
+}

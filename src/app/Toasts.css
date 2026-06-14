@@ -1,0 +1,45 @@
+/* v2 toast viewport: the per-toast surface (.toast[data-show], including
+ * the forced-dark latte override) lives in src/app/styles/components.css.
+ * This file owns what the stacked-viewport adaptation needs: the design
+ * positions a single fixed toast; we keep a multi-toast column, so toasts
+ * are re-anchored inside it and enter through an animation (a transition
+ * can't fire on mount). */
+
+.toast-viewport {
+	position: fixed;
+	bottom: 24px;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	z-index: 200;
+	pointer-events: none;
+}
+
+.toast-viewport .toast[data-show] {
+	position: static;
+	opacity: 1;
+	transform: none;
+	transition: none;
+	animation: toastIn var(--t-med) var(--ease-spring) both;
+}
+
+@keyframes toastIn {
+	from {
+		opacity: 0;
+		transform: translateY(16px) scale(0.95);
+	}
+
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.toast-viewport .toast[data-show] {
+		animation: none;
+	}
+}

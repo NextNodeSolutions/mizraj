@@ -10,6 +10,13 @@ const host = process.env.TAURI_DEV_HOST
 export default defineConfig(async () => ({
 	plugins: [react()],
 
+	// The @pierre/diffs review worker code-splits (lazy language/theme/wasm
+	// chunks), which Vite's default IIFE worker format rejects. ES module
+	// workers support it and run in the Tauri WKWebView.
+	worker: {
+		format: 'es',
+	},
+
 	resolve: {
 		alias: {
 			'@': fileURLToPath(new URL('./src', import.meta.url)),

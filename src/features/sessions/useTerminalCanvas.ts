@@ -4,7 +4,7 @@ import { getDefaultStore, useAtomValue } from 'jotai'
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 
-import { useAppearance } from '@/features/settings/settings'
+import { useAppearance } from '@/features/settings/useAppearance'
 import { describeError, isSessionError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
@@ -156,6 +156,33 @@ const propagateResize = (
 //   - The crisp BACKING-STORE resize happens only when the reflowed frame lands
 //     (drawFrame paints it immediately, so the resize clear is never seen).
 //
+// A mouse-report DTO for the backend, built from a cell + the raw event. Pure
+// (captures nothing), so it lives at module scope.
+const dtoFor = (
+	kind: MouseEventDto['kind'],
+	button: MouseEventDto['button'],
+	cell: CellPoint,
+	event: MouseEvent,
+): MouseEventDto => ({
+	kind,
+	button,
+	col: cell.col,
+	row: cell.row,
+	shift: event.shiftKey,
+	ctrl: event.ctrlKey,
+	alt: event.altKey,
+})
+
+// Whether two hovered links are the same target (same row/start/url), so a
+// pointer move within one link doesn't repaint. Pure, so module-scoped.
+const sameLink = (a: GridLink | null, b: GridLink | null): boolean =>
+	a === b ||
+	(a !== null &&
+		b !== null &&
+		a.row === b.row &&
+		a.startCol === b.startCol &&
+		a.url === b.url)
+
 // Everything that doesn't cross a React render is a closure local, so the only
 // refs are the two DOM handles. Re-running on `sessionId` gives each session a
 // fresh, self-contained scope.
@@ -413,29 +440,6 @@ const startRendering = (
 
 	const reportsMouse = (event: MouseEvent): boolean =>
 		(lastFrame?.mouse_reporting ?? false) && !event.shiftKey
-
-	const dtoFor = (
-		kind: MouseEventDto['kind'],
-		button: MouseEventDto['button'],
-		cell: CellPoint,
-		event: MouseEvent,
-	): MouseEventDto => ({
-		kind,
-		button,
-		col: cell.col,
-		row: cell.row,
-		shift: event.shiftKey,
-		ctrl: event.ctrlKey,
-		alt: event.altKey,
-	})
-
-	const sameLink = (a: GridLink | null, b: GridLink | null): boolean =>
-		a === b ||
-		(a !== null &&
-			b !== null &&
-			a.row === b.row &&
-			a.startCol === b.startCol &&
-			a.url === b.url)
 
 	const refreshHover = (cell: CellPoint): void => {
 		const link = lastFrame ? findLinkAt(lastFrame, cell) : null

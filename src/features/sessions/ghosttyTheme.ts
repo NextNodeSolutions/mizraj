@@ -1,5 +1,5 @@
 import type { GhosttyConfig } from './ghosttyConfig'
-import { contrastColor } from './ghosttyThemeColors'
+import { contrastColor, isLightBackground } from './ghosttyThemeColors'
 import { buildPalette } from './terminalPalette'
 
 // Which ANSI palette index feeds each app/Catppuccin accent. The normal hues
@@ -26,21 +26,6 @@ const PALETTE_BRIGHT_CYAN = 14
 export const mixBackgroundToForeground = (backgroundWeight: number): string =>
 	`color-mix(in srgb, var(--gx-background) ${backgroundWeight}%, var(--gx-foreground))`
 
-// Overlays mix transparent toward the foreground so hover/active stay faint
-// foreground washes that work on any background. `transparentWeight` is the
-// percentage of transparency kept; higher = fainter wash.
-export const overlayFromForeground = (transparentWeight: number): string =>
-	`color-mix(in srgb, transparent ${transparentWeight}%, var(--gx-foreground))`
-
-// Shadows anchor on the theme's darkest grey (`--ctp-crust`, emitted below) so
-// depth reads without injecting a Catppuccin color. `transparentWeight` is the
-// percentage of transparency kept.
-export const shadowFromCrust = (
-	offset: string,
-	transparentWeight: number,
-): string =>
-	`${offset} color-mix(in srgb, transparent ${transparentWeight}%, var(--ctp-crust))`
-
 // Grey-ramp background weights, darkest (most-bg) step first. Each is the
 // percentage of background kept while mixing toward the foreground; the ladder
 // narrows from near-bg surfaces (96) down to foreground-heavy subtexts (20) so
@@ -56,21 +41,22 @@ const RAMP_OVERLAY2 = 44
 const RAMP_SUBTEXT0 = 34
 const RAMP_SUBTEXT1 = 20
 
-// Semantic-token background weights off the bg/fg pair.
-const ELEVATED_BG_WEIGHT = 95
-const SURFACE_BG_WEIGHT = 90
-const BORDER_BG_WEIGHT = 82
-const BORDER_SUBTLE_BG_WEIGHT = 88
-const MUTED_TEXT_BG_WEIGHT = RAMP_SUBTEXT0
-
-const HOVER_TRANSPARENT_WEIGHT = 92
-const ACTIVE_TRANSPARENT_WEIGHT = 86
-const BACKDROP_TRANSPARENT_WEIGHT = 55
-
-const ELEVATED_SHADOW_OFFSET = '0 20px 60px'
-const ELEVATED_SHADOW_TRANSPARENT_WEIGHT = 72
-const INPUT_SHADOW_OFFSET = '0 2px 2px'
-const INPUT_SHADOW_TRANSPARENT_WEIGHT = 82
+// v2 surface steps (tokens.css vocabulary): --surface-2 sits between base
+// (100) and surface0 (88); --surface-hi is the brightest raised surface.
+const SURFACE_2_BG_WEIGHT = 93
+const SURFACE_HI_BG_WEIGHT = 90
+// v2 terminal chrome border (--term-bg is the background verbatim).
+const TERM_BORDER_BG_WEIGHT = 82
+// v2 status glows breathe deeper on dark backgrounds (tokens.css ships the
+// same 0.16 light / 0.3 dark pair on its static palettes).
+const GLOW_ALPHA_LIGHT = '0.16'
+const GLOW_ALPHA_DARK = '0.3'
+// v2 on-accent ink: near-crust on dark themes (like the static dark palettes
+// alias --on-accent-theme to their crust), explicit white on light ones. The
+// stylesheet's #ffffff fallback cannot be relied on — under a dark data-theme
+// its --on-accent-theme alias would resolve against the bridge's light crust.
+const ON_ACCENT_BG_WEIGHT = 92
+const ON_ACCENT_LIGHT = '#ffffff'
 
 // The exact, fixed set of properties this theme writes. It is the single source
 // of truth for cleanup: the effect removes every key here before (re)applying,
@@ -107,23 +93,12 @@ export const THEME_TOKEN_KEYS = [
 	'--ctp-sky',
 	'--ctp-sapphire',
 	'--ctp-blue',
-	'--color-bg',
-	'--color-bg-elevated',
-	'--color-surface',
-	'--color-text',
-	'--color-text-muted',
-	'--color-border',
-	'--color-border-subtle',
-	'--color-accent',
-	'--color-accent-hover',
-	'--color-link',
-	'--color-link-hover',
-	'--color-hover-overlay',
-	'--color-active-overlay',
-	'--color-backdrop',
-	'--color-danger',
-	'--shadow-elevated',
-	'--shadow-input',
+	'--surface-2',
+	'--surface-hi',
+	'--term-bg',
+	'--term-border',
+	'--glow-alpha',
+	'--on-accent-theme',
 ] as const
 
 // The CSS variable -> value map for a themed config. `--gx-background` and
@@ -136,15 +111,18 @@ export const THEME_TOKEN_KEYS = [
 // apply and the caller must leave Catppuccin untouched. Pure: no DOM, no IO.
 export type ThemeTokenKey = (typeof THEME_TOKEN_KEYS)[number]
 
+export type ThemeTokens = Record<ThemeTokenKey, string>
+
 export const ghosttyThemeTokens = (
 	config: GhosttyConfig,
-): Record<ThemeTokenKey, string> | null => {
+): ThemeTokens | null => {
 	const background = config.background
 	if (background === null) return null
 
 	const foreground = config.foreground ?? contrastColor(background)
 	const palette = buildPalette(config.palette)
 	const colorAt = (index: number): string => palette[index] ?? foreground
+	const lightBackground = isLightBackground(background)
 
 	return {
 		'--gx-background': background,
@@ -180,35 +158,13 @@ export const ghosttyThemeTokens = (
 		'--ctp-sapphire': colorAt(PALETTE_CYAN),
 		'--ctp-blue': colorAt(PALETTE_BLUE),
 
-		'--color-bg': background,
-		'--color-bg-elevated': mixBackgroundToForeground(ELEVATED_BG_WEIGHT),
-		'--color-surface': mixBackgroundToForeground(SURFACE_BG_WEIGHT),
-		'--color-text': foreground,
-		'--color-text-muted': mixBackgroundToForeground(MUTED_TEXT_BG_WEIGHT),
-		'--color-border': mixBackgroundToForeground(BORDER_BG_WEIGHT),
-		'--color-border-subtle': mixBackgroundToForeground(
-			BORDER_SUBTLE_BG_WEIGHT,
-		),
-		'--color-accent': colorAt(PALETTE_BLUE),
-		'--color-accent-hover': colorAt(PALETTE_CYAN),
-		'--color-link': colorAt(PALETTE_BLUE),
-		'--color-link-hover': colorAt(PALETTE_BRIGHT_MAGENTA),
-		'--color-hover-overlay': overlayFromForeground(
-			HOVER_TRANSPARENT_WEIGHT,
-		),
-		'--color-active-overlay': overlayFromForeground(
-			ACTIVE_TRANSPARENT_WEIGHT,
-		),
-		'--color-backdrop': overlayFromForeground(BACKDROP_TRANSPARENT_WEIGHT),
-		'--color-danger': colorAt(PALETTE_RED),
-
-		'--shadow-elevated': shadowFromCrust(
-			ELEVATED_SHADOW_OFFSET,
-			ELEVATED_SHADOW_TRANSPARENT_WEIGHT,
-		),
-		'--shadow-input': shadowFromCrust(
-			INPUT_SHADOW_OFFSET,
-			INPUT_SHADOW_TRANSPARENT_WEIGHT,
-		),
+		'--surface-2': mixBackgroundToForeground(SURFACE_2_BG_WEIGHT),
+		'--surface-hi': mixBackgroundToForeground(SURFACE_HI_BG_WEIGHT),
+		'--term-bg': background,
+		'--term-border': mixBackgroundToForeground(TERM_BORDER_BG_WEIGHT),
+		'--glow-alpha': lightBackground ? GLOW_ALPHA_LIGHT : GLOW_ALPHA_DARK,
+		'--on-accent-theme': lightBackground
+			? ON_ACCENT_LIGHT
+			: mixBackgroundToForeground(ON_ACCENT_BG_WEIGHT),
 	}
 }

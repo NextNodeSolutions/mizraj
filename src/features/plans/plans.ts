@@ -22,3 +22,17 @@ const fetchPlans = (repoPath: string): Promise<ReadonlyArray<PlanEntry>> =>
 export const usePlans = (repoPath: string | null): PlansState =>
 	useRepoResource(repoPath, fetchPlans, 'plans-menu', 'usePlans: list_plans')
 		.state
+
+/**
+ * The plan an interview produced, when one is listed.
+ */
+// TODO: interview->plan linkage missing; using slug-suffix heuristic (plan
+// '2026-05-15-mizraj' matches interview 'mizraj') until the backend exposes the
+// generated plan id
+export const generatedPlanFor = (
+	plans: ReadonlyArray<PlanEntry>,
+	interviewSlug: string,
+): PlanEntry | null =>
+	plans.find(
+		entry => entry.kind === 'plan' && entry.slug.endsWith(interviewSlug),
+	) ?? null

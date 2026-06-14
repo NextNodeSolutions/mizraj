@@ -1,25 +1,81 @@
-import { useLayoutToggle } from '@/shared/useLayoutToggle'
+import { useMemo, useState } from 'react'
+
+import { navigate, reviewHref } from '@/app/router'
+import { reviewFilesFromParsed } from '@/features/review/reviewFiles'
+import { PanelHead } from '@/shared/ui/atoms'
 
 import { DiffPanelBody } from './DiffPanelBody'
-import { DiffPanelToolbar } from './DiffPanelToolbar'
+import { DiffPanelFiles } from './DiffPanelFiles'
+import { DiffPanelPreview } from './DiffPanelPreview'
 import { useDiff } from './useDiff'
+import { usePatchFiles } from './usePatchFiles'
 
 type Props = {
-	onClose?: () => void
+	repoPath: string | null
 }
 
-export const DiffPanel = ({ onClose }: Props): React.JSX.Element => {
-	const state = useDiff()
-	const { layout, toggleLayout, diffStyle } = useLayoutToggle()
+/**
+ * The cockpit's diff dock: a preview-only panel over the active project's
+ * working-tree patch — per-file rows with +/− stats and a unified preview of
+ * the selected file. Full review tooling lives on /review ("Open review ↗"
+ * and re-clicking the selected row deep-link there with the file).
+ */
+export const DiffPanel = ({ repoPath }: Props): React.JSX.Element => {
+	const { state } = useDiff(repoPath)
+	const patch = state.status === 'ready' ? state.data.patch : null
+	const parsedFiles = usePatchFiles(patch)
+	const files = useMemo(
+		() => reviewFilesFromParsed(parsedFiles),
+		[parsedFiles],
+	)
+	const [selectedPath, setSelectedPath] = useState<string | null>(null)
+
+	const selected =
+		files.find(file => file.path === selectedPath) ?? files[0] ?? null
+	// Selection and the FileDiff `key` both index by `FileDiffMetadata.name`,
+	// which assumes names are unique within the patch. That holds here: this is
+	// always one working-tree patch (`git diff`), where each path appears once.
+	// A multi-commit or rename-tracked patch could repeat a name and break the
+	// lookup — out of scope for this preview-only dock.
+	const selectedMeta =
+		parsedFiles.find(file => file.name === selected?.path) ?? null
+
+	// Re-clicking the selected row is the "drill in" gesture: it opens the
+	// full review preselected on that file instead of re-selecting.
+	const selectRow = (path: string): void => {
+		if (path === selected?.path) {
+			navigate(reviewHref(path))
+			return
+		}
+		setSelectedPath(path)
+	}
 
 	return (
-		<div className="diff-panel">
-			<DiffPanelToolbar
-				layout={layout}
-				onToggle={toggleLayout}
-				onClose={onClose}
-			/>
-			<DiffPanelBody state={state} diffStyle={diffStyle} />
-		</div>
+		<aside className="panel fc-diffs" aria-label="Diffs">
+			<PanelHead title="Diffs" count={`${files.length} files`}>
+				<button
+					type="button"
+					className="btn btn-sm btn-outline"
+					onClick={() => navigate(reviewHref(selected?.path))}
+				>
+					Open review ↗
+				</button>
+			</PanelHead>
+			<DiffPanelBody state={state}>
+				<DiffPanelFiles
+					files={files}
+					selectedPath={selected?.path ?? null}
+					onSelect={selectRow}
+				/>
+				<div className="fc-dhunk">
+					{selectedMeta !== null && (
+						<DiffPanelPreview
+							key={selectedMeta.name}
+							fileDiff={selectedMeta}
+						/>
+					)}
+				</div>
+			</DiffPanelBody>
+		</aside>
 	)
 }

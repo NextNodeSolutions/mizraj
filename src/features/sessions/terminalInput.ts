@@ -15,6 +15,10 @@ import {
 	optionAsAltAtom,
 } from './keybindRuntime'
 import { activeSessionIdAtom } from './sessions'
+import {
+	createAltSideTracker,
+	createComposerFocusSync,
+} from './terminalInputTrackers'
 
 // Raw keystroke DTO mirroring the `session_key` serde struct on the Rust side.
 // libghostty owns all VT encoding now, so the frontend ships physical key data
@@ -337,6 +341,11 @@ const createComposer = (activeSessionId: () => string | null): Composer => {
 
 let routerStarted = false
 
+// Captured only when the router starts, so a test-only reset can undo exactly
+// what `startTerminalInputRouter` wired up — the listeners, the store
+// subscriptions and the composer.
+let teardownRouter: (() => void) | null = null
+
 // One window-level keydown listener routes every keystroke to whichever pane is
 // active (activeSessionIdAtom), read live from the default store so it always
 // targets the current pane — never broadcasting to all of them. The keybind
@@ -353,7 +362,7 @@ export const startTerminalInputRouter = (): void => {
 	const activeSessionId = (): string | null => store.get(activeSessionIdAtom)
 
 	let matcher = createKeybindMatcher(store.get(keybindTableAtom))
-	store.sub(keybindTableAtom, () => {
+	const unsubKeybindTable = store.sub(keybindTableAtom, () => {
 		matcher = createKeybindMatcher(store.get(keybindTableAtom))
 	})
 
@@ -364,46 +373,8 @@ export const startTerminalInputRouter = (): void => {
 	} = createComposer(activeSessionId)
 	document.body.appendChild(composer)
 
-	// Which Option side is physically down: KeyboardEvent.altKey can't say, so
-	// the sides are tracked from the modifier's own keydown/keyup location and
-	// cleared when the window blurs mid-press.
-	let leftAltDown = false
-	let rightAltDown = false
-	const trackAltSide = (event: KeyboardEvent, down: boolean): void => {
-		if (event.key !== 'Alt') return
-		if (event.location === KeyboardEvent.DOM_KEY_LOCATION_RIGHT) {
-			rightAltDown = down
-		} else {
-			leftAltDown = down
-		}
-	}
-	const altIsMeta = (): boolean => {
-		switch (store.get(optionAsAltAtom)) {
-			case 'both':
-				return true
-			case 'left':
-				return leftAltDown
-			case 'right':
-				return rightAltDown
-			default:
-				return false
-		}
-	}
-
-	// Focus follows the terminal: whenever focus lands on nothing (the body),
-	// the composer adopts it so the next keystroke composes. Anything truly
-	// interactive (palette, forms) keeps focus — the router already defers to
-	// it — and the composer reclaims on the way back.
-	const syncComposerFocus = (): void => {
-		const active = document.activeElement
-		const idle = !active || active === document.body || active === composer
-		if (idle && activeSessionId() !== null && active !== composer) {
-			composer.focus({ preventScroll: true })
-		}
-	}
-	const syncSoon = (): void => {
-		setTimeout(syncComposerFocus, 0)
-	}
+	const altTracker = createAltSideTracker(() => store.get(optionAsAltAtom))
+	const focusSync = createComposerFocusSync(composer, activeSessionId)
 
 	const route = createKeydownRoute({
 		activeSessionId,
@@ -411,26 +382,55 @@ export const startTerminalInputRouter = (): void => {
 		execute: executeKeybindAction,
 		canPerform: canPerformKeybindAction,
 		propagate: propagateKey,
-		altIsMeta,
+		altIsMeta: altTracker.altIsMeta,
 		composerActive: () => document.activeElement === composer,
 		cancelComposition,
 		composerBusy,
 	})
 
-	window.addEventListener('keydown', event => {
-		trackAltSide(event, true)
+	const onKeydown = (event: KeyboardEvent): void => {
+		altTracker.track(event, true)
 		route(event)
-	})
-	window.addEventListener('keyup', event => {
-		trackAltSide(event, false)
-	})
-	window.addEventListener('blur', () => {
-		leftAltDown = false
-		rightAltDown = false
-	})
-	window.addEventListener('focus', syncSoon)
-	document.addEventListener('click', syncSoon)
-	composer.addEventListener('focusout', syncSoon)
-	store.sub(activeSessionIdAtom, syncSoon)
-	syncComposerFocus()
+	}
+	const onKeyup = (event: KeyboardEvent): void => {
+		altTracker.track(event, false)
+	}
+
+	window.addEventListener('keydown', onKeydown)
+	window.addEventListener('keyup', onKeyup)
+	window.addEventListener('blur', altTracker.reset)
+	window.addEventListener('focus', focusSync.syncSoon)
+	document.addEventListener('click', focusSync.syncSoon)
+	// Document-level so ANY field handing focus back to the body returns the
+	// keyboard to the terminal — the palette's Escape/⌘K close and other
+	// keyboard-only dismissals never produce a click or window refocus.
+	document.addEventListener('focusout', focusSync.syncSoon)
+	const unsubActiveSession = store.sub(
+		activeSessionIdAtom,
+		focusSync.syncSoon,
+	)
+	focusSync.sync()
+
+	teardownRouter = (): void => {
+		window.removeEventListener('keydown', onKeydown)
+		window.removeEventListener('keyup', onKeyup)
+		window.removeEventListener('blur', altTracker.reset)
+		window.removeEventListener('focus', focusSync.syncSoon)
+		document.removeEventListener('click', focusSync.syncSoon)
+		document.removeEventListener('focusout', focusSync.syncSoon)
+		unsubKeybindTable()
+		unsubActiveSession()
+		composer.remove()
+	}
+}
+
+// Test-only escape hatch: tear down the router (listeners, store subscriptions,
+// composer) and re-arm the once-guard so each test starts from a clean slate.
+// Mirrors resetSettingsForTests — without it the module-level `routerStarted`
+// makes every start after the first a no-op, leaking the composer and four
+// document listeners and making tests order-dependent.
+export const resetTerminalInputRouterForTests = (): void => {
+	teardownRouter?.()
+	teardownRouter = null
+	routerStarted = false
 }

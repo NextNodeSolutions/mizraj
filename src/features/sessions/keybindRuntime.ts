@@ -5,6 +5,7 @@ import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
 
 import { readClipboardText, writeClipboardText } from './clipboard'
+import { closeSession } from './closeSession'
 import type {
 	Keybind,
 	KeybindAction,
@@ -199,13 +200,7 @@ const gotoSplit = (sessionId: string, focus: SplitFocus): void => {
 // AGENT_END listener also prunes the tree, but pruning here too keeps the
 // layout snappy instead of waiting on the child's exit round-trip.
 const closeSurface = (sessionId: string): void => {
-	invoke('session_close', { sessionId }).catch((error: unknown) => {
-		const { message, stack } = describeError(error)
-		logger.warn(`keybind close_surface: session_close failed: ${message}`, {
-			scope: 'terminal-input',
-			details: { stack, sessionId },
-		})
-	})
+	void closeSession(sessionId)
 	removeSessionFromSplits(sessionId)
 }
 

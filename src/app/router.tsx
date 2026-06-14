@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react'
-
 import type { PlanKind } from '@/features/plans/plans'
 import { PLAN_KINDS } from '@/features/plans/plans'
+
+// The location store (navigate + the popstate-backed hooks) lives in its own
+// module; re-exported here so route consumers keep one import surface.
+export { navigate, useLocationSearch, usePathname } from './useLocation'
 
 const PLANS_PATH_ROOT = 'plans'
 const AGENT_RUN_PATH_ROOT = 'agent-run'
 const TASKS_PATH_ROOT = 'tasks'
+const PIPELINE_PATH_ROOT = 'pipeline'
+const REVIEW_PATH_ROOT = 'review'
 const PLAN_KIND_SET: ReadonlySet<string> = new Set(PLAN_KINDS)
 const PLAN_ROUTE_SEGMENTS = 3
 const AGENT_RUN_ROUTE_SEGMENTS = 2
@@ -22,7 +26,44 @@ export const planRouteHref = ({ kind, slug }: PlanRoute): string =>
 export const agentRunHref = (sessionId: string): string =>
 	`/${AGENT_RUN_PATH_ROOT}/${sessionId}`
 
+/** The cockpit with no session yet — its empty state. */
+export const agentRunIndexHref = (): string => `/${AGENT_RUN_PATH_ROOT}`
+
 export const tasksHref = (): string => `/${TASKS_PATH_ROOT}`
+
+export const MISSION_FILTERS = ['running', 'review', 'failed'] as const
+
+/** The status filters mission control can be deep-linked to. */
+export type MissionControlFilter = (typeof MISSION_FILTERS)[number]
+
+/** What mission control reads back from the URL: a filter, or everything. */
+export type MissionFilter = MissionControlFilter | 'all'
+
+export const missionControlHref = (filter?: MissionControlFilter): string =>
+	filter === undefined ? '/' : `/?filter=${filter}`
+
+const isMissionControlFilter = (value: string): value is MissionControlFilter =>
+	MISSION_FILTERS.some(filter => filter === value)
+
+export const parseMissionFilter = (search: string): MissionFilter => {
+	const value = new URLSearchParams(search).get('filter')
+	return value !== null && isMissionControlFilter(value) ? value : 'all'
+}
+
+export const pipelineHref = (): string => `/${PIPELINE_PATH_ROOT}`
+
+export const reviewHref = (file?: string): string =>
+	file === undefined
+		? `/${REVIEW_PATH_ROOT}`
+		: `/${REVIEW_PATH_ROOT}?file=${encodeURIComponent(file)}`
+
+/** The file the review screen should preselect, when deep-linked. */
+export const parseReviewFile = (search: string): string | null => {
+	const value = new URLSearchParams(search).get('file')
+	return value !== null && value !== '' ? value : null
+}
+
+export const plansIndexHref = (): string => `/${PLANS_PATH_ROOT}`
 
 const isPlanRoute = (
 	segments: ReadonlyArray<string>,
@@ -54,25 +95,25 @@ export const matchAgentRunRoute = (pathname: string): AgentRunRoute | null => {
 		: null
 }
 
-export const matchTasksRoute = (pathname: string): boolean => {
+const isSingleSegment = (pathname: string, root: string): boolean => {
 	const segments = pathname.split('/').filter(Boolean)
-	return segments.length === 1 && segments[0] === TASKS_PATH_ROOT
+	return segments.length === 1 && segments[0] === root
 }
 
-export const navigate = (href: string): void => {
-	if (window.location.pathname === href) return
-	window.history.pushState({}, '', href)
-	window.dispatchEvent(new PopStateEvent('popstate'))
-}
+export const matchTasksRoute = (pathname: string): boolean =>
+	isSingleSegment(pathname, TASKS_PATH_ROOT)
 
-const readPathname = (): string => window.location.pathname
+export const matchAgentRunIndexRoute = (pathname: string): boolean =>
+	isSingleSegment(pathname, AGENT_RUN_PATH_ROOT)
 
-export const usePathname = (): string => {
-	const [pathname, setPathname] = useState<string>(readPathname)
-	useEffect(() => {
-		const handler = (): void => setPathname(readPathname())
-		window.addEventListener('popstate', handler)
-		return () => window.removeEventListener('popstate', handler)
-	}, [])
-	return pathname
-}
+export const matchMissionControlRoute = (pathname: string): boolean =>
+	pathname.split('/').filter(Boolean).length === 0
+
+export const matchPipelineRoute = (pathname: string): boolean =>
+	isSingleSegment(pathname, PIPELINE_PATH_ROOT)
+
+export const matchReviewRoute = (pathname: string): boolean =>
+	isSingleSegment(pathname, REVIEW_PATH_ROOT)
+
+export const matchPlansIndexRoute = (pathname: string): boolean =>
+	isSingleSegment(pathname, PLANS_PATH_ROOT)

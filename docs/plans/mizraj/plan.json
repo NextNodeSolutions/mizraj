@@ -829,6 +829,194 @@
 					]
 				}
 			]
+		},
+		{
+			"id": "M18",
+			"demo": "Le picker TopBar liste tous les repos connus et « Add repo… » en ajoute un ; un repo enregistré sans session apparaît dans Mission Control, les dormants repliés dans une section compacte.",
+			"skeleton": false,
+			"needs": [],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/project-registry",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Registre de projets backend (list/add/remove + persistance)",
+							"size": "I4",
+							"slice_of": ["MP1", "MP4"],
+							"done_when": "projects_list retourne les repos ajoutés et auto-enregistrés après redémarrage de l'app (persistance app-data vérifiée par test)",
+							"description": "WHAT: module registry avec commandes projects_list, projects_add, projects_remove ; persistance JSON dans le app-data dir Tauri ; set_active_project auto-enregistre son path.\n\nWHY: MP4 — l'overview doit lister des repos sans session vivante ; aujourd'hui Mission Control ne connaît que les repos des sessions (TODO projectGroups.ts:24).\n\nWHERE: src-tauri/src/project/registry.rs (nouveau), src-tauri/src/project.rs (auto-register), src-tauri/src/lib.rs (handlers).\n\nDONE WHEN:\n- projects_add/remove persiste et survit au restart (test rust)\n- set_active_project ajoute le repo au registre s'il n'y est pas\n- projects_remove ne touche pas le projet actif s'il pointe ailleurs",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Hook useProjects côté front",
+							"size": "I3",
+							"slice_of": ["MP1"],
+							"done_when": "un composant de test rend la liste du registre et reflète add/remove sans reload",
+							"description": "WHAT: hook useProjects (liste + add + remove) sur les commandes registry, état jotai, erreurs loggées via shared/logger.\n\nWHY: MP1 — toute surface multi-repos (picker, Mission Control, Pipeline) consommera ce hook unique.\n\nWHERE: src/features/projects/useProjects.ts (nouveau) + test.\n\nDONE WHEN:\n- la liste se charge au mount et se met à jour après add/remove\n- une erreur backend produit un état d'erreur loggé, pas un crash",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "ProjectPicker en dropdown registre + « Add repo… »",
+							"size": "I4",
+							"slice_of": ["MP1", "MP4"],
+							"done_when": "clic sur le scope TopBar ouvre un menu listant les repos du registre ; en choisir un switche le projet, « Add repo… » ouvre le dialog actuel",
+							"description": "WHAT: remplacer le clic-direct-dialog par un dropdown : repos du registre (nom + path compacté), entrée « Add repo… » qui ouvre le dialog, sélection = set_active_project.\n\nWHY: MP4 — ajouter/switcher un repo doit être trivial pour que le parallélisme N repos soit réellement utilisé.\n\nWHERE: src/features/projects/ProjectPicker.tsx, styles dans src/app/styles/components.css (réutiliser le pattern menu de la palette), TODO ProjectPicker.tsx:20.\n\nDONE WHEN:\n- le menu liste le registre, repo actif marqué\n- « Add repo… » ajoute au registre ET switche dessus\n- navigation clavier (flèches + Enter + Escape) fonctionnelle",
+							"sink_id": null
+						},
+						{
+							"step": "04",
+							"title": "Mission Control hybride auto : registre mergé, dormants repliés",
+							"size": "I4",
+							"slice_of": ["MP4"],
+							"done_when": "un repo enregistré sans session apparaît dans Mission Control en section compacte repliée avec CTA « New agent » ; un repo avec sessions reste un groupe plein",
+							"description": "WHAT: merger registre + groupes de sessions dans projectGroups : les repos avec activité (sessions vivantes) en groupes pleins, les dormants dans une section compacte repliable en bas de mur.\n\nWHY: MP4 — hybride auto : zéro geste de gestion, l'UI tranche par l'activité ; résout TODO projectGroups.ts:24.\n\nWHERE: src/features/missionControl/projectGroups.ts (merge + partition actifs/dormants), MissionControl.tsx + ProjectGroup.tsx (section dormants), MissionControl.css.\n\nDONE WHEN:\n- partition pure testée : sessions vivantes => actif, sinon dormant\n- section dormants repliée par défaut, CTA « New agent » lance une session sur ce repo\n- le tri existant (actif d'abord, activité ensuite) est préservé",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M19",
+			"demo": "Avec 2 repos enregistrés, Mission Control affiche la branche et les stats de diff de chaque carte pour les deux repos à la fois — sans aucune mutation du projet actif.",
+			"skeleton": false,
+			"needs": ["M18"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/repo-scoped-reads",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "get_diff(repo_path) sans état actif",
+							"size": "I4",
+							"slice_of": ["MP1"],
+							"done_when": "get_diff répond pour un repo enregistré NON actif (test rust) ; le front passe le path explicitement",
+							"description": "WHAT: get_diff prend repo_path en argument et lit ce repo directement ; l'état ActiveProject ne sert plus à la lecture (il reste pour la préférence UI).\n\nWHY: MP1 — l'overview cross-repos ne peut pas dire vrai si chaque lecture exige de muter un singleton actif.\n\nWHERE: src-tauri/src/diff.rs, src/features/diff/useDiff.ts (déjà paramétré par path — retirer la dépendance au mismatch actif).\n\nDONE WHEN:\n- get_diff sur un repo non actif retourne le patch (test)\n- plus d'erreur repo-mismatch sur les lectures\n- useDiff inchangé côté appelants",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "tasks_overview(repo_path) + repo_head(repo_path), pool SQLite par repo",
+							"size": "I4",
+							"slice_of": ["MP1"],
+							"done_when": "tasks_overview et repo_head répondent pour un repo non actif ; deux repos interrogés en parallèle ne se polluent pas",
+							"description": "WHAT: paramétrer tasks_overview et repo_head par repo_path ; la pool SQLite de progression (scopée au projet actif aujourd'hui) devient une map path → pool, ouverte à la demande.\n\nWHY: MP1 — milestones et branche par repo dans l'overview ; prérequis M20 (les events watchers invalident des queries par path).\n\nWHERE: src-tauri/src/tasks.rs, src-tauri/src/project.rs (repo_head), src-tauri/src/db.rs (pool par repo), src-tauri/src/lib.rs.\n\nDONE WHEN:\n- tasks_overview(repoB) pendant que repoA est actif retourne les tâches de B (test)\n- repo_head(repoB) idem\n- deux pools coexistent sans fuite (fermeture sur projects_remove)",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Hooks front paramétrés par repo ; le projet actif devient une préférence UI",
+							"size": "I3",
+							"slice_of": ["MP1"],
+							"done_when": "useTasks/useDiff/repoHead acceptent n'importe quel path du registre ; aucun call-site ne dépend d'un set_active_project préalable",
+							"description": "WHAT: généraliser les hooks (useTasks(repoPath), repoHead(repoPath)) et retirer côté front toute hypothèse « actif d'abord » ; activeProjectPath ne pilote plus que la sélection d'écran mono.\n\nWHY: MP1/MP5 — les écrans mono lisent la préférence, les écrans multi lisent le registre ; la frontière devient explicite.\n\nWHERE: src/features/tasks/tasks.ts, src/features/projects/repoHead.ts, src/features/projects/activeProject.ts, call-sites (PipelineView, PlansView, ReviewView).\n\nDONE WHEN:\n- aucun hook ne déclenche set_active_project implicitement\n- type-check + tests verts sur tous les écrans",
+							"sink_id": null
+						},
+						{
+							"step": "04",
+							"title": "Mission Control : branche + diff réels par carte, Review navigable cross-projet",
+							"size": "I4",
+							"slice_of": ["MP1", "MP5"],
+							"done_when": "chaque carte agent montre la branche et les stats de diff de SON repo ; « open review » depuis une carte d'un autre repo switche la préférence puis navigue",
+							"description": "WHAT: brancher repo_head/get_diff par repo sur les cartes Mission Control ; le clic review d'une carte hors projet courant met à jour la préférence puis route vers /review.\n\nWHY: résout les TODO AgentCard.tsx:26/:152/:162 — l'overview devient vraie carte par carte (MP1), la Review reste mono (MP5).\n\nWHERE: src/features/missionControl/AgentCard.tsx, ProjectGroup.tsx, hooks de M19.A-03.\n\nDONE WHEN:\n- 2 repos avec sessions => branches/stats distinctes affichées (test)\n- open review cross-repo aboutit sur la Review du bon repo\n- les 3 TODO cités sont supprimés du code",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M20",
+			"demo": "Un commit fait dans un terminal externe sur un repo non affiché met à jour ses stats dans Mission Control en moins d'une seconde, sans action UI ; un rebase de 50 commits ne déclenche qu'une poignée de recomputes (debounce).",
+			"skeleton": false,
+			"needs": ["M19"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/fs-watchers",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Watcher filesystem par repo (notify) + event repo-changed débouncé",
+							"size": "I4",
+							"slice_of": ["MP6"],
+							"done_when": "modifier un fichier d'un repo enregistré émet un event Tauri repo-changed { repoPath } débouncé (rafale => 1 event), vérifié par test rust",
+							"description": "WHAT: crate notify : un watcher par repo du registre (worktree + .git/HEAD + .git/refs/), batch/debounce des rafales, émission d'un event Tauri repo-changed { repoPath, kind }.\n\nWHY: MP6 — l'état doit être vrai en continu sans polling ; fondation du futur système de notifications.\n\nWHERE: src-tauri/src/project/watcher.rs (nouveau), src-tauri/Cargo.toml (notify), src-tauri/src/lib.rs (spawn au setup + registre).\n\nDONE WHEN:\n- une rafale d'écritures produit un seul event après le debounce (test)\n- les events portent le repoPath du repo modifié\n- .git interne (index.lock, objects) ne spam pas : filtrage des paths bruyants",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Invalidation front sur repo-changed",
+							"size": "I3",
+							"slice_of": ["MP6"],
+							"done_when": "un event repo-changed simulé déclenche le refetch de useDiff/useTasks/repoHead du repo concerné, et seulement de lui",
+							"description": "WHAT: écouter repo-changed et invalider les queries du path concerné ; les autres repos ne refetchent pas.\n\nWHY: MP6 — l'overview multi reste vraie sans focus ni action ; remplace tout refresh manuel.\n\nWHERE: src/features/projects/repoEvents.ts (nouveau) + branchement dans useDiff/useTasks/repoHead, tests par événement simulé.\n\nDONE WHEN:\n- event repoA => refetch des hooks repoA uniquement (test)\n- désabonnement propre au unmount",
+							"sink_id": null
+						},
+						{
+							"step": "03",
+							"title": "Cycle de vie des watchers liés au registre",
+							"size": "I3",
+							"slice_of": ["MP6"],
+							"done_when": "projects_add démarre un watcher, projects_remove l'arrête ; un repo supprimé du disque passe en erreur visible sans crash",
+							"description": "WHAT: lier le démarrage/arrêt des watchers au registre (add/remove + chargement initial) ; gérer le repo disparu (erreur loggée + état marqué, watcher retiré).\n\nWHY: MP6/MP4 — le registre est la seule source de vérité de ce qui est surveillé ; zéro gestion manuelle.\n\nWHERE: src-tauri/src/project/watcher.rs, registry.rs (hooks add/remove).\n\nDONE WHEN:\n- add => events reçus ; remove => plus aucun event (test)\n- repo disparu : pas de panic, erreur loggée une fois",
+							"sink_id": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "M21",
+			"demo": "Clic sur une session du repo B depuis Mission Control → le Cockpit affiche B (agents — terminal — diff) ; le Pipeline montre les cartes de tous les repos actifs, groupées par repo.",
+			"skeleton": false,
+			"needs": ["M18", "M19"],
+			"tracks": [
+				{
+					"id": "A",
+					"branch": "feat/cockpit-follow-session",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "La sélection d'une session bascule le projet du Cockpit",
+							"size": "I4",
+							"slice_of": ["MP2"],
+							"done_when": "sélectionner une session du repo B (Mission Control, palette, liste cockpit) affiche le Cockpit de B ; le picker TopBar reste un switch explicite qui coexiste",
+							"description": "WHAT: sélection de session => la préférence projet suit le repoPath de la session avant la navigation cockpit ; aucun écran multi n'en dépend.\n\nWHY: MP2 — zéro friction overview→travail : un clic et tout le contexte suit ; le switch TopBar explicite reste disponible.\n\nWHERE: src/features/sessions/ (sélection/atoms), src/app/router.tsx (nav cockpit), call-sites Mission Control + palette.\n\nDONE WHEN:\n- clic session repo B => cockpit B (test)\n- switch TopBar pendant qu'une session B est sélectionnée reste possible et cohérent\n- sessions sans repo (bucket no project) ne cassent pas la bascule",
+							"sink_id": null
+						}
+					]
+				},
+				{
+					"id": "B",
+					"branch": "feat/pipeline-multi-repo",
+					"tasks": [
+						{
+							"step": "01",
+							"title": "Pipeline cross-projets groupé par repo",
+							"size": "I4",
+							"slice_of": ["MP5"],
+							"done_when": "avec 2 repos actifs, chaque colonne du kanban montre les cartes des deux repos avec un groupement visuel par repo",
+							"description": "WHAT: pipelineColumns agrège les sessions/tâches de tous les repos actifs du registre ; groupement visuel par repo dans chaque colonne (réutiliser projectName/projectHue).\n\nWHY: MP5 — le Pipeline est un écran de pilotage : il doit montrer le flux de TOUT ce qui tourne, pas du seul projet actif.\n\nWHERE: src/features/pipeline/pipelineColumns.ts, PipelineView.tsx, Pipeline.css, hooks M19 (tasks par repo).\n\nDONE WHEN:\n- 2 repos => cartes des deux dans les colonnes, séparées par repo (test)\n- l'écran vide ne s'affiche que si AUCUN repo n'est enregistré",
+							"sink_id": null
+						},
+						{
+							"step": "02",
+							"title": "Launch/Approve scopés au repo de la carte",
+							"size": "I3",
+							"slice_of": ["MP5"],
+							"done_when": "lancer un agent ou approuver depuis une carte du repo B agit sur B, même si la préférence pointe sur A",
+							"description": "WHAT: les actions des cartes pipeline portent le repoPath de leur carte (launch d'agent, approve client-only) au lieu de lire le projet actif.\n\nWHY: MP5 — un écran multi ne peut pas router ses actions via une préférence mono sans corrompre le mauvais repo.\n\nWHERE: src/features/pipeline/PipelineTaskCard.tsx, PipelineSessionCard.tsx, approvedSessions.ts (scoper par repo).\n\nDONE WHEN:\n- launch depuis une carte B crée la session sur B (test)\n- approve B ne marque pas une session homonyme de A",
+							"sink_id": null
+						}
+					]
+				}
+			]
 		}
 	]
 }

@@ -25,7 +25,7 @@ export const RunAgentButton = ({
 	return (
 		<button
 			type="button"
-			className="run-agent-button"
+			className="btn btn-primary"
 			onClick={handleClick}
 			disabled={pending}
 			aria-busy={pending}

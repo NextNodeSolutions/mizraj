@@ -13,6 +13,7 @@ import type { Task } from './tasks'
 import { TrackTaskRow } from './TrackTaskRow'
 
 const TRACK_TASK: Task = {
+	repoPath: '/repo/x',
 	id: 'track-1',
 	identifier: '[M1.A-01]',
 	origin: 'track',
@@ -147,6 +148,7 @@ describe('TrackTaskRow read-only-except-name', () => {
 		const [command, payload] = invokeMock.mock.lastCall ?? []
 		expect(command).toBe('tasks_update')
 		expect(payload).toEqual({
+			repoPath: '/repo/x',
 			id: 'track-1',
 			title: 'Renamed step',
 			description: 'Step body kept verbatim',

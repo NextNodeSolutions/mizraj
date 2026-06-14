@@ -13,6 +13,7 @@ import { PlanTree } from './PlanTree'
 import type { MilestoneGroup, Task } from './tasks'
 
 const trackTask: Task = {
+	repoPath: '/repo/x',
 	id: 'track-1',
 	identifier: '[M1.A-01]',
 	origin: 'track',
