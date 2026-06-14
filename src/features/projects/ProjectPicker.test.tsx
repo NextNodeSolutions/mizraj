@@ -45,6 +45,7 @@ describe('ProjectPicker', () => {
 		onSelect = vi.fn<(path: string) => void>()
 		invokeMock.mockImplementation((command: string) => {
 			if (command === 'projects_list') return Promise.resolve(REGISTRY)
+			if (command === 'projects_missing') return Promise.resolve([])
 			return Promise.resolve(null)
 		})
 		container = document.createElement('div')
@@ -116,6 +117,7 @@ describe('ProjectPicker', () => {
 		openDialogMock.mockResolvedValue('/Users/dev/fresh')
 		invokeMock.mockImplementation((command: string) => {
 			if (command === 'projects_list') return Promise.resolve(REGISTRY)
+			if (command === 'projects_missing') return Promise.resolve([])
 			if (command === 'projects_add') {
 				return Promise.resolve('/Users/dev/fresh')
 			}
@@ -145,5 +147,46 @@ describe('ProjectPicker', () => {
 		await openMenu()
 		await press('Escape')
 		expect(menuOptions()).toHaveLength(0)
+	})
+
+	it('groups vanished repos under "introuvable" and strikes them through', async () => {
+		invokeMock.mockImplementation((command: string) => {
+			if (command === 'projects_list') {
+				return Promise.resolve([
+					'/Users/dev/repo-a',
+					'/Users/dev/repo-gone',
+				])
+			}
+			if (command === 'projects_missing') {
+				return Promise.resolve(['/Users/dev/repo-gone'])
+			}
+			return Promise.resolve(null)
+		})
+		await renderPicker('/Users/dev/repo-a')
+		await openMenu()
+
+		expect(container.querySelector('.pal-group')?.textContent).toBe(
+			'introuvable',
+		)
+		const gone = menuOptions().find(
+			option => option.getAttribute('data-missing') === 'true',
+		)
+		expect(gone?.textContent).toContain('repo-gone')
+	})
+
+	it('the remove button prunes a repo from the pool without switching', async () => {
+		await renderPicker('/Users/dev/repo-a')
+		await openMenu()
+
+		const repoB = menuOptions()[1]
+		const remove = repoB?.querySelector<HTMLButtonElement>('.pal-rm')
+		await act(async () => {
+			remove?.click()
+		})
+
+		expect(invokeMock).toHaveBeenCalledWith('projects_remove', {
+			repoPath: '/Users/dev/repo-b',
+		})
+		expect(onSelect).not.toHaveBeenCalled()
 	})
 })

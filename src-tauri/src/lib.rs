@@ -70,6 +70,7 @@ pub fn run() {
             plans::list::list_plans,
             project::set_active_project,
             project::registry::projects_list,
+            project::registry::projects_missing,
             project::registry::projects_add,
             project::registry::projects_remove,
             project::clear_active_project,

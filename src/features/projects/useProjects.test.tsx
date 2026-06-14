@@ -22,11 +22,16 @@ vi.mock('@/shared/logger', () => ({
 import { useProjects } from './useProjects'
 
 const RegistryProbe = (): React.JSX.Element => {
-	const { projects, addProject, removeProject } = useProjects()
+	const { projects, missing, addProject, removeProject } = useProjects()
 	return (
 		<div>
 			<ul>
 				{projects.map(path => (
+					<li key={path}>{path}</li>
+				))}
+			</ul>
+			<ul aria-label="missing">
+				{missing.map(path => (
 					<li key={path}>{path}</li>
 				))}
 			</ul>
@@ -115,6 +120,25 @@ describe('useProjects', () => {
 			repoPath: '/tmp/repo-a',
 		})
 		expect(container.textContent).not.toContain('/tmp/repo-a')
+	})
+
+	it('flags the registry entries that vanished from disk', async () => {
+		invokeMock.mockImplementation((command: string) => {
+			if (command === 'projects_list') {
+				return Promise.resolve(['/tmp/repo-a', '/tmp/repo-gone'])
+			}
+			if (command === 'projects_missing') {
+				return Promise.resolve(['/tmp/repo-gone'])
+			}
+			return Promise.resolve(null)
+		})
+
+		await renderProbe()
+
+		expect(invokeMock).toHaveBeenCalledWith('projects_missing')
+		const missing = container.querySelector('[aria-label="missing"]')
+		expect(missing?.textContent).toContain('/tmp/repo-gone')
+		expect(missing?.textContent).not.toContain('/tmp/repo-a')
 	})
 
 	it('keeps an empty list and logs when the backend fails', async () => {

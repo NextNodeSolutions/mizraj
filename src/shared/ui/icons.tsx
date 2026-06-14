@@ -92,3 +92,10 @@ export const IconPlus = (): React.JSX.Element => (
 		<line x1="3.5" y1="9" x2="14.5" y2="9" />
 	</IconCanvas>
 )
+
+export const IconX = (): React.JSX.Element => (
+	<IconCanvas>
+		<line x1="5" y1="5" x2="13" y2="13" />
+		<line x1="13" y1="5" x2="5" y2="13" />
+	</IconCanvas>
+)

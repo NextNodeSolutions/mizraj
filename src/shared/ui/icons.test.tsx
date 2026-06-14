@@ -11,6 +11,7 @@ import {
 	IconGrid,
 	IconPlus,
 	IconTerm,
+	IconX,
 } from './icons'
 
 const ICONS = [
@@ -21,6 +22,7 @@ const ICONS = [
 	{ name: 'IconDiff', Icon: IconDiff },
 	{ name: 'IconGear', Icon: IconGear },
 	{ name: 'IconPlus', Icon: IconPlus },
+	{ name: 'IconX', Icon: IconX },
 ]
 
 describe('icons', () => {

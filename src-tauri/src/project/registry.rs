@@ -18,6 +18,10 @@ impl SharedRegistry {
         self.lock().list()
     }
 
+    pub fn missing(&self) -> Vec<PathBuf> {
+        self.lock().missing()
+    }
+
     pub fn add(&self, path: PathBuf) -> Result<bool, String> {
         self.lock().add(path)
     }
@@ -35,6 +39,19 @@ impl SharedRegistry {
 pub fn projects_list(registry: tauri::State<'_, SharedRegistry>) -> Vec<String> {
     registry
         .list()
+        .into_iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect()
+}
+
+/// Registered repos whose path no longer resolves to a directory on disk:
+/// folders the user moved or deleted. The picker shows them as "introuvable"
+/// so they can be pruned from the pool — listing them is the only way the user
+/// learns the registry drifted from reality.
+#[tauri::command]
+pub fn projects_missing(registry: tauri::State<'_, SharedRegistry>) -> Vec<String> {
+    registry
+        .missing()
         .into_iter()
         .map(|path| path.to_string_lossy().into_owned())
         .collect()
@@ -93,6 +110,16 @@ impl Registry {
 
     pub fn list(&self) -> Vec<PathBuf> {
         self.projects.clone()
+    }
+
+    /// Registered paths that no longer resolve to a directory on disk, in
+    /// registration order. A repo that was deleted or moved lands here.
+    pub fn missing(&self) -> Vec<PathBuf> {
+        self.projects
+            .iter()
+            .filter(|path| !path.is_dir())
+            .cloned()
+            .collect()
     }
 
     /// Register `path`, persist, and report whether it was newly added.
@@ -164,6 +191,25 @@ mod tests {
 
         let reloaded = Registry::load(&file).expect("reload");
         assert_eq!(reloaded.list(), vec![PathBuf::from("/tmp/repo-b")]);
+    }
+
+    #[test]
+    fn missing_reports_only_paths_absent_from_disk() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = dir.path().join("projects.json");
+        let live = dir.path().join("live");
+        std::fs::create_dir(&live).expect("mkdir live");
+
+        let mut registry = Registry::load(&file).expect("load empty");
+        registry.add(live.clone()).expect("add live");
+        registry
+            .add(PathBuf::from("/tmp/mizraj/definitely-gone"))
+            .expect("add gone");
+
+        assert_eq!(
+            registry.missing(),
+            vec![PathBuf::from("/tmp/mizraj/definitely-gone")],
+        );
     }
 
     #[test]

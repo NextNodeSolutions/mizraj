@@ -1,9 +1,10 @@
 import { open } from '@tauri-apps/plugin-dialog'
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 
 import { matchMissionControlRoute, usePathname } from '@/app/router'
 import { describeError } from '@/shared/errors'
 import { logger } from '@/shared/logger'
+import { IconX } from '@/shared/ui/icons'
 
 import { compactPath, projectName } from './repoPaths'
 import { useProjects } from './useProjects'
@@ -39,27 +40,61 @@ const ScopeLabel = ({
 	)
 }
 
-const ADD_REPO = Symbol('add-repo')
+// A registered repo (present or vanished from disk), or the trailing
+// "Add repo…" action. Vanished repos can only be pruned, never opened.
+type MenuEntry =
+	| { kind: 'project'; path: string; missing: boolean }
+	| { kind: 'add' }
 
-type MenuEntry = string | typeof ADD_REPO
+const ADD_ENTRY: MenuEntry = { kind: 'add' }
+
+/**
+ * Order the menu so present repos lead, the add action sits between, and
+ * vanished repos trail under their own group. The fixed layout lets keyboard
+ * nav index entries directly and the render place the "introuvable" header.
+ */
+const buildEntries = (
+	projects: ReadonlyArray<string>,
+	missing: ReadonlyArray<string>,
+): ReadonlyArray<MenuEntry> => {
+	const isGone = (path: string): boolean => missing.includes(path)
+	const present = projects.filter(path => !isGone(path))
+	const gone = projects.filter(isGone)
+	return [
+		...present.map(
+			path => ({ kind: 'project', path, missing: false }) as const,
+		),
+		ADD_ENTRY,
+		...gone.map(
+			path => ({ kind: 'project', path, missing: true }) as const,
+		),
+	]
+}
 
 export const ProjectPicker = ({
 	activeProjectPath,
 	onSelect,
 }: Props): React.JSX.Element => {
 	const pathname = usePathname()
-	const { projects, addProject } = useProjects()
+	const { projects, missing, addProject, removeProject, refreshMissing } =
+		useProjects()
 	const [menuOpen, setMenuOpen] = useState(false)
 	const [highlighted, setHighlighted] = useState(0)
 
-	const entries: ReadonlyArray<MenuEntry> = [...projects, ADD_REPO]
+	const entries = buildEntries(projects, missing)
+	const firstGoneIndex = entries.findIndex(
+		entry => entry.kind === 'project' && entry.missing,
+	)
 
 	const openMenu = (): void => {
-		const activeIndex = projects.findIndex(
-			path => path === activeProjectPath,
+		const activeIndex = entries.findIndex(
+			entry =>
+				entry.kind === 'project' && entry.path === activeProjectPath,
 		)
 		setHighlighted(Math.max(activeIndex, 0))
 		setMenuOpen(true)
+		// A repo can vanish while the app runs; re-probe so the menu is truthful.
+		void refreshMissing()
 	}
 
 	const addRepoThenSwitch = (): void => {
@@ -80,12 +115,24 @@ export const ProjectPicker = ({
 
 	const choose = (entry: MenuEntry | undefined): void => {
 		if (entry === undefined) return
-		setMenuOpen(false)
-		if (entry === ADD_REPO) {
+		if (entry.kind === 'add') {
+			setMenuOpen(false)
 			addRepoThenSwitch()
 			return
 		}
-		onSelect(entry)
+		// A vanished repo has nothing to open — the row only offers removal.
+		if (entry.missing) return
+		setMenuOpen(false)
+		onSelect(entry.path)
+	}
+
+	const prune = (path: string): void => {
+		void removeProject(path)
+		// The pruned repo leaves the list, so the highlight can't outrun its end.
+		const remainingCount = entries.length - 1
+		setHighlighted(current =>
+			Math.max(0, Math.min(current, remainingCount - 1)),
+		)
 	}
 
 	// The menu owns its keys at the window's capture phase, like the palette,
@@ -106,6 +153,14 @@ export const ProjectPicker = ({
 				setHighlighted(current =>
 					Math.max(0, Math.min(current + step, entries.length - 1)),
 				)
+				return
+			}
+			if (event.key === 'Delete' || event.key === 'Backspace') {
+				const entry = entries[highlighted]
+				if (entry?.kind !== 'project') return
+				event.preventDefault()
+				event.stopPropagation()
+				prune(entry.path)
 				return
 			}
 			if (event.key === 'Enter') {
@@ -147,14 +202,30 @@ export const ProjectPicker = ({
 					aria-label="Repositories"
 				>
 					{entries.map((entry, index) => (
-						<ProjectOption
-							key={entry === ADD_REPO ? '__add__' : entry}
-							entry={entry}
-							active={entry === activeProjectPath}
-							highlighted={index === highlighted}
-							onHover={() => setHighlighted(index)}
-							onChoose={choose}
-						/>
+						<Fragment
+							key={entry.kind === 'add' ? '__add__' : entry.path}
+						>
+							{index === firstGoneIndex && (
+								<li className="pal-group" role="presentation">
+									introuvable
+								</li>
+							)}
+							<ProjectOption
+								entry={entry}
+								active={
+									entry.kind === 'project' &&
+									entry.path === activeProjectPath
+								}
+								highlighted={index === highlighted}
+								onHover={() => setHighlighted(index)}
+								onChoose={() => choose(entry)}
+								onRemove={
+									entry.kind === 'project'
+										? () => prune(entry.path)
+										: undefined
+								}
+							/>
+						</Fragment>
 					))}
 				</ul>
 			)}
@@ -167,7 +238,8 @@ type OptionProps = {
 	active: boolean
 	highlighted: boolean
 	onHover: () => void
-	onChoose: (entry: MenuEntry) => void
+	onChoose: () => void
+	onRemove?: () => void
 }
 
 const ProjectOption = ({
@@ -176,22 +248,47 @@ const ProjectOption = ({
 	highlighted,
 	onHover,
 	onChoose,
-}: OptionProps): React.JSX.Element => (
-	<li
-		className="pal-item"
-		role="option"
-		aria-selected={active}
-		data-on={highlighted ? 'true' : 'false'}
-		onMouseEnter={onHover}
-		onClick={() => onChoose(entry)}
-	>
-		{entry === ADD_REPO ? (
-			<span>Add repo…</span>
-		) : (
-			<>
-				<span>{projectName(entry)}</span>
-				<span className="pk">{compactPath(entry)}</span>
-			</>
-		)}
-	</li>
-)
+	onRemove,
+}: OptionProps): React.JSX.Element => {
+	if (entry.kind === 'add') {
+		return (
+			<li
+				className="pal-item"
+				role="option"
+				aria-selected={false}
+				data-on={highlighted ? 'true' : 'false'}
+				onMouseEnter={onHover}
+				onClick={onChoose}
+			>
+				<span>Add repo…</span>
+			</li>
+		)
+	}
+	return (
+		<li
+			className="pal-item"
+			role="option"
+			aria-selected={active}
+			data-on={highlighted ? 'true' : 'false'}
+			data-missing={entry.missing ? 'true' : 'false'}
+			onMouseEnter={onHover}
+			onClick={onChoose}
+		>
+			<span>{projectName(entry.path)}</span>
+			<span className="pk">{compactPath(entry.path)}</span>
+			{onRemove && (
+				<button
+					type="button"
+					className="pal-rm"
+					aria-label={`Remove ${projectName(entry.path)} from the pool`}
+					onClick={event => {
+						event.stopPropagation()
+						onRemove()
+					}}
+				>
+					<IconX />
+				</button>
+			)}
+		</li>
+	)
+}
